@@ -7,14 +7,18 @@ final class SVGCanvasView: NSView {
     private let renderer = SVGCanvasRenderer()
     private let hitTester = SVGCanvasHitTester(tolerance: 6)
     private let inspectorView = SVGObjectInspectorView()
+
     private var lastDragLocation: CGPoint?
     private var panOffset = CGPoint.zero
     private var zoomScale: CGFloat = 3.0
-    /// Currently unused intentionally.
+    /// Currently unused intentionally. This is rotating the whole world, not sure it's useful
     private var rotationAngle: CGFloat = 0
+
     var currentPathCount: Int {
         state.objects.reduce(0) { $0 + $1.paths.count }
     }
+
+    var onAddNew: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -63,7 +67,7 @@ final class SVGCanvasView: NSView {
             self?.rotateObject(id: id, degrees: amount)
         }
         inspectorView.onAddNew = { [weak self] in
-            
+            self?.onAddNew?()
         }
     }
     override func layout() {
@@ -96,21 +100,22 @@ final class SVGCanvasView: NSView {
     }
 
     private func render() {
-        renderer.render(
-            objects: state.objects,
-            zoomScale: zoomScale,
-            selectedObjectIDs: state.selectedObjectIDs,
-            selectedPath: state.selectedPath
-        )
+        renderer.render(objects: state.objects,
+                        zoomScale: zoomScale,
+                        selectedObjectIDs: state.selectedObjectIDs,
+                        selectedPath: state.selectedPath)
     }
 
     private func updateWorldTransform() {
-        CATransaction.begin(); CATransaction.setDisableActions(true)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
         var transform = CGAffineTransform.identity
         transform = transform.translatedBy(x: panOffset.x, y: panOffset.y)
         transform = transform.rotated(by: rotationAngle)
         transform = transform.scaledBy(x: zoomScale, y: zoomScale)
         renderer.worldLayer.setAffineTransform(transform)
+
         CATransaction.commit()
     }
 
@@ -157,8 +162,10 @@ final class SVGCanvasView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+
         let viewPoint = convert(event.locationInWindow, from: nil)
         lastDragLocation = viewPoint
+
         guard let worldPoint = layer?.convert(viewPoint, to: renderer.worldLayer) else {
             return
         }
@@ -176,7 +183,9 @@ final class SVGCanvasView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+
         let location = convert(event.locationInWindow, from: nil)
+
         guard let last = lastDragLocation else {
             lastDragLocation = location
             return
@@ -232,6 +241,7 @@ final class SVGCanvasView: NSView {
         object.width = scaleFactor > 0
             ? max(object.width * CGFloat(scaleFactor), 0.001)
             : max(object.width / CGFloat(-scaleFactor), 0.001)
+
         render()
         updateInspector()
     }

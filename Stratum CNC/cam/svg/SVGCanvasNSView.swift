@@ -13,12 +13,16 @@ import AppKit
 struct SVGCanvasNSView: NSViewRepresentable {
 
     let svgFile: SVGFile
+    var onAddNew: (() -> Void)?
 
     func makeNSView(context: Context) -> SVGCanvasView {
 
         let view = SVGCanvasView()
-        view.insertSvgFile(svgFile)
         view.clipsToBounds = true
+        view.insertSvgFile(svgFile)
+        view.onAddNew = {
+            onAddNew?()
+        }
 
         return view
     }

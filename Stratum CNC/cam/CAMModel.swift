@@ -12,10 +12,11 @@ class CAMModel: ObservableObject {
 
     @Published var toolStore = ToolStore()
     @Published var showingToolsSheet: Bool = false
+
     @Published var stockStore = StockStore()
     @Published var showingStockSheet: Bool = false
 
-    // Insert new files
+    // Insert new files. temporary vars to use
     @Published var showingFilePicker = false
     @Published var svgFile: SVGFile?
 }

@@ -12,13 +12,15 @@ enum ActiveTab: String, CaseIterable, Identifiable {
     case cam = "CAM"
     case controller = "Controller"
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 }
 
 @MainActor
 class AppModel: ObservableObject {
 
-    @Published var activeTab: ActiveTab = .cam
+    @Published var activeTab: ActiveTab = .projects
     @Published var activeProject: CNCProject?
 
     // Tabs. Models should be in memory at all times, so we don't loose data when switching from one tab to another

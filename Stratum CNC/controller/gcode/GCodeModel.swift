@@ -26,4 +26,23 @@ class GCodeModel: ObservableObject {
         }
         return types
     }
+
+
+    func generateGCode(svgPaths: [NSBezierPath]) {
+        let subpaths = BezierPathFlattener.flatten(svgPaths, tolerance: 0.05) // mm
+
+        let gcode = GCodeGenerator.generate(
+            subpaths: subpaths,
+            units: .millimeters,
+            safeHeightZ: 5.0,
+            cutDepthZ: -2.0,
+            feedRateCut: 900,
+            feedRatePlunge: 150,
+            spindleSpeed: 15000
+        )
+
+        print(gcode)
+        document.load(from: gcode)
+    }
+
 }

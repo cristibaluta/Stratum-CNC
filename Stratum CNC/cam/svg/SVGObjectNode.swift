@@ -58,41 +58,27 @@ final class SVGObjectNode {
 
 extension SVGObjectNode {
 
-    func update(
-        object: SVGObject,
-        zoomScale: CGFloat,
-        objectSelected: Bool,
-        selectedPathIndex: Int?
-    ) {
+    func update(object: SVGObject,
+                zoomScale: CGFloat,
+                objectSelected: Bool,
+                selectedPathIndex: Int?) {
+
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
-        layer.bounds = CGRect(
-            origin: .zero,
-            size: object.originalSize
-        )
-
+        layer.bounds = CGRect(origin: .zero, size: object.originalSize)
         layer.position = object.center
 
         var transform = CGAffineTransform.identity
-
-        transform = transform.scaledBy(
-            x: object.scale,
-            y: object.scale
-        )
-
-        transform = transform.rotated(
-            by: object.rotationDegrees * .pi / 180
-        )
+        transform = transform.scaledBy(x: object.scale, y: object.scale)
+        transform = transform.rotated(by: object.rotationDegrees * .pi / 180)
 
         layer.setAffineTransform(transform)
 
-        updateStyles(
-            object: object,
-            zoomScale: zoomScale,
-            objectSelected: objectSelected,
-            selectedPathIndex: selectedPathIndex
-        )
+        updateStyles(object: object,
+                     zoomScale: zoomScale,
+                     objectSelected: objectSelected,
+                     selectedPathIndex: selectedPathIndex)
 
         CATransaction.commit()
     }
@@ -102,61 +88,38 @@ extension SVGObjectNode {
 
 private extension SVGObjectNode {
 
-    func updateStyles(
-        object: SVGObject,
-        zoomScale: CGFloat,
-        objectSelected: Bool,
-        selectedPathIndex: Int?
-    ) {
-        let effectiveScale = max(
-            zoomScale * object.scale,
-            0.000001
-        )
+    func updateStyles(object: SVGObject,
+                      zoomScale: CGFloat,
+                      objectSelected: Bool,
+                      selectedPathIndex: Int?) {
+
+        let effectiveScale = max(zoomScale * object.scale, 0.000001)
 
         for (index, shapeLayer) in shapeLayers.enumerated() {
 
             let isPathSelected = selectedPathIndex == index
 
             if objectSelected {
-                shapeLayer.strokeColor =
-                    NSColor.systemRed.cgColor
-
-                shapeLayer.lineWidth =
-                    2.5 / effectiveScale
+                shapeLayer.strokeColor = NSColor.systemRed.cgColor
+                shapeLayer.lineWidth = 2.5 / effectiveScale
 
             } else if isPathSelected {
-                shapeLayer.strokeColor =
-                    NSColor.systemBlue.cgColor
-
-                shapeLayer.lineWidth =
-                    2.0 / effectiveScale
+                shapeLayer.strokeColor = NSColor.systemBlue.cgColor
+                shapeLayer.lineWidth = 2.0 / effectiveScale
 
             } else {
-                shapeLayer.strokeColor =
-                    NSColor.labelColor.cgColor
-
-                shapeLayer.lineWidth =
-                    1.0 / effectiveScale
+                shapeLayer.strokeColor = NSColor.labelColor.cgColor
+                shapeLayer.lineWidth = 1.0 / effectiveScale
             }
         }
 
-        selectionLayer.opacity =
-            objectSelected ? 1 : 0
-
-        rotationCenterLayer.opacity =
-            objectSelected ? 1 : 0
-
-        selectionLayer.lineWidth =
-            1.0 / effectiveScale
-
-        rotationCenterLayer.lineWidth =
-            1.0 / effectiveScale
+        selectionLayer.opacity = objectSelected ? 1 : 0
+        rotationCenterLayer.opacity = objectSelected ? 1 : 0
+        selectionLayer.lineWidth = 1.0 / effectiveScale
+        rotationCenterLayer.lineWidth = 1.0 / effectiveScale
     }
 
-    static func makeShapeLayer(
-        for path: NSBezierPath,
-        strokeWidth: CGFloat
-    ) -> CAShapeLayer {
+    static func makeShapeLayer(for path: NSBezierPath, strokeWidth: CGFloat) -> CAShapeLayer {
 
         let layer = CAShapeLayer()
 

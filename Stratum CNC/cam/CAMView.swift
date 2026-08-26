@@ -7,6 +7,10 @@
 
 import SwiftUI
 
+// The main view of the cam screen.
+// It holds the model preview and the list of toolpaths
+// You can access also the tools and stocks from here
+
 struct CAMView: View {
 
     @ObservedObject var model: CAMModel

@@ -187,6 +187,15 @@ final class NCFileDocument: ObservableObject {
         }
     }
 
+    func load(from string: String) {
+        let parser = GCodeParser()
+        let code: ParsedGCode = parser.parse(string)
+
+        self.lines = code.lines
+        self.toolpathSegments = code.toolpathSegments
+        self.fileName = "From CAM"
+    }
+
     // MARK: Background parsing
 
     /// Loads and parses the complete file away from the main actor.
@@ -317,9 +326,7 @@ final class NCFileDocument: ObservableObject {
 
 private final class GCodeParser {
 
-    func parse(
-        _ contents: String
-    ) -> ParsedGCode {
+    func parse(_ contents: String) -> ParsedGCode {
 
         var lines: [GCodeLine] = []
 

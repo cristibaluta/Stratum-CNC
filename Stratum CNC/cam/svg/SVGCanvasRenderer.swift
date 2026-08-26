@@ -5,6 +5,7 @@ final class SVGCanvasRenderer {
     let worldLayer = CALayer()
     let rulerLayer = CAShapeLayer()
     let objectsLayer = CALayer()
+    let testLayer = CAShapeLayer()
     private(set) var nodes: [UUID: SVGObjectNode] = [:]
     private let baseStrokeWidth: CGFloat = 1.0
     private let rulerLength: CGFloat = 200
@@ -27,24 +28,42 @@ final class SVGCanvasRenderer {
     }
 
     // MARK: Rendering
-    func render(
-        objects: [SVGObject],
-        zoomScale: CGFloat,
-        selectedObjectIDs: Set<UUID>,
-        selectedPath: SVGPathSelection?
-    ) {
+    func render(objects: [SVGObject],
+                zoomScale: CGFloat,
+                selectedObjectIDs: Set<UUID>,
+                selectedPath: SVGPathSelection?) {
+
         for object in objects {
-            guard let node = nodes[object.id] else { continue }
+            guard let node = nodes[object.id] else {
+                continue
+            }
             let selected = selectedObjectIDs.contains(object.id)
             let selectedPathIndex: Int? = (selectedPath?.objectID == object.id) ? selectedPath?.pathIndex : nil
-            node.update(
-                object: object,
-                zoomScale: zoomScale,
-                objectSelected: selected,
-                selectedPathIndex: selectedPathIndex
-            )
+
+            node.update(object: object,
+                        zoomScale: zoomScale,
+                        objectSelected: selected,
+                        selectedPathIndex: selectedPathIndex)
+
+            // For testing purposes render the flattened version
+            let flattenedPoints = BezierPathFlattener.flatten(object.paths, tolerance: 0.02)
+            let path = CGMutablePath()
+            for points in flattenedPoints {
+//                print("Subpath: \(points)")
+                path.move(to: points.first!)
+                for point in points {
+                    path.addLine(to: point)
+                }
+            }
+            testLayer.path = path
+            testLayer.strokeColor = NSColor.blue.cgColor
+            testLayer.fillColor = nil
+            testLayer.lineWidth = 0.5
+            testLayer.zPosition = -1
+            testLayer.actions = ["lineWidth": NSNull()]
         }
         updateRulerStrokeWidth(zoomScale: zoomScale)
+
     }
 
     // MARK: Setup
@@ -53,6 +72,7 @@ final class SVGCanvasRenderer {
         worldLayer.bounds = CGRect(x: 0, y: 0, width: 1, height: 1)
         worldLayer.addSublayer(rulerLayer)
         worldLayer.addSublayer(objectsLayer)
+        worldLayer.addSublayer(testLayer)
     }
 
     // MARK: Ruler
@@ -62,8 +82,10 @@ final class SVGCanvasRenderer {
         path.addLine(to: CGPoint(x: rulerLength, y: 0))
         path.move(to: CGPoint(x: 0, y: 0))
         path.addLine(to: CGPoint(x: 0, y: rulerLength))
+
         addTicks(to: path, alongX: true)
         addTicks(to: path, alongX: false)
+
         rulerLayer.path = path
         rulerLayer.strokeColor = NSColor.secondaryLabelColor.cgColor
         rulerLayer.fillColor = nil
