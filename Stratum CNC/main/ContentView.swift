@@ -16,7 +16,10 @@ struct ContentView: View {
                 case .cam:
                     CAMView(model: appModel.camModel)
                 case .controller:
-                    ControllerView(model: appModel.controllerModel, gCodeModel: appModel.gCodeModel, joystickStore: appModel.joystick)
+                    ControllerView(model: appModel.controllerModel,
+                                   camModel: appModel.camModel,
+                                   gCodeModel: appModel.gCodeModel,
+                                   joystickStore: appModel.joystick)
             }
         }
         .toolbar {

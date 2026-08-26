@@ -10,6 +10,7 @@ import SwiftUI
 struct ControllerView: View {
 
     @ObservedObject var model: ControllerModel
+    @ObservedObject var camModel: CAMModel
     @ObservedObject var gCodeModel: GCodeModel
     @ObservedObject var joystickStore: GameControllerStore
 
@@ -22,7 +23,6 @@ struct ControllerView: View {
                     emptyState
                     Spacer()
                 }
-                .background(.gray)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 MetalView()
@@ -167,18 +167,20 @@ struct ControllerView: View {
 
             HStack(spacing: 16) {
                 VStack {
-                    Text("Generate G-code from CAM")
+                    Text("Generate G-code from CAM toolpaths")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button {
-                        // TODO
+                        if let paths = camModel.svgFile?.paths {
+                            gCodeModel.generateGCode(svgPaths: paths)
+                        }
                     } label: {
                         Text("Use from CAM")
                     }
                     .buttonStyle(.borderedProminent)
                 }
 
-                Divider()
+                Divider().frame(height: 40)
 
                 VStack {
                     Text("Load a .nc, .ngc, .gcode, .cnc, or .tap file.")
@@ -225,68 +227,25 @@ struct ControllerView: View {
         }
     }
 
-    private var bottomControls: some View {
-        HStack(spacing: 8) {
-            feedOverride
-
-            Spacer()
-
-            if let error = model.connection.lastError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button {
-                model.sendRawCommand("!")
-            } label: {
-                Label("Pause", systemImage: "pause.fill")
-            }
-
-            Button {
-                model.sendRawCommand("~")
-            } label: {
-                Label("Resume", systemImage: "play.fill")
-            }
-
-            Button(role: .destructive) {
-                model.sendCommand(CNC.spindleOff)
-                model.sendRawCommand("!")
-            } label: {
-                Label("Stop", systemImage: "stop.fill")
-            }
-
-            Button(role: .destructive) {
-                model.sendRawCommand("\u{18}")
-            } label: {
-                Label("Reset", systemImage: "xmark.octagon.fill")
-            }
-        }
-        .disabled(!model.connection.isConnected)
-    }
-
-    private var feedOverride: some View {
-        HStack(spacing: 5) {
-            Text("Feed")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Picker("Feed", selection: $model.selectedFeedOverride) {
-                Text("25%").tag(25)
-                Text("50%").tag(50)
-                Text("75%").tag(75)
-                Text("100%").tag(100)
-                Text("125%").tag(125)
-                Text("150%").tag(150)
-            }
-            .labelsHidden()
-            .frame(width: 80)
-            .onChange(of: model.selectedFeedOverride) {
-                model.sendCommand(CNC.feedOverride.with(percent: model.selectedFeedOverride))
-            }
-        }
-    }
+//    private var feedOverride: some View {
+//        HStack(spacing: 5) {
+//            Text("Feed")
+//                .font(.caption)
+//                .foregroundStyle(.secondary)
+//
+//            Picker("Feed", selection: $model.selectedFeedOverride) {
+//                Text("25%").tag(25)
+//                Text("50%").tag(50)
+//                Text("75%").tag(75)
+//                Text("100%").tag(100)
+//                Text("125%").tag(125)
+//                Text("150%").tag(150)
+//            }
+//            .labelsHidden()
+//            .frame(width: 80)
+//            .onChange(of: model.selectedFeedOverride) {
+//                model.sendCommand(CNC.feedOverride.with(percent: model.selectedFeedOverride))
+//            }
+//        }
+//    }
 }

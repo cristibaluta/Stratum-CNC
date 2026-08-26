@@ -65,13 +65,13 @@ enum GCodeGenerator {
         safeHeightZ: Double = 5.0,
         cutDepthZ: Double = -1.0,
         passDepths: [Double]? = nil,
-        feedRateCut: Double = 800,
-        feedRatePlunge: Double = 200,
-        feedRateRetract: Double? = nil,
+        feedRateCut: Int = 800,
+        feedRatePlunge: Int = 200,
+        feedRateRetract: Int? = nil,
         spindleSpeed: Int? = 12000,
         rapidFeedRate: Double? = nil,
         closePathTolerance: Double = 0.001,
-        coordinateDecimalPlaces: Int = 4,
+        coordinateDecimalPlaces: Int = 2,
         preamble: [String] = [],
         postamble: [String] = ["M30 ; program end"]
     ) -> String {
@@ -102,15 +102,15 @@ enum GCodeGenerator {
 
         let depths: [Double] = passDepths ?? [cutDepthZ]
 
-        var lastFeedEmitted: Double? = nil
+        var lastFeedEmitted: Int? = nil
 
-        func emitMove(command: String, x: Double? = nil, y: Double? = nil, z: Double? = nil, feed: Double? = nil) {
+        func emitMove(command: String, x: Double? = nil, y: Double? = nil, z: Double? = nil, feed: Int? = nil) {
             var parts: [String] = [command]
             if let x { parts.append("X\(fmt(x))") }
             if let y { parts.append("Y\(fmt(y))") }
             if let z { parts.append("Z\(fmt(z))") }
             if let feed, feed != lastFeedEmitted {
-                parts.append("F\(fmt(feed))")
+                parts.append("F\(feed)")
                 lastFeedEmitted = feed
             }
             lines.append(parts.joined(separator: " "))
