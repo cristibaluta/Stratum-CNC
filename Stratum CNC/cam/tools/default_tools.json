@@ -1,0 +1,3010 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "name": "Makera Wiki — Speeds & Feeds",
+    "url": "https://wiki.makera.com/en/speeds-and-feeds",
+    "retrieved": "2026-08-25",
+    "units": {
+      "diameter": "mm",
+      "length": "mm",
+      "feedRate": "mm/min",
+      "plungeFeedRate": "mm/min",
+      "depthOfCut": "mm",
+      "spindleRPM": "RPM"
+    }
+  },
+  "tools": [
+    {
+      "id": "91d8c0d2-27c2-47fd-9cb9-3f49431faa59",
+      "name": "1*3mm Flat End(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.0,
+      "length": 3.0,
+      "type": "endMill",
+      "group": "Single Flute Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.05
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.05
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "12b5a4c8-5a2e-4b5e-823e-0ba5fa69cad2",
+      "name": "1.5*6mm Flat End(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.5,
+      "length": 6.0,
+      "type": "endMill",
+      "group": "Single Flute Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.05
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.05
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "05ba905f-a907-4555-a312-2c0c46d74fd1",
+      "name": "2*8mm Flat End(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.0,
+      "length": 8.0,
+      "type": "endMill",
+      "group": "Single Flute Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.15
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "4691dbca-216f-4585-ad00-fa281e8b2576",
+      "name": "2.5*12mm Flat End(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.5,
+      "length": 12.0,
+      "type": "endMill",
+      "group": "Single Flute Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "ee6c6633-17b8-4ab4-88d0-acc18b0f7618",
+      "name": "3.175*12mm Flat End(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.175,
+      "length": 12.0,
+      "type": "endMill",
+      "group": "Single Flute Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "97d0db3e-3750-42b5-9310-5b6bc4ca8026",
+      "name": "1*3mm Flat End",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1,
+      "length": 3,
+      "type": "endMill",
+      "group": "Single Flute Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "8b65464e-f0dd-49e8-9f63-7941cfc3df49",
+      "name": "1.5*8mm Flat End",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.5,
+      "length": 8,
+      "type": "endMill",
+      "group": "Single Flute Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "fb9ba8c6-8e2e-4cbb-a660-5313315cc1d3",
+      "name": "2*12mm Flat End",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2,
+      "length": 12,
+      "type": "endMill",
+      "group": "Single Flute Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "a6f0cacd-118c-4d35-b342-3f5b6dfca0ca",
+      "name": "2.5*15mm Flat End",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.5,
+      "length": 15,
+      "type": "endMill",
+      "group": "Single Flute Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "456a9828-4ac8-47c4-baee-ff90fa72409a",
+      "name": "3.175*17mm Flat End",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.175,
+      "length": 17,
+      "type": "endMill",
+      "group": "Single Flute Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "cf7653b8-8b8b-4536-8bd4-3844cb458618",
+      "name": "3.175*25mm Flat End",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.175,
+      "length": 25,
+      "type": "endMill",
+      "group": "Single Flute Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "dbfc37be-5a5c-493d-b4ef-3ee3f8e53f25",
+      "name": "3.175*32mm Flat End",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.175,
+      "length": 32,
+      "type": "endMill",
+      "group": "Single Flute Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "9e8d859c-82b1-47a1-8f24-e19e2a06c3e0",
+      "name": "3.175*42mm Flat End",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.175,
+      "length": 42,
+      "type": "endMill",
+      "group": "Single Flute Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "84c14b5a-ca47-49f2-adf2-c561484790db",
+      "name": "0.1mm*60° Engraving(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.1,
+      "type": "engraving",
+      "group": "Engraving Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 60
+    },
+    {
+      "id": "061f9bba-cba4-4f0d-b743-1832caef8aa8",
+      "name": "0.2mm*30° Engraving(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.2,
+      "type": "engraving",
+      "group": "Engraving Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "bfd01a1d-d1d2-4839-8ca9-164d517385c2",
+      "name": "0.3mm*30° Engraving(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.3,
+      "type": "engraving",
+      "group": "Engraving Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "3dac755e-eb50-4d5a-9c8b-fafecad27f52",
+      "name": "0.4mm*30° Engraving(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.4,
+      "type": "engraving",
+      "group": "Engraving Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "2a2fbd33-59a5-4690-a99a-465e6647b460",
+      "name": "0.5mm*30° Engraving(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.5,
+      "type": "engraving",
+      "group": "Engraving Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 300,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "0e73218a-0dfe-42a9-b832-a70d05c3e5ad",
+      "name": "0.1mm*30° Engraving",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.1,
+      "type": "engraving",
+      "group": "Engraving Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "cf174c63-7e9d-4639-8967-70ca8f419bb6",
+      "name": "0.2mm*30° Engraving",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.2,
+      "type": "engraving",
+      "group": "Engraving Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "d7f86f74-6e37-4b77-9e2e-29339640e367",
+      "name": "0.3mm*30° Engraving",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.3,
+      "type": "engraving",
+      "group": "Engraving Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "7150c7e5-bd99-4cae-9aea-bb99b6621c4e",
+      "name": "0.4mm*30° Engraving",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.4,
+      "type": "engraving",
+      "group": "Engraving Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "019cb420-910b-4dff-8930-8b09cadbb9b3",
+      "name": "0.5mm*30° Engraving",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.5,
+      "type": "engraving",
+      "group": "Engraving Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 30
+    },
+    {
+      "id": "a5ff3704-5822-451a-b6d2-38ac22637226",
+      "name": "1*3mm ball nose(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1,
+      "length": 3,
+      "type": "ballNose",
+      "group": "Ball Nose Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "b73e6e99-5f1d-4caa-82e4-cf85f7961e51",
+      "name": "1.5*4.5mm ball nose(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.5,
+      "length": 4.5,
+      "type": "ballNose",
+      "group": "Ball Nose Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "5cf7e0a5-9ddf-4f50-8fea-e10bf61a9c22",
+      "name": "2*6mm ball nose(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2,
+      "length": 6,
+      "type": "ballNose",
+      "group": "Ball Nose Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "ff8c056e-2118-4d11-bdae-332cf2fc8df8",
+      "name": "2.5*7.5mm ball nose(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.5,
+      "length": 7.5,
+      "type": "ballNose",
+      "group": "Ball Nose Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "9e2e4298-f70c-4a37-bc0f-5ec751e5b8af",
+      "name": "3.175*10mm ball nose(Metal)",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.175,
+      "length": 10,
+      "type": "ballNose",
+      "group": "Ball Nose Metal",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "52d86f75-ec2f-4ce5-b2d4-0ba024d82f36",
+      "name": "1*4mm ball nose",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1,
+      "length": 4,
+      "type": "ballNose",
+      "group": "Ball Nose Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "394f6944-7be4-44cb-8d6e-fd2dc2b1d484",
+      "name": "1.5*8mm ball nose",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.5,
+      "length": 8,
+      "type": "ballNose",
+      "group": "Ball Nose Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "9edfc9c2-f620-4d70-8dbb-2112833e3db0",
+      "name": "2*12mm ball nose",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2,
+      "length": 12,
+      "type": "ballNose",
+      "group": "Ball Nose Non Metal",
+      "parameters": {
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 2
+        }
+      }
+    },
+    {
+      "id": "8ae41927-6297-4095-b649-1d352ea45b03",
+      "name": "1mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.0,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "55ae5c42-4918-437b-9fd7-df39848e55a9",
+      "name": "1.6mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.6,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "156d7413-5ee8-46bc-b04f-7ee018196978",
+      "name": "1.7mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.7,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "54bd1f13-7307-49eb-adb6-e938160b970b",
+      "name": "1.8mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.8,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "a54b796f-8233-4b65-b668-c185130fedc6",
+      "name": "1.9mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.9,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "9550060d-f790-4cae-9274-72e29c7a3fc5",
+      "name": "2mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.0,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "dac9aaa4-4a39-418e-a300-05a980867184",
+      "name": "2.1mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.1,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "be203ad1-a54c-4ba8-81cf-d8b47d897980",
+      "name": "2.4mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.4,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "89bd54f2-76d8-4561-992f-a4fd9ab48f26",
+      "name": "2.5mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.5,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "977dc387-88e9-4cc0-8933-7e8b24b6fb5a",
+      "name": "3mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.0,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "b215244f-f0a9-4517-8fb0-58dd274afd8d",
+      "name": "3.175mm Corn",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.175,
+      "type": "corn",
+      "group": "Corn",
+      "parameters": {
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.3
+        }
+      }
+    },
+    {
+      "id": "ed5795c3-1cbe-432a-844a-7804f5328bcf",
+      "name": "0.2*3.5mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.2,
+      "length": 3.5,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.5
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "3551c231-bce9-44ca-bf34-4dc048bb8de2",
+      "name": "0.3*5.5mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.3,
+      "length": 5.5,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.5
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "6239323e-f2e1-4b35-b7b5-41f75846e0e6",
+      "name": "0.4*7mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.4,
+      "length": 7.0,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.5
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "658e9b05-2fe2-4d75-8beb-e33dfc320a5a",
+      "name": "0.5*8.5mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.5,
+      "length": 8.5,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.5
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "5275c0d1-18ab-449e-8621-36d1804423f3",
+      "name": "0.6*9.5mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.6,
+      "length": 9.5,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "404ddea2-f913-4e43-9ef2-d7a6f4332fe1",
+      "name": "1.2*10mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.2,
+      "length": 10,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "023060da-abad-41c6-a8f3-340c01bdf121",
+      "name": "1.3*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.3,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "b951d243-6902-44ff-b022-22c35353750c",
+      "name": "1.4*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.4,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "28994abf-fe28-42f3-acf9-698c88bd24f0",
+      "name": "1.5*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.5,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "1dad5c18-efaf-4568-b928-62e5fd9e5e87",
+      "name": "1.6*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.6,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "7ca9065b-6210-4c7e-8fb9-4a1c83d67ac4",
+      "name": "1.7*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.7,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "a21b065b-3dac-4dfd-9e20-76e6bf5070dc",
+      "name": "1.8*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.8,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "d0b6533f-01c1-4b7b-9c81-065228c6e1e2",
+      "name": "1.9*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 1.9,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "c6502165-9edb-47a2-9ff7-637d6c39d25b",
+      "name": "2*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.0,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "25dec942-46dc-49fb-a125-43ada0b8ed61",
+      "name": "2.1*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.1,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "16927c38-4140-48e4-9339-449606f7ed79",
+      "name": "2.2*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.2,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "95c9ee20-173b-4504-9a7a-74ad44297a98",
+      "name": "2.3*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.3,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "7b0aeb53-b043-44d8-8d95-ccc7b0a01d84",
+      "name": "2.4*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.4,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "068d81fe-d1eb-4274-9f23-6992c9cc0526",
+      "name": "2.5*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.5,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "059053ad-6147-43f4-b8c8-112c406cf9ea",
+      "name": "2.6*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.6,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "dd319818-5cb1-4c2e-be3b-199230e4234b",
+      "name": "2.7*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.7,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "84f61360-46e8-477c-8988-12e7e7039b6e",
+      "name": "2.8*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.8,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "5c916ccf-3646-453e-bc0f-a19636314327",
+      "name": "2.9*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 2.9,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "53611762-e396-46bc-b14e-1886f8606884",
+      "name": "3*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.0,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "cde04e49-0d56-4cdc-b1f1-3839f243f899",
+      "name": "3.175*12mm Drill",
+      "shankDiameter": 3.175,
+      "toolDiameter": 3.175,
+      "length": 12,
+      "type": "drill",
+      "group": "Drill",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 1
+        },
+        "carbonFiber": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "copper": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.2
+        },
+        "hardwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 200,
+          "depthOfCut": 1
+        },
+        "plastic": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 10000,
+          "feedRate": 1000,
+          "plungeFeedRate": 300,
+          "depthOfCut": 1
+        }
+      }
+    },
+    {
+      "id": "97d001a3-b1bd-456f-9e49-984e1ce0e3a8",
+      "name": "0.1mm*90° Chamfering",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.1,
+      "type": "chamfer",
+      "group": "Chamfering Bits",
+      "parameters": {
+        "aluminum": {
+          "spindleRPM": 12000,
+          "feedRate": 600,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        },
+        "brass": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "carbonFiber": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "copper": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "hardwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "pcb": {
+          "spindleRPM": 12000,
+          "feedRate": 500,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.1
+        },
+        "plastic": {
+          "spindleRPM": 12000,
+          "feedRate": 1000,
+          "plungeFeedRate": 500,
+          "depthOfCut": 1
+        },
+        "softwood": {
+          "spindleRPM": 12000,
+          "feedRate": 1200,
+          "plungeFeedRate": 500,
+          "depthOfCut": 2
+        }
+      },
+      "tipAngle": 90
+    },
+    {
+      "id": "420aec1f-19e3-4ba1-a72b-20d648e389fc",
+      "name": "0.3mm*30° Solder Mask Removal",
+      "shankDiameter": 3.175,
+      "toolDiameter": 0.3,
+      "type": "engraving",
+      "group": "Solder Mask Remover",
+      "parameters": {
+        "pcb": {
+          "spindleRPM": 6000,
+          "feedRate": 400,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.2
+        }
+      },
+      "tipAngle": 30
+    }
+  ]
+}

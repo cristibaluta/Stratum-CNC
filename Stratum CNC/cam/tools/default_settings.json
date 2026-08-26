@@ -1,0 +1,308 @@
+
+  "laserSettings": {
+    "machine": [
+      "Carvera 2.5W",
+      "Carvera Air 5W"
+    ],
+    "materials": {
+      "MDF": {
+        "vectorEngrave": {
+          "speed": 1000,
+          "power": 20,
+          "passes": "1"
+        },
+        "imageEngrave": {
+          "speed": 1000,
+          "power": 30,
+          "passes": "1"
+        }
+      },
+      "Paper": {
+        "suggestedThicknessCut": "0.1 mm",
+        "vectorEngrave": {
+          "speed": 1000,
+          "power": 20,
+          "passes": "1"
+        },
+        "vectorCut": {
+          "speed": 200,
+          "power": 40,
+          "passes": "1"
+        }
+      },
+      "Corrugated Cardboard": {
+        "suggestedThicknessCut": "3 mm",
+        "vectorEngrave": {
+          "speed": 1000,
+          "power": 20,
+          "passes": "1"
+        },
+        "vectorCut": {
+          "speed": 80,
+          "power": 50,
+          "passes": "2-3"
+        },
+        "imageEngrave": {
+          "speed": 1000,
+          "power": 40,
+          "passes": "1"
+        }
+      },
+      "EVA Foam": {
+        "suggestedThicknessCut": "2 mm",
+        "vectorEngrave": {
+          "speed": 1000,
+          "power": 15,
+          "passes": "1"
+        },
+        "vectorCut": {
+          "speed": 100,
+          "power": 15,
+          "passes": "1"
+        },
+        "imageEngrave": {
+          "speed": 1000,
+          "power": 20,
+          "passes": "1"
+        }
+      },
+      "Felt Fabric": {
+        "suggestedThicknessCut": "1 mm",
+        "vectorEngrave": {
+          "speed": 100,
+          "power": 5,
+          "passes": "1"
+        },
+        "vectorCut": {
+          "speed": 100,
+          "power": 15,
+          "passes": "1"
+        }
+      },
+      "Genuine Leather": {
+        "vectorEngrave": {
+          "speed": 1000,
+          "power": 10,
+          "passes": "1"
+        },
+        "imageEngrave": {
+          "speed": 1000,
+          "power": 20,
+          "passes": "1"
+        }
+      },
+      "Engraving Rubber": {
+        "vectorEngrave": {
+          "speed": 500,
+          "power": 30,
+          "passes": "2-3"
+        }
+      },
+      "Wooden Veneer": {
+        "suggestedThicknessCut": "0.5 mm",
+        "vectorEngrave": {
+          "speed": 500,
+          "power": 20,
+          "passes": "1"
+        },
+        "vectorCut": {
+          "speed": 60,
+          "power": 50,
+          "passes": "1"
+        },
+        "imageEngrave": {
+          "speed": 1000,
+          "power": 30,
+          "passes": "1"
+        }
+      },
+      "Soft Woods": {
+        "vectorEngrave": {
+          "speed": 500,
+          "power": 30,
+          "passes": "1"
+        },
+        "imageEngrave": {
+          "speed": 1000,
+          "power": 30,
+          "passes": "1"
+        }
+      },
+      "Hard Woods": {
+        "vectorEngrave": {
+          "speed": 500,
+          "power": 40,
+          "passes": "1"
+        },
+        "imageEngrave": {
+          "speed": 1000,
+          "power": 40,
+          "passes": "1"
+        }
+      },
+      "PCB Silk Screen (Light Soldermask)": {
+        "vectorEngrave": {
+          "speed": 100,
+          "power": 20,
+          "passes": "1"
+        }
+      },
+      "PCB Silk Screen (Dark Soldermask)": {
+        "vectorEngrave": {
+          "speed": 100,
+          "power": 30,
+          "passes": "1"
+        }
+      },
+      "Masking Tape": {
+        "suggestedThicknessCut": "0.015 mm",
+        "vectorCut": {
+          "speed": 200,
+          "power": 40,
+          "passes": "1"
+        }
+      }
+    }
+  },
+  "threadMilling": {
+    "shankDiameter": 3.175,
+    "tools": [
+      {
+        "nominalSize": "M1",
+        "threadPitch": 0.25,
+        "tappingDrillSize": 0.75,
+        "woodsAndPlastics": {
+          "spindleRPM": 10000,
+          "feedRate": 200,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.25
+        },
+        "metals": {
+          "spindleRPM": 12000,
+          "feedRate": 100,
+          "plungeFeedRate": 100,
+          "depthOfCut": 0.25
+        },
+        "composites": {
+          "spindleRPM": 10000,
+          "feedRate": 150,
+          "plungeFeedRate": 150,
+          "depthOfCut": 0.25
+        }
+      },
+      {
+        "nominalSize": "M2",
+        "threadPitch": 0.4,
+        "tappingDrillSize": 1.6,
+        "woodsAndPlastics": {
+          "spindleRPM": 10000,
+          "feedRate": 300,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.4
+        },
+        "metals": {
+          "spindleRPM": 12000,
+          "feedRate": 150,
+          "plungeFeedRate": 150,
+          "depthOfCut": 0.4
+        },
+        "composites": {
+          "spindleRPM": 10000,
+          "feedRate": 200,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.4
+        }
+      },
+      {
+        "nominalSize": "M2.5",
+        "threadPitch": 0.45,
+        "tappingDrillSize": 2.05,
+        "woodsAndPlastics": {
+          "spindleRPM": 10000,
+          "feedRate": 300,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.45
+        },
+        "metals": {
+          "spindleRPM": 12000,
+          "feedRate": 150,
+          "plungeFeedRate": 150,
+          "depthOfCut": 0.45
+        },
+        "composites": {
+          "spindleRPM": 10000,
+          "feedRate": 200,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.45
+        }
+      },
+      {
+        "nominalSize": "M3",
+        "threadPitch": 0.5,
+        "tappingDrillSize": 2.5,
+        "woodsAndPlastics": {
+          "spindleRPM": 10000,
+          "feedRate": 300,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.5
+        },
+        "metals": {
+          "spindleRPM": 12000,
+          "feedRate": 200,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.5
+        },
+        "composites": {
+          "spindleRPM": 10000,
+          "feedRate": 250,
+          "plungeFeedRate": 250,
+          "depthOfCut": 0.5
+        }
+      },
+      {
+        "nominalSize": "M4",
+        "threadPitch": 0.7,
+        "tappingDrillSize": 3.3,
+        "woodsAndPlastics": {
+          "spindleRPM": 10000,
+          "feedRate": 300,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.7
+        },
+        "metals": {
+          "spindleRPM": 12000,
+          "feedRate": 200,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.7
+        },
+        "composites": {
+          "spindleRPM": 10000,
+          "feedRate": 300,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.7
+        }
+      },
+      {
+        "nominalSize": "M5",
+        "threadPitch": 0.8,
+        "tappingDrillSize": 4.2,
+        "woodsAndPlastics": {
+          "spindleRPM": 10000,
+          "feedRate": 300,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.8
+        },
+        "metals": {
+          "spindleRPM": 12000,
+          "feedRate": 200,
+          "plungeFeedRate": 200,
+          "depthOfCut": 0.8
+        },
+        "composites": {
+          "spindleRPM": 10000,
+          "feedRate": 300,
+          "plungeFeedRate": 300,
+          "depthOfCut": 0.8
+        }
+      }
+    ]

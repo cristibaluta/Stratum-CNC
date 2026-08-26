@@ -1,0 +1,234 @@
+//
+//  SVGObjectNode.swift
+//  Stratum CNC
+//
+//  Created by Cristian Baluta on 24.08.2026.
+//
+
+import AppKit
+import QuartzCore
+
+final class SVGObjectNode {
+
+    let objectID: UUID
+
+    let layer: CALayer
+    private let shapeLayers: [CAShapeLayer]
+    private let selectionLayer: CAShapeLayer
+    private let rotationCenterLayer: CAShapeLayer
+
+    init(object: SVGObject, baseStrokeWidth: CGFloat) {
+        self.objectID = object.id
+
+        let objectLayer = CALayer()
+        objectLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        objectLayer.masksToBounds = false
+
+        self.layer = objectLayer
+
+        self.shapeLayers = object.paths.map {
+            Self.makeShapeLayer(
+                for: $0,
+                strokeWidth: baseStrokeWidth
+            )
+        }
+
+        self.selectionLayer = Self.makeSelectionLayer(
+            width: object.originalSize.width,
+            height: object.originalSize.height,
+            strokeWidth: baseStrokeWidth
+        )
+
+        self.rotationCenterLayer = Self.makeRotationCenterLayer(
+            width: object.originalSize.width,
+            height: object.originalSize.height,
+            strokeWidth: baseStrokeWidth
+        )
+
+        for shapeLayer in shapeLayers {
+            objectLayer.addSublayer(shapeLayer)
+        }
+
+        objectLayer.addSublayer(selectionLayer)
+        objectLayer.addSublayer(rotationCenterLayer)
+    }
+}
+
+// MARK: - Rendering
+
+extension SVGObjectNode {
+
+    func update(
+        object: SVGObject,
+        zoomScale: CGFloat,
+        objectSelected: Bool,
+        selectedPathIndex: Int?
+    ) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        layer.bounds = CGRect(
+            origin: .zero,
+            size: object.originalSize
+        )
+
+        layer.position = object.center
+
+        var transform = CGAffineTransform.identity
+
+        transform = transform.scaledBy(
+            x: object.scale,
+            y: object.scale
+        )
+
+        transform = transform.rotated(
+            by: object.rotationDegrees * .pi / 180
+        )
+
+        layer.setAffineTransform(transform)
+
+        updateStyles(
+            object: object,
+            zoomScale: zoomScale,
+            objectSelected: objectSelected,
+            selectedPathIndex: selectedPathIndex
+        )
+
+        CATransaction.commit()
+    }
+}
+
+// MARK: - Private Rendering
+
+private extension SVGObjectNode {
+
+    func updateStyles(
+        object: SVGObject,
+        zoomScale: CGFloat,
+        objectSelected: Bool,
+        selectedPathIndex: Int?
+    ) {
+        let effectiveScale = max(
+            zoomScale * object.scale,
+            0.000001
+        )
+
+        for (index, shapeLayer) in shapeLayers.enumerated() {
+
+            let isPathSelected = selectedPathIndex == index
+
+            if objectSelected {
+                shapeLayer.strokeColor =
+                    NSColor.systemRed.cgColor
+
+                shapeLayer.lineWidth =
+                    2.5 / effectiveScale
+
+            } else if isPathSelected {
+                shapeLayer.strokeColor =
+                    NSColor.systemBlue.cgColor
+
+                shapeLayer.lineWidth =
+                    2.0 / effectiveScale
+
+            } else {
+                shapeLayer.strokeColor =
+                    NSColor.labelColor.cgColor
+
+                shapeLayer.lineWidth =
+                    1.0 / effectiveScale
+            }
+        }
+
+        selectionLayer.opacity =
+            objectSelected ? 1 : 0
+
+        rotationCenterLayer.opacity =
+            objectSelected ? 1 : 0
+
+        selectionLayer.lineWidth =
+            1.0 / effectiveScale
+
+        rotationCenterLayer.lineWidth =
+            1.0 / effectiveScale
+    }
+
+    static func makeShapeLayer(
+        for path: NSBezierPath,
+        strokeWidth: CGFloat
+    ) -> CAShapeLayer {
+
+        let layer = CAShapeLayer()
+
+        layer.path = path.cgPath
+        layer.fillColor = nil
+        layer.strokeColor = NSColor.labelColor.cgColor
+        layer.lineWidth = strokeWidth
+        layer.lineJoin = .round
+        layer.lineCap = .round
+
+        layer.actions = [
+            "strokeColor": NSNull(),
+            "lineWidth": NSNull()
+        ]
+
+        return layer
+    }
+
+    static func makeSelectionLayer(
+        width: CGFloat,
+        height: CGFloat,
+        strokeWidth: CGFloat
+    ) -> CAShapeLayer {
+
+        let layer = CAShapeLayer()
+        let path = CGMutablePath()
+
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: width, y: 0))
+        path.addLine(to: CGPoint(x: width, y: height))
+        path.addLine(to: CGPoint(x: 0, y: height))
+        path.closeSubpath()
+
+        layer.path = path
+        layer.fillColor = nil
+        layer.strokeColor = NSColor.systemRed.cgColor
+        layer.lineWidth = strokeWidth
+        layer.lineDashPattern = [6, 4]
+        layer.opacity = 0
+        layer.zPosition = 100
+
+        return layer
+    }
+
+    static func makeRotationCenterLayer(width: CGFloat, height: CGFloat, strokeWidth: CGFloat) -> CAShapeLayer {
+
+        let layer = CAShapeLayer()
+
+        let center = CGPoint(x: width / 2, y: height / 2)
+        let radius: CGFloat = 3.5
+        let crossSize: CGFloat = 7
+
+        let path = CGMutablePath()
+
+        path.addEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
+
+        path.move(to: CGPoint(x: center.x - crossSize, y: center.y))
+        path.addLine(to: CGPoint(x: center.x + crossSize, y: center.y))
+
+        path.move(to: CGPoint(x: center.x, y: center.y - crossSize))
+        path.addLine(to: CGPoint(x: center.x, y: center.y + crossSize))
+
+        layer.path = path
+        layer.fillColor = NSColor.systemOrange.cgColor
+        layer.strokeColor = NSColor.systemOrange.cgColor
+        layer.shadowOffset = .zero
+        layer.shadowColor = NSColor.black.cgColor
+        layer.shadowOpacity = 0.5
+        layer.lineWidth = strokeWidth
+        layer.opacity = 0
+        layer.zPosition = 101
+
+        return layer
+    }
+}

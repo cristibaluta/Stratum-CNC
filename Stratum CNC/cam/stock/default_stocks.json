@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "stocks": [
+    {
+      "id": "91d8c0d2-27c2-47fd-9cb9-3f49431faa59",
+      "name": "Aluminum Plate",
+      "material": "aluminum",
+      "geometry": {
+        "rectangular": {
+          "width": 100.0,
+          "height": 50.0,
+          "depth": 6.0
+        }
+      }
+    },
+    {
+      "id": "91d8c0d2-27c2-47fd-9cb9-3f49431faa53",
+      "name": "Aluminum Round Bar",
+      "material": "aluminum",
+      "geometry": {
+        "round": {
+          "diameter": 20.0,
+          "depth": 100.0
+        }
+      }
+    },
+    {
+      "id": "91d8c0d2-27c2-43fd-9cb9-3f49431faa59",
+      "name": "Aluminum Tube",
+      "material": "aluminum",
+      "geometry": {
+        "disk": {
+          "outerDiameter": 30.0,
+          "innerDiameter": 20.0,
+          "depth": 100.0
+        }
+      }
+    },
+    {
+      "id": "91d830d2-27c2-47fd-9cb9-3f49431faa59",
+      "name": "Hardwood",
+      "material": "hardwood",
+      "geometry": {
+        "rectangular": {
+          "width": 200.0,
+          "height": 100.0,
+          "depth": 20.0
+        }
+      }
+    }
+  ]
+}
