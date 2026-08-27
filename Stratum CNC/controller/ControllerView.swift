@@ -27,6 +27,8 @@ struct ControllerView: View {
             } else {
                 MetalView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(16)
+                    .padding(.trailing, -16)
             }
 
             // Right panels with g-
@@ -34,13 +36,31 @@ struct ControllerView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     PanelCoordinate(model: model)
                     PanelProbe(model: model)
-                    HStack {
-                        PanelSpindle(model: model)
-                        PanelMachine(model: model)
-                    }
                 }
-                GCodeViewerView(model: gCodeModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+
+                GroupBox(label:
+                    HStack(alignment: .top, spacing: 8) {
+                        Button {
+                            model.connection.requestStatus()
+                        } label: {
+                            Text("G-CODE")
+                        }
+                        .buttonStyle(.borderless)
+                        Divider().frame(height: 14)// The divider likes to expand if not constrained
+                        Button {
+                            model.connection.requestStatus()
+                        } label: {
+                            Text("MACROS")
+                        }
+                        .buttonStyle(.borderless)
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+                ) {
+                    GCodeViewerView(model: gCodeModel)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             }
             .frame(width: 300)
@@ -53,13 +73,21 @@ struct ControllerView: View {
                 PanelPosition(connection: model.connection)
                     .frame(maxWidth: .infinity)
 
+                HStack(alignment: .top)  {
+                    PanelSpindle(model: model)
+                    PanelMachine(model: model)
+                }
+                .frame(maxWidth: .infinity)
+
                 PanelJog(joystick: joystickStore) { x, y, z, a in
                     model.sendCommand( CNC.rapidMove.with(x: x, y: y, z: z) )
                 }
                 .frame(height: 200)
 
-                TerminalView(model: model)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                GroupBox(label: Text("MDI CONSOLE")) {
+                    TerminalView(model: model)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: 300)
             .padding(16)

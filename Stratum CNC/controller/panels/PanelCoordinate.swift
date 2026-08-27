@@ -12,7 +12,7 @@ struct PanelCoordinate: View {
     @ObservedObject var model: ControllerModel
 
     var body: some View {
-        GroupBox("Work Coordinates") {
+        GroupBox("WORK COORDINATES") {
             VStack(spacing: 6) {
                 HStack {
                     Text("Zero")

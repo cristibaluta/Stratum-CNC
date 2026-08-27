@@ -124,6 +124,7 @@ struct GCodeTableView: NSViewRepresentable {
 
             let line = document.lines[row]
             let cellID = NSUserInterfaceItemIdentifier("cell-\(columnID.rawValue)")
+            let isHighlighted = (line.id == lastHighlightedLine)
 
             let textField: NSTextField
             if let reused = tableView.makeView(withIdentifier: cellID, owner: self) as? NSTextField {
@@ -136,9 +137,6 @@ struct GCodeTableView: NSViewRepresentable {
                 textField.lineBreakMode = .byTruncatingTail
                 textField.focusRingType = .none
             }
-
-            let isHighlighted = (line.id == lastHighlightedLine)
-
             if columnID == .lineNumberColumn {
                 textField.stringValue = "\(line.id)"
                 textField.alignment = .right

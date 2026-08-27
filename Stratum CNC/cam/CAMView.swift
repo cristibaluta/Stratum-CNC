@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-// The main view of the cam screen.
+// The main view of the CAM screen.
 // It holds the objects to model and the list of toolpaths
 // You can access also the tools lib and stocks lib from the toolbar
 

@@ -17,10 +17,13 @@ struct GCodeViewerView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            toolbar
+        VStack(spacing: 4) {
+            toolpathsView
+                .background(Color(.white))
+                .frame(height: 200)
             GCodeTableView(document: model.document, highlightedLine: highlightedLine, requestedLine: model.requestedLine)
             commandBar
+                .frame(height: 36)
         }
         .onChange(of: model.document.lines.count) { _, newCount in
             if model.analyzedLineCount != newCount {
@@ -30,52 +33,9 @@ struct GCodeViewerView: View {
         }
     }
 
-    // MARK: - Toolbar
-
-    private var toolbar: some View {
-        VStack(spacing: 4) {
-            HStack {
-                if model.document.isLoaded {
-                    Text(model.document.fileName)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-
-                    Text("\(model.document.lines.count) lines")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-
-                    Text("\(toolpaths.count) toolpaths")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-
-                    Button {
-                        model.document.clear()
-                        model.selectedToolpathID = nil
-                        model.requestedLine = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("Close file")
-                }
-            }
-
-            if let error = model.document.lastError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(8)
-    }
-
     // MARK: - Toolpaths
 
-    private var toolpathSidebar: some View {
+    private var toolpathsView: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Toolpaths")
@@ -116,7 +76,6 @@ struct GCodeViewerView: View {
                             }
                     }
                 }
-                .listStyle(.sidebar)
                 .onChange(of: model.selectedToolpathID) { _, newID in
                     guard let newID, let toolpath = toolpaths.first(where: { $0.id == newID }) else {
                         return
@@ -151,6 +110,8 @@ struct GCodeViewerView: View {
             }
             .buttonStyle(.borderless)
 
+            Spacer()
+
             Button {
 
             } label: {
@@ -158,10 +119,7 @@ struct GCodeViewerView: View {
             }
 //            .disabled(!model.connection.isConnected)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -209,8 +167,12 @@ private struct ToolpathRow: View {
     }
 
     private var iconColor: Color {
-        if toolpath.operation.hasPrefix("Drilling") { return .orange }
-        if toolpath.operation == "Rapid" { return .secondary }
+        if toolpath.operation.hasPrefix("Drilling") {
+            return .orange
+        }
+        if toolpath.operation == "Rapid" {
+            return .secondary
+        }
         return .accentColor
     }
 }

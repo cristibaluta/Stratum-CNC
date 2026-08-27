@@ -27,10 +27,14 @@ struct MetalView: NSViewRepresentable {
         renderer.attach(to: view)
 
         view.colorPixelFormat = .bgra8Unorm
-        view.clearColor = MTLClearColor(red: 0.035, green: 0.035, blue: 0.05, alpha: 1)
+//        view.clearColor = MTLClearColor(red: 0.035, green: 0.035, blue: 0.05, alpha: 1)
         view.preferredFramesPerSecond = 60
         view.isPaused = true
         view.enableSetNeedsDisplay = true
+        view.clearColor = MTLClearColor(red: 0.9, green: 0.9, blue: 0.9, alpha: 1)
+        if let layer = view.layer as? CAMetalLayer {
+            layer.isOpaque = false
+        }
 
         // Mouse drag → orbit
         let pan = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Renderer.handlePan(_:)))

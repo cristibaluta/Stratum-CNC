@@ -12,7 +12,7 @@ struct PanelSpindle: View {
     @ObservedObject var model: ControllerModel
 
     var body: some View {
-        GroupBox("Spindle") {
+        GroupBox("SPINDLE") {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("RPM")
@@ -34,10 +34,10 @@ struct PanelSpindle: View {
                         Label("Start", systemImage: "play.fill")
                     }
 
-                    Button {
+                    Button(action: {
                         model.sendCommand(CNC.spindleOff)
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
+                    }) {
+                        Image(systemName: "stop.fill")
                     }
                 }
                 // Note: the firmware only implements M3 (on) / M5 (off) —

@@ -12,7 +12,7 @@ struct PanelProbe: View {
     @ObservedObject var model: ControllerModel
 
     var body: some View {
-        GroupBox("Probe") {
+        GroupBox("PROBE") {
             HStack(spacing: 6) {
                 Button {
                     model.sendCommand(CNC.probe.with(z: -10, feed: 50))

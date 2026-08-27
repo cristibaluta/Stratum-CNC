@@ -12,7 +12,7 @@ struct PanelPosition: View {
     @ObservedObject var connection: MachineConnection
 
     var body: some View {
-        GroupBox("Position") {
+        GroupBox("POSITION") {
             VStack(alignment: .leading, spacing: 8) {
                 if let status = connection.status {
                     positionRow(title: "MACHINE", x: status.machinePosition.x, y: status.machinePosition.y, z: status.machinePosition.z)
@@ -35,7 +35,7 @@ struct PanelPosition: View {
 
             Spacer()
 
-            Text(String(format: "X%8.3f  Y%8.3f  Z%8.3f", x, y, z))
+            Text(String(format: "X %0.3f    Y %0.3f    Z %0.3f", x, y, z))
                 .font(.caption)
         }
     }

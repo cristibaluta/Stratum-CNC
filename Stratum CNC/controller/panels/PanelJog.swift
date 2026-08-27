@@ -26,7 +26,7 @@ struct PanelJog: View {
     var onJog: ((Double?, Double?, Double?, Double?) -> Void)?
 
     var body: some View {
-        GroupBox("Jog") {
+        GroupBox("JOG") {
             VStack {
                 if let j = joystick.controllers.first {
                     HStack(spacing: 8) {

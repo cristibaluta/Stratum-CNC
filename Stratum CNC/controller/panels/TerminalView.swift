@@ -13,28 +13,24 @@ struct TerminalView: View {
     @FocusState private var commandFieldFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Console")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Toggle("Auto-scroll", isOn: $model.terminalAutoScroll)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-
-                Button {
-                    model.clearTerminal()
-                } label: {
-                    Image(systemName: "trash")
-                }
-                .buttonStyle(.borderless)
-                .help("Clear terminal")
-            }
+        VStack(alignment: .leading, spacing: 0) {
+//            HStack {
+//                Spacer()
+//                Toggle("Auto-scroll", isOn: $model.terminalAutoScroll)
+//                    .toggleStyle(.checkbox)
+//                    .font(.caption)
+//                Button {
+//                    model.clearTerminal()
+//                } label: {
+//                    Image(systemName: "trash")
+//                }
+//                .buttonStyle(.borderless)
+//                .help("Clear terminal")
+//            }
 
             terminalView
+
+            Divider()
 
             commandBar
         }
@@ -71,12 +67,6 @@ struct TerminalView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 7))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(Color.primary.opacity(0.08))
-        }
     }
 
     private func terminalLine(_ line: String) -> some View {
@@ -110,12 +100,7 @@ struct TerminalView: View {
 
             TextField("Send a command…", text: $model.mdiInput)
             .textFieldStyle(.plain)
-            .font(
-                .system(
-                    .body,
-                    design: .monospaced
-                )
-            )
+            .font(.system(.body, design: .monospaced))
             .focused(
                 $commandFieldFocused
             )
@@ -160,11 +145,9 @@ struct TerminalView: View {
             } label: {
                 Image(systemName: "command")
             }
+            .buttonStyle(.borderless)
             .help("Command palette")
         }
-        .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 7))
     }
 }
