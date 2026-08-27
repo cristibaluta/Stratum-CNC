@@ -13,6 +13,12 @@ struct StockEditorView: View {
 
     var body: some View {
         Form {
+            Section {
+                StockPreviewView(geometry: stock.geometry, material: stock.material)
+                    .frame(height: 200)
+                    .listRowInsets(EdgeInsets())
+                    .padding()
+            }
             generalSection
             geometrySection
         }

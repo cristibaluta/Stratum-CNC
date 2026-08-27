@@ -25,14 +25,25 @@
       }
     },
     {
+      "id": "91d8c0d8-27c2-47fd-9cb9-3f49431faa53",
+      "name": "Brass",
+      "material": "brass",
+      "geometry": {
+        "round": {
+          "diameter": 40.0,
+          "depth": 20.0
+        }
+      }
+    },
+    {
       "id": "91d8c0d2-27c2-43fd-9cb9-3f49431faa59",
-      "name": "Aluminum Tube",
+      "name": "Aluminum HDD plate",
       "material": "aluminum",
       "geometry": {
         "disk": {
-          "outerDiameter": 30.0,
-          "innerDiameter": 20.0,
-          "depth": 100.0
+          "outerDiameter": 50.0,
+          "innerDiameter": 15.0,
+          "depth": 1.3
         }
       }
     },
