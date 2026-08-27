@@ -1,8 +1,24 @@
+//
+//  NumberTextField.swift
+//  Stratum CNC
+//
+//  Created by Cristian Baluta on 24.08.2026.
+//
+
 import AppKit
 
 final class D2_CanvasView: NSView {
 
-    var files: [CAM_File] = []
+    var files: [CAM_File] = [] {
+        didSet {
+            print("Updating files in canvas view to \(files.count)")
+            let objects = files.compactMap { factory.makeObject(name: $0.url.lastPathComponent, paths: $0.paths) }
+            state.setObjects(objects)
+            renderer.setObjects(objects)
+            render()
+            updateInspector()
+        }
+    }
 
     private let state = SVGCanvasState()
     private let factory = CAM_ObjectFactory()
@@ -80,28 +96,28 @@ final class D2_CanvasView: NSView {
         updateWorldTransform()
     }
 
-    func insertSvgFile(_ svgFile: CAM_File) {
-        guard !svgFile.paths.isEmpty else {
-            updateInspector()
-            return
-        }
-        addSVG(name: svgFile.url.lastPathComponent, paths: svgFile.paths, selectAfterAdding: false)
-        centerOnContent()
-    }
-
-    func addSVG(name: String, paths: [NSBezierPath]) {
-        addSVG(name: name, paths: paths, selectAfterAdding: true)
-    }
-
-    private func addSVG(name: String, paths: [STBezierPath], selectAfterAdding: Bool) {
-        guard let object = factory.makeObject(name: name, paths: paths) else {
-            return
-        }
-        state.add(object, select: selectAfterAdding)
-        renderer.add(object: object)
-        render()
-        updateInspector()
-    }
+//    func insertSvgFile(_ svgFile: CAM_File) {
+//        guard !svgFile.paths.isEmpty else {
+//            updateInspector()
+//            return
+//        }
+//        addSVG(name: svgFile.url.lastPathComponent, paths: svgFile.paths, selectAfterAdding: false)
+//        centerOnContent()
+//    }
+//
+//    func addSVG(name: String, paths: [NSBezierPath]) {
+//        addSVG(name: name, paths: paths, selectAfterAdding: true)
+//    }
+//
+//    private func addSVG(name: String, paths: [STBezierPath], selectAfterAdding: Bool) {
+//        guard let object = factory.makeObject(name: name, paths: paths) else {
+//            return
+//        }
+//        state.add(object, select: selectAfterAdding)
+//        renderer.add(object: object)
+//        render()
+//        updateInspector()
+//    }
 
     private func render() {
         renderer.render(objects: state.objects,

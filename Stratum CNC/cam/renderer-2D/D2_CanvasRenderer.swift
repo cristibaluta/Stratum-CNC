@@ -1,3 +1,10 @@
+//
+//  NumberTextField.swift
+//  Stratum CNC
+//
+//  Created by Cristian Baluta on 24.08.2026.
+//
+
 import AppKit
 import QuartzCore
 
@@ -17,10 +24,19 @@ final class D2_CanvasRenderer {
     }
 
     // MARK: Objects
-    func add(object: CAM_Object) {
-        let node = CAM_ObjectNode(object: object, baseStrokeWidth: baseStrokeWidth)
-        nodes[object.id] = node
-        objectsLayer.addSublayer(node.layer)
+//    func add(object: CAM_Object) {
+//        let node = CAM_ObjectNode(object: object, baseStrokeWidth: baseStrokeWidth)
+//        nodes[object.id] = node
+//        objectsLayer.addSublayer(node.layer)
+//    }
+
+    func setObjects(_ objects: [CAM_Object]) {
+        removeAll()
+        let nodes = objects.map { CAM_ObjectNode(object: $0, baseStrokeWidth: baseStrokeWidth) }
+        for node in nodes {
+            self.nodes[node.objectID] = node
+            self.objectsLayer.addSublayer(node.layer)
+        }
     }
 
     func removeAll() {

@@ -20,7 +20,7 @@ struct CAMView: View {
             if model.files.isEmpty {
                 emptyView
             } else {
-                // TODO: This view should be swapable with a 3D view
+                // TODO: This view should be swapable with a 3D view depending on the first open file
                 // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
                 CAM_2D_View(model: model)
 

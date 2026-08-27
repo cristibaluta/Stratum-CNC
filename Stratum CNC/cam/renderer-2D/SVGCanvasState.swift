@@ -36,6 +36,10 @@ final class SVGCanvasState {
         }
     }
 
+    func setObjects(_ objects: [CAM_Object]) {
+        self.objects = objects
+    }
+
     func removeAll() {
         objects.removeAll()
         clearSelection()
