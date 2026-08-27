@@ -124,16 +124,4 @@ struct ToolCuttingParameters: Codable, Hashable {
     var feedRate: Double?
     var plungeFeedRate: Double?
     var depthOfCut: Double?
-
-//    init(
-//        spindleRPM: Int = 0,
-//        feedRate: Double = 0,
-//        plungeFeedRate: Double = 0,
-//        depthOfCut: Double = 0
-//    ) {
-//        self.spindleRPM = spindleRPM
-//        self.feedRate = feedRate
-//        self.plungeFeedRate = plungeFeedRate
-//        self.depthOfCut = depthOfCut
-//    }
 }
