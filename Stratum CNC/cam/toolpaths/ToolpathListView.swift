@@ -27,111 +27,42 @@ struct Toolpath: Identifiable {
 }
 
 struct ToolpathListView: View {
-    @State private var toolpaths: [ToolpathData] = []
-//    [
-//        ToolpathData(
-//            name: "Outer Profile",
-//            tool: Tool(
-//                number: 2,
-//                diameter: 6.0,
-//                name: "6 mm End Mill"
-//            ),
-//            startZ: 0,
-//            endZ: -3,
-//            contour: .outside,
-//            ramping: RampingSettings(
-//                enabled: true,
-//                type: .linear,
-//                angle: 3,
-//                length: 20
-//            ),
-//            feedRate: 1200,
-//            plungeRate: 400,
-//            spindleRPM: 18000,
-//            stepDown: 0.1,
-//            stepOver: 0.1,
-//            safeZ: 5.0
-//        ),
-//
-//        ToolpathData(
-//            name: "Inner Cutout",
-//            tool: Tool(
-//                number: 1,
-//                diameter: 3.0,
-//                name: "3 mm End Mill"
-//            ),
-//            startZ: 0,
-//            endZ: -5,
-//            contour: .inside,
-//            ramping: RampingSettings(
-//                enabled: true,
-//                type: .helix,
-//                angle: 2,
-//                length: 15
-//            ),
-//            feedRate: 900,
-//            plungeRate: 250,
-//            spindleRPM: 20000,
-//            stepDown: 0.1,
-//            stepOver: 0.1,
-//            safeZ: 5.0
-//        ),
-//
-//        ToolpathData(
-//            name: "Engraving Outline",
-//            tool: Tool(
-//                number: 3,
-//                diameter: 1.5,
-//                name: "1.5 mm Engraving Tool"
-//            ),
-//            startZ: 0,
-//            endZ: -0.8,
-//            contour: .outline,
-//            ramping: RampingSettings(
-//                enabled: false,
-//                type: .none,
-//                angle: 0,
-//                length: 0
-//            ),
-//            feedRate: 600,
-//            plungeRate: 150,
-//            spindleRPM: 16000,
-//            stepDown: 0.1,
-//            stepOver: 0.1,
-//            safeZ: 3.0
-//        )
-//    ]
-
+    @ObservedObject var model: CAMModel
     @State private var draggedToolpath: ToolpathData?
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 6) {
+        if model.toolpaths.isEmpty {
+            emptyView
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 16) {
 
-                ForEach($toolpaths) { $toolpath in
-
-                    ToolpathCellView(
-                        toolpath: $toolpath
-                    )
-                    .padding(.bottom, 8)
-                    .onDrag {
-                        draggedToolpath = toolpath
-
-                        return NSItemProvider(
-                            object: toolpath.id.uuidString as NSString
-                        )
+                    ForEach($model.toolpaths) { $toolpath in
+                        ToolpathCellView(toolpath: $toolpath)
+                            .padding(.bottom, 8)
+                            .onDrag {
+                                draggedToolpath = toolpath
+                                return NSItemProvider(object: toolpath.id.uuidString as NSString)
+                            }
+                            .onDrop(of: [.text],
+                                    delegate: ToolpathDropDelegate(target: toolpath, toolpaths: $model.toolpaths, draggedToolpath: $draggedToolpath))
                     }
-                    .onDrop(
-                        of: [.text],
-                        delegate: ToolpathDropDelegate(
-                            target: toolpath,
-                            toolpaths: $toolpaths,
-                            draggedToolpath: $draggedToolpath
-                        )
-                    )
                 }
+                .padding(8)
             }
-            .padding(8)
+        }
+    }
+
+    private var emptyView: some View {
+        VStack {
+            Spacer()
+            Text("No Toolpaths added yet.")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Button("Add Toolpath") {
+
+            }
+            Spacer()
         }
     }
 }

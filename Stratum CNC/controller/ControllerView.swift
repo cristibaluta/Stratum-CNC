@@ -171,8 +171,9 @@ struct ControllerView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button {
-                        if let paths = camModel.svgFile?.paths {
-                            gCodeModel.generateGCode(svgPaths: paths)
+                        // TODO: use toolpaths not paths
+                        if let file = camModel.files.first {
+                            gCodeModel.generateGCode(svgPaths: file.paths)
                         }
                     } label: {
                         Text("Use from CAM")

@@ -13,9 +13,7 @@ import OCCTSwiftIO
 import OCCTSwiftViewport
 import OCCTSwiftTools
 
-struct STEPViewerView: View {
-
-    // MARK: - Model
+struct CAM_3D_View: View {
 
     @State private var document: OCCTSwift.Document?
     @State private var modelURL: URL?
@@ -103,11 +101,8 @@ struct STEPViewerView: View {
 
     private var viewport: some View {
         viewportController.displayMode = .shadedWithEdges
-        return MetalViewportView(
-            controller: viewportController,
-            bodies: $viewportBodies
-        )
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        return MetalViewportView(controller: viewportController, bodies: $viewportBodies)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Empty State
@@ -171,9 +166,7 @@ struct STEPViewerView: View {
 
     // MARK: - File Import
 
-    private func openResult(
-        _ result: Result<[URL], Error>
-    ) {
+    private func openResult(_ result: Result<[URL], Error>) {
         switch result {
 
         case .success(let urls):
@@ -199,8 +192,7 @@ struct STEPViewerView: View {
         modelURL = url
         isLoading = true
 
-        let didStartAccessing =
-            url.startAccessingSecurityScopedResource()
+        let didStartAccessing = url.startAccessingSecurityScopedResource()
 
         Task {
             defer {
@@ -210,11 +202,7 @@ struct STEPViewerView: View {
             }
 
             do {
-
-                let result = try await CADFileLoader.load(
-                    from: url,
-                    format: .step
-                )
+                let result = try await CADFileLoader.load(from: url, format: .step)
 
                 await MainActor.run {
                     viewportBodies = result.bodies

@@ -18,5 +18,25 @@ class CAMModel: ObservableObject {
 
     // Insert new files. temporary vars to use
     @Published var showingFilePicker = false
-    @Published var svgFile: SVGFile?
+    @Published var files: [CAM_File] = []
+    @Published var toolpaths: [ToolpathData] = []
+
+    func loadAndParseFileAt(_ url: URL) {
+        guard url.startAccessingSecurityScopedResource() else {
+            print("Could not access:", url)
+            return
+        }
+        defer {
+            url.stopAccessingSecurityScopedResource()
+        }
+
+        print("URL:", url)
+
+        guard let paths = try? SVGParser().parseFileAt(url) else {
+            return
+        }
+        files.append(
+            CAM_File(url: url, paths: paths)
+        )
+    }
 }

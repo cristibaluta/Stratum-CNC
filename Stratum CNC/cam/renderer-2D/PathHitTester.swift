@@ -5,15 +5,16 @@
 //  Created by Cristian Baluta on 24.08.2026.
 //
 
-import AppKit
+import Foundation
+import QuartzCore
 
-struct SVGCanvasHitTester {
+struct PathHitTester {
 
     let tolerance: CGFloat
 
     func hitTest(worldPoint: CGPoint,
-                 objects: [SVGObject],
-                 nodes: [UUID: SVGObjectNode],
+                 objects: [CAM_Object],
+                 nodes: [UUID: CAM_ObjectNode],
                  worldLayer: CALayer,
                  zoomScale: CGFloat) -> SVGPathSelection? {
 

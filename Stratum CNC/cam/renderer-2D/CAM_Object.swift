@@ -5,15 +5,15 @@
 //  Created by Cristian Baluta on 24.08.2026.
 //
 
-import AppKit
+import Foundation
 
-final class SVGObject {
+final class CAM_Object {
 
     let id: UUID
     var name: String
 
     /// Paths normalized so their origin is at (0, 0).
-    let paths: [NSBezierPath]
+    let paths: [STBezierPath]
 
     /// Original imported dimensions.
     let originalSize: CGSize
@@ -30,7 +30,7 @@ final class SVGObject {
     init(
         id: UUID = UUID(),
         name: String,
-        paths: [NSBezierPath],
+        paths: [STBezierPath],
         position: CGPoint,
         originalSize: CGSize,
         width: CGFloat
@@ -66,9 +66,7 @@ final class SVGObject {
         let angle = rotationDegrees * .pi / 180
         let cosAngle = abs(cos(angle))
         let sinAngle = abs(sin(angle))
-
         let rotatedWidth = width * cosAngle + height * sinAngle
-
         let rotatedHeight = width * sinAngle + height * cosAngle
 
         return CGRect(x: center.x - rotatedWidth / 2,

@@ -14,11 +14,11 @@ struct SVGPathSelection: Equatable {
 
 final class SVGCanvasState {
 
-    private(set) var objects: [SVGObject] = []
+    private(set) var objects: [CAM_Object] = []
     private(set) var selectedObjectIDs: Set<UUID> = []
     private(set) var selectedPath: SVGPathSelection?
 
-    var selectedObject: SVGObject? {
+    var selectedObject: CAM_Object? {
         guard let id = selectedObjectIDs.first else {
             return nil
         }
@@ -28,7 +28,7 @@ final class SVGCanvasState {
 
     // MARK: Objects
 
-    func add(_ object: SVGObject, select: Bool) {
+    func add(_ object: CAM_Object, select: Bool) {
         objects.append(object)
 
         if select {
@@ -66,11 +66,11 @@ final class SVGCanvasState {
         selectedPath = nil
     }
 
-    func isObjectSelected(_ object: SVGObject) -> Bool {
+    func isObjectSelected(_ object: CAM_Object) -> Bool {
         selectedObjectIDs.contains(object.id)
     }
 
-    func selectedPathIndex(for object: SVGObject) -> Int? {
+    func selectedPathIndex(for object: CAM_Object) -> Int? {
         guard selectedPath?.objectID == object.id else {
             return nil
         }

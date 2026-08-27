@@ -2,11 +2,13 @@ import AppKit
 
 final class SVGCanvasView: NSView {
 
+    var files: [CAM_File] = []
+
     private let state = SVGCanvasState()
-    private let factory = SVGObjectFactory()
+    private let factory = CAM_ObjectFactory()
     private let renderer = SVGCanvasRenderer()
-    private let hitTester = SVGCanvasHitTester(tolerance: 6)
-    private let inspectorView = SVGObjectInspectorView()
+    private let hitTester = PathHitTester(tolerance: 6)
+    private let inspectorView = CAM_ObjectsInspectorView()
 
     private var lastDragLocation: CGPoint?
     private var panOffset = CGPoint.zero
@@ -38,7 +40,7 @@ final class SVGCanvasView: NSView {
 
     private func setup() {
         wantsLayer = true
-        layer?.backgroundColor = NSColor.textBackgroundColor.cgColor
+        layer?.backgroundColor = STColor.textBackgroundColor.cgColor
         layer?.addSublayer(renderer.worldLayer)
         setupInspector()
     }
@@ -76,7 +78,7 @@ final class SVGCanvasView: NSView {
         updateWorldTransform()
     }
 
-    func insertSvgFile(_ svgFile: SVGFile) {
+    func insertSvgFile(_ svgFile: CAM_File) {
         guard !svgFile.paths.isEmpty else {
             updateInspector()
             return
@@ -89,7 +91,7 @@ final class SVGCanvasView: NSView {
         addSVG(name: name, paths: paths, selectAfterAdding: true)
     }
 
-    private func addSVG(name: String, paths: [NSBezierPath], selectAfterAdding: Bool) {
+    private func addSVG(name: String, paths: [STBezierPath], selectAfterAdding: Bool) {
         guard let object = factory.makeObject(name: name, paths: paths) else {
             return
         }
@@ -206,7 +208,7 @@ final class SVGCanvasView: NSView {
         updateInspector()
     }
 
-    private func updateObject(id: UUID, property: SVGObjectInspectorView.Property, value: CGFloat) {
+    private func updateObject(id: UUID, property: CAM_ObjectsInspectorView.Property, value: CGFloat) {
         guard state.selectedObjectIDs.contains(id), let object = object(withID: id) else {
             return
         }
@@ -221,7 +223,7 @@ final class SVGCanvasView: NSView {
         updateInspector()
     }
 
-    private func nudgeObject(id: UUID, property: SVGObjectInspectorView.Property, amount: CGFloat) {
+    private func nudgeObject(id: UUID, property: CAM_ObjectsInspectorView.Property, amount: CGFloat) {
         guard state.selectedObjectIDs.contains(id), let object = object(withID: id) else {
             return
         }
@@ -255,7 +257,7 @@ final class SVGCanvasView: NSView {
         updateInspector()
     }
 
-    private func object(withID id: UUID) -> SVGObject? {
+    private func object(withID id: UUID) -> CAM_Object? {
         state.objects.first { $0.id == id }
     }
 

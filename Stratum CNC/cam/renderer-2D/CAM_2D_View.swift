@@ -1,35 +1,32 @@
 //
-//  SVGCanvas.swift
+//  ContentView.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 24.08.2026.
 //
 
-import SwiftUI
 import AppKit
+import SwiftUI
 
-// NSView wrapper to drop into SwiftUI
+struct CAM_2D_View: NSViewRepresentable {
 
-struct SVGCanvasNSView: NSViewRepresentable {
-
-    let svgFile: SVGFile
-    var onAddNew: (() -> Void)?
+    @ObservedObject var model: CAMModel
 
     func makeNSView(context: Context) -> SVGCanvasView {
 
         let view = SVGCanvasView()
         view.clipsToBounds = true
-        view.insertSvgFile(svgFile)
+        view.files = model.files
         view.onAddNew = {
-            onAddNew?()
+            model.showingFilePicker = true
         }
 
         return view
     }
 
     func updateNSView(_ nsView: SVGCanvasView, context: Context) {
-        if nsView.currentPathCount != svgFile.paths.count {
-            nsView.insertSvgFile(svgFile)
+        if nsView.files.count != model.files.count {
+            nsView.files = model.files
         }
     }
 }

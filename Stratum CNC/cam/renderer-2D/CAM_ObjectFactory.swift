@@ -5,11 +5,11 @@
 //  Created by Cristian Baluta on 24.08.2026.
 //
 
-import AppKit
+import Foundation
 
-struct SVGObjectFactory {
+struct CAM_ObjectFactory {
 
-    func makeObject(name: String, paths: [NSBezierPath]) -> SVGObject? {
+    func makeObject(name: String, paths: [STBezierPath]) -> CAM_Object? {
 
         guard !paths.isEmpty else {
             return nil
@@ -26,7 +26,7 @@ struct SVGObjectFactory {
             normalizedPath($0, relativeTo: bounds)
         }
 
-        return SVGObject(
+        return CAM_Object(
             name: name,
             paths: normalizedPaths,
             position: CGPoint(x: bounds.minX, y: bounds.minY),
@@ -35,16 +35,16 @@ struct SVGObjectFactory {
         )
     }
 
-    private func combinedBounds(of paths: [NSBezierPath]) -> CGRect? {
+    private func combinedBounds(of paths: [STBezierPath]) -> CGRect? {
 
         paths.reduce(into: Optional<CGRect>.none) { result, path in
             result = result?.union(path.bounds) ?? path.bounds
         }
     }
 
-    private func normalizedPath(_ source: NSBezierPath, relativeTo bounds: CGRect) -> NSBezierPath {
+    private func normalizedPath(_ source: STBezierPath, relativeTo bounds: CGRect) -> STBezierPath {
 
-        guard let path = source.copy() as? NSBezierPath else {
+        guard let path = source.copy() as? STBezierPath else {
             return source
         }
 

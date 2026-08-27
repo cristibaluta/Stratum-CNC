@@ -5,10 +5,10 @@
 //  Created by Cristian Baluta on 24.08.2026.
 //
 
-import AppKit
+import Foundation
 import QuartzCore
 
-final class SVGObjectNode {
+final class CAM_ObjectNode {
 
     let objectID: UUID
 
@@ -17,7 +17,7 @@ final class SVGObjectNode {
     private let selectionLayer: CAShapeLayer
     private let rotationCenterLayer: CAShapeLayer
 
-    init(object: SVGObject, baseStrokeWidth: CGFloat) {
+    init(object: CAM_Object, baseStrokeWidth: CGFloat) {
         self.objectID = object.id
 
         let objectLayer = CALayer()
@@ -56,9 +56,9 @@ final class SVGObjectNode {
 
 // MARK: - Rendering
 
-extension SVGObjectNode {
+extension CAM_ObjectNode {
 
-    func update(object: SVGObject,
+    func update(object: CAM_Object,
                 zoomScale: CGFloat,
                 objectSelected: Bool,
                 selectedPathIndex: Int?) {
@@ -86,9 +86,9 @@ extension SVGObjectNode {
 
 // MARK: - Private Rendering
 
-private extension SVGObjectNode {
+private extension CAM_ObjectNode {
 
-    func updateStyles(object: SVGObject,
+    func updateStyles(object: CAM_Object,
                       zoomScale: CGFloat,
                       objectSelected: Bool,
                       selectedPathIndex: Int?) {
@@ -100,15 +100,15 @@ private extension SVGObjectNode {
             let isPathSelected = selectedPathIndex == index
 
             if objectSelected {
-                shapeLayer.strokeColor = NSColor.systemRed.cgColor
+                shapeLayer.strokeColor = STColor.systemRed.cgColor
                 shapeLayer.lineWidth = 2.5 / effectiveScale
 
             } else if isPathSelected {
-                shapeLayer.strokeColor = NSColor.systemBlue.cgColor
+                shapeLayer.strokeColor = STColor.systemBlue.cgColor
                 shapeLayer.lineWidth = 2.0 / effectiveScale
 
             } else {
-                shapeLayer.strokeColor = NSColor.labelColor.cgColor
+                shapeLayer.strokeColor = STColor.labelColor.cgColor
                 shapeLayer.lineWidth = 1.0 / effectiveScale
             }
         }
@@ -119,13 +119,13 @@ private extension SVGObjectNode {
         rotationCenterLayer.lineWidth = 1.0 / effectiveScale
     }
 
-    static func makeShapeLayer(for path: NSBezierPath, strokeWidth: CGFloat) -> CAShapeLayer {
+    static func makeShapeLayer(for path: STBezierPath, strokeWidth: CGFloat) -> CAShapeLayer {
 
         let layer = CAShapeLayer()
 
         layer.path = path.cgPath
         layer.fillColor = nil
-        layer.strokeColor = NSColor.labelColor.cgColor
+        layer.strokeColor = STColor.labelColor.cgColor
         layer.lineWidth = strokeWidth
         layer.lineJoin = .round
         layer.lineCap = .round
@@ -138,11 +138,7 @@ private extension SVGObjectNode {
         return layer
     }
 
-    static func makeSelectionLayer(
-        width: CGFloat,
-        height: CGFloat,
-        strokeWidth: CGFloat
-    ) -> CAShapeLayer {
+    static func makeSelectionLayer(width: CGFloat, height: CGFloat, strokeWidth: CGFloat) -> CAShapeLayer {
 
         let layer = CAShapeLayer()
         let path = CGMutablePath()
@@ -155,7 +151,7 @@ private extension SVGObjectNode {
 
         layer.path = path
         layer.fillColor = nil
-        layer.strokeColor = NSColor.systemRed.cgColor
+        layer.strokeColor = STColor.systemRed.cgColor
         layer.lineWidth = strokeWidth
         layer.lineDashPattern = [6, 4]
         layer.opacity = 0
@@ -183,10 +179,10 @@ private extension SVGObjectNode {
         path.addLine(to: CGPoint(x: center.x, y: center.y + crossSize))
 
         layer.path = path
-        layer.fillColor = NSColor.systemOrange.cgColor
-        layer.strokeColor = NSColor.systemOrange.cgColor
+        layer.fillColor = STColor.systemOrange.cgColor
+        layer.strokeColor = STColor.systemOrange.cgColor
         layer.shadowOffset = .zero
-        layer.shadowColor = NSColor.black.cgColor
+        layer.shadowColor = STColor.black.cgColor
         layer.shadowOpacity = 0.5
         layer.lineWidth = strokeWidth
         layer.opacity = 0

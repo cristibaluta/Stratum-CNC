@@ -8,7 +8,7 @@
 import Foundation
 import AppKit
 
-struct SVGFile {
+struct CAM_File {
     var url: URL
     var paths: [NSBezierPath]
 }

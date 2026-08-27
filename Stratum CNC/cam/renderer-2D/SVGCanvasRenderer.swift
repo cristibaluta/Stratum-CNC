@@ -2,11 +2,12 @@ import AppKit
 import QuartzCore
 
 final class SVGCanvasRenderer {
+    
     let worldLayer = CALayer()
     let rulerLayer = CAShapeLayer()
     let objectsLayer = CALayer()
     let testLayer = CAShapeLayer()
-    private(set) var nodes: [UUID: SVGObjectNode] = [:]
+    private(set) var nodes: [UUID: CAM_ObjectNode] = [:]
     private let baseStrokeWidth: CGFloat = 1.0
     private let rulerLength: CGFloat = 200
 
@@ -16,8 +17,8 @@ final class SVGCanvasRenderer {
     }
 
     // MARK: Objects
-    func add(object: SVGObject) {
-        let node = SVGObjectNode(object: object, baseStrokeWidth: baseStrokeWidth)
+    func add(object: CAM_Object) {
+        let node = CAM_ObjectNode(object: object, baseStrokeWidth: baseStrokeWidth)
         nodes[object.id] = node
         objectsLayer.addSublayer(node.layer)
     }
@@ -28,7 +29,7 @@ final class SVGCanvasRenderer {
     }
 
     // MARK: Rendering
-    func render(objects: [SVGObject],
+    func render(objects: [CAM_Object],
                 zoomScale: CGFloat,
                 selectedObjectIDs: Set<UUID>,
                 selectedPath: SVGPathSelection?) {
