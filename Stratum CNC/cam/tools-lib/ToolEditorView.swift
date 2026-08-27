@@ -27,11 +27,12 @@ struct ToolEditorView: View {
             HStack {
                 Form {
                     geometrySection
+                    metadataSection
                 }
+                Divider()
                 diagramSection
             }
             cuttingParametersSection
-            metadataSection
         }
         .formStyle(.grouped)
         .navigationTitle(tool.displayName)
@@ -103,19 +104,19 @@ private extension ToolEditorView {
     var geometrySection: some View {
         Section("Geometry") {
             MeasurementField(
-                title: "Shank Diameter",
+                title: "Shank Diameter (DS)",
                 value: $tool.shankDiameter,
                 unit: "mm"
             )
 
             MeasurementField(
-                title: "Tool Diameter",
+                title: "Tool Diameter (DC)",
                 value: $tool.toolDiameter,
                 unit: "mm"
             )
 
             OptionalMeasurementField(
-                title: "Length",
+                title: "Length (L)",
                 value: $tool.length,
                 unit: "mm"
             )
@@ -129,7 +130,7 @@ private extension ToolEditorView {
 
             if tool.tipAngle != nil {
                 MeasurementField(
-                    title: "Tip Angle",
+                    title: "Tip Angle (TA)",
                     value: Binding(
                         get: { tool.tipAngle ?? 0 },
                         set: { tool.tipAngle = $0 }
@@ -259,13 +260,13 @@ private extension ToolEditorView {
             if let group = tool.group {
                 infoRow("Group", group)
             }
-            infoRow("ID", tool.id.uuidString, monospaced: true)
             infoRow("Type", tool.type.displayName)
-            infoRow("Handle Diameter (DS)", formatted(tool.shankDiameter, unit: "mm"))
-            infoRow("Diameter (DC)", formatted(tool.toolDiameter, unit: "mm"))
-            if let length = tool.length {
-                infoRow("Length", formatted(length, unit: "mm"))
-            }
+            infoRow("ID", tool.id.uuidString, monospaced: true)
+//            infoRow("Handle Diameter (DS)", formatted(tool.shankDiameter, unit: "mm"))
+//            infoRow("Diameter (DC)", formatted(tool.toolDiameter, unit: "mm"))
+//            if let length = tool.length {
+//                infoRow("Length", formatted(length, unit: "mm"))
+//            }
         }
     }
 

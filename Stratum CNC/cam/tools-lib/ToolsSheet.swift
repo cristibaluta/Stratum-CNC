@@ -16,15 +16,15 @@ struct ToolsSheet: View {
 
     var body: some View {
         NavigationSplitView {
-            Text("Tools")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
+            ToolListView(tools: store.tools, selectedToolID: $selectedToolID)
+                .navigationSplitViewColumnWidth(200)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
                     }
                 }
-            }
-            ToolListView(tools: store.tools, selectedToolID: $selectedToolID)
         } detail: {
             if let selectedToolID,
                let index = store.tools.firstIndex(where: { $0.id == selectedToolID }) {

@@ -153,20 +153,14 @@ struct ToolDiagramView: View {
         // --- Dimension callouts -------------------------------------------
         drawDS(in: &context, centerX: centerX, shankHalf: shankHalf, topY: shankTopY)
         drawDC(in: &context, centerX: centerX, fluteHalf: fluteHalf, bottomY: bottomLineY(size: size))
-        drawVerticalBracket(
-            in: &context,
-            label: "LS",
-            x: centerX - maxHalfWidth - 22,
-            topY: shankTopY,
-            bottomY: shankBottomY
-        )
-        drawVerticalBracket(
-            in: &context,
-            label: "LC",
-            x: centerX + maxHalfWidth + 22,
-            topY: fluteTopY,
-            bottomY: tipBaseY
-        )
+//        drawVerticalBracket(
+//            in: &context,
+//            label: "LS",
+//            x: centerX - maxHalfWidth - 22,
+//            topY: shankBottomY,
+//            bottomY: tipBaseY
+//        )
+        drawVerticalBracket(in: &context, label: "L", x: centerX + maxHalfWidth + 22, topY: fluteTopY, bottomY: tipBaseY)
     }
 
     private func bottomLineY(size: CGSize) -> CGFloat {
@@ -215,7 +209,7 @@ struct ToolDiagramView: View {
 
         context.draw(
             Text(label).font(.caption2.weight(.semibold)).foregroundColor(dimensionColor),
-            at: CGPoint(x: x, y: (topY + bottomY) / 2),
+            at: CGPoint(x: x + 10, y: (topY + bottomY) / 2),
             anchor: .center
         )
     }
