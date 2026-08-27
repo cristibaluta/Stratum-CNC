@@ -1,7 +1,7 @@
 import AppKit
 import QuartzCore
 
-final class SVGCanvasRenderer {
+final class D2_CanvasRenderer {
     
     let worldLayer = CALayer()
     let rulerLayer = CAShapeLayer()

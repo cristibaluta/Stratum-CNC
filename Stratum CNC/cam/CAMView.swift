@@ -1,5 +1,5 @@
 //
-//  SvgView.swift
+//  CAMView.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 24.08.2026.
@@ -8,8 +8,8 @@
 import SwiftUI
 
 // The main view of the cam screen.
-// It holds the model preview and the list of toolpaths
-// You can access also the tools and stocks from here
+// It holds the objects to model and the list of toolpaths
+// You can access also the tools lib and stocks lib from the toolbar
 
 struct CAMView: View {
 
@@ -20,13 +20,14 @@ struct CAMView: View {
             if model.files.isEmpty {
                 emptyView
             } else {
-                // TODO: This view should be swapable with other file types, 2D and 3D
+                // TODO: This view should be swapable with a 3D view
                 // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
                 CAM_2D_View(model: model)
 
                 HStack {
                     Spacer()
                     toolpathsPanel
+                        .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
                         .frame(width: 500)
                         .padding(16)
                 }

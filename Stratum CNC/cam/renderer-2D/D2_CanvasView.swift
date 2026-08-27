@@ -1,12 +1,12 @@
 import AppKit
 
-final class SVGCanvasView: NSView {
+final class D2_CanvasView: NSView {
 
     var files: [CAM_File] = []
 
     private let state = SVGCanvasState()
     private let factory = CAM_ObjectFactory()
-    private let renderer = SVGCanvasRenderer()
+    private let renderer = D2_CanvasRenderer()
     private let hitTester = PathHitTester(tolerance: 6)
     private let inspectorView = CAM_ObjectsInspectorView()
 
@@ -26,6 +26,7 @@ final class SVGCanvasView: NSView {
         super.init(frame: frameRect)
         setup()
     }
+    
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setup()
@@ -34,6 +35,7 @@ final class SVGCanvasView: NSView {
     override var isFlipped: Bool {
         false
     }
+
     override var wantsUpdateLayer: Bool {
         true
     }
