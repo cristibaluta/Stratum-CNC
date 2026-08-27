@@ -10,6 +10,9 @@ import Observation
 import GameController
 import CoreHaptics
 
+// This listens for game controllers added to your mac. You can subscribe to the buttons actions
+// This works only when the window is active
+
 @MainActor
 final class GameControllerStore: ObservableObject {
 
