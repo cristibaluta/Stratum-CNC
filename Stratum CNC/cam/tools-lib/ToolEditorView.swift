@@ -2,6 +2,16 @@
 //  ToolEditorView.swift
 //  Stratum CNC
 //
+//  Restyled to match the reference "Tool Information" panel: a live
+//  dimensioned diagram of the bit up top, and a clean label/value list
+//  below instead of a plain metadata block.
+//
+//  Everything below assumes the same `Tool`, `ToolType`, `ToolMaterial`,
+//  `ToolCuttingParameters`, `MeasurementField` and `OptionalMeasurementField`
+//  types your project already has — only the visual layer changed. The one
+//  new piece is `ToolDiagramView` (see ToolDiagramView.swift), which is
+//  intentionally decoupled from your model so it can't collide with it.
+//
 //  Created by Cristian Baluta on 25.08.2026.
 //
 
@@ -14,7 +24,12 @@ struct ToolEditorView: View {
 
     var body: some View {
         Form {
-            geometrySection
+            HStack {
+                Form {
+                    geometrySection
+                }
+                diagramSection
+            }
             cuttingParametersSection
             metadataSection
         }
@@ -27,6 +42,56 @@ struct ToolEditorView: View {
             if tool.parameters[selectedMaterial.rawValue] == nil {
                 selectFirstAvailableMaterial()
             }
+        }
+    }
+}
+
+// MARK: - Diagram
+
+private extension ToolEditorView {
+
+    /// Live preview of the bit, redrawn as the geometry fields change —
+    /// this is the CoreGraphics/Canvas piece standing in for the reference
+    /// app's illustration with DS / LS / LC / DC callouts.
+    var diagramSection: some View {
+        ToolDiagramView(
+            shankDiameter: tool.shankDiameter,
+            toolDiameter: tool.toolDiameter,
+            shoulderLength: shoulderLengthForDiagram,
+            fluteLength: fluteLengthForDiagram,
+            tipStyle: tipStyle(for: tool.type)
+        )
+        .frame(width: 100, height: 240)
+        .listRowInsets(EdgeInsets())
+        .padding(.vertical, 12)
+    }
+
+    /// `Tool` in the original file only exposes an optional overall
+    /// `length`. The reference diagram distinguishes shoulder length (LS)
+    /// from flute length (LC) separately — if your model already tracks
+    /// those independently, swap this out for the real properties.
+    var fluteLengthForDiagram: Double {
+        guard let length = tool.length, length > 0 else { return 8 }
+        return length * 0.6
+    }
+
+    var shoulderLengthForDiagram: Double {
+        guard let length = tool.length, length > 0 else { return 6 }
+        return max(length * 0.4, 3)
+    }
+
+    /// Maps your `ToolType` to how the tip should be drawn. Adjust the
+    /// case names to whatever `ToolType` actually declares — these mirror
+    /// the groups shown in the reference sidebar (Flat End, Ball Nose,
+    /// Drill, Engraving/chamfer bits use the tool's tip angle).
+    func tipStyle(for type: ToolType) -> ToolTipStyle {
+        switch type {
+        case .drill, .vBit, .chamfer, .engraving:
+            return .conical(angleDegrees: tool.tipAngle ?? 90)
+        case .ballNose:
+            return .ball
+        default:
+            return .flat
         }
     }
 }
@@ -157,9 +222,6 @@ private extension ToolEditorView {
 
     var availableMaterials: [ToolMaterial] {
         ToolMaterial.allCases
-//            .filter {
-//            ToolMaterial(rawValue: tool.parameters.keys) != nil
-//        }
     }
 
     var parametersBinding: Binding<ToolCuttingParameters>? {
@@ -188,20 +250,37 @@ private extension ToolEditorView {
 
 private extension ToolEditorView {
 
+    /// Reworked as a plain label/value list, monospaced values right
+    /// aligned — same layout language as the reference "Tool Information"
+    /// panel (Number, Type, Handle Diameter, Shoulder Length, Flute
+    /// Length, Diameter).
     var metadataSection: some View {
         Section("Information") {
             if let group = tool.group {
-                LabeledContent("Group") {
-                    Text(group)
-                        .foregroundStyle(.secondary)
-                }
+                infoRow("Group", group)
             }
-
-            LabeledContent("ID") {
-                Text(tool.id.uuidString)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
+            infoRow("ID", tool.id.uuidString, monospaced: true)
+            infoRow("Type", tool.type.displayName)
+            infoRow("Handle Diameter (DS)", formatted(tool.shankDiameter, unit: "mm"))
+            infoRow("Diameter (DC)", formatted(tool.toolDiameter, unit: "mm"))
+            if let length = tool.length {
+                infoRow("Length", formatted(length, unit: "mm"))
             }
         }
+    }
+
+    func infoRow(_ label: String, _ value: String, monospaced: Bool = false) -> some View {
+        LabeledContent(label) {
+            Text(value)
+                .font(monospaced ? .caption.monospaced() : .body)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    func formatted(_ value: Double, unit: String) -> String {
+        let number = value.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0f", value)
+            : String(format: "%.3f", value)
+        return "\(number) \(unit)"
     }
 }

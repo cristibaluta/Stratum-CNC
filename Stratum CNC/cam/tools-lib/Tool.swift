@@ -60,6 +60,7 @@ enum ToolType: String, Codable, CaseIterable, Hashable {
     case ballNose
     case engraving
     case drill
+    case vBit
     case corn
     case chamfer
     case solderMaskRemover
@@ -74,6 +75,8 @@ enum ToolType: String, Codable, CaseIterable, Hashable {
             "Engraving"
         case .drill:
             "Drill"
+        case .vBit:
+            "V Bit"
         case .corn:
             "Corn"
         case .chamfer:
