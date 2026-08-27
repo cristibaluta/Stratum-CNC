@@ -16,7 +16,7 @@ struct PathHitTester {
                  objects: [CAM_Object],
                  nodes: [UUID: CAM_ObjectNode],
                  worldLayer: CALayer,
-                 zoomScale: CGFloat) -> SVGPathSelection? {
+                 zoomScale: CGFloat) -> PathSelection? {
 
         for object in objects.reversed() {
 
@@ -45,7 +45,7 @@ struct PathHitTester {
                     )
 
                 if strokedPath.contains(localPoint) {
-                    return SVGPathSelection(objectID: object.id, pathIndex: index)
+                    return PathSelection(objectID: object.id, pathIndex: index)
                 }
             }
         }

@@ -20,7 +20,7 @@ final class D2_CanvasView: NSView {
         }
     }
 
-    private let state = SVGCanvasState()
+    private let state = D2_CanvasState()
     private let factory = CAM_ObjectFactory()
     private let renderer = D2_CanvasRenderer()
     private let hitTester = PathHitTester(tolerance: 6)
@@ -42,7 +42,7 @@ final class D2_CanvasView: NSView {
         super.init(frame: frameRect)
         setup()
     }
-    
+
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setup()
@@ -96,34 +96,11 @@ final class D2_CanvasView: NSView {
         updateWorldTransform()
     }
 
-//    func insertSvgFile(_ svgFile: CAM_File) {
-//        guard !svgFile.paths.isEmpty else {
-//            updateInspector()
-//            return
-//        }
-//        addSVG(name: svgFile.url.lastPathComponent, paths: svgFile.paths, selectAfterAdding: false)
-//        centerOnContent()
-//    }
-//
-//    func addSVG(name: String, paths: [NSBezierPath]) {
-//        addSVG(name: name, paths: paths, selectAfterAdding: true)
-//    }
-//
-//    private func addSVG(name: String, paths: [STBezierPath], selectAfterAdding: Bool) {
-//        guard let object = factory.makeObject(name: name, paths: paths) else {
-//            return
-//        }
-//        state.add(object, select: selectAfterAdding)
-//        renderer.add(object: object)
-//        render()
-//        updateInspector()
-//    }
-
     private func render() {
         renderer.render(objects: state.objects,
                         zoomScale: zoomScale,
                         selectedObjectIDs: state.selectedObjectIDs,
-                        selectedPath: state.selectedPath)
+                        selectedPaths: state.selectedPaths)
     }
 
     private func updateWorldTransform() {
@@ -189,13 +166,23 @@ final class D2_CanvasView: NSView {
         guard let worldPoint = layer?.convert(viewPoint, to: renderer.worldLayer) else {
             return
         }
+
+        // Shift or Cmd held -> extend/toggle the selection instead of replacing it.
+        let isMultiSelectModifierDown = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
+
         if let hit = hitTester.hitTest(worldPoint: worldPoint,
                                        objects: state.objects,
                                        nodes: renderer.nodes,
                                        worldLayer: renderer.worldLayer,
                                        zoomScale: zoomScale) {
-            state.selectPath(objectID: hit.objectID, pathIndex: hit.pathIndex)
-        } else {
+            if isMultiSelectModifierDown {
+                state.togglePathSelection(objectID: hit.objectID, pathIndex: hit.pathIndex)
+            } else {
+                state.selectPath(objectID: hit.objectID, pathIndex: hit.pathIndex)
+            }
+        } else if !isMultiSelectModifierDown {
+            // Only clear on an empty-space click when not multi-selecting,
+            // so a stray shift/cmd click on empty canvas doesn't wipe the selection.
             state.clearSelection()
         }
         render()

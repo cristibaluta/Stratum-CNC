@@ -23,13 +23,6 @@ final class D2_CanvasRenderer {
         buildRuler()
     }
 
-    // MARK: Objects
-//    func add(object: CAM_Object) {
-//        let node = CAM_ObjectNode(object: object, baseStrokeWidth: baseStrokeWidth)
-//        nodes[object.id] = node
-//        objectsLayer.addSublayer(node.layer)
-//    }
-
     func setObjects(_ objects: [CAM_Object]) {
         removeAll()
         let nodes = objects.map { CAM_ObjectNode(object: $0, baseStrokeWidth: baseStrokeWidth) }
@@ -48,19 +41,21 @@ final class D2_CanvasRenderer {
     func render(objects: [CAM_Object],
                 zoomScale: CGFloat,
                 selectedObjectIDs: Set<UUID>,
-                selectedPath: SVGPathSelection?) {
+                selectedPaths: [PathSelection]) {
 
         for object in objects {
             guard let node = nodes[object.id] else {
                 continue
             }
             let selected = selectedObjectIDs.contains(object.id)
-            let selectedPathIndex: Int? = (selectedPath?.objectID == object.id) ? selectedPath?.pathIndex : nil
+            let selectedPathIndexes: [Int] = selectedPaths.compactMap {
+                ($0.objectID == object.id) ? $0.pathIndex : nil
+            }
 
             node.update(object: object,
                         zoomScale: zoomScale,
                         objectSelected: selected,
-                        selectedPathIndex: selectedPathIndex)
+                        selectedPathIndexes: selectedPathIndexes)
 
             // For testing purposes render the flattened version
             let flattenedPoints = BezierPathFlattener.flatten(object.paths, tolerance: 0.02)

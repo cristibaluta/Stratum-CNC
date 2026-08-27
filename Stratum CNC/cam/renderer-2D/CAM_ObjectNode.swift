@@ -61,7 +61,7 @@ extension CAM_ObjectNode {
     func update(object: CAM_Object,
                 zoomScale: CGFloat,
                 objectSelected: Bool,
-                selectedPathIndex: Int?) {
+                selectedPathIndexes: [Int]) {
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -78,7 +78,7 @@ extension CAM_ObjectNode {
         updateStyles(object: object,
                      zoomScale: zoomScale,
                      objectSelected: objectSelected,
-                     selectedPathIndex: selectedPathIndex)
+                     selectedPathIndexes: selectedPathIndexes)
 
         CATransaction.commit()
     }
@@ -91,13 +91,13 @@ private extension CAM_ObjectNode {
     func updateStyles(object: CAM_Object,
                       zoomScale: CGFloat,
                       objectSelected: Bool,
-                      selectedPathIndex: Int?) {
+                      selectedPathIndexes: [Int]) {
 
         let effectiveScale = max(zoomScale * object.scale, 0.000001)
 
         for (index, shapeLayer) in shapeLayers.enumerated() {
 
-            let isPathSelected = selectedPathIndex == index
+            let isPathSelected = selectedPathIndexes.contains(index)
 
             if objectSelected {
                 shapeLayer.strokeColor = STColor.systemRed.cgColor
