@@ -54,7 +54,6 @@ struct ToolDiagramView: View {
         Canvas { context, size in
             draw(in: &context, size: size)
         }
-        .frame(minHeight: 220)
     }
 
     private func draw(in context: inout GraphicsContext, size: CGSize) {
@@ -96,13 +95,30 @@ struct ToolDiagramView: View {
         context.fill(shankPath, with: .color(shankColor))
         context.stroke(shankPath, with: .color(outlineColor), lineWidth: 1.2)
 
-        // --- Flute (tapered shoulder if diameters differ) ---------------
+        // --- Flute (tapered shoulder if diameters differ; full width for conical tips) ---
+        let fluteBodyHalf: CGFloat = {
+            if case .conical = tipStyle {
+                return shankHalf   // engraving/chamfer bits: body stays shank width, only the tip narrows
+            } else {
+                return fluteHalf
+            }
+        }()
+
+        // Pre-compute how far the cone eats into the flute length, so the
+        // cylindrical body stops before it and the apex still lands on tipBaseY.
+        var fluteBottomY = tipBaseY
+        if case .conical(let angleDegrees) = tipStyle {
+            let halfAngle = max(min(angleDegrees, 179), 1) / 2
+            let tipDrop = fluteBodyHalf / CGFloat(tan(halfAngle * .pi / 180))
+            fluteBottomY = max(tipBaseY - tipDrop, fluteTopY + 6)
+        }
+
         var flutePath = Path()
         flutePath.move(to: CGPoint(x: centerX - shankHalf, y: fluteTopY))
-        flutePath.addLine(to: CGPoint(x: centerX - fluteHalf, y: fluteTopY + 6))
-        flutePath.addLine(to: CGPoint(x: centerX - fluteHalf, y: tipBaseY))
-        flutePath.addLine(to: CGPoint(x: centerX + fluteHalf, y: tipBaseY))
-        flutePath.addLine(to: CGPoint(x: centerX + fluteHalf, y: fluteTopY + 6))
+        flutePath.addLine(to: CGPoint(x: centerX - fluteBodyHalf, y: fluteTopY + 6))
+        flutePath.addLine(to: CGPoint(x: centerX - fluteBodyHalf, y: fluteBottomY))
+        flutePath.addLine(to: CGPoint(x: centerX + fluteBodyHalf, y: fluteBottomY))
+        flutePath.addLine(to: CGPoint(x: centerX + fluteBodyHalf, y: fluteTopY + 6))
         flutePath.addLine(to: CGPoint(x: centerX + shankHalf, y: fluteTopY))
         flutePath.closeSubpath()
         context.fill(flutePath, with: .color(fluteColor))
@@ -114,8 +130,8 @@ struct ToolDiagramView: View {
                 let t = CGFloat(i) / CGFloat(fluteStripeCount)
                 let y0 = fluteTopY + 6 + t * (tipBaseY - fluteTopY - 6)
                 var stripe = Path()
-                stripe.move(to: CGPoint(x: centerX - fluteHalf, y: y0))
-                stripe.addLine(to: CGPoint(x: centerX + fluteHalf, y: y0 + 8))
+                stripe.move(to: CGPoint(x: centerX - fluteBodyHalf, y: y0))
+                stripe.addLine(to: CGPoint(x: centerX + fluteBodyHalf, y: y0 + 8))
                 context.stroke(stripe, with: .color(outlineColor.opacity(0.35)), lineWidth: 0.75)
             }
         }
@@ -124,28 +140,30 @@ struct ToolDiagramView: View {
         // --- Tip ----------------------------------------------------------
         var tipPath = Path()
         switch tipStyle {
-        case .flat:
-            tipPath.addRect(CGRect(
-                x: centerX - fluteHalf, y: tipBaseY - 1,
-                width: fluteHalf * 2, height: 2
-            ))
-        case .ball:
-            let r = fluteHalf
-            tipPath.addArc(
-                center: CGPoint(x: centerX, y: tipBaseY),
-                radius: r,
-                startAngle: .degrees(0),
-                endAngle: .degrees(180),
-                clockwise: false
-            )
-        case .conical(let angleDegrees):
-            let halfAngle = max(min(angleDegrees, 179), 1) / 2
-            let tipDrop = fluteHalf / CGFloat(tan(halfAngle * .pi / 180))
-            let tipY = tipBaseY + max(tipDrop, 4)
-            tipPath.move(to: CGPoint(x: centerX - fluteHalf, y: tipBaseY))
-            tipPath.addLine(to: CGPoint(x: centerX, y: tipY))
-            tipPath.addLine(to: CGPoint(x: centerX + fluteHalf, y: tipBaseY))
-            tipPath.closeSubpath()
+            case .flat:
+                tipPath.addRect(CGRect(
+                    x: centerX - fluteHalf, y: tipBaseY - 1,
+                    width: fluteHalf * 2, height: 2
+                ))
+            case .ball:
+                let r = fluteHalf
+                tipPath.addArc(
+                    center: CGPoint(x: centerX, y: tipBaseY),
+                    radius: r,
+                    startAngle: .degrees(0),
+                    endAngle: .degrees(180),
+                    clockwise: false
+                )
+            case .conical(let angleDegrees):
+                let halfAngle = max(min(angleDegrees, 179), 1) / 2
+                let tipDrop = fluteBodyHalf / CGFloat(tan(halfAngle * .pi / 180))
+                // Carve the cone out of the tail end of the existing flute length,
+                // instead of extending past it — apex lands on tipBaseY.
+                let coneBaseY = max(tipBaseY - tipDrop, fluteTopY + 6)
+                tipPath.move(to: CGPoint(x: centerX - fluteBodyHalf, y: coneBaseY))
+                tipPath.addLine(to: CGPoint(x: centerX, y: tipBaseY))
+                tipPath.addLine(to: CGPoint(x: centerX + fluteBodyHalf, y: coneBaseY))
+                tipPath.closeSubpath()
         }
         context.fill(tipPath, with: .color(fluteColor))
         context.stroke(tipPath, with: .color(outlineColor), lineWidth: 1.2)
