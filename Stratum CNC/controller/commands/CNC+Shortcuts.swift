@@ -7,6 +7,8 @@
 
 import Foundation
 
+// Shortcuts to CNC commands
+
 enum CNC {
 
     // MARK: Motion
