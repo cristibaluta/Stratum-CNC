@@ -58,21 +58,21 @@ final class D2_CanvasRenderer {
                         selectedPathIndexes: selectedPathIndexes)
 
             // For testing purposes render the flattened version
-            let flattenedPoints = BezierPathFlattener.flatten(object.paths, tolerance: 0.02)
-            let path = CGMutablePath()
-            for points in flattenedPoints {
-//                print("Subpath: \(points)")
-                path.move(to: points.first!)
-                for point in points {
-                    path.addLine(to: point)
-                }
-            }
-            testLayer.path = path
-            testLayer.strokeColor = NSColor.blue.cgColor
-            testLayer.fillColor = nil
-            testLayer.lineWidth = 0.5
-            testLayer.zPosition = -1
-            testLayer.actions = ["lineWidth": NSNull()]
+//            let flattenedPoints = BezierPathFlattener.flatten(object.paths, tolerance: 0.02)
+//            let path = CGMutablePath()
+//            for points in flattenedPoints {
+////                print("Subpath: \(points)")
+//                path.move(to: points.first!)
+//                for point in points {
+//                    path.addLine(to: point)
+//                }
+//            }
+//            testLayer.path = path
+//            testLayer.strokeColor = NSColor.blue.cgColor
+//            testLayer.fillColor = nil
+//            testLayer.lineWidth = 0.5
+//            testLayer.zPosition = -1
+//            testLayer.actions = ["lineWidth": NSNull()]
         }
         updateRulerStrokeWidth(zoomScale: zoomScale)
 
