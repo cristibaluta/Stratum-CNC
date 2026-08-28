@@ -1,12 +1,4 @@
 //
-//  cases.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 28.08.2026.
-//
-
-
-//
 //  StockPreviewView.swift
 //  Stratum CNC
 //
@@ -351,23 +343,36 @@ struct StockPreviewView: View {
     var body: some View {
         Canvas { context, size in
             let texture = material.stockTextureKind.texture
-            let padding = size.width * 0.12
+            let padding = size.width * 0.05
 
             switch geometry {
             case .rectangular(let width, let height, let depth):
-                drawBox(width: width, height: height, depth: depth, texture: texture, canvasSize: size, padding: padding, in: context)
+                drawBox(width: width,
+                        height: height,
+                        depth: depth,
+                        texture: texture,
+                        canvasSize: size,
+                        padding: padding,
+                        in: context)
 
             case .round(let diameter, let depth):
-                drawCylinder(diameter: diameter, length: depth, texture: texture, canvasSize: size, padding: padding, in: context)
+                drawCylinder(diameter: diameter,
+                             length: depth,
+                             texture: texture,
+                             canvasSize: size,
+                             padding: padding,
+                             in: context)
 
             case .disk(let outerDiameter, let innerDiameter, let depth):
-                drawTube(outerDiameter: outerDiameter, innerDiameter: innerDiameter, length: depth, texture: texture, canvasSize: size, padding: padding, in: context)
+                drawTube(outerDiameter: outerDiameter,
+                         innerDiameter: innerDiameter,
+                         length: depth,
+                         texture: texture,
+                         canvasSize: size,
+                         padding: padding,
+                         in: context)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemFill))
-        )
     }
 }
 

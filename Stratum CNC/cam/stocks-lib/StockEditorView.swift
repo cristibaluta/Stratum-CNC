@@ -16,8 +16,6 @@ struct StockEditorView: View {
             Section {
                 StockPreviewView(geometry: stock.geometry, material: stock.material)
                     .frame(height: 200)
-                    .listRowInsets(EdgeInsets())
-                    .padding()
             }
             generalSection
             geometrySection
@@ -31,21 +29,10 @@ private extension StockEditorView {
 
     var generalSection: some View {
         Section("Material") {
+            TextField("Name", text: $stock.name)
 
-            TextField(
-                "Name",
-                text: $stock.name
-            )
-
-            Picker(
-                "Material",
-                selection: $stock.material
-            ) {
-                ForEach(
-                    StockMaterialType.allCases,
-                    id: \.self
-                ) { material in
-
+            Picker("Material", selection: $stock.material) {
+                ForEach(StockMaterialType.allCases, id: \.self) { material in
                     Text(material.displayName)
                         .tag(material)
                 }
