@@ -77,6 +77,36 @@ enum RampMath {
         let toothRun = channelHeight / tan(a * .pi / 180)
         return min(max(Int((l / max(toothRun, 4)).rounded(.up)), 1), 10)
     }
+
+    /// Horizontal ramp length required to reach `stepdown` at a given `angle`.
+    /// This is the real driving relationship: stepdown is the constraint,
+    /// angle sets the slope, and this is how much length that slope needs.
+    static func linearRequiredLength(angle: Double, stepdown: Double) -> Double {
+        let a = clampedAngle(angle)
+        let d = max(stepdown, 0.01)
+        return d / tan(a * .pi / 180)
+    }
+
+    /// The actual outcome of a linear ramp given angle, available length, and
+    /// the stepdown it must never exceed.
+    /// - If `length` is enough, the ramp reaches full `stepdown` depth using
+    ///   only the portion of `length` it needs (`usedLength <= length`).
+    /// - If `length` falls short, the ramp uses all of it but only reaches a
+    ///   partial depth — `reachesStepdown` is false, which callers should
+    ///   surface as a warning rather than silently under-cutting.
+    static func linearRampOutcome(angle: Double, length: Double, stepdown: Double) -> (usedLength: Double, depth: Double, reachesStepdown: Bool) {
+        let a = clampedAngle(angle)
+        let l = max(length, 0.1)
+        let d = max(stepdown, 0.01)
+        let requiredLength = d / tan(a * .pi / 180)
+
+        if l >= requiredLength {
+            return (requiredLength, d, true)
+        } else {
+            let depth = l * tan(a * .pi / 180)
+            return (l, depth, false)
+        }
+    }
 }
 
 // MARK: - Path-following helper (drives the animated tool dot)
@@ -149,13 +179,14 @@ struct RampVisualization: View {
     let type: RampType
     let angle: Double
     let length: Double
+    var stepdown: Double = 1
     var linearReturnMode: LinearRampReturnMode = .retrace
     var helixDirection: HelixDirection = .outsideIn
 
     var body: some View {
         switch type {
         case .linear:
-            LinearRampProfileView(angle: angle, length: length, returnMode: linearReturnMode)
+            LinearRampProfileView(angle: angle, length: length, stepdown: stepdown, returnMode: linearReturnMode)
         case .helix:
             HelixTopView(angle: angle, length: length, direction: helixDirection)
         case .zigZag:
@@ -172,6 +203,7 @@ struct RampTypeSelector: View {
     @Binding var type: RampType
     var angle: Double
     var length: Double
+    var stepdown: Double = 1
     var linearReturnMode: LinearRampReturnMode = .retrace
     var helixDirection: HelixDirection = .outsideIn
 
@@ -184,6 +216,7 @@ struct RampTypeSelector: View {
                     type: candidate,
                     angle: angle,
                     length: length,
+                    stepdown: stepdown,
                     linearReturnMode: linearReturnMode,
                     helixDirection: helixDirection,
                     isSelected: type == candidate
@@ -203,6 +236,7 @@ private struct RampTypeCard: View {
     let type: RampType
     let angle: Double
     let length: Double
+    let stepdown: Double
     let linearReturnMode: LinearRampReturnMode
     let helixDirection: HelixDirection
     let isSelected: Bool
@@ -217,6 +251,7 @@ private struct RampTypeCard: View {
                     type: type,
                     angle: angle,
                     length: length,
+                    stepdown: stepdown,
                     linearReturnMode: linearReturnMode,
                     helixDirection: helixDirection
                 )
@@ -243,60 +278,96 @@ private struct RampTypeCard: View {
 struct LinearRampProfileView: View {
     let angle: Double
     let length: Double
+    /// Maximum Z the ramp may descend before it must be at full cutting
+    /// depth. Owned by your general cutting parameters, not by ramping —
+    /// passed in here purely so the diagram can respect it.
+    let stepdown: Double
     var returnMode: LinearRampReturnMode = .retrace
 
     private let cycleDuration: Double = 2.8
 
+    /// Reference ramp length (mm) that fills the available drawing area.
+    /// Without a fixed reference, scaling by the live length/depth cancels
+    /// itself out algebraically (depth is proportional to length), so the
+    /// ramp always fills the canvas and `length` has no visible effect.
+    private let referenceLength: Double = 40
+
+    private var outcome: (usedLength: Double, depth: Double, reachesStepdown: Bool) {
+        RampMath.linearRampOutcome(angle: angle, length: length, stepdown: stepdown)
+    }
+
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
-            let points = pathPoints(in: size)
+            let layout = layout(in: size)
 
             TimelineView(.animation) { timeline in
                 let currentPhase = phase(for: timeline.date, cycleDuration: cycleDuration)
                 Canvas { context, _ in
-                    draw(context: &context, size: size, points: points, phase: currentPhase)
+                    draw(context: &context, size: size, layout: layout, phase: currentPhase)
                 }
             }
         }
     }
 
-    /// Entry point, ramp bottom, and a second stage that either continues
-    /// forward or retraces back to the XY start at final depth.
-    /// Uses a single uniform scale for x and y so the drawn angle matches the real one.
-    private func pathPoints(in size: CGSize) -> [CGPoint] {
+    private struct Layout {
+        let points: [CGPoint]
+        let stepdownY: CGFloat
+        let reachesStepdown: Bool
+    }
+
+    /// Builds the tool path. `points` always ends at the point the tool
+    /// actually reaches — either the stepdown depth (with room to spare or
+    /// exactly used up) or, in the shortfall case, wherever `length` runs out
+    /// short of stepdown.
+    private func layout(in size: CGSize) -> Layout {
         let margin = size.width * 0.12
         let clampedLength = max(length, 0.1)
-        let depth = RampMath.linearDepth(angle: angle, length: length)
+        let result = outcome
 
-        let maxDimension = max(clampedLength, depth, 0.1)
+        // Scale against a fixed reference, only growing the denominator if
+        // the actual values would otherwise overflow the canvas. This keeps
+        // the drawing to-scale (true angle) while still letting `length`
+        // and `stepdown` visibly shrink or grow the ramp.
+        let maxDimension = max(clampedLength, stepdown, referenceLength)
         let available = min(size.width, size.height) - margin * 2
         let scale = available / CGFloat(maxDimension)
 
         let surfaceY = size.height * 0.28
         let startX = margin
-        let endX = startX + CGFloat(clampedLength) * scale
-        let endY = surfaceY + CGFloat(depth) * scale
+        let stepdownY = surfaceY + CGFloat(stepdown) * scale
+
+        let rampEndX = startX + CGFloat(result.usedLength) * scale
+        let rampEndY = surfaceY + CGFloat(result.depth) * scale
 
         let stageTwo: CGPoint
-        switch returnMode {
-        case .advance:
-            let runOutX = min(endX + (endX - startX) * 0.4, size.width - margin * 0.4)
-            stageTwo = CGPoint(x: runOutX, y: endY)
-        case .retrace:
-            stageTwo = CGPoint(x: startX, y: endY)
+        if result.reachesStepdown {
+            switch returnMode {
+            case .advance:
+                let runOutX = min(startX + CGFloat(clampedLength) * scale, size.width - margin * 0.4)
+                stageTwo = CGPoint(x: runOutX, y: rampEndY)
+            case .retrace:
+                stageTwo = CGPoint(x: startX, y: rampEndY)
+            }
+        } else {
+            // Shortfall: no stage 2 — the tool simply runs out of room.
+            stageTwo = CGPoint(x: rampEndX, y: rampEndY)
         }
 
-        return [
+        let points = [
             CGPoint(x: startX, y: surfaceY),
-            CGPoint(x: endX, y: endY),
+            CGPoint(x: rampEndX, y: rampEndY),
             stageTwo
         ]
+
+        return Layout(points: points, stepdownY: stepdownY, reachesStepdown: result.reachesStepdown)
     }
 
-    private func draw(context: inout GraphicsContext, size: CGSize, points: [CGPoint], phase: CGFloat) {
+    private func draw(context: inout GraphicsContext, size: CGSize, layout: Layout, phase: CGFloat) {
+        let points = layout.points
         guard points.count == 3 else { return }
         let surfaceY = points[0].y
+        let rampColor: Color = layout.reachesStepdown ? .accentColor : .orange
 
         // Material block below the surface line.
         var material = Path()
@@ -317,20 +388,48 @@ struct LinearRampProfileView: View {
             lineWidth: 1
         )
 
-        // Stage 2 — faint, dashed: either continuing forward or retracing to start.
+        // Stepdown limit — the ramp must never cross below this line.
         context.stroke(
             Path { p in
-                p.move(to: points[1])
-                p.addLine(to: points[2])
+                p.move(to: CGPoint(x: 0, y: layout.stepdownY))
+                p.addLine(to: CGPoint(x: size.width, y: layout.stepdownY))
             },
-            with: .color(.accentColor.opacity(0.45)),
-            style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 3])
+            with: .color(.secondary.opacity(0.5)),
+            style: StrokeStyle(lineWidth: 1, dash: [3, 3])
         )
-        let stage2Direction = CGVector(dx: points[2].x - points[1].x, dy: points[2].y - points[1].y)
-        if stage2Direction.dx != 0 || stage2Direction.dy != 0 {
-            context.fill(
-                arrowhead(at: points[2], direction: stage2Direction),
-                with: .color(.accentColor.opacity(0.7))
+
+        if layout.reachesStepdown {
+            // Stage 2 — faint, dashed: either continuing forward or retracing to start.
+            context.stroke(
+                Path { p in
+                    p.move(to: points[1])
+                    p.addLine(to: points[2])
+                },
+                with: .color(.accentColor.opacity(0.45)),
+                style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [5, 3])
+            )
+            let stage2Direction = CGVector(dx: points[2].x - points[1].x, dy: points[2].y - points[1].y)
+            if stage2Direction.dx != 0 || stage2Direction.dy != 0 {
+                context.fill(
+                    arrowhead(at: points[2], direction: stage2Direction),
+                    with: .color(.accentColor.opacity(0.7))
+                )
+            }
+        } else {
+            // Shortfall — ghost the remaining ramp it *would* need, in warning color.
+            let a = RampMath.clampedAngle(angle) * .pi / 180
+            let extendedRun: CGFloat = 24
+            let ghostEnd = CGPoint(
+                x: points[1].x + extendedRun,
+                y: points[1].y + extendedRun * CGFloat(tan(a))
+            )
+            context.stroke(
+                Path { p in
+                    p.move(to: points[1])
+                    p.addLine(to: ghostEnd)
+                },
+                with: .color(.orange.opacity(0.5)),
+                style: StrokeStyle(lineWidth: 1.5, dash: [2, 3])
             )
         }
 
@@ -340,12 +439,12 @@ struct LinearRampProfileView: View {
                 p.move(to: points[0])
                 p.addLine(to: points[1])
             },
-            with: .color(.accentColor),
+            with: .color(rampColor),
             style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
         )
 
         // Mark the true XY start, useful when the tool retraces back to it.
-        if returnMode == .retrace {
+        if layout.reachesStepdown && returnMode == .retrace {
             context.stroke(
                 Path(ellipseIn: CGRect(x: points[0].x - 3, y: points[0].y - 3, width: 6, height: 6)),
                 with: .color(.secondary),
@@ -353,11 +452,11 @@ struct LinearRampProfileView: View {
             )
         }
 
-        // Animated tool position, travelling the full two-stage path.
+        // Animated tool position, travelling the full path.
         let dot = point(along: points, phase: phase)
         context.fill(
             Path(ellipseIn: CGRect(x: dot.x - 4, y: dot.y - 4, width: 8, height: 8)),
-            with: .color(.accentColor)
+            with: .color(rampColor)
         )
     }
 }
@@ -370,6 +469,12 @@ struct HelixTopView: View {
     var direction: HelixDirection = .outsideIn
 
     private let cycleDuration: Double = 3.0
+
+    /// Reference diameter (mm) that fills the available drawing area — same
+    /// convention as the linear and zig-zag views, so `length` visibly
+    /// changes the spiral size instead of being ignored.
+    private let referenceLength: Double = 30
+    private let minSizeFraction: CGFloat = 0.35
 
     var body: some View {
         GeometryReader { geo in
@@ -385,9 +490,17 @@ struct HelixTopView: View {
         }
     }
 
+    /// Outer spiral radius, scaled by `length` relative to `referenceLength`
+    /// (capped at the available canvas radius either way).
+    private func outerRadius(in size: CGSize) -> CGFloat {
+        let maxRadius = min(size.width, size.height) / 2 - 6
+        let sizeFraction = min(max(CGFloat(length / referenceLength), minSizeFraction), 1.0)
+        return maxRadius * sizeFraction
+    }
+
     private func spiralPoints(in size: CGSize) -> [CGPoint] {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let outerRadius = min(size.width, size.height) / 2 - 6
+        let outerRadius = outerRadius(in: size)
         let innerRadius = outerRadius * 0.55
         let turns = RampMath.helixTurns(angle: angle)
         let pointsPerTurn = 40
@@ -412,7 +525,7 @@ struct HelixTopView: View {
     private func draw(context: inout GraphicsContext, size: CGSize, points: [CGPoint], phase: CGFloat) {
         guard points.count > 1 else { return }
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let outerRadius = min(size.width, size.height) / 2 - 6
+        let outerRadius = outerRadius(in: size)
 
         // Pocket / bore outline.
         context.stroke(
@@ -557,6 +670,11 @@ struct ZigZagTopView: View {
 struct RampingEditor: View {
     @Binding var ramping: RampingSettings
 
+    /// Max Z the ramp may descend before cutting at full depth. This comes
+    /// from your existing cutting parameters (depth-per-pass / stepdown),
+    /// not from RampingSettings — passed in so the diagrams can enforce it.
+    let stepdown: Double
+
     @Environment(\.dismiss)
     private var dismiss
 
@@ -567,104 +685,97 @@ struct RampingEditor: View {
 
     var body: some View {
         Form {
+            Section {
+                RampTypeSelector(
+                    type: $ramping.type,
+                    angle: ramping.angle,
+                    length: ramping.length,
+                    stepdown: stepdown,
+                    linearReturnMode: linearReturnMode,
+                    helixDirection: helixDirection
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            } header: {
+                Text("Ramp type")
+            }
 
-            Toggle(
-                "Enable ramping",
-                isOn: $ramping.enabled
-            )
+            Section {
+                RampVisualization(
+                    type: ramping.type,
+                    angle: ramping.angle,
+                    length: ramping.length,
+                    stepdown: stepdown,
+                    linearReturnMode: linearReturnMode,
+                    helixDirection: helixDirection
+                )
+                .frame(height: RampGeometry.detailSize)
+                .frame(maxWidth: .infinity)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.rampCardBackground)
+                )
+                .animation(.easeInOut(duration: 0.2), value: ramping.type)
 
-            if ramping.enabled {
-
-                Section {
-                    RampTypeSelector(
-                        type: $ramping.type,
-                        angle: ramping.angle,
-                        length: ramping.length,
-                        linearReturnMode: linearReturnMode,
-                        helixDirection: helixDirection
-                    )
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Ramp type")
+                if ramping.type == .linear {
+                    Picker("Return path", selection: $linearReturnMode) {
+                        ForEach(LinearRampReturnMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
 
-                Section {
-                    RampVisualization(
-                        type: ramping.type,
-                        angle: ramping.angle,
-                        length: ramping.length,
-                        linearReturnMode: linearReturnMode,
-                        helixDirection: helixDirection
-                    )
-                    .frame(height: RampGeometry.detailSize)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Color.rampCardBackground)
-                    )
-                    .animation(.easeInOut(duration: 0.2), value: ramping.type)
-
-                    if ramping.type == .linear {
-                        Picker("Return path", selection: $linearReturnMode) {
-                            ForEach(LinearRampReturnMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
+                if ramping.type == .helix {
+                    Picker("Spiral direction", selection: $helixDirection) {
+                        ForEach(HelixDirection.allCases) { dir in
+                            Text(dir.rawValue).tag(dir)
                         }
-                        .pickerStyle(.segmented)
                     }
+                    .pickerStyle(.segmented)
+                }
 
-                    if ramping.type == .helix {
-                        Picker("Spiral direction", selection: $helixDirection) {
-                            ForEach(HelixDirection.allCases) { dir in
-                                Text(dir.rawValue).tag(dir)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
+                Text(rampDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-                    Text(rampDescription)
-                        .font(.caption)
+                if !rampMetrics.isEmpty {
+                    Text(rampMetrics)
+                        .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
+                }
+            }
 
-                    if !rampMetrics.isEmpty {
-                        Text(rampMetrics)
-                            .font(.caption.monospacedDigit())
+            if ramping.type != .none {
+                Section {
+                    HStack {
+                        Text("Ramp angle")
+                        Spacer()
+
+                        TextField(
+                            "",
+                            value: $ramping.angle,
+                            format: .number
+                        )
+                        .multilineTextAlignment(.trailing)
+
+                        Text("°")
                             .foregroundStyle(.secondary)
                     }
-                }
 
-                if ramping.type != .none {
-                    Section {
-                        HStack {
-                            Text("Ramp angle")
-                            Spacer()
+                    HStack {
+                        Text("Ramp length")
+                        Spacer()
 
-                            TextField(
-                                "",
-                                value: $ramping.angle,
-                                format: .number
-                            )
-                            .multilineTextAlignment(.trailing)
+                        TextField(
+                            "",
+                            value: $ramping.length,
+                            format: .number
+                        )
+                        .multilineTextAlignment(.trailing)
 
-                            Text("°")
-                                .foregroundStyle(.secondary)
-                        }
-
-                        HStack {
-                            Text("Ramp length")
-                            Spacer()
-
-                            TextField(
-                                "",
-                                value: $ramping.length,
-                                format: .number
-                            )
-                            .multilineTextAlignment(.trailing)
-
-                            Text("mm")
-                                .foregroundStyle(.secondary)
-                        }
+                        Text("mm")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -678,11 +789,18 @@ struct RampingEditor: View {
             return "The tool plunges vertically."
 
         case .linear:
+            let result = RampMath.linearRampOutcome(angle: ramping.angle, length: ramping.length, stepdown: stepdown)
+            let stageText: String
             switch linearReturnMode {
             case .advance:
-                return "The tool descends along a straight ramp and continues forward into the cut."
+                stageText = "continues forward into the cut"
             case .retrace:
-                return "The tool descends along a straight ramp, then retraces back to the start point at final depth before the cut continues."
+                stageText = "retraces back to the start point"
+            }
+            if result.reachesStepdown {
+                return "The tool descends along a straight ramp to the \(String(format: "%.2f", stepdown)) mm stepdown, then \(stageText)."
+            } else {
+                return "⚠️ At this angle, \(String(format: "%.1f", ramping.length)) mm of ramp length only reaches \(String(format: "%.2f", result.depth)) mm — short of the \(String(format: "%.2f", stepdown)) mm stepdown. Increase length or use a shallower angle."
             }
 
         case .helix:
@@ -701,8 +819,13 @@ struct RampingEditor: View {
     private var rampMetrics: String {
         switch ramping.type {
         case .linear:
-            let depth = RampMath.linearDepth(angle: ramping.angle, length: ramping.length)
-            return String(format: "≈ %.1f mm deep over %.1f mm of travel", depth, max(ramping.length, 0.1))
+            let result = RampMath.linearRampOutcome(angle: ramping.angle, length: ramping.length, stepdown: stepdown)
+            if result.reachesStepdown {
+                let spare = max(ramping.length - result.usedLength, 0)
+                return String(format: "Uses %.1f of %.1f mm ramp length (%.1f mm spare)", result.usedLength, max(ramping.length, 0.1), spare)
+            } else {
+                return String(format: "Needs ≥ %.1f mm at this angle to reach stepdown", RampMath.linearRequiredLength(angle: ramping.angle, stepdown: stepdown))
+            }
 
         case .helix:
             let turns = RampMath.helixTurns(angle: ramping.angle)

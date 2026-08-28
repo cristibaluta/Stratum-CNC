@@ -58,7 +58,7 @@ struct ToolpathCellView: View {
                         showRampEditor = true
                     }
                     .popover(isPresented: $showRampEditor) {
-                        RampingEditor(ramping: $toolpath.ramping)
+                        RampingEditor(ramping: $toolpath.ramping, stepdown: toolpath.stepDown)
                     }
                 }
             }
