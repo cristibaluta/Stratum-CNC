@@ -27,23 +27,17 @@ final class CAM_ObjectNode {
         self.layer = objectLayer
 
         self.shapeLayers = object.paths.map {
-            Self.makeShapeLayer(
-                for: $0,
-                strokeWidth: baseStrokeWidth
-            )
+            Self.makeShapeLayer(for: $0, strokeWidth: baseStrokeWidth)
         }
 
-        self.selectionLayer = Self.makeSelectionLayer(
-            width: object.originalSize.width,
-            height: object.originalSize.height,
-            strokeWidth: baseStrokeWidth
-        )
+        self.selectionLayer = Self.makeSelectionLayer(width: object.originalSize.width,
+                                                      height: object.originalSize.height,
+                                                      strokeWidth: baseStrokeWidth)
 
-        self.rotationCenterLayer = Self.makeRotationCenterLayer(
-            width: object.originalSize.width,
-            height: object.originalSize.height,
-            strokeWidth: baseStrokeWidth
-        )
+        self.rotationCenterLayer = CenterShapeLayer(width: object.originalSize.width,
+                                                    height: object.originalSize.height,
+                                                    strokeWidth: baseStrokeWidth)
+        self.rotationCenterLayer.zPosition = 101
 
         for shapeLayer in shapeLayers {
             objectLayer.addSublayer(shapeLayer)
@@ -156,37 +150,6 @@ private extension CAM_ObjectNode {
         layer.lineDashPattern = [6, 4]
         layer.opacity = 0
         layer.zPosition = 100
-
-        return layer
-    }
-
-    static func makeRotationCenterLayer(width: CGFloat, height: CGFloat, strokeWidth: CGFloat) -> CAShapeLayer {
-
-        let layer = CAShapeLayer()
-
-        let center = CGPoint(x: width / 2, y: height / 2)
-        let radius: CGFloat = 3.5
-        let crossSize: CGFloat = 7
-
-        let path = CGMutablePath()
-
-        path.addEllipse(in: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2))
-
-        path.move(to: CGPoint(x: center.x - crossSize, y: center.y))
-        path.addLine(to: CGPoint(x: center.x + crossSize, y: center.y))
-
-        path.move(to: CGPoint(x: center.x, y: center.y - crossSize))
-        path.addLine(to: CGPoint(x: center.x, y: center.y + crossSize))
-
-        layer.path = path
-        layer.fillColor = STColor.systemOrange.cgColor
-        layer.strokeColor = STColor.systemOrange.cgColor
-        layer.shadowOffset = .zero
-        layer.shadowColor = STColor.black.cgColor
-        layer.shadowOpacity = 0.5
-        layer.lineWidth = strokeWidth
-        layer.opacity = 0
-        layer.zPosition = 101
 
         return layer
     }
