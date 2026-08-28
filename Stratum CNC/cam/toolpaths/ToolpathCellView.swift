@@ -31,12 +31,8 @@ struct ToolpathCellView: View {
                             expanded.toggle()
                         }
                     } label: {
-                        Image(
-                            systemName: expanded
-                                ? "chevron.up"
-                                : "chevron.down"
-                        )
-                        .font(.system(size: 12, weight: .semibold))
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
                     }
                     .buttonStyle(.plain)
                 }
@@ -59,6 +55,7 @@ struct ToolpathCellView: View {
                     }
                     .popover(isPresented: $showRampEditor) {
                         RampingEditor(ramping: $toolpath.ramping, stepdown: toolpath.stepDown)
+                            .frame(width: 600)
                     }
                 }
             }
