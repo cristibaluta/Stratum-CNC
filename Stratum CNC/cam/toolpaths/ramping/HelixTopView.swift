@@ -16,7 +16,10 @@ struct HelixTopView: View {
     /// convention as the linear and zig-zag views, so `length` visibly
     /// changes the spiral size instead of being ignored.
     private let referenceLength: Double = 30
-    private let minSizeFraction: CGFloat = 0.35
+    /// Raised from 0.35 so small diameters still fill most of the frame —
+    /// previously the spiral could shrink to just over a third of the
+    /// available space, leaving a lot of dead canvas around it.
+    private let minSizeFraction: CGFloat = 0.7
 
     var body: some View {
         GeometryReader { geo in
@@ -34,7 +37,7 @@ struct HelixTopView: View {
     /// Outer spiral radius, scaled by `length` relative to `referenceLength`
     /// (capped at the available canvas radius either way).
     private func outerRadius(in size: CGSize) -> CGFloat {
-        let maxRadius = min(size.width, size.height) / 2 - 6
+        let maxRadius = min(size.width, size.height) / 2 - 2
         let sizeFraction = min(max(CGFloat(length / referenceLength), minSizeFraction), 1.0)
         return maxRadius * sizeFraction
     }

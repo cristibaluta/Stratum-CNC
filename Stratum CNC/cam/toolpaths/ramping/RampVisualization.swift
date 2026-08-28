@@ -46,30 +46,40 @@ struct RampVisualization: View {
 
     var body: some View {
         switch type {
-        case .linear:
-            switch mode {
-            case .topPreview:
-                LinearRampTopView(
-                    angle: angle,
-                    length: length,
-                    stepdown: stepdown
-                )
-            case .profileDetail:
-                LinearRampProfileView(
-                    angle: angle,
-                    length: length,
-                    stepdown: stepdown,
-                    returnMode: linearReturnMode
-                )
-            }
-        case .helix:
-            HelixTopView(
-                angle: angle,
-                length: length,
-                direction: helixDirection
-            )
-        case .none:
-            Text("None")
+            case .linear:
+                switch mode {
+                    case .topPreview:
+                        LinearRampTopView(
+                            angle: angle,
+                            length: length,
+                            stepdown: stepdown
+                        )
+                    case .profileDetail:
+                        LinearRampProfileView(
+                            angle: angle,
+                            length: length,
+                            stepdown: stepdown,
+                            returnMode: linearReturnMode
+                        )
+                }
+            case .helix:
+                switch mode {
+                    case .topPreview:
+                        HelixTopView(
+                            angle: angle,
+                            length: length,
+                            direction: helixDirection
+                        )
+                    case .profileDetail:
+                        HelixProfileView(
+                            angle: angle,
+                            length: length,
+                            stepdown: stepdown,
+                            direction: helixDirection
+                        )
+                }
+            case .none:
+                Text("None")
         }
     }
 }
