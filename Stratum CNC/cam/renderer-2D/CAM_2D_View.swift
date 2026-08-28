@@ -12,9 +12,9 @@ struct CAM_2D_View: NSViewRepresentable {
 
     @ObservedObject var model: CAMModel
 
-    func makeNSView(context: Context) -> D2_CanvasView {
+    func makeNSView(context: Context) -> D2_CanvasNSView {
 
-        let view = D2_CanvasView()
+        let view = D2_CanvasNSView()
         view.clipsToBounds = true
         view.files = model.files
         view.onAddNew = {
@@ -24,7 +24,7 @@ struct CAM_2D_View: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: D2_CanvasView, context: Context) {
+    func updateNSView(_ nsView: D2_CanvasNSView, context: Context) {
         if nsView.files.count != model.files.count {
             nsView.files = model.files
         }

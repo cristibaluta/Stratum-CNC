@@ -7,7 +7,7 @@
 
 import AppKit
 
-final class D2_CanvasView: NSView {
+final class D2_CanvasNSView: NSView {
 
     var files: [CAM_File] = [] {
         didSet {
@@ -59,7 +59,7 @@ final class D2_CanvasView: NSView {
     private func setup() {
         wantsLayer = true
         layer?.backgroundColor = STColor.textBackgroundColor.cgColor
-        layer?.addSublayer(renderer.worldLayer)
+        layer?.addSublayer(renderer.workLayer)
         setupInspector()
     }
 
@@ -92,7 +92,7 @@ final class D2_CanvasView: NSView {
     }
     override func layout() {
         super.layout()
-        renderer.worldLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        renderer.workLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
         updateWorldTransform()
     }
 
@@ -111,7 +111,7 @@ final class D2_CanvasView: NSView {
         transform = transform.translatedBy(x: panOffset.x, y: panOffset.y)
         transform = transform.rotated(by: rotationAngle)
         transform = transform.scaledBy(x: zoomScale, y: zoomScale)
-        renderer.worldLayer.setAffineTransform(transform)
+        renderer.workLayer.setAffineTransform(transform)
 
         CATransaction.commit()
     }
@@ -163,7 +163,7 @@ final class D2_CanvasView: NSView {
         let viewPoint = convert(event.locationInWindow, from: nil)
         lastDragLocation = viewPoint
 
-        guard let worldPoint = layer?.convert(viewPoint, to: renderer.worldLayer) else {
+        guard let worldPoint = layer?.convert(viewPoint, to: renderer.workLayer) else {
             return
         }
 
@@ -173,7 +173,7 @@ final class D2_CanvasView: NSView {
         if let hit = hitTester.hitTest(worldPoint: worldPoint,
                                        objects: state.objects,
                                        nodes: renderer.nodes,
-                                       worldLayer: renderer.worldLayer,
+                                       worldLayer: renderer.workLayer,
                                        zoomScale: zoomScale) {
             if isMultiSelectModifierDown {
                 state.togglePathSelection(objectID: hit.objectID, pathIndex: hit.pathIndex)

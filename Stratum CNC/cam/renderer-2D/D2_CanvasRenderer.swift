@@ -10,17 +10,18 @@ import QuartzCore
 
 final class D2_CanvasRenderer {
     
-    let worldLayer = CALayer()
-    let rulerLayer = CAShapeLayer()
+    let workLayer = CALayer()
+    let rulerLayer: RulerShapeLayer
     let objectsLayer = CALayer()
     let testLayer = CAShapeLayer()
+
     private(set) var nodes: [UUID: CAM_ObjectNode] = [:]
     private let baseStrokeWidth: CGFloat = 1.0
     private let rulerLength: CGFloat = 200
 
     init() {
+        rulerLayer = RulerShapeLayer(rulerLength: rulerLength)
         configureLayers()
-        buildRuler()
     }
 
     func setObjects(_ objects: [CAM_Object]) {
@@ -74,55 +75,14 @@ final class D2_CanvasRenderer {
 //            testLayer.zPosition = -1
 //            testLayer.actions = ["lineWidth": NSNull()]
         }
-        updateRulerStrokeWidth(zoomScale: zoomScale)
-
+        rulerLayer.updateRulerStrokeWidth(zoomScale: zoomScale)
     }
 
-    // MARK: Setup
     private func configureLayers() {
-        worldLayer.anchorPoint = .zero
-        worldLayer.bounds = CGRect(x: 0, y: 0, width: 1, height: 1)
-        worldLayer.addSublayer(rulerLayer)
-        worldLayer.addSublayer(objectsLayer)
-        worldLayer.addSublayer(testLayer)
-    }
-
-    // MARK: Ruler
-    private func buildRuler() {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: rulerLength, y: 0))
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: 0, y: rulerLength))
-
-        addTicks(to: path, alongX: true)
-        addTicks(to: path, alongX: false)
-
-        rulerLayer.path = path
-        rulerLayer.strokeColor = NSColor.secondaryLabelColor.cgColor
-        rulerLayer.fillColor = nil
-        rulerLayer.lineWidth = baseStrokeWidth
-        rulerLayer.zPosition = -1
-        rulerLayer.actions = ["lineWidth": NSNull()]
-    }
-
-    private func addTicks(to path: CGMutablePath, alongX: Bool) {
-        let millimeters = Int(rulerLength)
-        for value in 0...millimeters {
-            let tickLength: CGFloat = value % 10 == 0 ? 4 : value % 5 == 0 ? 2.5 : 1
-            if alongX {
-                let x = CGFloat(value)
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: -tickLength))
-            } else {
-                let y = CGFloat(value)
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: -tickLength, y: y))
-            }
-        }
-    }
-
-    private func updateRulerStrokeWidth(zoomScale: CGFloat) {
-        rulerLayer.lineWidth = baseStrokeWidth / max(zoomScale, 0.000001)
+        workLayer.anchorPoint = .zero
+        workLayer.bounds = CGRect(x: 0, y: 0, width: 1, height: 1)
+        workLayer.addSublayer(rulerLayer)
+        workLayer.addSublayer(objectsLayer)
+        workLayer.addSublayer(testLayer)
     }
 }
