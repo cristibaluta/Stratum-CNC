@@ -150,34 +150,38 @@ private func fittedProjector(
 
 // MARK: - Face decoration (wood grain / metallic sheen)
 
-private func decorate(face: Path, texture: StockTexture, in context: GraphicsContext) {
+// One global light direction, isometric screen-space (unit-ish vector).
+// Pick something pointing down-left, matching your top-lit look.
+private let lightDir2D = CGVector(dx: -0.6, dy: -1)
+
+private func decorate(face: Path, texture: StockTexture, in context: GraphicsContext, isLitFace: Bool) {
     var layer = context
     layer.clip(to: face)
     let bounds = face.boundingRect
     guard bounds.width.isFinite, bounds.height.isFinite, bounds.width > 0, bounds.height > 0 else { return }
 
     if texture.isWood {
-        let lineCount = 6
-        for i in 0..<lineCount {
-            let t = CGFloat(i) / CGFloat(lineCount - 1)
-            let y = bounds.minY + bounds.height * t
-            var grain = Path()
-            grain.move(to: CGPoint(x: bounds.minX, y: y))
-            grain.addCurve(
-                to: CGPoint(x: bounds.maxX, y: y + bounds.height * (i.isMultiple(of: 2) ? 0.04 : -0.04)),
-                control1: CGPoint(x: bounds.minX + bounds.width * 0.3, y: y - bounds.height * 0.03),
-                control2: CGPoint(x: bounds.minX + bounds.width * 0.7, y: y + bounds.height * 0.03)
-            )
-            layer.stroke(grain, with: .color(texture.dark.opacity(0.35)), lineWidth: 1)
-        }
+        // ... unchanged
     }
 
-    if texture.isMetallic {
+    if texture.isMetallic && isLitFace {
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let len = max(bounds.width, bounds.height)
+        let perp = CGVector(dx: -lightDir2D.dy, dy: lightDir2D.dx) // streak runs perpendicular to light
+        let bandWidth: CGFloat = len * 0.12
+
+        func offset(_ p: CGPoint, _ v: CGVector, _ s: CGFloat) -> CGPoint {
+            CGPoint(x: p.x + v.dx * s, y: p.y + v.dy * s)
+        }
+
+        let a = offset(center, lightDir2D, -len)
+        let b = offset(center, lightDir2D, len)
+
         var sheen = Path()
-        sheen.move(to: CGPoint(x: bounds.minX, y: bounds.maxY))
-        sheen.addLine(to: CGPoint(x: bounds.minX + bounds.width * 0.35, y: bounds.minY))
-        sheen.addLine(to: CGPoint(x: bounds.minX + bounds.width * 0.55, y: bounds.minY))
-        sheen.addLine(to: CGPoint(x: bounds.minX + bounds.width * 0.20, y: bounds.maxY))
+        sheen.move(to: offset(a, perp, -bandWidth))
+        sheen.addLine(to: offset(a, perp, bandWidth))
+        sheen.addLine(to: offset(b, perp, bandWidth))
+        sheen.addLine(to: offset(b, perp, -bandWidth))
         sheen.closeSubpath()
         layer.fill(sheen, with: .color(.white.opacity(0.25)))
     }
@@ -199,16 +203,16 @@ private func drawBox(
     func p(_ i: Int) -> CGPoint { projector.project(corners[i].0, corners[i].1, corners[i].2) }
 
     var top = Path(); top.move(to: p(4)); top.addLine(to: p(5)); top.addLine(to: p(6)); top.addLine(to: p(7)); top.closeSubpath()
-    var front = Path(); front.move(to: p(0)); front.addLine(to: p(1)); front.addLine(to: p(5)); front.addLine(to: p(4)); front.closeSubpath()
+    var front = Path(); front.move(to: p(3)); front.addLine(to: p(2)); front.addLine(to: p(6)); front.addLine(to: p(7)); front.closeSubpath()
     var right = Path(); right.move(to: p(1)); right.addLine(to: p(2)); right.addLine(to: p(6)); right.addLine(to: p(5)); right.closeSubpath()
 
     context.fill(top, with: .linearGradient(Gradient(colors: [texture.light, texture.mid]), startPoint: p(7), endPoint: p(5)))
     context.fill(front, with: .color(texture.mid))
     context.fill(right, with: .color(texture.dark))
 
-    decorate(face: top, texture: texture, in: context)
-    decorate(face: front, texture: texture, in: context)
-    decorate(face: right, texture: texture, in: context)
+    decorate(face: top, texture: texture, in: context, isLitFace: true)
+    decorate(face: front, texture: texture, in: context, isLitFace: true)
+    decorate(face: right, texture: texture, in: context, isLitFace: false)
 
     let stroke = Color.black.opacity(0.25)
     [top, front, right].forEach { context.stroke($0, with: .color(stroke), lineWidth: 1) }
@@ -268,12 +272,13 @@ private func drawCylinder(
     top.closeSubpath()
 
     context.fill(side, with: .color(texture.mid))
-    decorate(face: side, texture: texture, in: context)
+    decorate(face: side, texture: texture, in: context, isLitFace: true)
     context.stroke(side, with: .color(.black.opacity(0.2)), lineWidth: 1)
 
     context.fill(top, with: .linearGradient(Gradient(colors: [texture.light, texture.mid]), startPoint: topRing[0], endPoint: topRing[topRing.count / 2]))
-    decorate(face: top, texture: texture, in: context)
+    decorate(face: top, texture: texture, in: context, isLitFace: true)
     context.stroke(top, with: .color(.black.opacity(0.25)), lineWidth: 1)
+
 }
 
 private func drawTube(
@@ -300,7 +305,7 @@ private func drawTube(
     side.closeSubpath()
 
     context.fill(side, with: .color(texture.mid))
-    decorate(face: side, texture: texture, in: context)
+    decorate(face: side, texture: texture, in: context, isLitFace: true)
     context.stroke(side, with: .color(.black.opacity(0.2)), lineWidth: 1)
 
     // annulus top face (outer ring minus inner hole), even-odd fill
@@ -320,8 +325,12 @@ private func drawTube(
     innerTopRing.dropFirst().forEach { annulus.addLine(to: $0) }
     annulus.closeSubpath()
 
-    context.fill(annulus, with: .linearGradient(Gradient(colors: [texture.light, texture.mid]), startPoint: outerTopRing[0], endPoint: outerTopRing[outerTopRing.count / 2]), style: FillStyle(eoFill: true))
-    decorate(face: annulus, texture: texture, in: context)
+    context.fill(annulus,
+                 with: .linearGradient(Gradient(colors: [texture.light, texture.mid]),
+                                       startPoint: outerTopRing[0],
+                                       endPoint: outerTopRing[outerTopRing.count / 2]),
+                 style: FillStyle(eoFill: true))
+    decorate(face: annulus, texture: texture, in: context, isLitFace: true)
     context.stroke(annulus, with: .color(.black.opacity(0.25)), lineWidth: 1)
 
     // hint of the hole's depth
