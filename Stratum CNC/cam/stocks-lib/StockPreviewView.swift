@@ -298,6 +298,34 @@ private func drawTube(
 
     let (frontTop, outerTopRing, frontBottom) = cylinderPaths(radius: rOuter, length: length, segments: segments, projector: projector)
 
+    func ringPoints(radius: Double, y: Double) -> [CGPoint] {
+        (0..<segments).map { i in
+            let theta = 2 * Double.pi * Double(i) / Double(segments)
+            return projector.project(radius * cos(theta), y, radius * sin(theta))
+        }
+    }
+    let innerTopRing = ringPoints(radius: rInner, y: length)
+    let innerBottomRing = ringPoints(radius: rInner, y: 0)
+    let half = segments / 2
+    let backTop = Array(innerTopRing[half..<segments])
+    let backBottom = Array(innerBottomRing[half..<segments])
+
+    // 1. Interior back wall of the bore — drawn FIRST, since it's the
+    //    back-most visible surface. Anything that should occlude it
+    //    (side wall, top annulus) gets painted over it below.
+    var innerWall = Path()
+    innerWall.move(to: backTop.first!)
+    backTop.dropFirst().forEach { innerWall.addLine(to: $0) }
+    backBottom.reversed().forEach { innerWall.addLine(to: $0) }
+    innerWall.closeSubpath()
+
+    context.fill(innerWall, with: .color(texture.dark.opacity(0.9)))
+    context.stroke(innerWall, with: .color(.black.opacity(0.3)), lineWidth: 1)
+    // deliberately no separate farBottomRim stroke — this path's own
+    // boundary already includes that edge, and it'll be correctly
+    // trimmed by whatever's painted over it next.
+
+    // 2. Outer front wall
     var side = Path()
     side.move(to: frontBottom.first!)
     frontBottom.dropFirst().forEach { side.addLine(to: $0) }
@@ -305,18 +333,13 @@ private func drawTube(
     side.closeSubpath()
 
     context.fill(side, with: .color(texture.mid))
-    decorate(face: side, texture: texture, in: context, isLitFace: true)
+    decorate(face: side, texture: texture, in: context, isLitFace: false)
     context.stroke(side, with: .color(.black.opacity(0.2)), lineWidth: 1)
 
-    // annulus top face (outer ring minus inner hole), even-odd fill
-    func ringPoints(radius: Double) -> [CGPoint] {
-        (0..<segments).map { i in
-            let theta = 2 * Double.pi * Double(i) / Double(segments)
-            return projector.project(radius * cos(theta), length, radius * sin(theta))
-        }
-    }
-    let innerTopRing = ringPoints(radius: rInner)
-
+    // 3. Top annulus — painted LAST. Its eoFill hole leaves the interior
+    //    wall visible where the bore actually shows through, and its
+    //    ring area correctly covers any part of innerWall/side that
+    //    geometrically shouldn't be visible.
     var annulus = Path()
     annulus.move(to: outerTopRing.first!)
     outerTopRing.dropFirst().forEach { annulus.addLine(to: $0) }
@@ -325,21 +348,9 @@ private func drawTube(
     innerTopRing.dropFirst().forEach { annulus.addLine(to: $0) }
     annulus.closeSubpath()
 
-    context.fill(annulus,
-                 with: .linearGradient(Gradient(colors: [texture.light, texture.mid]),
-                                       startPoint: outerTopRing[0],
-                                       endPoint: outerTopRing[outerTopRing.count / 2]),
-                 style: FillStyle(eoFill: true))
+    context.fill(annulus, with: .color(texture.light), style: FillStyle(eoFill: true))
     decorate(face: annulus, texture: texture, in: context, isLitFace: true)
     context.stroke(annulus, with: .color(.black.opacity(0.25)), lineWidth: 1)
-
-    // hint of the hole's depth
-    var hole = Path()
-    hole.move(to: innerTopRing.first!)
-    innerTopRing.dropFirst().forEach { hole.addLine(to: $0) }
-    hole.closeSubpath()
-    context.fill(hole, with: .color(texture.dark.opacity(0.85)))
-    context.stroke(hole, with: .color(.black.opacity(0.3)), lineWidth: 1)
 }
 
 // MARK: - Public view
