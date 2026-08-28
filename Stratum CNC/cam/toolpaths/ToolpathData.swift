@@ -34,17 +34,3 @@ enum ContourType: String, CaseIterable {
     case outside = "Outside"
     case outline = "Outline"
 }
-
-enum RampType: String, CaseIterable {
-    case none = "None"
-    case linear = "Linear"
-    case helix = "Helix"
-    case zigZag = "Zig-Zag"
-}
-
-struct RampingSettings {
-    var enabled: Bool
-    var type: RampType
-    var angle: Double
-    var length: Double
-}

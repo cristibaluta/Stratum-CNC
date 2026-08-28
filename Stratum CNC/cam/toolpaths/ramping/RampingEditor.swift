@@ -130,13 +130,13 @@ struct RampingEditor: View {
         .onAppear {
             syncLinearRampLength()
         }
-        .onChange(of: ramping.type) { _ in
+        .onChange(of: ramping.type) { _, _ in
             syncLinearRampLength()
         }
-        .onChange(of: ramping.angle) { _ in
+        .onChange(of: ramping.angle) { _, _ in
             syncLinearRampLength()
         }
-        .onChange(of: stepdown) { _ in
+        .onChange(of: stepdown) { _, _ in
             syncLinearRampLength()
         }
         .padding(16)
@@ -176,8 +176,6 @@ struct RampingEditor: View {
             case .insideOut:
                 return "The tool spirals downward from the center outward, shown here from above."
             }
-        case .zigZag:
-            return "The tool descends using alternating diagonal passes over the ramp length, shown here from above."
         }
     }
 
@@ -193,9 +191,6 @@ struct RampingEditor: View {
         case .helix:
             let turns = RampMath.helixTurns(angle: ramping.angle)
             return "≈ \(turns) turn\(turns == 1 ? "" : "s") to reach depth"
-        case .zigZag:
-            let passes = RampMath.zigZagPasses(angle: ramping.angle, length: ramping.length)
-            return "≈ \(passes) alternating pass\(passes == 1 ? "" : "es")"
         case .none:
             return ""
         }

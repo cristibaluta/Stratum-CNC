@@ -26,10 +26,15 @@ struct CAMView: View {
 
                 HStack {
                     Spacer()
-                    toolpathsPanel
-                        .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
-                        .frame(width: 500)
-                        .padding(16)
+                    VStack(spacing: 16) {
+                        materialPanel
+                            .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
+                            .frame(width: 500)
+                        toolpathsPanel
+                            .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
+                            .frame(width: 500)
+                    }
+                    .padding(16)
                 }
             }
         }
@@ -80,6 +85,13 @@ struct CAMView: View {
                 model.showingFilePicker = true
             }
             Spacer()
+        }
+    }
+
+    var materialPanel: some View {
+        GroupBox("MATERIAL") {
+            Text("Aluminum 50x20x10")
+                .frame(maxWidth: .infinity)
         }
     }
 

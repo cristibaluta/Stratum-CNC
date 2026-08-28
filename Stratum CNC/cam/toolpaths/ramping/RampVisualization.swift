@@ -68,11 +68,6 @@ struct RampVisualization: View {
                 length: length,
                 direction: helixDirection
             )
-        case .zigZag:
-            ZigZagTopView(
-                angle: angle,
-                length: length
-            )
         case .none:
             Text("None")
         }

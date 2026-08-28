@@ -13,11 +13,11 @@ struct RampTypeSelector: View {
 
     var angle: Double
     var length: Double
-    var stepdown: Double = 1
+    var stepdown: Double
     var linearReturnMode: LinearRampReturnMode = .retrace
     var helixDirection: HelixDirection = .outsideIn
 
-    private let selectable: [RampType] = [.none, .linear, .helix, .zigZag]
+    private let selectable: [RampType] = [.none, .linear, .helix]
 
     var body: some View {
         HStack(spacing: 14) {
