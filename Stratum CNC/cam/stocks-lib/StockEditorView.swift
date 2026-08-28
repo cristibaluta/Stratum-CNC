@@ -45,21 +45,12 @@ private extension StockEditorView {
 
     var geometrySection: some View {
         Section("Geometry") {
-
-            Picker(
-                "Shape",
-                selection: geometryTypeBinding
-            ) {
-                ForEach(
-                    StockShape.allCases,
-                    id: \.self
-                ) { shape in
-
+            Picker("Shape", selection: geometryTypeBinding) {
+                ForEach(StockShape.allCases, id: \.self) { shape in
                     Text(shape.displayName)
                         .tag(shape)
                 }
             }
-
             geometryFields
         }
     }
@@ -98,11 +89,7 @@ private extension StockEditorView {
 
         switch stock.geometry {
 
-        case .rectangular(
-            let width,
-            let height,
-            let depth
-        ):
+        case .rectangular(let width, let height, let depth):
             MeasurementField(
                 title: "Width",
                 value: Binding(
@@ -148,10 +135,7 @@ private extension StockEditorView {
                 unit: "mm"
             )
 
-        case .round(
-            let diameter,
-            let depth
-        ):
+        case .round(let diameter, let depth):
             MeasurementField(
                 title: "Diameter",
                 value: Binding(
