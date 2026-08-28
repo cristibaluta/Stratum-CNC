@@ -44,35 +44,22 @@ struct ToolpathCellView: View {
                 HStack(spacing: 8) {
 
                     // Tool
-
                     ToolPicker(tool: $toolpath.tool)
 
                     // Z range
-
-                    ZField(
-                        title: "START Z",
-                        value: $toolpath.startZ
-                    )
-
-                    ZField(
-                        title: "END Z",
-                        value: $toolpath.endZ
-                    )
+                    ZField(title: "START Z", value: $toolpath.startZ)
+                    ZField(title: "END Z", value: $toolpath.endZ)
 
                     // Contour
-
-                    ContourPicker(
-                        selection: $toolpath.contour
-                    )
+                    ContourPicker(selection: $toolpath.contour)
 
                     // Ramping
-
-                    RampingButton(
-                        ramping: toolpath.ramping,
-                        action: {
-                            showRampEditor = true
-                        }
-                    )
+                    RampingButton(ramping: toolpath.ramping) {
+                        showRampEditor = true
+                    }
+                    .popover(isPresented: $showRampEditor) {
+                        RampingEditor(ramping: $toolpath.ramping)
+                    }
                 }
             }
             .padding(10)
@@ -133,8 +120,5 @@ struct ToolpathCellView: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(.quaternary)
         )
-        .popover(isPresented: $showRampEditor) {
-            RampingEditor(ramping: $toolpath.ramping)
-        }
     }
 }
