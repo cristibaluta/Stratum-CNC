@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import PocketSVG
 
 @MainActor
 class CAMModel: ObservableObject {
@@ -49,15 +50,52 @@ class CAMModel: ObservableObject {
 
         print("URL:", url)
 
-        guard let paths = try? SVGParser().parseFileAt(url) else {
-            return
-        }
+        let svg = SVGImageView(contentsOf: url)
+        print(svg.viewBox)
+        print(svg.paths)
+
+        var paths = svg.paths as [NSBezierPath]
+
+        #if os(macOS)
+        // SVG coordinate system starts from top-left
+        // Mac coordinate system starts from bottom-left
+        // We need to flip all the y values from the bezierPaths
+        let flippedPaths = paths.map { pathWithFlippedY($0, svgHeight: svg.viewBox.height) }
+        paths = flippedPaths
+        #endif
+
         let file = CAM_File(url: url, paths: paths)
         files.append(file)
         if let object = factory.makeObject(name: url.lastPathComponent, paths: paths) {
             objects.append(object)
         }
         toolpaths = demoToolpaths
+    }
+
+    func pathWithFlippedY(_ path: NSBezierPath, svgHeight: CGFloat) -> NSBezierPath {
+        let newPath = NSBezierPath()
+        var points = [NSPoint](repeating: .zero, count: 3)
+
+        for i in 0..<path.elementCount {
+            let type = path.element(at: i, associatedPoints: &points)
+            switch type {
+            case .moveTo:
+                newPath.move(to: NSPoint(x: points[0].x, y: svgHeight - points[0].y))
+            case .lineTo:
+                newPath.line(to: NSPoint(x: points[0].x, y: svgHeight - points[0].y))
+            case .curveTo:
+                newPath.curve(
+                    to: NSPoint(x: points[2].x, y: svgHeight - points[2].y),
+                    controlPoint1: NSPoint(x: points[0].x, y: svgHeight - points[0].y),
+                    controlPoint2: NSPoint(x: points[1].x, y: svgHeight - points[1].y)
+                )
+            case .closePath:
+                newPath.close()
+            default:
+                break
+            }
+        }
+        return newPath
     }
 
     let demoToolpaths: [ToolpathData] = [
