@@ -17,10 +17,9 @@ final class D2_CanvasNSView: NSView {
         case moveObject(UUID)
     }
 
-    var files: [CAM_File] = [] {
+    var objects: [CAM_Object] = [] {
         didSet {
-            print("Updating files in canvas view to \(files.count)")
-            let objects = files.compactMap { factory.makeObject(name: $0.url.lastPathComponent, paths: $0.paths) }
+            print("Updating objects in canvas view to \(objects.count)")
             state.setObjects(objects)
             renderer.setObjects(objects)
             needsAutoFitAfterLayout = true
@@ -41,7 +40,6 @@ final class D2_CanvasNSView: NSView {
     }
 
     private let state = D2_CanvasState()
-    private let factory = CAM_ObjectFactory()
     private let renderer = D2_CanvasRenderer()
     private let hitTester = PathHitTester(tolerance: 6)
     private let inspectorView = CAM_ObjectsInspectorView()
@@ -60,6 +58,17 @@ final class D2_CanvasNSView: NSView {
     }
 
     var onAddNew: (() -> Void)?
+    /// Called whenever pan or zoom changes so the owner can persist the viewport.
+    var onViewportChanged: ((CGPoint, CGFloat) -> Void)?
+
+    /// Restores a previously saved viewport, bypassing the auto-fit that would otherwise run.
+    func restoreViewport(panOffset: CGPoint, zoomScale: CGFloat) {
+        self.panOffset = panOffset
+        self.zoomScale = zoomScale
+        needsAutoFitAfterLayout = false
+        updateWorldTransform()
+        render()
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
