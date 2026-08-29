@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ToolpathData: Identifiable {
-    let id = UUID()
+    var id = UUID()
 
     var name: String
 

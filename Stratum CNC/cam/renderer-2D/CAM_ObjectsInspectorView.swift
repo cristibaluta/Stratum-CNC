@@ -184,17 +184,17 @@ final class CAM_ObjectsInspectorView: NSVisualEffectView {
         let row = makeRow()
         let label = makeLabel(title)
         let field = makeNumberField(value: value, property: property, id: id)
-        let minusButton = makeButton(title: "−", action: #selector(nudgeMinusPressed(_:)))
+        let minusButton = makeButton(title: "−1", action: #selector(nudgeMinusPressed(_:)))
         minusButton.identifier = makeIdentifier(id: id, property: property)
-        let plusButton = makeButton(title: "+", action: #selector(nudgePlusPressed(_:)))
+        let plusButton = makeButton(title: "+1", action: #selector(nudgePlusPressed(_:)))
         plusButton.identifier = makeIdentifier(id: id, property: property)
         let suffix = NSTextField(labelWithString: "mm")
         suffix.textColor = .secondaryLabelColor
         row.addArrangedSubview(label)
         row.addArrangedSubview(field)
+        row.addArrangedSubview(suffix)
         row.addArrangedSubview(minusButton)
         row.addArrangedSubview(plusButton)
-        row.addArrangedSubview(suffix)
         propertiesStack.addArrangedSubview(row)
     }
 
@@ -204,7 +204,7 @@ final class CAM_ObjectsInspectorView: NSVisualEffectView {
         let row = makeRow()
         let label = makeLabel(title)
         let field = makeNumberField(value: value, property: .width, id: id)
-        let scaleDownButton = makeButton(title: "/2", action: #selector(scaleDownPressed(_:)))
+        let scaleDownButton = makeButton(title: "÷2", action: #selector(scaleDownPressed(_:)))
         scaleDownButton.identifier = NSUserInterfaceItemIdentifier(id.uuidString)
         let scaleUpButton = makeButton(title: "×2", action: #selector(scaleUpPressed(_:)))
         scaleUpButton.identifier = NSUserInterfaceItemIdentifier(id.uuidString)
@@ -212,9 +212,9 @@ final class CAM_ObjectsInspectorView: NSVisualEffectView {
         suffix.textColor = .secondaryLabelColor
         row.addArrangedSubview(label)
         row.addArrangedSubview(field)
+        row.addArrangedSubview(suffix)
         row.addArrangedSubview(scaleDownButton)
         row.addArrangedSubview(scaleUpButton)
-        row.addArrangedSubview(suffix)
         propertiesStack.addArrangedSubview(row)
     }
 
@@ -343,14 +343,14 @@ final class CAM_ObjectsInspectorView: NSVisualEffectView {
         guard let rawValue = sender.identifier?.rawValue, let id = UUID(uuidString: rawValue) else {
             return
         }
-        onRotate?(id, -90)
+        onRotate?(id, 90)// Not sure why the rotation in canvas is opposite
     }
 
     @objc private func rotationPlusPressed(_ sender: NSButton) {
         guard let rawValue = sender.identifier?.rawValue, let id = UUID(uuidString: rawValue) else {
             return
         }
-        onRotate?(id, 90)
+        onRotate?(id, -90)
     }
 
     // MARK: Helpers
