@@ -9,6 +9,11 @@ import AppKit
 
 final class D2_CanvasNSView: NSView {
 
+    private enum DragMode {
+        case pan
+        case moveObject(UUID)
+    }
+
     var files: [CAM_File] = [] {
         didSet {
             print("Updating files in canvas view to \(files.count)")
@@ -37,6 +42,8 @@ final class D2_CanvasNSView: NSView {
     private let inspectorView = CAM_ObjectsInspectorView()
 
     private var lastDragLocation: CGPoint?
+    private var lastDragWorldLocation: CGPoint?
+    private var dragMode: DragMode = .pan
     private var panOffset = CGPoint.zero
     private var zoomScale: CGFloat = 3.0
     /// Currently unused intentionally. This is rotating the whole world, not sure it's useful
@@ -177,6 +184,21 @@ final class D2_CanvasNSView: NSView {
         guard let worldPoint = layer?.convert(viewPoint, to: renderer.workLayer) else {
             return
         }
+        lastDragWorldLocation = worldPoint
+        dragMode = .pan
+
+        if let selectedObject = state.selectedObject,
+           let selectedNode = renderer.nodes[selectedObject.id],
+           selectedNode.isRotationCenterHit(worldPoint: worldPoint,
+                                            worldLayer: renderer.workLayer,
+                                            objectScale: selectedObject.scale,
+                                            zoomScale: zoomScale) {
+            state.selectObject(selectedObject.id)
+            dragMode = .moveObject(selectedObject.id)
+            render()
+            updateInspector()
+            return
+        }
 
         // Shift or Cmd held -> extend/toggle the selection instead of replacing it.
         let isMultiSelectModifierDown = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
@@ -203,19 +225,42 @@ final class D2_CanvasNSView: NSView {
     override func mouseDragged(with event: NSEvent) {
 
         let location = convert(event.locationInWindow, from: nil)
+        guard let worldPoint = layer?.convert(location, to: renderer.workLayer) else {
+            return
+        }
 
         guard let last = lastDragLocation else {
             lastDragLocation = location
+            lastDragWorldLocation = worldPoint
             return
         }
-        panOffset.x += location.x - last.x
-        panOffset.y += location.y - last.y
+
+        switch dragMode {
+        case .pan:
+            panOffset.x += location.x - last.x
+            panOffset.y += location.y - last.y
+            updateWorldTransform()
+
+        case .moveObject(let objectID):
+            guard let lastWorld = lastDragWorldLocation,
+                  let object = object(withID: objectID) else {
+                break
+            }
+
+            object.position.x += worldPoint.x - lastWorld.x
+            object.position.y += worldPoint.y - lastWorld.y
+            render()
+            updateInspector()
+        }
+
         lastDragLocation = location
-        updateWorldTransform()
+        lastDragWorldLocation = worldPoint
     }
 
     override func mouseUp(with event: NSEvent) {
         lastDragLocation = nil
+        lastDragWorldLocation = nil
+        dragMode = .pan
     }
 
     private func selectObject(_ id: UUID) {

@@ -76,6 +76,23 @@ extension CAM_ObjectNode {
 
         CATransaction.commit()
     }
+
+    func isRotationCenterHit(worldPoint: CGPoint,
+                             worldLayer: CALayer,
+                             objectScale: CGFloat,
+                             zoomScale: CGFloat) -> Bool {
+
+        guard rotationCenterLayer.opacity > 0 else {
+            return false
+        }
+
+        let localPoint = layer.convert(worldPoint, from: worldLayer)
+        let centerPoint = CGPoint(x: layer.bounds.midX, y: layer.bounds.midY)
+        let localDistance = hypot(localPoint.x - centerPoint.x, localPoint.y - centerPoint.y)
+        let localHitRadius = 10.0 / max(zoomScale * objectScale, 0.000001)
+
+        return localDistance <= localHitRadius
+    }
 }
 
 // MARK: - Private Rendering
