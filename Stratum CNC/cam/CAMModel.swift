@@ -16,6 +16,12 @@ class CAMModel: ObservableObject {
     @Published var stockStore = StockStore()
     @Published var showingStockSheet: Bool = false
 
+    @Published var selectedStockMaterial = StockMaterial(
+        name: "Workpiece",
+        material: .aluminum,
+        geometry: .rectangular(width: 100, height: 50, depth: 10)
+    )
+
     // Insert new files. temporary vars to use
     @Published var showingFilePicker = false
     @Published var files: [CAM_File] = []
