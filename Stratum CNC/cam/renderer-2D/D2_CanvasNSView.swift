@@ -9,6 +9,9 @@ import AppKit
 
 final class D2_CanvasNSView: NSView {
 
+    private static let rightViewportPadding: CGFloat = 500
+    private static let verticalViewportPadding: CGFloat = 100
+
     private enum DragMode {
         case pan
         case moveObject(UUID)
@@ -20,6 +23,8 @@ final class D2_CanvasNSView: NSView {
             let objects = files.compactMap { factory.makeObject(name: $0.url.lastPathComponent, paths: $0.paths) }
             state.setObjects(objects)
             renderer.setObjects(objects)
+            needsAutoFitAfterLayout = true
+            fitContentInViewportIfPossible()
             render()
             updateInspector()
         }
@@ -46,6 +51,7 @@ final class D2_CanvasNSView: NSView {
     private var dragMode: DragMode = .pan
     private var panOffset = CGPoint.zero
     private var zoomScale: CGFloat = 3.0
+    private var needsAutoFitAfterLayout = false
     /// Currently unused intentionally. This is rotating the whole world, not sure it's useful
     private var rotationAngle: CGFloat = 0
 
@@ -111,6 +117,10 @@ final class D2_CanvasNSView: NSView {
         super.layout()
         renderer.workLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
         updateWorldTransform()
+        if needsAutoFitAfterLayout {
+            fitContentInViewportIfPossible()
+            render()
+        }
     }
 
     private func render() {
@@ -134,20 +144,33 @@ final class D2_CanvasNSView: NSView {
         CATransaction.commit()
     }
 
-    private func centerOnContent() {
+    private func fitContentInViewportIfPossible() {
         guard !state.objects.isEmpty else {
+            needsAutoFitAfterLayout = false
             return
         }
+
         var unionRect: CGRect?
         for object in state.objects {
             unionRect = unionRect?.union(object.rotatedBounds) ?? object.rotatedBounds
         }
-        guard let contentBounds = unionRect else {
+        guard let contentBounds = unionRect, !bounds.isEmpty else {
             return
         }
-        let center = CGPoint(x: contentBounds.midX, y: contentBounds.midY)
-        panOffset = CGPoint(x: -center.x * zoomScale, y: -center.y * zoomScale)
+
+        let usableWidth = max(bounds.width - Self.rightViewportPadding, 1)
+        let usableHeight = max(bounds.height - (Self.verticalViewportPadding * 2), 1)
+        let scaleX = usableWidth / max(contentBounds.width, 1)
+        let scaleY = usableHeight / max(contentBounds.height, 1)
+        zoomScale = min(max(min(scaleX, scaleY), 0.1), 200)
+
+        // Center content inside the usable viewport (left area not covered by toolpaths panel).
+        let targetCenter = CGPoint(x: usableWidth / 2, y: bounds.midY)
+        let contentCenter = CGPoint(x: contentBounds.midX, y: contentBounds.midY)
+        panOffset = CGPoint(x: targetCenter.x - bounds.midX - contentCenter.x * zoomScale,
+                            y: targetCenter.y - bounds.midY - contentCenter.y * zoomScale)
         updateWorldTransform()
+        needsAutoFitAfterLayout = false
     }
 
     override func scrollWheel(with event: NSEvent) {
