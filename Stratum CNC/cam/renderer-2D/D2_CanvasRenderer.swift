@@ -95,8 +95,8 @@ final class D2_CanvasRenderer {
         switch stock.geometry {
         case .rectangular(let width, let height, _):
             let rect = CGRect(
-                x: -CGFloat(width) / 2,
-                y: -CGFloat(height) / 2,
+                x: 0,
+                y: 0,
                 width: CGFloat(width),
                 height: CGFloat(height)
             )
@@ -104,17 +104,23 @@ final class D2_CanvasRenderer {
             stockPath.addRect(rect)
 
         case .round(let diameter, _):
-            let radius = CGFloat(diameter) / 2
-            stockBounds = CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2)
+            let size = CGFloat(diameter)
+            stockBounds = CGRect(x: 0, y: 0, width: size, height: size)
             stockPath.addEllipse(in: stockBounds)
 
         case .disk(let outerDiameter, let innerDiameter, _):
-            let outerRadius = CGFloat(outerDiameter) / 2
+            let outerSize = CGFloat(outerDiameter)
             let innerRadius = CGFloat(innerDiameter) / 2
-            stockBounds = CGRect(x: -outerRadius, y: -outerRadius, width: outerRadius * 2, height: outerRadius * 2)
+            stockBounds = CGRect(x: 0, y: 0, width: outerSize, height: outerSize)
 
             stockPath.addEllipse(in: stockBounds)
-            stockPath.addEllipse(in: CGRect(x: -innerRadius, y: -innerRadius, width: innerRadius * 2, height: innerRadius * 2))
+            let outerCenter = CGPoint(x: stockBounds.midX, y: stockBounds.midY)
+            stockPath.addEllipse(in: CGRect(
+                x: outerCenter.x - innerRadius,
+                y: outerCenter.y - innerRadius,
+                width: innerRadius * 2,
+                height: innerRadius * 2
+            ))
         }
 
         stockFillLayer.path = stockPath

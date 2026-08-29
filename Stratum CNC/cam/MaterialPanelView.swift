@@ -37,7 +37,7 @@ struct MaterialPanelView: View {
                 dimensionsRow
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 8)
+            .padding(8)
         }
     }
 
