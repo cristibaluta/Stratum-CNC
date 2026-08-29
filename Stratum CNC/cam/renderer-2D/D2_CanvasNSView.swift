@@ -20,6 +20,16 @@ final class D2_CanvasNSView: NSView {
         }
     }
 
+    var stockMaterial = StockMaterial(
+        name: "Workpiece",
+        material: .aluminum,
+        geometry: .rectangular(width: 100, height: 50, depth: 10)
+    ) {
+        didSet {
+            render()
+        }
+    }
+
     private let state = D2_CanvasState()
     private let factory = CAM_ObjectFactory()
     private let renderer = D2_CanvasRenderer()
@@ -98,6 +108,7 @@ final class D2_CanvasNSView: NSView {
 
     private func render() {
         renderer.render(objects: state.objects,
+                        stock: stockMaterial,
                         zoomScale: zoomScale,
                         selectedObjectIDs: state.selectedObjectIDs,
                         selectedPaths: state.selectedPaths)
