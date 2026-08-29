@@ -34,6 +34,9 @@ struct MaterialPanelView: View {
                     .frame(maxWidth: .infinity)
                 }
 
+                Toggle("Show in 2D", isOn: $stock.isVisible)
+                    .toggleStyle(.checkbox)
+
                 dimensionsRow
             }
             .frame(maxWidth: .infinity, alignment: .leading)

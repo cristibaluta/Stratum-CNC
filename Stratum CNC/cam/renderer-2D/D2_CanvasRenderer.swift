@@ -49,6 +49,7 @@ final class D2_CanvasRenderer {
                 selectedObjectIDs: Set<UUID>,
                 selectedPaths: [PathSelection]) {
 
+        stockLayer.isHidden = !stock.isVisible
         updateStockLayer(with: stock)
 
         for object in objects {
@@ -133,18 +134,19 @@ final class D2_CanvasRenderer {
 
     private func applyStockStyle(material: StockMaterialType) {
         let fillColor: NSColor
+        let copperTone = NSColor(srgbRed: 0.72, green: 0.45, blue: 0.20, alpha: 1.0)
 
         switch material {
-        case .aluminum, .steel, .stainlessSteel, .brass, .bronze, .copper:
+        case .aluminum, .steel, .stainlessSteel, .brass, .bronze:
             fillColor = NSColor.systemGray.withAlphaComponent(0.08)
+        case .copper, .pcb:
+            fillColor = copperTone.withAlphaComponent(0.12)
         case .wood, .hardwood, .softwood, .plywood, .mdf:
             fillColor = NSColor.systemBrown.withAlphaComponent(0.08)
         case .plastic, .acrylic, .hdpe, .pvc, .delrin:
             fillColor = NSColor.systemTeal.withAlphaComponent(0.07)
         case .carbonFiber:
             fillColor = NSColor.systemGray.withAlphaComponent(0.10)
-        case .pcb:
-            fillColor = NSColor.systemGreen.withAlphaComponent(0.09)
         case .custom:
             fillColor = NSColor.systemBlue.withAlphaComponent(0.07)
         }
