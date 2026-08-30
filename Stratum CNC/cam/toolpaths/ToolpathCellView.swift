@@ -10,7 +10,7 @@ import SwiftUI
 struct ToolpathCellView: View {
     @Binding var toolpath: ToolpathData
 
-    @State private var expanded = false
+    @State private var expanded = true
     @State private var showRampEditor = false
 
     var body: some View {
@@ -118,6 +118,40 @@ struct ToolpathCellView: View {
                 .fill(.quaternary)
         )
     }
+}
+
+#Preview {
+    @Previewable @State var data = ToolpathData(
+        id: UUID(),
+        name: "Test path",
+        tool: Tool(
+            id: UUID(),
+            name: "3.175*12mm",
+            shankDiameter: 3.175,
+            toolDiameter: 3.175,
+            length: 12,
+            type: .endMill,
+            group: nil,
+            tipAngle: 90,
+            parameters: [:]
+        ),
+        startZ: 0,
+        endZ: -2,
+        contour: .inside,
+        ramping: RampingSettings(
+            enabled: true,
+            type: .linear,
+            angle: 3,
+            length: 10
+        ),
+        feedRate: 300,
+        plungeRate: 300,
+        spindleRPM: 1200,
+        stepDown: 0.1,
+        stepOver: 0.1,
+        safeZ: 3
+    )
+    ToolpathCellView(toolpath: $data)
 }
 
 //struct ToolpathRow1: View {
