@@ -5,7 +5,6 @@
 //  Created by Cristian Baluta on 25.08.2026.
 //
 
-
 import SwiftUI
 
 struct ProjectsView: View {
@@ -79,7 +78,7 @@ struct ProjectsView: View {
         }
     }
 
-    private func delete(_ project: CNCProject) {
+    private func delete(_ project: ProjectData) {
         do {
             try projectsModel.delete(project)
         } catch {
@@ -87,13 +86,13 @@ struct ProjectsView: View {
         }
     }
 
-    private func open(_ project: CNCProject) {
+    private func open(_ project: ProjectData) {
         // We'll connect this to the CNC editor later.
         print("Opening \(project.name)")
-        appModel.activeProject = project
+        projectsModel.activeProject = project
     }
 
-    private func showInFinder(_ project: CNCProject) {
+    private func showInFinder(_ project: ProjectData) {
         let url = projectsModel.directoryURL(for: project)
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }

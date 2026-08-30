@@ -21,7 +21,6 @@ enum ActiveTab: String, CaseIterable, Identifiable {
 class AppModel: ObservableObject {
 
     @Published var activeTab: ActiveTab = .projects
-    @Published var activeProject: CNCProject?
 
     // Tabs. Models should be in memory at all times, so we don't loose data when switching from one tab to another
     @Published var projectsModel = ProjectsModel()

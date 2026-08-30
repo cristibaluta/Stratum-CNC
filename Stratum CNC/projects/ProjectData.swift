@@ -7,21 +7,28 @@
 
 import Foundation
 
-struct CNCProject: Identifiable, Codable, Hashable {
+struct ProjectAsset: Codable, Hashable {
+    let name: String
+}
+
+struct ProjectData: Identifiable, Codable, Hashable {
     let id: UUID
     var name: String
     let createdAt: Date
     var modifiedAt: Date
+    var assets: [ProjectAsset]
 
     init(
         id: UUID = UUID(),
         name: String,
         createdAt: Date = .now,
-        modifiedAt: Date = .now
+        modifiedAt: Date = .now,
+        assets: [ProjectAsset]
     ) {
         self.id = id
         self.name = name
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
+        self.assets = assets
     }
 }

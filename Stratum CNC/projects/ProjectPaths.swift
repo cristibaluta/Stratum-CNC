@@ -27,27 +27,27 @@ struct ProjectPaths {
         root.appendingPathComponent("projects.json")
     }
 
-    func directory(for project: CNCProject) -> URL {
+    func directory(for project: ProjectData) -> URL {
         root.appendingPathComponent(project.id.uuidString, isDirectory: true)
     }
 
-    func projectMetadata(for project: CNCProject) -> URL {
+    func projectMetadata(for project: ProjectData) -> URL {
         directory(for: project).appendingPathComponent("project.json")
     }
 
-    func preview(for project: CNCProject) -> URL {
+    func preview(for project: ProjectData) -> URL {
         directory(for: project).appendingPathComponent("preview.png")
     }
 
-    func ncFile(for project: CNCProject) -> URL {
+    func ncFile(for project: ProjectData) -> URL {
         directory(for: project).appendingPathComponent("job.nc")
     }
 
-    func toolpathsFile(for project: CNCProject) -> URL {
+    func toolpathsFile(for project: ProjectData) -> URL {
         directory(for: project).appendingPathComponent("toolpaths.json")
     }
 
-    func importsDirectory(for project: CNCProject) -> URL {
-        directory(for: project).appendingPathComponent("imports", isDirectory: true)
+    func assetsDirectory(for project: ProjectData) -> URL {
+        directory(for: project).appendingPathComponent("assets", isDirectory: true)
     }
 }

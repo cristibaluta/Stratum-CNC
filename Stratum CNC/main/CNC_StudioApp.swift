@@ -15,7 +15,7 @@ struct CNC_StudioApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(appModel: model,
-                        camModel: model.camModel,
+                        projectsModel: model.projectsModel,
                         controllerModel: model.controllerModel)
         }
         .windowResizability(.contentSize)

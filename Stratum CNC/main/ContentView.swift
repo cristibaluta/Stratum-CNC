@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
 
     @ObservedObject var appModel: AppModel
-    @ObservedObject var camModel: CAMModel
+    @ObservedObject var projectsModel: ProjectsModel
     @ObservedObject var controllerModel: ControllerModel
 
     var body: some View {
@@ -33,7 +33,7 @@ struct ContentView: View {
                 .pickerStyle(.segmented)
             }
         }
-        .navigationSubtitle(appModel.activeProject?.name ?? "No project selected")
+        .navigationSubtitle(projectsModel.activeProject?.name ?? "No project selected")
         .onChange(of: controllerModel.selectedMachine) { _, newValue in
             // Once we're actually talking to a machine over TCP, stop the UDP
             // broadcast listener — leaving it running alongside an active

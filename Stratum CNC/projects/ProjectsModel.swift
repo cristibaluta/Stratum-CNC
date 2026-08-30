@@ -12,7 +12,8 @@ import Observation
 @MainActor
 final class ProjectsModel: ObservableObject {
 
-    private(set) var projects: [CNCProject] = []
+    @Published private(set) var projects: [ProjectData] = []
+    @Published var activeProject: ProjectData?
 
     private let paths: ProjectPaths
     private let encoder: JSONEncoder
@@ -35,7 +36,7 @@ final class ProjectsModel: ObservableObject {
         load()
     }
 
-    func directoryURL(for project: CNCProject) -> URL {
+    func directoryURL(for project: ProjectData) -> URL {
         paths.directory(for: project)
     }
 
@@ -49,7 +50,7 @@ final class ProjectsModel: ObservableObject {
 
         do {
             let data = try Data(contentsOf: paths.indexFile)
-            projects = try decoder.decode([CNCProject].self, from: data)
+            projects = try decoder.decode([ProjectData].self, from: data)
 
             projects.sort {
                 $0.modifiedAt > $1.modifiedAt
@@ -63,13 +64,13 @@ final class ProjectsModel: ObservableObject {
     // MARK: - Creation
 
     @discardableResult
-    func createProject(name: String) throws -> CNCProject {
-        let project = CNCProject(name: name)
+    func createProject(name: String) throws -> ProjectData {
+        // Create project data
+        let project = ProjectData(name: name, assets: [])
 
-        let directory = paths.directory(for: project)
-
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: paths.importsDirectory(for: project), withIntermediateDirectories: true)
+        // Create supporting files
+        try FileManager.default.createDirectory(at: paths.directory(for: project), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: paths.assetsDirectory(for: project), withIntermediateDirectories: true)
 
         try saveProjectMetadata(project)
 
@@ -82,7 +83,7 @@ final class ProjectsModel: ObservableObject {
 
     // MARK: - Updating
 
-    func update(_ project: CNCProject) throws {
+    func update(_ project: ProjectData) throws {
         var updatedProject = project
         updatedProject.modifiedAt = .now
 
@@ -96,7 +97,7 @@ final class ProjectsModel: ObservableObject {
 
     // MARK: - Delete
 
-    func delete(_ project: CNCProject) throws {
+    func delete(_ project: ProjectData) throws {
         let directory = paths.directory(for: project)
 
         if FileManager.default.fileExists(atPath: directory.path) {
@@ -112,13 +113,13 @@ final class ProjectsModel: ObservableObject {
 
     // MARK: - Preview
 
-    func previewURL(for project: CNCProject) -> URL {
+    func previewURL(for project: ProjectData) -> URL {
         paths.preview(for: project)
     }
 
     // MARK: - Persistence
 
-    private func saveProjectMetadata(_ project: CNCProject) throws {
+    private func saveProjectMetadata(_ project: ProjectData) throws {
         let data = try encoder.encode(project)
         try data.write(to: paths.projectMetadata(for: project), options: .atomic)
     }
