@@ -19,16 +19,12 @@ final class StockStore: ObservableObject {
 
     private let fileManager = FileManager.default
 
-    private var applicationSupportURL: URL {
-        fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    }
-
-    private var stocksDirectoryURL: URL {
-        applicationSupportURL.appendingPathComponent("Stocks", isDirectory: true)
+    private var documentDirectory: URL {
+        fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
     private var stocksFileURL: URL {
-        stocksDirectoryURL.appendingPathComponent("stocks.json")
+        documentDirectory.appendingPathComponent("materials.json")
     }
 
     init() {
@@ -44,8 +40,6 @@ final class StockStore: ObservableObject {
     // MARK: - Loading
 
     func load() throws {
-        try createDirectoryIfNeeded()
-
         if !fileManager.fileExists(atPath: stocksFileURL.path) {
             try copyDefaultStocks()
         } else {
@@ -62,8 +56,6 @@ final class StockStore: ObservableObject {
     // MARK: - Saving
 
     func save() throws {
-        try createDirectoryIfNeeded()
-
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
@@ -118,10 +110,6 @@ final class StockStore: ObservableObject {
     }
 
     // MARK: - File System
-
-    private func createDirectoryIfNeeded() throws {
-        try fileManager.createDirectory(at: stocksDirectoryURL, withIntermediateDirectories: true)
-    }
 
     private func copyDefaultStocks() throws {
         guard let bundledURL = Bundle.main.url(forResource: "default_stocks", withExtension: "json") else {

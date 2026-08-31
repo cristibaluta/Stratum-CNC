@@ -53,7 +53,7 @@ struct ToolpathCellView: View {
                     RampingButton(ramping: toolpath.ramping) {
                         showRampEditor = true
                     }
-                    .popover(isPresented: $showRampEditor) {
+                    .popover(isPresented: $showRampEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
                         RampingEditor(ramping: $toolpath.ramping, stepdown: toolpath.stepDown)
                             .frame(width: 600)
                     }
@@ -67,47 +67,15 @@ struct ToolpathCellView: View {
                 Divider()
 
                 VStack(spacing: 10) {
-
                     HStack(spacing: 10) {
-
-                        NumberField(
-                            title: "FEED",
-                            value: $toolpath.feedRate,
-                            suffix: "mm/min"
-                        )
-
-                        NumberField(
-                            title: "PLUNGE",
-                            value: $toolpath.plungeRate,
-                            suffix: "mm/min"
-                        )
-
-                        IntField(
-                            title: "SPINDLE",
-                            value: $toolpath.spindleRPM,
-                            suffix: "RPM"
-                        )
+                        NumberField(title: "FEED", value: $toolpath.feedRate, suffix: "mm/min")
+                        NumberField(title: "PLUNGE", value: $toolpath.plungeRate, suffix: "mm/min")
+                        IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
                     }
-
                     HStack(spacing: 10) {
-
-                        NumberField(
-                            title: "STEPDOWN",
-                            value: $toolpath.stepDown,
-                            suffix: "mm"
-                        )
-
-                        NumberField(
-                            title: "STEPOVER",
-                            value: $toolpath.stepOver,
-                            suffix: "mm"
-                        )
-
-                        NumberField(
-                            title: "SAFE Z",
-                            value: $toolpath.safeZ,
-                            suffix: "mm"
-                        )
+                        NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
+                        NumberField(title: "STEPOVER", value: $toolpath.stepOver, suffix: "mm")
+                        NumberField(title: "SAFE Z", value: $toolpath.safeZ, suffix: "mm")
                     }
                 }
                 .padding(10)

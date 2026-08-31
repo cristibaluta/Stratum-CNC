@@ -28,7 +28,7 @@ struct ProjectPaths {
     }
 
     func directory(for project: ProjectData) -> URL {
-        root.appendingPathComponent(project.id.uuidString, isDirectory: true)
+        root.appendingPathComponent(project.name, isDirectory: true)
     }
 
     func projectMetadata(for project: ProjectData) -> URL {

@@ -9,6 +9,10 @@
 import Foundation
 import Observation
 
+enum ProjectError: Error {
+    case projectAlreadyExists
+}
+
 @MainActor
 final class ProjectsModel: ObservableObject {
 
@@ -66,7 +70,13 @@ final class ProjectsModel: ObservableObject {
     @discardableResult
     func createProject(name: String) throws -> ProjectData {
         // Create project data
-        let project = ProjectData(name: name, assets: [])
+        let material = StockMaterial(name: "Aluminum", material: .aluminum, geometry: .rectangular(width: 150, height: 25, depth: 5))
+        let project = ProjectData(name: name, material: material, assets: [])
+
+        // Check if project already exist
+        guard projects.first(where: { $0.name.lowercased() == name.lowercased() }) == nil else {
+            throw ProjectError.projectAlreadyExists
+        }
 
         // Create supporting files
         try FileManager.default.createDirectory(at: paths.directory(for: project), withIntermediateDirectories: true)
