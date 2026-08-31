@@ -67,7 +67,9 @@ struct CAMView: View {
             switch result {
             case .success(let urls):
                 if let url = urls.first {
-                    model.loadAndParseFileAt(url)
+                    if let asset = try? projectsModel.importAsset(from: url) {
+                        model.loadAndParseFileAt(url)
+                    }
                 }
 
             case .failure(let error):

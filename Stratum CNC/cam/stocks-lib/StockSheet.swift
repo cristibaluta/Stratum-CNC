@@ -22,6 +22,7 @@ struct StockSheet: View {
                 selectedStockID: $selectedStockID,
                 onAdd: addStock
             )
+            .navigationSplitViewColumnWidth(200)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {

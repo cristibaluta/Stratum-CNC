@@ -1,16 +1,16 @@
 //
-//  ProjectStore.swift
+//  ProjectModel.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 25.08.2026.
 //
-
 
 import Foundation
 import Observation
 
 enum ProjectError: Error {
     case projectAlreadyExists
+    case assetImportFailed
 }
 
 @MainActor
@@ -37,7 +37,7 @@ final class ProjectsModel: ObservableObject {
         encoder.dateEncodingStrategy = .iso8601
         decoder.dateDecodingStrategy = .iso8601
 
-        load()
+        loadProjects()
     }
 
     func directoryURL(for project: ProjectData) -> URL {
@@ -46,14 +46,14 @@ final class ProjectsModel: ObservableObject {
 
     // MARK: - Loading
 
-    func load() {
-        guard FileManager.default.fileExists(atPath: paths.indexFile.path) else {
+    func loadProjects() {
+        guard FileManager.default.fileExists(atPath: paths.projectsIndexFile.path) else {
             projects = []
             return
         }
 
         do {
-            let data = try Data(contentsOf: paths.indexFile)
+            let data = try Data(contentsOf: paths.projectsIndexFile)
             projects = try decoder.decode([ProjectData].self, from: data)
 
             projects.sort {
@@ -105,6 +105,34 @@ final class ProjectsModel: ObservableObject {
         try saveIndex()
     }
 
+    func importAsset(from url: URL) throws -> AssetData {
+        guard var activeProject else {
+            throw ProjectError.assetImportFailed
+        }
+        // 1. Move asset from original location to assets folder in the project
+        guard url.startAccessingSecurityScopedResource() else {
+            print("Could not access:", url)
+            throw ProjectError.assetImportFailed
+        }
+        defer {
+            url.stopAccessingSecurityScopedResource()
+        }
+        let assetDestination = paths.assetsDirectory(for: activeProject).appendingPathComponent(url.lastPathComponent)
+        if FileManager.default.fileExists(atPath: assetDestination.path) {
+            try? FileManager.default.removeItem(at: assetDestination)
+        }
+        try? FileManager.default.copyItem(at: url, to: assetDestination)
+
+        // 2. Add asset to json
+        var assets = activeProject.assets ?? []
+        let asset = AssetData(name: url.lastPathComponent)
+        assets.append(asset)
+        activeProject.assets = assets
+        try saveProjectMetadata(activeProject)
+
+        return asset
+    }
+
     // MARK: - Delete
 
     func delete(_ project: ProjectData) throws {
@@ -136,6 +164,6 @@ final class ProjectsModel: ObservableObject {
 
     private func saveIndex() throws {
         let data = try encoder.encode(projects)
-        try data.write(to: paths.indexFile, options: .atomic)
+        try data.write(to: paths.projectsIndexFile, options: .atomic)
     }
 }

@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct ProjectAsset: Codable, Hashable {
+struct AssetData: Codable, Hashable {
     let name: String
 }
 
@@ -18,7 +18,7 @@ struct ProjectData: Identifiable, Codable, Hashable {
     var modifiedAt: Date
     var stock: StockMaterial?
     var isStockVisible: Bool?
-    var assets: [ProjectAsset]?
+    var assets: [AssetData]?
 
     init(id: UUID = UUID(),
          name: String,
@@ -26,7 +26,7 @@ struct ProjectData: Identifiable, Codable, Hashable {
          modifiedAt: Date = .now,
          stock: StockMaterial?,
          isStockVisible: Bool?,
-         assets: [ProjectAsset]?) {
+         assets: [AssetData]?) {
         self.id = id
         self.name = name
         self.createdAt = createdAt

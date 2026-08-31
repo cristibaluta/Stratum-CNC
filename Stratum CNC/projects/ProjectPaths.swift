@@ -23,7 +23,7 @@ struct ProjectPaths {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 
-    var indexFile: URL {
+    var projectsIndexFile: URL {
         root.appendingPathComponent("projects.json")
     }
 
