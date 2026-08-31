@@ -39,6 +39,7 @@ class AppModel: ObservableObject {
 
         // 1. Switch to CAM screen
         activeTab = .cam
+        camStore.clear()
 
         // 2. Load material
         if let stock = projectData?.stock {

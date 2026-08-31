@@ -62,7 +62,7 @@ class CAMStore: ObservableObject {
         }
     }
 
-    func reset() {
+    func clear() {
         files.removeAll()
         objects.removeAll()
         toolpaths.removeAll()
