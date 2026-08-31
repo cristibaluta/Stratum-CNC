@@ -13,8 +13,8 @@ import SwiftUI
 
 struct CAMView: View {
 
-    @ObservedObject var model: CAMModel
-    @ObservedObject var projectsModel: ProjectsModel
+    @ObservedObject var model: CAMStore
+    @ObservedObject var projectsModel: ProjectsStore
 
     var body: some View {
         ZStack {
@@ -28,7 +28,7 @@ struct CAMView: View {
                 HStack {
                     Spacer()
                     VStack(spacing: 16) {
-                        MaterialPanelView(project: $projectsModel.activeProject, stock: $model.selectedStockMaterial)
+                        MaterialPanelView(project: $projectsModel.activeProjectData, stock: $model.selectedStockMaterial)
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
                             .frame(width: 500)
                         toolpathsPanel
@@ -67,9 +67,14 @@ struct CAMView: View {
             switch result {
             case .success(let urls):
                 if let url = urls.first {
+                    guard url.startAccessingSecurityScopedResource() else {
+                        print("Could not access:", url)
+                        return
+                    }
                     if let asset = try? projectsModel.importAsset(from: url) {
                         model.loadAndParseFileAt(url)
                     }
+                    url.stopAccessingSecurityScopedResource()
                 }
 
             case .failure(let error):

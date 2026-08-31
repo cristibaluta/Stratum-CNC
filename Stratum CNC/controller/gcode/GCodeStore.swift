@@ -9,7 +9,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 @MainActor
-class GCodeModel: ObservableObject {
+class GCodeStore: ObservableObject {
 
     @Published var document = NCFileDocument()
 

@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ToolpathListView: View {
-    @ObservedObject var model: CAMModel
+    @ObservedObject var model: CAMStore
     @State private var draggedToolpath: ToolpathData?
 
     var body: some View {

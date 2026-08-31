@@ -10,7 +10,7 @@ import SwiftUI
 
 struct CAM_2D_View: NSViewRepresentable {
 
-    @ObservedObject var model: CAMModel
+    @ObservedObject var model: CAMStore
 
     func makeNSView(context: Context) -> D2_CanvasNSView {
 

@@ -9,9 +9,9 @@ import SwiftUI
 
 struct ControllerView: View {
 
-    @ObservedObject var model: ControllerModel
-    @ObservedObject var camModel: CAMModel
-    @ObservedObject var gCodeModel: GCodeModel
+    @ObservedObject var model: ControllerStore
+    @ObservedObject var camModel: CAMStore
+    @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
 
     var body: some View {

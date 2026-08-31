@@ -9,7 +9,7 @@ import SwiftUI
 
 struct TerminalView: View {
 
-    @ObservedObject var model: ControllerModel
+    @ObservedObject var model: ControllerStore
     @FocusState private var commandFieldFocused: Bool
 
     var body: some View {

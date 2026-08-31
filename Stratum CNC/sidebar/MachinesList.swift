@@ -9,7 +9,7 @@ import SwiftUI
 
 struct MachinesList: View {
 
-    @ObservedObject var model: ControllerModel
+    @ObservedObject var model: ControllerStore
 
     var body: some View {
         List(model.discovery.machines, selection: $model.selectedMachine) { machine in

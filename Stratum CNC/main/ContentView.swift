@@ -3,23 +3,23 @@ import SwiftUI
 struct ContentView: View {
 
     @ObservedObject var appModel: AppModel
-    @ObservedObject var projectsModel: ProjectsModel
-    @ObservedObject var controllerModel: ControllerModel
+    @ObservedObject var projectsModel: ProjectsStore
+    @ObservedObject var controllerModel: ControllerStore
 
     var body: some View {
         NavigationSplitView {
-            MachinesList(model: appModel.controllerModel)
+            MachinesList(model: appModel.controllerStore)
         } detail: {
             switch appModel.activeTab {
                 case .projects:
-                    ProjectsView(appModel: appModel, projectsModel: appModel.projectsModel)
+                    ProjectsView(appModel: appModel, projectsStore: appModel.projectsStore)
                 case .cam:
-                    CAMView(model: appModel.camModel, projectsModel: appModel.projectsModel)
+                    CAMView(model: appModel.camStore, projectsModel: appModel.projectsStore)
                 case .controller:
-                    ControllerView(model: appModel.controllerModel,
-                                   camModel: appModel.camModel,
-                                   gCodeModel: appModel.gCodeModel,
-                                   joystickStore: appModel.joystick)
+                    ControllerView(model: appModel.controllerStore,
+                                   camModel: appModel.camStore,
+                                   gCodeModel: appModel.gCodeStore,
+                                   joystickStore: appModel.joystickStore)
             }
         }
         .toolbar {

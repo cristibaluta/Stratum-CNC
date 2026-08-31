@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ProjectCard: View {
 
-    let project: ProjectData
+    let project: Project
     let previewURL: URL
 
     var body: some View {

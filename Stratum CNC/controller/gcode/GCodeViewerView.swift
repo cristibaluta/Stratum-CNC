@@ -9,7 +9,7 @@ import AppKit
 /// to its first G-code line.
 struct GCodeViewerView: View {
 
-    @ObservedObject var model: GCodeModel
+    @ObservedObject var model: GCodeStore
     var highlightedLine: Int? = nil
 
     private var toolpaths: [GCodeToolpath] {

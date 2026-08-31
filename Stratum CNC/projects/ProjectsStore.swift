@@ -9,17 +9,20 @@ import Foundation
 import Observation
 
 enum ProjectError: Error {
+    case projectNotFound
     case projectAlreadyExists
     case assetImportFailed
 }
 
 @MainActor
-final class ProjectsModel: ObservableObject {
+final class ProjectsStore: ObservableObject {
 
-    @Published private(set) var projects: [ProjectData] = []
-    @Published var activeProject: ProjectData?
+    @Published private(set) var projects: [Project] = []
+    @Published var activeProject: Project?
+    @Published var activeProjectData: ProjectData?
 
-    private let paths: ProjectPaths
+    let paths: ProjectPaths
+
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
@@ -40,10 +43,6 @@ final class ProjectsModel: ObservableObject {
         loadProjects()
     }
 
-    func directoryURL(for project: ProjectData) -> URL {
-        paths.directory(for: project)
-    }
-
     // MARK: - Loading
 
     func loadProjects() {
@@ -54,7 +53,7 @@ final class ProjectsModel: ObservableObject {
 
         do {
             let data = try Data(contentsOf: paths.projectsIndexFile)
-            projects = try decoder.decode([ProjectData].self, from: data)
+            projects = try decoder.decode([Project].self, from: data)
 
             projects.sort {
                 $0.modifiedAt > $1.modifiedAt
@@ -65,13 +64,29 @@ final class ProjectsModel: ObservableObject {
         }
     }
 
+    func loadProjectData(for project: Project) throws -> ProjectData {
+        do {
+            let data = try Data(contentsOf: paths.projectMetadata(for: project))
+            let projectData = try decoder.decode(ProjectData.self, from: data)
+            return projectData
+        } catch {
+            print("Failed to load projects: \(error)")
+            throw ProjectError.projectNotFound
+        }
+    }
+
     // MARK: - Creation
 
     @discardableResult
-    func createProject(name: String) throws -> ProjectData {
+    func createProject(name: String) throws -> (Project, ProjectData) {
+        // Forget the previous project
+        activeProject = nil
+        activeProjectData = nil
+        
+        let project = Project(name: name)
         // Create project data
         let stock = StockMaterial(name: "Aluminum", material: .aluminum, geometry: .rectangular(width: 150, height: 25, depth: 5))
-        let project = ProjectData(name: name, stock: stock, isStockVisible: true, assets: nil)
+        let projectData = ProjectData(stock: stock, isStockVisible: true, assets: nil)
 
         // Check if project already exist
         guard projects.first(where: { $0.name.lowercased() == name.lowercased() }) == nil else {
@@ -79,44 +94,37 @@ final class ProjectsModel: ObservableObject {
         }
 
         // Create supporting files
-        try FileManager.default.createDirectory(at: paths.directory(for: project), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: paths.projectDirectory(for: project), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: paths.assetsDirectory(for: project), withIntermediateDirectories: true)
 
-        try saveProjectMetadata(project)
+        try saveProjectMetadata(projectData, in: project)
 
         projects.insert(project, at: 0)
 
         try saveIndex()
 
-        return project
+        return (project, projectData)
     }
 
     // MARK: - Updating
 
-    func update(_ project: ProjectData) throws {
-        var updatedProject = project
-        updatedProject.modifiedAt = .now
-
-        if let index = projects.firstIndex(where: { $0.id == project.id }) {
-            projects[index] = updatedProject
-        }
-
-        try saveProjectMetadata(updatedProject)
-        try saveIndex()
-    }
+//    func update(_ project: Project) throws {
+//        var updatedProject = project
+//        updatedProject.modifiedAt = .now
+//
+//        if let index = projects.firstIndex(where: { $0.id == project.id }) {
+//            projects[index] = updatedProject
+//        }
+//
+//        try saveProjectMetadata(updatedProject)
+//        try saveIndex()
+//    }
 
     func importAsset(from url: URL) throws -> AssetData {
-        guard var activeProject else {
-            throw ProjectError.assetImportFailed
+        guard let activeProject, var activeProjectData else {
+            throw ProjectError.projectNotFound
         }
         // 1. Move asset from original location to assets folder in the project
-        guard url.startAccessingSecurityScopedResource() else {
-            print("Could not access:", url)
-            throw ProjectError.assetImportFailed
-        }
-        defer {
-            url.stopAccessingSecurityScopedResource()
-        }
         let assetDestination = paths.assetsDirectory(for: activeProject).appendingPathComponent(url.lastPathComponent)
         if FileManager.default.fileExists(atPath: assetDestination.path) {
             try? FileManager.default.removeItem(at: assetDestination)
@@ -124,19 +132,19 @@ final class ProjectsModel: ObservableObject {
         try? FileManager.default.copyItem(at: url, to: assetDestination)
 
         // 2. Add asset to json
-        var assets = activeProject.assets ?? []
+        var assets = activeProjectData.assets ?? []
         let asset = AssetData(name: url.lastPathComponent)
         assets.append(asset)
-        activeProject.assets = assets
-        try saveProjectMetadata(activeProject)
+        activeProjectData.assets = assets
+        try saveProjectMetadata(activeProjectData, in: activeProject)
 
         return asset
     }
 
     // MARK: - Delete
 
-    func delete(_ project: ProjectData) throws {
-        let directory = paths.directory(for: project)
+    func delete(_ project: Project) throws {
+        let directory = paths.projectDirectory(for: project)
 
         if FileManager.default.fileExists(atPath: directory.path) {
             try FileManager.default.removeItem(at: directory)
@@ -151,14 +159,14 @@ final class ProjectsModel: ObservableObject {
 
     // MARK: - Preview
 
-    func previewURL(for project: ProjectData) -> URL {
+    func previewURL(for project: Project) -> URL {
         paths.preview(for: project)
     }
 
     // MARK: - Persistence
 
-    private func saveProjectMetadata(_ project: ProjectData) throws {
-        let data = try encoder.encode(project)
+    private func saveProjectMetadata(_ projectData: ProjectData, in project: Project) throws {
+        let data = try encoder.encode(projectData)
         try data.write(to: paths.projectMetadata(for: project), options: .atomic)
     }
 

@@ -8,7 +8,7 @@
 import SwiftUI
 
 @MainActor
-class ControllerModel: ObservableObject {
+class ControllerStore: ObservableObject {
 
     @Published var discovery = MachineDiscovery()
     @Published var connection = MachineConnection()
