@@ -45,11 +45,12 @@ final class D2_CanvasRenderer {
     // MARK: Rendering
     func render(objects: [CAM_Object],
                 stock: StockMaterial,
+                isStockVisible: Bool,
                 zoomScale: CGFloat,
                 selectedObjectIDs: Set<UUID>,
                 selectedPaths: [PathSelection]) {
 
-        stockLayer.isHidden = !stock.isVisible
+        stockLayer.isHidden = !isStockVisible
         updateStockLayer(with: stock)
 
         for object in objects {
@@ -94,16 +95,10 @@ final class D2_CanvasRenderer {
 
         switch stock.geometry {
         case .rectangular(let width, let height, _):
-            let rect = CGRect(
-                x: 0,
-                y: 0,
-                width: CGFloat(width),
-                height: CGFloat(height)
-            )
-            stockBounds = rect
-            stockPath.addRect(rect)
+            stockBounds = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+            stockPath.addRect(stockBounds)
 
-        case .round(let diameter, _):
+        case .cylindrical(let diameter, _):
             let size = CGFloat(diameter)
             stockBounds = CGRect(x: 0, y: 0, width: size, height: size)
             stockPath.addEllipse(in: stockBounds)
@@ -140,21 +135,20 @@ final class D2_CanvasRenderer {
 
     private func applyStockStyle(material: StockMaterialType) {
         let fillColor: NSColor
-        let copperTone = NSColor(srgbRed: 0.72, green: 0.45, blue: 0.20, alpha: 1.0)
 
         switch material {
-        case .aluminum, .steel, .stainlessSteel, .brass, .bronze:
-            fillColor = NSColor.systemGray.withAlphaComponent(0.08)
-        case .copper, .pcb:
-            fillColor = copperTone.withAlphaComponent(0.12)
-        case .wood, .hardwood, .softwood, .plywood, .mdf:
-            fillColor = NSColor.systemBrown.withAlphaComponent(0.08)
-        case .plastic, .acrylic, .hdpe, .pvc, .delrin:
-            fillColor = NSColor.systemTeal.withAlphaComponent(0.07)
-        case .carbonFiber:
-            fillColor = NSColor.systemGray.withAlphaComponent(0.10)
-        case .custom:
-            fillColor = NSColor.systemBlue.withAlphaComponent(0.07)
+            case .aluminum, .steel, .stainless_steel:
+                fillColor = NSColor.systemGray.withAlphaComponent(0.08)
+            case .copper, .brass, .bronze, .pcb, .bicolor_stock:
+                fillColor = NSColor(srgbRed: 0.72, green: 0.45, blue: 0.20, alpha: 1.0).withAlphaComponent(0.12)
+            case .wood, .hardwood, .softwood, .plywood:
+                fillColor = NSColor.systemBrown.withAlphaComponent(0.08)
+            case .plastic, .acrylic, .hdpe, .pvc, .delrin, .epoxy, .bakelite, .synthetic_stone, .polycarbonate:
+                fillColor = NSColor.systemTeal.withAlphaComponent(0.07)
+            case .carbon_fiber:
+                fillColor = NSColor.systemGray.withAlphaComponent(0.40)
+            case .custom:
+                fillColor = NSColor.systemBlue.withAlphaComponent(0.07)
         }
 
         stockFillLayer.fillColor = fillColor.cgColor

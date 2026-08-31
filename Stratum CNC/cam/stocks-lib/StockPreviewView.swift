@@ -375,9 +375,9 @@ struct StockPreviewView: View {
                         padding: padding,
                         in: context)
 
-            case .round(let diameter, let depth):
+            case .cylindrical(let diameter, let length):
                 drawCylinder(diameter: diameter,
-                             length: depth,
+                             length: length,
                              texture: texture,
                              canvasSize: size,
                              padding: padding,
@@ -404,7 +404,7 @@ struct StockPreviewView: View {
             ForEach(Array(StockMaterialType.allCases.enumerated()), id: \.offset) { index, material in
                 let sampleGeometry: StockGeometry = [
                     .rectangular(width: 100, height: 60, depth: 12),
-                    .round(diameter: 30, depth: 80),
+                    .cylindrical(diameter: 30, length: 80),
                     .disk(outerDiameter: 40, innerDiameter: 20, depth: 60)
                 ][index % 3]
 

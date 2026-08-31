@@ -9,7 +9,7 @@ import Foundation
 import Observation
 
 @MainActor
-final class StockStore: ObservableObject {
+final class StockModel: ObservableObject {
 
     private(set) var library: StockLibrary
 
@@ -28,7 +28,7 @@ final class StockStore: ObservableObject {
     }
 
     init() {
-        self.library = StockLibrary()
+        self.library = StockLibrary(stocks: [])
 
         do {
             try load()

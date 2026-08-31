@@ -14,7 +14,7 @@ class CAMModel: ObservableObject {
     @Published var toolStore = ToolStore()
     @Published var showingToolsSheet: Bool = false
 
-    @Published var stockStore = StockStore()
+    @Published var stockStore = StockModel()
     @Published var showingStockSheet: Bool = false
 
     @Published var selectedStockMaterial = StockMaterial(

@@ -11,22 +11,20 @@ struct StockMaterial: Identifiable, Codable, Hashable {
     let id: UUID
 
     var name: String
+    var link: String?
     var material: StockMaterialType
     var geometry: StockGeometry
-    var isVisible: Bool
 
     init(
         id: UUID = UUID(),
         name: String,
         material: StockMaterialType,
-        geometry: StockGeometry,
-        isVisible: Bool = true
+        geometry: StockGeometry
     ) {
         self.id = id
         self.name = name
         self.material = material
         self.geometry = geometry
-        self.isVisible = isVisible
     }
 
     enum CodingKeys: String, CodingKey {
@@ -34,7 +32,6 @@ struct StockMaterial: Identifiable, Codable, Hashable {
         case name
         case material
         case geometry
-        case isVisible
     }
 
     init(from decoder: Decoder) throws {
@@ -43,6 +40,5 @@ struct StockMaterial: Identifiable, Codable, Hashable {
         name = try container.decode(String.self, forKey: .name)
         material = try container.decode(StockMaterialType.self, forKey: .material)
         geometry = try container.decode(StockGeometry.self, forKey: .geometry)
-        isVisible = try container.decodeIfPresent(Bool.self, forKey: .isVisible) ?? true
     }
 }

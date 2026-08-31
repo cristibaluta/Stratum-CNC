@@ -70,8 +70,8 @@ final class ProjectsModel: ObservableObject {
     @discardableResult
     func createProject(name: String) throws -> ProjectData {
         // Create project data
-        let material = StockMaterial(name: "Aluminum", material: .aluminum, geometry: .rectangular(width: 150, height: 25, depth: 5))
-        let project = ProjectData(name: name, material: material, assets: [])
+        let stock = StockMaterial(name: "Aluminum", material: .aluminum, geometry: .rectangular(width: 150, height: 25, depth: 5))
+        let project = ProjectData(name: name, stock: stock, isStockVisible: true, assets: nil)
 
         // Check if project already exist
         guard projects.first(where: { $0.name.lowercased() == name.lowercased() }) == nil else {

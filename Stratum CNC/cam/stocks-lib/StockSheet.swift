@@ -9,7 +9,7 @@ import SwiftUI
 
 struct StockSheet: View {
 
-    var store: StockStore
+    var store: StockModel
 
     @State private var selectedStockID: StockMaterial.ID?
 
@@ -54,9 +54,7 @@ struct StockSheet: View {
                 ContentUnavailableView(
                     "No Stock Selected",
                     systemImage: "cube",
-                    description: Text(
-                        "Select a stock material from the list."
-                    )
+                    description: Text("Select a stock material from the list.")
                 )
             }
         }
@@ -67,11 +65,7 @@ struct StockSheet: View {
         let stock = StockMaterial(
             name: "New Stock",
             material: .aluminum,
-            geometry: .rectangular(
-                width: 100,
-                height: 50,
-                depth: 10
-            )
+            geometry: .rectangular(width: 100, height: 50, depth: 10)
         )
 
         do {

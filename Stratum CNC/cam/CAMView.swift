@@ -14,6 +14,7 @@ import SwiftUI
 struct CAMView: View {
 
     @ObservedObject var model: CAMModel
+    @ObservedObject var projectsModel: ProjectsModel
 
     var body: some View {
         ZStack {
@@ -27,7 +28,7 @@ struct CAMView: View {
                 HStack {
                     Spacer()
                     VStack(spacing: 16) {
-                        MaterialPanelView(stock: $model.selectedStockMaterial)
+                        MaterialPanelView(project: $projectsModel.activeProject, stock: $model.selectedStockMaterial)
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
                             .frame(width: 500)
                         toolpathsPanel

@@ -46,7 +46,7 @@ private extension StockEditorView {
     var geometrySection: some View {
         Section("Geometry") {
             Picker("Shape", selection: geometryTypeBinding) {
-                ForEach(StockShape.allCases, id: \.self) { shape in
+                ForEach(StockGeometry.allCases, id: \.self) { shape in
                     Text(shape.displayName)
                         .tag(shape)
                 }
@@ -55,10 +55,10 @@ private extension StockEditorView {
         }
     }
 
-    var geometryTypeBinding: Binding<StockShape> {
+    var geometryTypeBinding: Binding<StockGeometry> {
         Binding(
             get: {
-                stock.geometry.shape
+                stock.geometry
             },
             set: { newShape in
                 changeGeometry(to: newShape)
@@ -69,16 +69,8 @@ private extension StockEditorView {
 
 private extension StockEditorView {
 
-    func changeGeometry(to shape: StockShape) {
-
-        switch shape {
-            case .rectangular:
-                stock.geometry = .rectangular(width: 100, height: 50, depth: 10)
-            case .round:
-                stock.geometry = .round(diameter: 20, depth: 100)
-            case .disk:
-                stock.geometry = .disk(outerDiameter: 30, innerDiameter: 20, depth: 100)
-        }
+    func changeGeometry(to shape: StockGeometry) {
+        stock.geometry = shape
     }
 }
 
@@ -135,15 +127,15 @@ private extension StockEditorView {
                 unit: "mm"
             )
 
-        case .round(let diameter, let depth):
+        case .cylindrical(let diameter, let length):
             MeasurementField(
                 title: "Diameter",
                 value: Binding(
                     get: { diameter },
                     set: {
-                        stock.geometry = .round(
+                        stock.geometry = .cylindrical(
                             diameter: $0,
-                            depth: depth
+                            length: length
                         )
                     }
                 ),
@@ -151,13 +143,13 @@ private extension StockEditorView {
             )
 
             MeasurementField(
-                title: "Depth",
+                title: "Length",
                 value: Binding(
-                    get: { depth },
+                    get: { length },
                     set: {
-                        stock.geometry = .round(
+                        stock.geometry = .cylindrical(
                             diameter: diameter,
-                            depth: $0
+                            length: $0
                         )
                     }
                 ),

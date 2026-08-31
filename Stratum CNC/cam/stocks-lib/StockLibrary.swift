@@ -8,14 +8,5 @@
 import Foundation
 
 struct StockLibrary: Codable {
-    var schemaVersion: Int
     var stocks: [StockMaterial]
-
-    init(
-        schemaVersion: Int = 1,
-        stocks: [StockMaterial] = []
-    ) {
-        self.schemaVersion = schemaVersion
-        self.stocks = stocks
-    }
 }

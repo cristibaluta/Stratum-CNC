@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MaterialPanelView: View {
 
+    @Binding var project: ProjectData?
     @Binding var stock: StockMaterial
 
     var body: some View {
@@ -24,8 +25,8 @@ struct MaterialPanelView: View {
                 }
                 .labelsHidden()
 
-                Picker("Shape", selection: shapeBinding) {
-                    ForEach(StockShape.allCases, id: \.self) { shape in
+                Picker("Geometry", selection: shapeBinding) {
+                    ForEach(StockGeometry.allCases, id: \.self) { shape in
                         Text(shape.displayName)
                             .tag(shape)
                     }
@@ -43,19 +44,19 @@ struct MaterialPanelView: View {
 
     private var visibilityButton: some View {
         Button {
-            stock.isVisible.toggle()
+            project?.isStockVisible?.toggle()
         } label: {
-            Image(systemName: stock.isVisible ? "eye" : "eye.slash")
-                .foregroundStyle(stock.isVisible ? .primary : .secondary)
+            Image(systemName: project?.isStockVisible ?? false ? "eye" : "eye.slash")
+                .foregroundStyle(project?.isStockVisible ?? false ? .primary : .secondary)
                 .frame(width: 18)
         }
         .buttonStyle(.borderless)
-        .help(stock.isVisible ? "Hide material in 2D" : "Show material in 2D")
+        .help(project?.isStockVisible ?? false ? "Hide material in 2D" : "Show material in 2D")
     }
 
-    private var shapeBinding: Binding<StockShape> {
+    private var shapeBinding: Binding<StockGeometry> {
         Binding(
-            get: { stock.geometry.shape },
+            get: { stock.geometry },
             set: { stock.geometry = defaultGeometry(for: $0) }
         )
     }
@@ -77,14 +78,14 @@ struct MaterialPanelView: View {
                 set: { stock.geometry = .rectangular(width: length, height: width, depth: $0) }
             ))
 
-        case .round(let diameter, let height):
+        case .cylindrical(let diameter, let length):
             dimensionField(label: "D", value: Binding(
                 get: { diameter },
-                set: { stock.geometry = .round(diameter: $0, depth: height) }
+                set: { stock.geometry = .cylindrical(diameter: $0, length: length) }
             ))
             dimensionField(label: "h", showUnits: true, value: Binding(
-                get: { height },
-                set: { stock.geometry = .round(diameter: diameter, depth: $0) }
+                get: { length },
+                set: { stock.geometry = .cylindrical(diameter: diameter, length: $0) }
             ))
 
         case .disk(let outerDiameter, let innerDiameter, let height):
@@ -103,12 +104,12 @@ struct MaterialPanelView: View {
         }
     }
 
-    private func defaultGeometry(for shape: StockShape) -> StockGeometry {
+    private func defaultGeometry(for shape: StockGeometry) -> StockGeometry {
         switch shape {
         case .rectangular:
             return .rectangular(width: 100, height: 100, depth: 10)
-        case .round:
-            return .round(diameter: 100, depth: 10)
+        case .cylindrical:
+            return .cylindrical(diameter: 100, length: 10)
         case .disk:
             return .disk(outerDiameter: 80, innerDiameter: 20, depth: 13)
         }

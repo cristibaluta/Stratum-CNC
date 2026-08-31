@@ -10,7 +10,7 @@ import Foundation
 enum StockMaterialType: String, Codable, CaseIterable, Hashable {
     case aluminum
     case steel
-    case stainlessSteel
+    case stainless_steel
     case brass
     case bronze
     case copper
@@ -19,7 +19,6 @@ enum StockMaterialType: String, Codable, CaseIterable, Hashable {
     case hardwood
     case softwood
     case plywood
-    case mdf
 
     case plastic
     case acrylic
@@ -27,8 +26,14 @@ enum StockMaterialType: String, Codable, CaseIterable, Hashable {
     case pvc
     case delrin
 
-    case carbonFiber
+    case carbon_fiber
     case pcb
+
+    case epoxy
+    case bakelite
+    case synthetic_stone
+    case polycarbonate
+    case bicolor_stock
 
     case custom
 
@@ -38,7 +43,7 @@ enum StockMaterialType: String, Codable, CaseIterable, Hashable {
             "Aluminum"
         case .steel:
             "Steel"
-        case .stainlessSteel:
+        case .stainless_steel:
             "Stainless Steel"
         case .brass:
             "Brass"
@@ -54,8 +59,6 @@ enum StockMaterialType: String, Codable, CaseIterable, Hashable {
             "Softwood"
         case .plywood:
             "Plywood"
-        case .mdf:
-            "MDF"
         case .plastic:
             "Plastic"
         case .acrylic:
@@ -66,12 +69,22 @@ enum StockMaterialType: String, Codable, CaseIterable, Hashable {
             "PVC"
         case .delrin:
             "Delrin / POM"
-        case .carbonFiber:
+        case .carbon_fiber:
             "Carbon Fiber"
         case .pcb:
             "PCB"
         case .custom:
             "Custom"
+        case .epoxy:
+            "Epoxy"
+        case .bakelite:
+            "Bakelite"
+        case .synthetic_stone:
+            "Synthetic Stone"
+        case .polycarbonate:
+            "Polycarbonate"
+        case .bicolor_stock:
+            "Bicolor Stock"
         }
     }
 }

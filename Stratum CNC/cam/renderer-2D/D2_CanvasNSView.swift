@@ -135,6 +135,7 @@ final class D2_CanvasNSView: NSView {
     private func render() {
         renderer.render(objects: state.objects,
                         stock: stockMaterial,
+                        isStockVisible: true,
                         zoomScale: zoomScale,
                         selectedObjectIDs: state.selectedObjectIDs,
                         selectedPaths: state.selectedPaths)
