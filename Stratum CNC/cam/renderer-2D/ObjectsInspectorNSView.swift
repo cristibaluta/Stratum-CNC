@@ -7,7 +7,7 @@
 
 import AppKit
 
-final class CAM_ObjectsInspectorView: NSVisualEffectView {
+final class ObjectsInspectorNSView: NSVisualEffectView {
 
     // MARK: Property
 
@@ -38,7 +38,7 @@ final class CAM_ObjectsInspectorView: NSVisualEffectView {
 
     // MARK: State
 
-    private var elements: [CAM_Object] = []
+    private var elements: [D2_Object] = []
     private var selectedID: UUID?
 
     // MARK: Init
@@ -122,7 +122,7 @@ final class CAM_ObjectsInspectorView: NSVisualEffectView {
 
     // MARK: Update
 
-    func update(elements: [CAM_Object], selectedID: UUID?) {
+    func update(elements: [D2_Object], selectedID: UUID?) {
         self.elements = elements
         self.selectedID = selectedID
         rebuildObjectList()

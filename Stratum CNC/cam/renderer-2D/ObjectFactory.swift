@@ -7,15 +7,15 @@
 
 import Foundation
 
-struct CAM_ObjectFactory {
+struct ObjectFactory {
 
-    func makeObject(name: String, paths: [STBezierPath]) -> CAM_Object? {
+    func makeObject(name: String, paths: [STBezierPath]) -> D2_Object? {
 
         guard !paths.isEmpty else {
             return nil
         }
 
-        guard let bounds = combinedBounds(of: paths) else {
+        guard let bounds = paths.combinedBounds else {
             return nil
         }
 
@@ -26,20 +26,13 @@ struct CAM_ObjectFactory {
             normalizedPath($0, relativeTo: bounds)
         }
 
-        return CAM_Object(
+        return D2_Object(
             name: name,
             paths: normalizedPaths,
             position: CGPoint(x: bounds.minX, y: bounds.minY),
             originalSize: originalSize,
             width: originalSize.width
         )
-    }
-
-    private func combinedBounds(of paths: [STBezierPath]) -> CGRect? {
-
-        paths.reduce(into: Optional<CGRect>.none) { result, path in
-            result = result?.union(path.bounds) ?? path.bounds
-        }
     }
 
     private func normalizedPath(_ source: STBezierPath, relativeTo bounds: CGRect) -> STBezierPath {

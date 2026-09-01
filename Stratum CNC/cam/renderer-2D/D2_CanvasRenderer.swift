@@ -19,7 +19,7 @@ final class D2_CanvasRenderer {
     let objectsLayer = CALayer()
     let testLayer = CAShapeLayer()
 
-    private(set) var nodes: [UUID: CAM_ObjectNode] = [:]
+    private(set) var nodes: [UUID: D2_ObjectNode] = [:]
     private let baseStrokeWidth: CGFloat = 1.0
     private let rulerLength: CGFloat = 200
 
@@ -28,9 +28,9 @@ final class D2_CanvasRenderer {
         configureLayers()
     }
 
-    func setObjects(_ objects: [CAM_Object]) {
+    func setObjects(_ objects: [D2_Object]) {
         removeAll()
-        let nodes = objects.map { CAM_ObjectNode(object: $0, baseStrokeWidth: baseStrokeWidth) }
+        let nodes = objects.map { D2_ObjectNode(object: $0, baseStrokeWidth: baseStrokeWidth) }
         for node in nodes {
             self.nodes[node.objectID] = node
             self.objectsLayer.addSublayer(node.layer)
@@ -43,7 +43,7 @@ final class D2_CanvasRenderer {
     }
 
     // MARK: Rendering
-    func render(objects: [CAM_Object],
+    func render(objects: [D2_Object],
                 stock: StockMaterial,
                 isStockVisible: Bool,
                 zoomScale: CGFloat,

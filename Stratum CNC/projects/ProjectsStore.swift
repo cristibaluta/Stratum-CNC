@@ -133,7 +133,7 @@ final class ProjectsStore: ObservableObject {
 
         // 2. Add asset to json
         var assets = activeProjectData.assets ?? []
-        let asset = AssetData(name: url.lastPathComponent)
+        let asset = AssetData(name: url.lastPathComponent, transform: nil)
         assets.append(asset)
         activeProjectData.assets = assets
         try saveProjectMetadata(activeProjectData, in: activeProject)

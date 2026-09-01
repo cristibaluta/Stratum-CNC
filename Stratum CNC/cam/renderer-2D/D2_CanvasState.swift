@@ -9,11 +9,11 @@ import Foundation
 
 final class D2_CanvasState {
 
-    private(set) var objects: [CAM_Object] = []
+    private(set) var objects: [D2_Object] = []
     private(set) var selectedObjectIDs: Set<UUID> = []
     private(set) var selectedPaths: [PathSelection] = []
 
-    var selectedObject: CAM_Object? {
+    var selectedObject: D2_Object? {
         guard let id = selectedObjectIDs.first else {
             return nil
         }
@@ -23,7 +23,7 @@ final class D2_CanvasState {
 
     // MARK: Objects
 
-    func add(_ object: CAM_Object, select: Bool) {
+    func add(_ object: D2_Object, select: Bool) {
         objects.append(object)
 
         if select {
@@ -31,7 +31,7 @@ final class D2_CanvasState {
         }
     }
 
-    func setObjects(_ objects: [CAM_Object]) {
+    func setObjects(_ objects: [D2_Object]) {
         self.objects = objects
     }
 
@@ -84,17 +84,17 @@ final class D2_CanvasState {
         selectedPaths.removeAll()
     }
 
-    func isObjectSelected(_ object: CAM_Object) -> Bool {
+    func isObjectSelected(_ object: D2_Object) -> Bool {
         selectedObjectIDs.contains(object.id)
     }
 
     /// Single-path convenience for call sites still expecting one index (e.g. legacy inspector code).
-    func selectedPathIndex(for object: CAM_Object) -> Int? {
+    func selectedPathIndex(for object: D2_Object) -> Int? {
         selectedPaths.first { $0.objectID == object.id }?.pathIndex
     }
 
     /// All selected path indices for a given object, for multi-select rendering/inspection.
-    func selectedPathIndices(for object: CAM_Object) -> Set<Int> {
+    func selectedPathIndices(for object: D2_Object) -> Set<Int> {
         Set(selectedPaths.filter { $0.objectID == object.id }.map { $0.pathIndex })
     }
 

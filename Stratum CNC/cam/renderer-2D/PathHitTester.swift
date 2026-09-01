@@ -13,8 +13,8 @@ struct PathHitTester {
     let tolerance: CGFloat
 
     func hitTest(worldPoint: CGPoint,
-                 objects: [CAM_Object],
-                 nodes: [UUID: CAM_ObjectNode],
+                 objects: [D2_Object],
+                 nodes: [UUID: D2_ObjectNode],
                  worldLayer: CALayer,
                  zoomScale: CGFloat) -> PathSelection? {
 

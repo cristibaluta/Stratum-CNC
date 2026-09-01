@@ -42,3 +42,11 @@ extension STBezierPath {
         return newPath
     }
 }
+
+extension Array<STBezierPath> {
+    var combinedBounds: CGRect? {
+        self.reduce(into: Optional<CGRect>.none) { result, path in
+            result = result?.union(path.bounds) ?? path.bounds
+        }
+    }
+}

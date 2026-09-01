@@ -54,5 +54,6 @@ class AppModel: ObservableObject {
 
         // 4. Load toolpaths and display in CAM
         let toolpathsUrl = projectsStore.paths.toolpathsFile(for: project)
+        print(toolpathsUrl)
     }
 }

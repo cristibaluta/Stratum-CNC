@@ -216,7 +216,7 @@ final class GameControllerStore: ObservableObject {
     }
 
     private func configureThumbsticks(_ gamepad: GCExtendedGamepad) {
-        gamepad.leftThumbstick.valueChangedHandler = { [weak self, weak gamepad] _, x, y in
+        gamepad.leftThumbstick.valueChangedHandler = { [weak self] _, x, y in
             guard let self else {
                 return
             }
@@ -230,6 +230,10 @@ final class GameControllerStore: ObservableObject {
             }
 //            print("🕹️ RIGHT:", x, y)
             self.rightStick = Stick(x: self.applyDeadZone(x), y: self.applyDeadZone(y))
+        }
+
+        gamepad.dpad.valueChangedHandler = { _, x, y in
+            print("dpad x: \(x), y: \(y)")
         }
     }
 

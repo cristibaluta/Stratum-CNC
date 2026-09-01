@@ -7,10 +7,6 @@
 
 import Foundation
 
-struct AssetData: Codable, Hashable {
-    let name: String
-}
-
 struct ProjectData: Identifiable, Codable, Hashable {
     let id: UUID
     var stock: StockMaterial?

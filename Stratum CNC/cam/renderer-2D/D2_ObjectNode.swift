@@ -1,5 +1,5 @@
 //
-//  SVGObjectNode.swift
+//  D2_ObjectNode.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 24.08.2026.
@@ -8,7 +8,7 @@
 import Foundation
 import QuartzCore
 
-final class CAM_ObjectNode {
+final class D2_ObjectNode {
 
     let objectID: UUID
 
@@ -17,7 +17,7 @@ final class CAM_ObjectNode {
     private let selectionLayer: CAShapeLayer
     private let rotationCenterLayer: CAShapeLayer
 
-    init(object: CAM_Object, baseStrokeWidth: CGFloat) {
+    init(object: D2_Object, baseStrokeWidth: CGFloat) {
         self.objectID = object.id
 
         let objectLayer = CALayer()
@@ -50,9 +50,9 @@ final class CAM_ObjectNode {
 
 // MARK: - Rendering
 
-extension CAM_ObjectNode {
+extension D2_ObjectNode {
 
-    func update(object: CAM_Object,
+    func update(object: D2_Object,
                 zoomScale: CGFloat,
                 objectSelected: Bool,
                 selectedPathIndexes: [Int]) {
@@ -97,9 +97,9 @@ extension CAM_ObjectNode {
 
 // MARK: - Private Rendering
 
-private extension CAM_ObjectNode {
+private extension D2_ObjectNode {
 
-    func updateStyles(object: CAM_Object,
+    func updateStyles(object: D2_Object,
                       zoomScale: CGFloat,
                       objectSelected: Bool,
                       selectedPathIndexes: [Int]) {

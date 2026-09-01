@@ -17,7 +17,7 @@ final class D2_CanvasNSView: NSView {
         case moveObject(UUID)
     }
 
-    var objects: [CAM_Object] = [] {
+    var objects: [D2_Object] = [] {
         didSet {
             print("Updating objects in canvas view to \(objects.count)")
             state.setObjects(objects)
@@ -42,7 +42,7 @@ final class D2_CanvasNSView: NSView {
     private let state = D2_CanvasState()
     private let renderer = D2_CanvasRenderer()
     private let hitTester = PathHitTester(tolerance: 6)
-    private let inspectorView = CAM_ObjectsInspectorView()
+    private let inspectorView = ObjectsInspectorNSView()
 
     private var lastDragLocation: CGPoint?
     private var lastDragWorldLocation: CGPoint?
@@ -302,7 +302,7 @@ final class D2_CanvasNSView: NSView {
         updateInspector()
     }
 
-    private func updateObject(id: UUID, property: CAM_ObjectsInspectorView.Property, value: CGFloat) {
+    private func updateObject(id: UUID, property: ObjectsInspectorNSView.Property, value: CGFloat) {
         guard state.selectedObjectIDs.contains(id), let object = object(withID: id) else {
             return
         }
@@ -317,7 +317,7 @@ final class D2_CanvasNSView: NSView {
         updateInspector()
     }
 
-    private func nudgeObject(id: UUID, property: CAM_ObjectsInspectorView.Property, amount: CGFloat) {
+    private func nudgeObject(id: UUID, property: ObjectsInspectorNSView.Property, amount: CGFloat) {
         guard state.selectedObjectIDs.contains(id), let object = object(withID: id) else {
             return
         }
@@ -351,7 +351,7 @@ final class D2_CanvasNSView: NSView {
         updateInspector()
     }
 
-    private func object(withID id: UUID) -> CAM_Object? {
+    private func object(withID id: UUID) -> D2_Object? {
         state.objects.first { $0.id == id }
     }
 

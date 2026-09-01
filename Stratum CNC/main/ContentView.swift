@@ -14,7 +14,7 @@ struct ContentView: View {
                 case .projects:
                     ProjectsView(appModel: appModel, projectsStore: appModel.projectsStore)
                 case .cam:
-                    CAMView(model: appModel.camStore, projectsModel: appModel.projectsStore)
+                    CAMView(camStore: appModel.camStore, projectsStore: appModel.projectsStore)
                 case .controller:
                     ControllerView(model: appModel.controllerStore,
                                    camModel: appModel.camStore,

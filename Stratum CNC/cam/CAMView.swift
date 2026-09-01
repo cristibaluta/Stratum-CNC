@@ -13,22 +13,22 @@ import SwiftUI
 
 struct CAMView: View {
 
-    @ObservedObject var model: CAMStore
-    @ObservedObject var projectsModel: ProjectsStore
+    @ObservedObject var camStore: CAMStore
+    @ObservedObject var projectsStore: ProjectsStore
 
     var body: some View {
         ZStack {
-            if model.files.isEmpty {
+            if camStore.files.isEmpty {
                 emptyView
             } else {
                 // TODO: This view should be swapable with a 3D view depending on the first open file
                 // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
-                CAM_2D_View(model: model)
+                CAM_2D_View(model: camStore)
 
                 HStack {
                     Spacer()
                     VStack(spacing: 16) {
-                        MaterialPanelView(project: $projectsModel.activeProjectData, stock: $model.selectedStockMaterial)
+                        MaterialPanelView(project: $projectsStore.activeProjectData, stock: $camStore.selectedStockMaterial)
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
                             .frame(width: 500)
                         toolpathsPanel
@@ -42,28 +42,28 @@ struct CAMView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: {
-                    model.showingToolsSheet.toggle()
+                    camStore.showingToolsSheet.toggle()
                 }) {
                     Label("Tools", systemImage: "pencil.tip.crop.circle.fill")
                 }
                 .rotationEffect(.degrees(180))
 
                 Button(action: {
-                    model.showingStockSheet.toggle()
+                    camStore.showingStockSheet.toggle()
                 }) {
                     Label("Stock", systemImage: "cube")
                 }
             }
         }
-        .sheet(isPresented: $model.showingToolsSheet) {
-            ToolsSheet(store: model.toolStore)
+        .sheet(isPresented: $camStore.showingToolsSheet) {
+            ToolsSheet(store: camStore.toolStore)
                 .frame(width: 800, height: 600)
         }
-        .sheet(isPresented: $model.showingStockSheet) {
-            StockSheet(store: model.stockStore)
+        .sheet(isPresented: $camStore.showingStockSheet) {
+            StockSheet(store: camStore.stockStore)
                 .frame(width: 800, height: 600)
         }
-        .fileImporter(isPresented: $model.showingFilePicker, allowedContentTypes: [.svg], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $camStore.showingFilePicker, allowedContentTypes: [.svg], allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first {
@@ -71,8 +71,8 @@ struct CAMView: View {
                         print("Could not access:", url)
                         return
                     }
-                    if let asset = try? projectsModel.importAsset(from: url) {
-                        model.loadAndParseFileAt(url)
+                    if let _ = try? projectsStore.importAsset(from: url) {
+                        camStore.loadAndParseFileAt(url)
                     }
                     url.stopAccessingSecurityScopedResource()
                 }
@@ -90,7 +90,7 @@ struct CAMView: View {
                 .font(.headline)
                 .foregroundColor(.secondary)
             Button("Import SVG") {
-                model.showingFilePicker = true
+                camStore.showingFilePicker = true
             }
             Spacer()
         }
@@ -98,7 +98,7 @@ struct CAMView: View {
 
     var toolpathsPanel: some View {
         GroupBox("TOOLPATHS") {
-            ToolpathListView(model: model)
+            ToolpathListView(model: camStore)
                 .frame(maxWidth: .infinity)
         }
     }

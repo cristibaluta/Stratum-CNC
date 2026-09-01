@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class CAM_Object {
+final class D2_Object {
 
     let id: UUID
     var name: String

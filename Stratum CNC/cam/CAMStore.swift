@@ -35,10 +35,10 @@ class CAMStore: ObservableObject {
 
     /// Persistent CAM objects derived from imported files.
     /// Mutations (position, rotation, scale) made in the canvas are kept here since CAM_Object is a reference type.
-    @Published var objects: [CAM_Object] = []
+    @Published var objects: [D2_Object] = []
     @Published var toolpaths: [ToolpathData] = []
 
-    private let factory = CAM_ObjectFactory()
+    private let factory = ObjectFactory()
 
     func loadAndParseFileAt(_ url: URL) {
         let svg = SVGImageView(contentsOf: url)
