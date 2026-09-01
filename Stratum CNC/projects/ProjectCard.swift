@@ -11,6 +11,7 @@ struct ProjectCard: View {
 
     let project: Project
     let previewURL: URL
+    @State private var isHovered: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -35,13 +36,20 @@ struct ProjectCard: View {
             .padding(12)
         }
         .background(.background)
+        .contentShape(
+            RoundedRectangle(cornerRadius: 12)
+        )
         .clipShape(
             RoundedRectangle(cornerRadius: 12)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 12)
-                .stroke(.quaternary)
+                .stroke(isHovered ? .primary : .quaternary)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(isHovered ? 0.10 : 0), radius: isHovered ? 10 : 0, x: 0, y: 4)
+        .scaleEffect(isHovered ? 1.03 : 1.0)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }

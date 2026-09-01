@@ -77,7 +77,7 @@ struct ProjectsView: View {
 
     private func createProject(name: String) {
         do {
-            appModel.camStore.reset()
+            appModel.camStore.clear()
             let project = try projectsStore.createProject(name: name)
             open(project.0)
         } catch {
