@@ -3,90 +3,47 @@ import SwiftUI
 struct ContentView: View {
 
     @ObservedObject var appModel: AppModel
-    @ObservedObject var projectsModel: ProjectsStore
-    @ObservedObject var camStore: CAMStore
-    @ObservedObject var controllerModel: ControllerStore
+    @ObservedObject var projectsStore: ProjectsStore
 
     var body: some View {
-        if let _ = projectsModel.activeProject {
-            activeProjectView
-        } else {
-            projectsSelectorView
+        Group {
+            if let projectModel = projectsStore.activeProjectModel {
+                ProjectView(projectModel: projectModel, onClose: {
+                    projectsStore.activeProject = nil
+                    projectsStore.activeProjectModel = nil
+                })
+            } else {
+                NavigationStack {
+                    ProjectsView(projectsStore: projectsStore)
+                }
+                .navigationSubtitle("Select or create project...")
+            }
         }
-    }
-
-    private var projectsSelectorView: some View {
-        NavigationStack {
-            ProjectsView(appModel: appModel, projectsStore: appModel.projectsStore)
+        .frame(minWidth: 800, minHeight: 600)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $appModel.showingToolsSheet) {
+            ToolsSheet(store: appModel.toolsStore)
+                .frame(width: 800, height: 600)
+        }
+        .sheet(isPresented: $appModel.showingStocksSheet) {
+            StockSheet(store: appModel.stocksStore)
+                .frame(width: 800, height: 600)
         }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: {
-                    appModel.camStore.showingToolsSheet.toggle()
+                    appModel.showingToolsSheet.toggle()
                 }) {
                     Label("Tools", systemImage: "pencil.tip.crop.circle.fill")
                 }
                 .rotationEffect(.degrees(180))
 
                 Button(action: {
-                    appModel.camStore.showingStockSheet.toggle()
+                    appModel.showingStocksSheet.toggle()
                 }) {
                     Label("Stock", systemImage: "cube")
                 }
             }
-        }
-        .navigationSubtitle("Select or create project...")
-        .sheet(isPresented: $camStore.showingToolsSheet) {
-            ToolsSheet(store: camStore.toolStore)
-                .frame(width: 800, height: 600)
-        }
-        .sheet(isPresented: $camStore.showingStockSheet) {
-            StockSheet(store: camStore.stockStore)
-                .frame(width: 800, height: 600)
-        }
-    }
-
-    private var activeProjectView: some View {
-        NavigationStack {
-            switch appModel.activeTab {
-                case .cam:
-                    CAMView(camStore: appModel.camStore, projectsStore: appModel.projectsStore)
-                case .controller:
-                    ControllerView(model: appModel.controllerStore,
-                                   camModel: appModel.camStore,
-                                   gCodeModel: appModel.gCodeStore,
-                                   joystickStore: appModel.joystickStore)
-            }
-        }
-        .toolbar {
-            // Close project
-            ToolbarItemGroup(placement: .navigation) {
-                Button(action: {
-                    appModel.projectsStore.activeProject = nil
-                    appModel.projectsStore.activeProjectData = nil
-                }) {
-                    Label("Close Project", systemImage: "arrow.backward")
-                }
-            }
-            // Screen Picker
-            ToolbarItemGroup(placement: .secondaryAction) {
-                Picker("Active tab", selection: $appModel.activeTab) {
-                    ForEach(ActiveTab.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-        }
-        .navigationTitle(projectsModel.activeProject?.name ?? "No project selected")
-        .navigationSubtitle("Status...")
-        .sheet(isPresented: $camStore.showingToolsSheet) {
-            ToolsSheet(store: camStore.toolStore)
-                .frame(width: 800, height: 600)
-        }
-        .sheet(isPresented: $camStore.showingStockSheet) {
-            StockSheet(store: camStore.stockStore)
-                .frame(width: 800, height: 600)
         }
     }
 }

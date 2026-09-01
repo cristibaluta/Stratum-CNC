@@ -9,8 +9,8 @@ import SwiftUI
 
 struct ControllerView: View {
 
-    @ObservedObject var model: ControllerStore
-    @ObservedObject var camModel: CAMStore
+    @ObservedObject var model: ControllerModel
+    @ObservedObject var camModel: CAMModel
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
 

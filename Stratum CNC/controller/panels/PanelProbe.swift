@@ -9,7 +9,7 @@ import SwiftUI
 
 struct PanelProbe: View {
 
-    @ObservedObject var model: ControllerStore
+    @ObservedObject var model: ControllerModel
 
     var body: some View {
         GroupBox("PROBE") {

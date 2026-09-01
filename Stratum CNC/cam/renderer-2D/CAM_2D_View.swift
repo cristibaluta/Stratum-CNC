@@ -10,7 +10,7 @@ import SwiftUI
 
 struct CAM_2D_View: NSViewRepresentable {
 
-    @ObservedObject var model: CAMStore
+    @ObservedObject var model: CAMModel
 
     func makeNSView(context: Context) -> D2_CanvasNSView {
 
@@ -26,6 +26,7 @@ struct CAM_2D_View: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: D2_CanvasNSView, context: Context) {
+
         if nsView.objects.count != model.objects.count {
             nsView.objects = model.objects
         }

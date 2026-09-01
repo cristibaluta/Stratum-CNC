@@ -9,7 +9,7 @@ import Foundation
 import Observation
 
 @MainActor
-final class StockModel: ObservableObject {
+final class StocksStore: ObservableObject {
 
     private(set) var library: StockLibrary
 

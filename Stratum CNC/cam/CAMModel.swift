@@ -9,13 +9,7 @@ import Foundation
 import PocketSVG
 
 @MainActor
-class CAMStore: ObservableObject {
-
-    @Published var toolStore = ToolStore()
-    @Published var showingToolsSheet: Bool = false
-
-    @Published var stockStore = StockModel()
-    @Published var showingStockSheet: Bool = false
+class CAMModel: ObservableObject {
 
     @Published var selectedStockMaterial = StockMaterial(
         name: "Workpiece",

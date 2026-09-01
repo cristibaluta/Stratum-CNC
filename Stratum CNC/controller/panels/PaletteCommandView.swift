@@ -9,7 +9,7 @@ import SwiftUI
 
 struct PaletteCommandView: View {
 
-    @ObservedObject var model: ControllerStore
+    @ObservedObject var model: ControllerModel
 
     var body: some View {
         ZStack {

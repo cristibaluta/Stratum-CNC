@@ -14,11 +14,10 @@ struct Stratum_CNC_App: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(appModel: model,
-                        projectsModel: model.projectsStore,
-                        camStore: model.camStore,
-                        controllerModel: model.controllerStore)
+            ContentView(appModel: model, projectsStore: model.projectsStore)
         }
+        .defaultSize(width: 1200, height: 800)
+        .windowIdealSize(.maximum)
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) {

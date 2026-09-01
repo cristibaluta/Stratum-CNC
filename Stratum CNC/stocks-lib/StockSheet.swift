@@ -9,7 +9,7 @@ import SwiftUI
 
 struct StockSheet: View {
 
-    var store: StockModel
+    var store: StocksStore
 
     @State private var selectedStockID: StockMaterial.ID?
 

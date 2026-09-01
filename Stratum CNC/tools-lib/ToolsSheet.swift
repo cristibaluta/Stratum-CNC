@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ToolsSheet: View {
 
-    @ObservedObject var store: ToolStore
+    @ObservedObject var store: ToolsStore
     @State private var selectedToolID: Tool.ID?
 
     @Environment(\.dismiss) private var dismiss

@@ -9,7 +9,7 @@ import SwiftUI
 
 struct PanelSpindle: View {
 
-    @ObservedObject var model: ControllerStore
+    @ObservedObject var model: ControllerModel
 
     var body: some View {
         GroupBox("SPINDLE") {

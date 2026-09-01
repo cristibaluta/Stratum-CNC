@@ -9,7 +9,6 @@ import SwiftUI
 
 struct ProjectsView: View {
 
-    @ObservedObject var appModel: AppModel
     @ObservedObject var projectsStore: ProjectsStore
 
     @State private var showingNewProject = false
@@ -50,6 +49,16 @@ struct ProjectsView: View {
                             }
                         }
                 }
+
+                HStack {
+                    Spacer()
+                    Button {
+                        projectsStore.openZombieProject()
+                    } label: {
+                        Label("Try without project", systemImage: "arrow.right.circle.fill")
+                    }
+                    Spacer()
+                }
             }
             .padding(24)
         }
@@ -77,7 +86,6 @@ struct ProjectsView: View {
 
     private func createProject(name: String) {
         do {
-            appModel.camStore.clear()
             let project = try projectsStore.createProject(name: name)
             open(project.0)
         } catch {
@@ -94,9 +102,7 @@ struct ProjectsView: View {
     }
 
     private func open(_ project: Project) {
-        // We'll connect this to the CNC editor later.
-        print("Opening \(project.name)")
-        appModel.openProject(project)
+        projectsStore.open(project)
     }
 
     private func showInFinder(_ project: Project) {

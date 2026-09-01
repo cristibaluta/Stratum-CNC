@@ -9,7 +9,7 @@ import Foundation
 import Observation
 
 @MainActor
-final class ToolStore: ObservableObject {
+final class ToolsStore: ObservableObject {
 
     private(set) var library: ToolLibrary?
     @Published var tools: [Tool] = []

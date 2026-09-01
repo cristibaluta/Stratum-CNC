@@ -19,7 +19,7 @@ final class ProjectsStore: ObservableObject {
 
     @Published private(set) var projects: [Project] = []
     @Published var activeProject: Project?
-    @Published var activeProjectData: ProjectData?
+    @Published var activeProjectModel: ProjectModel?
 
     let paths: ProjectPaths
 
@@ -64,15 +64,15 @@ final class ProjectsStore: ObservableObject {
         }
     }
 
-    func loadProjectData(for project: Project) throws -> ProjectData {
-        do {
-            let data = try Data(contentsOf: paths.projectMetadata(for: project))
-            let projectData = try decoder.decode(ProjectData.self, from: data)
-            return projectData
-        } catch {
-            print("Failed to load projects: \(error)")
-            throw ProjectError.projectNotFound
-        }
+    func open(_ project: Project) {
+        activeProject = project
+        activeProjectModel = ProjectModel(project: project, paths: paths)
+    }
+
+    func openZombieProject() {
+        let project = Project(name: "Untitled")
+        activeProject = project
+        activeProjectModel = ProjectModel(project: project, paths: paths)
     }
 
     // MARK: - Creation
@@ -81,8 +81,8 @@ final class ProjectsStore: ObservableObject {
     func createProject(name: String) throws -> (Project, ProjectData) {
         // Forget the previous project
         activeProject = nil
-        activeProjectData = nil
-        
+        activeProjectModel = nil
+
         let project = Project(name: name)
         // Create project data
         let stock = StockMaterial(name: "Aluminum", material: .aluminum, geometry: .rectangular(width: 150, height: 25, depth: 5))
@@ -119,27 +119,6 @@ final class ProjectsStore: ObservableObject {
 //        try saveProjectMetadata(updatedProject)
 //        try saveIndex()
 //    }
-
-    func importAsset(from url: URL) throws -> AssetData {
-        guard let activeProject, var activeProjectData else {
-            throw ProjectError.projectNotFound
-        }
-        // 1. Move asset from original location to assets folder in the project
-        let assetDestination = paths.assetsDirectory(for: activeProject).appendingPathComponent(url.lastPathComponent)
-        if FileManager.default.fileExists(atPath: assetDestination.path) {
-            try? FileManager.default.removeItem(at: assetDestination)
-        }
-        try? FileManager.default.copyItem(at: url, to: assetDestination)
-
-        // 2. Add asset to json
-        var assets = activeProjectData.assets ?? []
-        let asset = AssetData(name: url.lastPathComponent, transform: nil)
-        assets.append(asset)
-        activeProjectData.assets = assets
-        try saveProjectMetadata(activeProjectData, in: activeProject)
-
-        return asset
-    }
 
     // MARK: - Delete
 
