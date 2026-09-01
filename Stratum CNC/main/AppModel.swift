@@ -8,7 +8,6 @@
 import SwiftUI
 
 enum ActiveTab: String, CaseIterable, Identifiable {
-    case projects = "Projects"
     case cam = "CAM"
     case controller = "Controller"
 
@@ -20,7 +19,7 @@ enum ActiveTab: String, CaseIterable, Identifiable {
 @MainActor
 class AppModel: ObservableObject {
 
-    @Published var activeTab: ActiveTab = .projects
+    @Published var activeTab: ActiveTab = .cam
 
     // Tabs. Models should be in memory at all times, so we don't loose data when switching from one tab to another
     @Published var projectsStore = ProjectsStore()

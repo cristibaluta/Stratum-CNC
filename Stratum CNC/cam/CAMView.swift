@@ -55,14 +55,6 @@ struct CAMView: View {
                 }
             }
         }
-        .sheet(isPresented: $camStore.showingToolsSheet) {
-            ToolsSheet(store: camStore.toolStore)
-                .frame(width: 800, height: 600)
-        }
-        .sheet(isPresented: $camStore.showingStockSheet) {
-            StockSheet(store: camStore.stockStore)
-                .frame(width: 800, height: 600)
-        }
         .fileImporter(isPresented: $camStore.showingFilePicker, allowedContentTypes: [.svg], allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):

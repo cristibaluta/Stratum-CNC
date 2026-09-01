@@ -16,6 +16,7 @@ struct Stratum_CNC_App: App {
         WindowGroup {
             ContentView(appModel: model,
                         projectsModel: model.projectsStore,
+                        camStore: model.camStore,
                         controllerModel: model.controllerStore)
         }
         .windowResizability(.contentSize)
