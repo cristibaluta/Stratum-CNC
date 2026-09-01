@@ -1,3 +1,10 @@
+//
+//  ContentView.swift
+//  Stratum CNC
+//
+//  Created by Cristian Baluta on 19.08.2026.
+//
+
 import SwiftUI
 
 struct ContentView: View {
@@ -9,8 +16,7 @@ struct ContentView: View {
         Group {
             if let projectModel = projectsStore.activeProjectModel {
                 ProjectView(projectModel: projectModel, onClose: {
-                    projectsStore.activeProject = nil
-                    projectsStore.activeProjectModel = nil
+                    projectsStore.close()
                 })
             } else {
                 NavigationStack {

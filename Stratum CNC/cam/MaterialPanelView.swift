@@ -9,7 +9,7 @@ import SwiftUI
 
 struct MaterialPanelView: View {
 
-    @Binding var project: ProjectData?
+    @Binding var projectData: ProjectData
     @Binding var stock: StockMaterial
 
     var body: some View {
@@ -44,14 +44,14 @@ struct MaterialPanelView: View {
 
     private var visibilityButton: some View {
         Button {
-            project?.isStockVisible?.toggle()
+            projectData.isStockVisible?.toggle()
         } label: {
-            Image(systemName: project?.isStockVisible ?? false ? "eye" : "eye.slash")
-                .foregroundStyle(project?.isStockVisible ?? false ? .primary : .secondary)
+            Image(systemName: projectData.isStockVisible ?? false ? "eye" : "eye.slash")
+                .foregroundStyle(projectData.isStockVisible ?? false ? .primary : .secondary)
                 .frame(width: 18)
         }
         .buttonStyle(.borderless)
-        .help(project?.isStockVisible ?? false ? "Hide material in 2D" : "Show material in 2D")
+        .help(projectData.isStockVisible ?? false ? "Hide material in 2D" : "Show material in 2D")
     }
 
     private var shapeBinding: Binding<StockGeometry> {

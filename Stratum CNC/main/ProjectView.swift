@@ -14,10 +14,13 @@ struct ProjectView: View {
     var onClose: (() -> Void)
 
     var body: some View {
+
         NavigationStack {
+
             switch projectModel.activeTab {
                 case .cam:
-                    CAMView(camModel: projectModel.camModel)
+                    CAMView(camModel: projectModel.camModel, projectModel: projectModel)
+
                 case .controller:
                     ControllerView(model: projectModel.controllerModel,
                                    camModel: projectModel.camModel,
@@ -36,7 +39,7 @@ struct ProjectView: View {
             }
             // Screen Picker
             ToolbarItemGroup(placement: .secondaryAction) {
-                Picker("Active tab", selection: $projectModel.activeTab) {
+                Picker("Screen", selection: $projectModel.activeTab) {
                     ForEach(ActiveTab.allCases) { mode in
                         Text(mode.rawValue).tag(mode)
                     }

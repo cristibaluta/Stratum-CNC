@@ -1,5 +1,5 @@
 //
-//  ProjectModel.swift
+//  ProjectsStore.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 25.08.2026.
@@ -73,6 +73,12 @@ final class ProjectsStore: ObservableObject {
         let project = Project(name: "Untitled")
         activeProject = project
         activeProjectModel = ProjectModel(project: project, paths: paths)
+    }
+
+    func close() {
+        // If project is unsaved, save it or ask if to save it
+        activeProject = nil
+        activeProjectModel = nil
     }
 
     // MARK: - Creation

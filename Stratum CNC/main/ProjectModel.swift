@@ -74,25 +74,27 @@ class ProjectModel: ObservableObject {
         print(toolpathsUrl)
     }
 
-    //    func importAsset(from url: URL) throws -> AssetData {
-    //        guard let activeProject, var activeProjectModel else {
-    //            throw ProjectError.projectNotFound
-    //        }
-    //        // 1. Move asset from original location to assets folder in the project
-    //        let assetDestination = paths.assetsDirectory(for: activeProject).appendingPathComponent(url.lastPathComponent)
-    //        if FileManager.default.fileExists(atPath: assetDestination.path) {
-    //            try? FileManager.default.removeItem(at: assetDestination)
-    //        }
-    //        try? FileManager.default.copyItem(at: url, to: assetDestination)
-    //
-    //        // 2. Add asset to json
-    //        var assets = activeProjectData.assets ?? []
-    //        let asset = AssetData(name: url.lastPathComponent, transform: nil)
-    //        assets.append(asset)
-    //        activeProjectData.assets = assets
-    //        try saveProjectMetadata(activeProjectData, in: activeProject)
-    //
-    //        return asset
-    //    }
+    func importAsset(from url: URL) throws -> AssetData {
+        // 1. Move asset from original location to assets folder in the project
+        let assetDestination = paths.assetsDirectory(for: project).appendingPathComponent(url.lastPathComponent)
+        if FileManager.default.fileExists(atPath: assetDestination.path) {
+            try? FileManager.default.removeItem(at: assetDestination)
+        }
+        try? FileManager.default.copyItem(at: url, to: assetDestination)
+
+        // 2. Add asset to json
+        var assets = projectData.assets ?? []
+        let asset = AssetData(name: url.lastPathComponent, transform: nil)
+        assets.append(asset)
+        projectData.assets = assets
+        try saveProjectMetadata(projectData, in: project)
+
+        return asset
+    }
+
+    private func saveProjectMetadata(_ projectData: ProjectData, in project: Project) throws {
+        let data = try encoder.encode(projectData)
+        try data.write(to: paths.projectMetadata(for: project), options: .atomic)
+    }
 
 }
