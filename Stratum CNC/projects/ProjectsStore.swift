@@ -65,7 +65,7 @@ final class ProjectsStore: ObservableObject {
     }
 
     func openZombieProject() {
-        let project = Project(name: "Untitled")
+        let project: Project = (try? createProject(name: "Untitled", isZombie: true)) ?? Project(name: "Untitled")
         guard let paths = try? ProjectPaths(project: project) else {
             return
         }
@@ -82,7 +82,7 @@ final class ProjectsStore: ObservableObject {
     // MARK: - Creation
 
     @discardableResult
-    func createProject(name: String) throws -> Project {
+    func createProject(name: String, isZombie: Bool = false) throws -> Project {
 
         // Check if project already exist
         guard projects.first(where: { $0.name.lowercased() == name.lowercased() }) == nil else {
@@ -105,8 +105,11 @@ final class ProjectsStore: ObservableObject {
         try FileManager.default.createDirectory(at: paths.assetsDirectory, withIntermediateDirectories: true)
         try saveProjectMetadata(projectData, in: project)
 
-        projects.insert(project, at: 0)
+        guard !isZombie else {
+            return project
+        }
 
+        projects.insert(project, at: 0)
         try saveIndex()
 
         return project

@@ -35,6 +35,7 @@ class CAMModel: ObservableObject {
     private let factory = ObjectFactory()
 
     func loadAndParseFileAt(_ url: URL) {
+
         let svg = SVGImageView(contentsOf: url)
         print(svg.viewBox)
         print(svg.paths)

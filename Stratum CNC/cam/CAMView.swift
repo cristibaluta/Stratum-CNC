@@ -29,8 +29,8 @@ struct CAMView: View {
                     Spacer()
                     VStack(spacing: 16) {
                         MaterialPanelView(projectData: $projectModel.projectData, stock: $camModel.selectedStockMaterial)
-//                            .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
-//                            .frame(width: 500)
+                            .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
+                            .frame(width: 500)
                         toolpathsPanel
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
                             .frame(width: 500)
@@ -47,9 +47,12 @@ struct CAMView: View {
                         print("Could not access:", url)
                         return
                     }
-//                    if let _ = try? projectsStore.importAsset(from: url) {
-//                        camStore.loadAndParseFileAt(url)
-//                    }
+                    // Imports asset to project directory
+                    if let _ = try? projectModel.importAsset(from: url) {
+                        // If success, load the asset into UI
+                        // We must use the same original url to load the file because security scope does not work in app dirs
+                        camModel.loadAndParseFileAt(url)
+                    }
                     url.stopAccessingSecurityScopedResource()
                 }
 
