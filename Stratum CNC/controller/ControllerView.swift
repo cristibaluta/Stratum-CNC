@@ -114,6 +114,13 @@ struct ControllerView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Picker("Machine", selection: $model.selectedMachine) {
+                    ForEach(model.discovery.machines) { machine in
+                        Text(machine.name).tag(machine)
+                    }
+                }
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 HStack {
 //                    if let machine = model.selectedMachine {
@@ -145,25 +152,18 @@ struct ControllerView: View {
                     }
                     .help("Reconnect")
                     .buttonStyle(.borderless)
-
-
-                    Picker("Machine", selection: $model.selectedMachine) {
-                        ForEach(model.discovery.machines) { machine in
-                            Text(machine.name).tag(machine)
-                        }
-                    }
-                    .frame(width: 160)
-
-                    Button {
-                        model.toggleLight()
-                    } label: {
-                        Image(systemName: model.isLightOn ? "lightbulb.fill" : "lightbulb")
-                            .foregroundStyle(model.isLightOn ? .yellow : .secondary)
-                    }
-                    .buttonStyle(.borderless)
-                    .help(model.isLightOn ? "Turn light off" : "Turn light on")
-                    .disabled(!model.connection.isConnected)
                 }
+                .padding(.horizontal, 16)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    model.toggleLight()
+                } label: {
+                    Image(systemName: model.isLightOn ? "lightbulb.max.fill" : "lightbulb.slash")
+                        .foregroundStyle(model.isLightOn ? .yellow : .secondary)
+                }
+                .help(model.isLightOn ? "Turn light off" : "Turn light on")
+                .disabled(!model.connection.isConnected)
             }
         }
         .fileImporter(isPresented: $model.isGCodeImporterPresented,
