@@ -9,45 +9,40 @@ import Foundation
 
 struct ProjectPaths {
 
-    let appDocuments: URL
+    let project: Project
     let projectsRoot: URL
 
-    init() throws {
-        appDocuments = try FileManager.default.url(
-            for: .documentDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        projectsRoot = appDocuments.appendingPathComponent("Projects", isDirectory: true)
+    static let appDocuments: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+    static var projectsIndexFile: URL { appDocuments.appendingPathComponent("projects.json") }
+
+    init(project: Project) throws {
+        self.project = project
+
+        projectsRoot = ProjectPaths.appDocuments.appendingPathComponent("Projects", isDirectory: true)
         try FileManager.default.createDirectory(at: projectsRoot, withIntermediateDirectories: true)
     }
 
-    var projectsIndexFile: URL {
-        appDocuments.appendingPathComponent("projects.json")
-    }
-
-    func projectDirectory(for project: Project) -> URL {
+    var projectDirectory: URL {
         projectsRoot.appendingPathComponent(project.name, isDirectory: true)
     }
 
-    func projectMetadata(for project: Project) -> URL {
-        projectDirectory(for: project).appendingPathComponent("project.json")
+    var projectMetadata: URL {
+        projectDirectory.appendingPathComponent("project.json")
     }
 
-    func preview(for project: Project) -> URL {
-        projectDirectory(for: project).appendingPathComponent("preview.png")
+    var preview: URL {
+        projectDirectory.appendingPathComponent("preview.png")
     }
 
-    func ncFile(for project: Project) -> URL {
-        projectDirectory(for: project).appendingPathComponent("job.nc")
+    var ncFile: URL {
+        projectDirectory.appendingPathComponent("job.nc")
     }
 
-    func toolpathsFile(for project: Project) -> URL {
-        projectDirectory(for: project).appendingPathComponent("toolpaths.json")
+    var toolpathsFile: URL {
+        projectDirectory.appendingPathComponent("toolpaths.json")
     }
 
-    func assetsDirectory(for project: Project) -> URL {
-        projectDirectory(for: project).appendingPathComponent("assets", isDirectory: true)
+    var assetsDirectory: URL {
+        projectDirectory.appendingPathComponent("assets", isDirectory: true)
     }
 }

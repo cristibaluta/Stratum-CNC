@@ -19,10 +19,7 @@ struct ContentView: View {
                     projectsStore.close()
                 })
             } else {
-                NavigationStack {
-                    ProjectsView(projectsStore: projectsStore)
-                }
-                .navigationSubtitle("Select or create project...")
+                ProjectsView(projectsStore: projectsStore)
             }
         }
         .frame(minWidth: 800, minHeight: 600)

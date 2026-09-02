@@ -46,7 +46,7 @@ class ProjectModel: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
 
         do {
-            let data = try Data(contentsOf: paths.projectMetadata(for: project))
+            let data = try Data(contentsOf: paths.projectMetadata)
             let projectData = try decoder.decode(ProjectData.self, from: data)
             self.projectData = projectData
         } catch {
@@ -65,18 +65,18 @@ class ProjectModel: ObservableObject {
 
         // 2. Load assets and import into CAM
         for asset in projectData.assets ?? [] {
-            let url = paths.assetsDirectory(for: project).appendingPathComponent(asset.name)
+            let url = paths.assetsDirectory.appendingPathComponent(asset.name)
             camModel.loadAndParseFileAt(url)
         }
 
         // 3. Load toolpaths and display in CAM
-        let toolpathsUrl = paths.toolpathsFile(for: project)
+        let toolpathsUrl = paths.toolpathsFile
         print(toolpathsUrl)
     }
 
     func importAsset(from url: URL) throws -> AssetData {
         // 1. Move asset from original location to assets folder in the project
-        let assetDestination = paths.assetsDirectory(for: project).appendingPathComponent(url.lastPathComponent)
+        let assetDestination = paths.assetsDirectory.appendingPathComponent(url.lastPathComponent)
         if FileManager.default.fileExists(atPath: assetDestination.path) {
             try? FileManager.default.removeItem(at: assetDestination)
         }
@@ -94,7 +94,7 @@ class ProjectModel: ObservableObject {
 
     private func saveProjectMetadata(_ projectData: ProjectData, in project: Project) throws {
         let data = try encoder.encode(projectData)
-        try data.write(to: paths.projectMetadata(for: project), options: .atomic)
+        try data.write(to: paths.projectMetadata, options: .atomic)
     }
 
 }

@@ -18,50 +18,53 @@ struct ProjectsView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 20) {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 20) {
 
-                NewProjectCard {
-                    showingNewProject = true
-                }
+                    NewProjectCard {
+                        showingNewProject = true
+                    }
 
-                ForEach(projectsStore.projects) { project in
-                    ProjectCard(project: project, previewURL: projectsStore.previewURL(for: project))
-                        .onTapGesture(count: 2) {
-                            open(project)
-                        }
-                        .onTapGesture(count: 1) {
-                            print("select project \(project.name)")
-                        }
-                        .contextMenu {
-                            Button("Open") {
+                    ForEach(projectsStore.projects) { project in
+                        ProjectCard(project: project, previewURL: projectsStore.previewURL(for: project))
+                            .onTapGesture(count: 2) {
                                 open(project)
                             }
-
-                            Button("Show in Finder") {
-                                showInFinder(project)
+                            .onTapGesture(count: 1) {
+                                print("select project \(project.name)")
                             }
+                            .contextMenu {
+                                Button("Open") {
+                                    open(project)
+                                }
 
-                            Divider()
+                                Button("Show in Finder") {
+                                    showInFinder(project)
+                                }
 
-                            Button("Delete", role: .destructive) {
-                                delete(project)
+                                Divider()
+
+                                Button("Delete", role: .destructive) {
+                                    delete(project)
+                                }
                             }
-                        }
-                }
-
-                HStack {
-                    Spacer()
-                    Button {
-                        projectsStore.openZombieProject()
-                    } label: {
-                        Label("Try without project", systemImage: "arrow.right.circle.fill")
                     }
-                    Spacer()
+
+                    HStack {
+                        Spacer()
+                        Button {
+                            projectsStore.openZombieProject()
+                        } label: {
+                            Label("Try without project", systemImage: "arrow.right.circle.fill")
+                        }
+                        Spacer()
+                    }
                 }
+                .padding(24)
             }
-            .padding(24)
         }
+        .navigationSubtitle("Select or create project...")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
@@ -87,7 +90,7 @@ struct ProjectsView: View {
     private func createProject(name: String) {
         do {
             let project = try projectsStore.createProject(name: name)
-            open(project.0)
+            open(project)
         } catch {
             print("Failed to create project: \(error)")
         }
@@ -106,7 +109,10 @@ struct ProjectsView: View {
     }
 
     private func showInFinder(_ project: Project) {
-        let url = projectsStore.paths.projectDirectory(for: project)
+        guard let paths = try? ProjectPaths(project: project) else {
+            return
+        }
+        let url = paths.projectDirectory
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
