@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ProjectView: View {
 
+    @ObservedObject var appModel: AppModel
     @ObservedObject var projectModel: ProjectModel
 
     var onClose: (() -> Void)
@@ -45,6 +46,23 @@ struct ProjectView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+            }
+
+            if projectModel.activeTab == .cam {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button(action: {
+                        appModel.showingToolsSheet.toggle()
+                    }) {
+                        Label("Tools", systemImage: "pencil.tip.crop.circle.fill")
+                    }
+                    .rotationEffect(.degrees(180))
+
+                    Button(action: {
+                        appModel.showingStocksSheet.toggle()
+                    }) {
+                        Label("Stock", systemImage: "cube")
+                    }
+                }
             }
         }
         .navigationTitle(projectModel.project.name)

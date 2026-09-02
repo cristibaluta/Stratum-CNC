@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ProjectsView: View {
 
+    @ObservedObject var appModel: AppModel
     @ObservedObject var projectsStore: ProjectsStore
 
     @State private var showingNewProject = false
@@ -66,6 +67,20 @@ struct ProjectsView: View {
         }
         .navigationSubtitle("Select or create project...")
         .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(action: {
+                    appModel.showingToolsSheet.toggle()
+                }) {
+                    Label("Tools", systemImage: "pencil.tip.crop.circle.fill")
+                }
+                .rotationEffect(.degrees(180))
+
+                Button(action: {
+                    appModel.showingStocksSheet.toggle()
+                }) {
+                    Label("Stock", systemImage: "cube")
+                }
+            }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
                     showingNewProject = true

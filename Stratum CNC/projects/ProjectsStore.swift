@@ -65,6 +65,7 @@ final class ProjectsStore: ObservableObject {
     }
 
     func openZombieProject() {
+        // TODO: on second open, it does not load the previous data because project.json is recreated
         let project: Project = (try? createProject(name: "Untitled", isZombie: true)) ?? Project(name: "Untitled")
         guard let paths = try? ProjectPaths(project: project) else {
             return

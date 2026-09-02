@@ -15,11 +15,11 @@ struct ContentView: View {
     var body: some View {
         Group {
             if let projectModel = projectsStore.activeProjectModel {
-                ProjectView(projectModel: projectModel, onClose: {
+                ProjectView(appModel: appModel, projectModel: projectModel, onClose: {
                     projectsStore.close()
                 })
             } else {
-                ProjectsView(projectsStore: projectsStore)
+                ProjectsView(appModel: appModel, projectsStore: projectsStore)
             }
         }
         .frame(minWidth: 800, minHeight: 600)
@@ -31,22 +31,6 @@ struct ContentView: View {
         .sheet(isPresented: $appModel.showingStocksSheet) {
             StockSheet(store: appModel.stocksStore)
                 .frame(width: 800, height: 600)
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: {
-                    appModel.showingToolsSheet.toggle()
-                }) {
-                    Label("Tools", systemImage: "pencil.tip.crop.circle.fill")
-                }
-                .rotationEffect(.degrees(180))
-
-                Button(action: {
-                    appModel.showingStocksSheet.toggle()
-                }) {
-                    Label("Stock", systemImage: "cube")
-                }
-            }
         }
     }
 }

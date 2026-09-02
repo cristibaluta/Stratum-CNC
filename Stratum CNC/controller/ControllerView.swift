@@ -114,7 +114,7 @@ struct ControllerView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 HStack {
 //                    if let machine = model.selectedMachine {
 //                        Text(machine.name)
