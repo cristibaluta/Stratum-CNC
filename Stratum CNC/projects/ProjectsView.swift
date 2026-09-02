@@ -23,8 +23,24 @@ struct ProjectsView: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 20) {
 
-                    NewProjectCard {
-                        showingNewProject = true
+                    ZStack {
+                        NewProjectCard {
+                            showingNewProject = true
+                        }
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Button {
+                                    projectsStore.openZombieProject()
+                                } label: {
+                                    Label("Try without project", systemImage: "arrow.right.circle.fill")
+                                }
+                                .buttonStyle(.automatic)
+                                Spacer()
+                            }
+                            .padding(16)
+                        }
                     }
 
                     ForEach(projectsStore.projects) { project in
@@ -50,16 +66,6 @@ struct ProjectsView: View {
                                     delete(project)
                                 }
                             }
-                    }
-
-                    HStack {
-                        Spacer()
-                        Button {
-                            projectsStore.openZombieProject()
-                        } label: {
-                            Label("Try without project", systemImage: "arrow.right.circle.fill")
-                        }
-                        Spacer()
                     }
                 }
                 .padding(24)
