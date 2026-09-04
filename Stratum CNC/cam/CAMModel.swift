@@ -28,9 +28,8 @@ class CAMModel: ObservableObject {
 
     /// Persistent CAM objects derived from imported files.
     /// Mutations (position, rotation, scale) made in the canvas are kept here since CAM_Object is a reference type.
-    @Published var objects: [D2_Object] = []
-    @Published var toolpaths: [ToolpathData] = []
     @Published var canvasState = D2_CanvasState()
+    @Published var toolpaths: [ToolpathData] = []
 
     private let factory = ObjectFactory()
 
@@ -51,12 +50,12 @@ class CAMModel: ObservableObject {
         #endif
 
         if let object = factory.makeObject(name: url.lastPathComponent, paths: bezierPaths) {
-            objects.append(object)
+            canvasState.add(object, select: false)
         }
     }
 
     func clear() {
-        objects.removeAll()
+        canvasState.removeAll()
         toolpaths.removeAll()
     }
 }

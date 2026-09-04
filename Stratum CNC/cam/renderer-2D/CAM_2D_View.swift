@@ -10,21 +10,21 @@ import SwiftUI
 
 struct CAM_2D_View: NSViewRepresentable {
 
-    @ObservedObject var model: CAMModel
+    @ObservedObject var canvasState: D2_CanvasState
 
     func makeNSView(context: Context) -> D2_CanvasNSView {
 
         let view = D2_CanvasNSView()
         view.clipsToBounds = true
-        view.canvasState = model.canvasState
+        view.canvasState = canvasState
 
         return view
     }
 
     func updateNSView(_ nsView: D2_CanvasNSView, context: Context) {
 
-        if nsView.canvasState != model.canvasState {
-            nsView.canvasState = model.canvasState
+        if nsView.canvasState != canvasState {
+            nsView.canvasState = canvasState
         }
     }
 }

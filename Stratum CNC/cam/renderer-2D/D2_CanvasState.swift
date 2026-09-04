@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class D2_CanvasState: Equatable {
+final class D2_CanvasState: ObservableObject, Equatable {
 
     static func == (lhs: borrowing D2_CanvasState, rhs: borrowing D2_CanvasState) -> Bool {
         lhs.objects.count == rhs.objects.count &&
@@ -17,7 +17,7 @@ final class D2_CanvasState: Equatable {
         lhs.zoomScale == rhs.zoomScale
     }
 
-    private(set) var objects: [D2_Object] = []
+    @Published var objects: [D2_Object] = []
     private(set) var selectedObjectIDs: Set<UUID> = []
     private(set) var selectedPaths: [PathSelection] = []
     var isStockVisible: Bool = true {

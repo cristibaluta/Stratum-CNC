@@ -30,17 +30,17 @@ struct CAMView: View {
 
     var body: some View {
         ZStack {
-            if camModel.objects.isEmpty {
+            if $camModel.canvasState.objects.isEmpty {
                 emptyView
             } else {
                 // TODO: This view should be swapable with a 3D view depending on the first open file
                 // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
-                CAM_2D_View(model: camModel)
+                CAM_2D_View(canvasState: camModel.canvasState)
 
                 HStack {
                     VStack {
                         ObjectsInspectorView(
-                            elements: camModel.objects,
+                            elements: camModel.canvasState.objects,
                             selectedID: nil,
                             onSelectionChanged: { id in
                                 //                            selectedID = id
