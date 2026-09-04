@@ -7,19 +7,33 @@
 
 import Foundation
 
-final class D2_CanvasState {
+final class D2_CanvasState: Equatable {
+
+    static func == (lhs: borrowing D2_CanvasState, rhs: borrowing D2_CanvasState) -> Bool {
+        lhs.objects.count == rhs.objects.count &&
+        lhs.selectedObjectIDs.count == rhs.selectedObjectIDs.count &&
+        lhs.selectedPaths.count == rhs.selectedPaths.count &&
+        lhs.isStockVisible == rhs.isStockVisible &&
+        lhs.zoomScale == rhs.zoomScale
+    }
 
     private(set) var objects: [D2_Object] = []
     private(set) var selectedObjectIDs: Set<UUID> = []
     private(set) var selectedPaths: [PathSelection] = []
-
-    var selectedObject: D2_Object? {
-        guard let id = selectedObjectIDs.first else {
-            return nil
+    var isStockVisible: Bool = true {
+        didSet {
+            print("Set stock visible: \(isStockVisible)")
         }
-
-        return objects.first { $0.id == id }
     }
+    var zoomScale: Double = 1
+
+//    var selectedObject: D2_Object? {
+//        guard let id = selectedObjectIDs.first else {
+//            return nil
+//        }
+//
+//        return objects.first { $0.id == id }
+//    }
 
     // MARK: Objects
 

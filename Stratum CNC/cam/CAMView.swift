@@ -11,6 +11,18 @@ import SwiftUI
 // It holds the objects to model and the list of toolpaths
 // You can access also the tools lib and stocks lib from the toolbar
 
+/*
+- CAMView
+    - CAMModel
+        - D2_CanvasState (all the properties and states of the drawing area)
+    - ProjectModel (ProjectData)
+    - CAM_2D_View
+        - D2_CanvasNSView
+            - D2_CanvasRenderer (based on the properties from D2_CanvasState)
+    - ObjectsInspectorView
+    - MaterialPanelView
+    - ToolpathListView
+*/
 struct CAMView: View {
 
     @ObservedObject var camModel: CAMModel
@@ -18,7 +30,7 @@ struct CAMView: View {
 
     var body: some View {
         ZStack {
-            if camModel.files.isEmpty {
+            if camModel.objects.isEmpty {
                 emptyView
             } else {
                 // TODO: This view should be swapable with a 3D view depending on the first open file
@@ -26,9 +38,40 @@ struct CAMView: View {
                 CAM_2D_View(model: camModel)
 
                 HStack {
+                    VStack {
+                        ObjectsInspectorView(
+                            elements: camModel.objects,
+                            selectedID: nil,
+                            onSelectionChanged: { id in
+                                //                            selectedID = id
+                            },
+                            onValueChanged: { id, property, value in
+                                // update your D2_Object
+                            },
+                            onNudge: { id, property, amount in
+                                // nudge your object
+                            },
+                            onScale: { id, factor in
+                                // scale your object
+                            },
+                            onRotate: { id, degrees in
+                                // rotate your object
+                            },
+                            onAddNew: {
+                                // add object
+                            },
+                            onDelete: { id in
+                                // delete object
+                            }
+                        )
+                        .frame(minWidth: 100, maxWidth: 200)
+                        .padding(16)
+                        Spacer()
+                    }
                     Spacer()
                     VStack(spacing: 16) {
-                        MaterialPanelView(projectData: $projectModel.projectData, stock: $camModel.selectedStockMaterial)
+                        MaterialPanelView(projectData: $projectModel.projectData,
+                                          stock: $camModel.selectedStockMaterial)
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
                             .frame(width: 500)
                         toolpathsPanel

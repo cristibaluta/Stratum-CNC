@@ -8,6 +8,7 @@
 import Foundation
 
 struct ProjectData: Identifiable, Codable, Hashable {
+
     let id: UUID
     var stock: StockMaterial?
     var isStockVisible: Bool?
@@ -17,6 +18,7 @@ struct ProjectData: Identifiable, Codable, Hashable {
          stock: StockMaterial?,
          isStockVisible: Bool?,
          assets: [AssetData]?) {
+
         self.id = id
         self.stock = stock
         self.isStockVisible = isStockVisible

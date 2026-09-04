@@ -41,6 +41,17 @@ extension STBezierPath {
         }
         return newPath
     }
+
+    func normalize(relativeTo bounds: CGRect) -> STBezierPath {
+
+        guard let path = self.copy() as? STBezierPath else {
+            return self
+        }
+
+        path.transform(using: AffineTransform(translationByX: -bounds.minX, byY: -bounds.minY))
+
+        return path
+    }
 }
 
 extension Array<STBezierPath> {

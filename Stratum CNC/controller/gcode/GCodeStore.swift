@@ -29,10 +29,11 @@ class GCodeStore: ObservableObject {
 
 
     func generateGCode(svgPaths: [NSBezierPath]) {
-        let subpaths = BezierPathFlattener.flatten(svgPaths, tolerance: 0.05) // mm
+
+        let flattenPaths = BezierPathFlattener.flatten(svgPaths, tolerance: 0.05) // mm
 
         let gcode = GCodeGenerator.generate(
-            subpaths: subpaths,
+            subpaths: flattenPaths,
             units: .millimeters,
             safeHeightZ: 5.0,
             cutDepthZ: -2.0,

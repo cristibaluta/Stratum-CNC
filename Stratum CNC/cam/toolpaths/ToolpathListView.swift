@@ -49,7 +49,30 @@ struct ToolpathListView: View {
         HStack {
             Spacer()
             Button("+ Add Toolpath") {
-                var lastToolpath = model.toolpaths.last!
+                var lastToolpath = model.toolpaths.last ?? ToolpathData(id: UUID(),
+                                                                        name: "First Toolpath",
+                                                                        tool: Tool(id: UUID(),
+                                                                                   name: "3.175mm",
+                                                                                   shankDiameter: 3.175,
+                                                                                   toolDiameter: 3.175,
+                                                                                   length: 12,
+                                                                                   type: .endMill,
+                                                                                   group: nil,
+                                                                                   tipAngle: nil,
+                                                                                   parameters: [:]),
+                                                                        startZ: 0,
+                                                                        endZ: -1,
+                                                                        contour: .outline,
+                                                                        ramping: RampingSettings(enabled: true,
+                                                                                                 type: .linear,
+                                                                                                 angle: 2,
+                                                                                                 length: 10),
+                                                                        feedRate: 0.1,
+                                                                        plungeRate: 0.1,
+                                                                        spindleRPM: 1200,
+                                                                        stepDown: 0.1,
+                                                                        stepOver: 0.1,
+                                                                        safeZ: 3)
                 lastToolpath.id = UUID()
                 model.toolpaths += [lastToolpath]
             }

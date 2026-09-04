@@ -25,12 +25,12 @@ class CAMModel: ObservableObject {
 
     // Insert new files. temporary vars to use
     @Published var showingFilePicker = false
-    @Published var files: [CAM_File] = []
 
     /// Persistent CAM objects derived from imported files.
     /// Mutations (position, rotation, scale) made in the canvas are kept here since CAM_Object is a reference type.
     @Published var objects: [D2_Object] = []
     @Published var toolpaths: [ToolpathData] = []
+    @Published var canvasState = D2_CanvasState()
 
     private let factory = ObjectFactory()
 
@@ -45,20 +45,17 @@ class CAMModel: ObservableObject {
         #if os(macOS)
         // SVG coordinate system starts from top-left
         // Mac coordinate system starts from bottom-left
-        // We need to flip all the y values from the bezierPaths
+        // We need to flip all the y values of the bezierPaths while maintaining the viewbox
         let flippedPaths = bezierPaths.map { $0.pathWithFlippedY(inHeight: svg.viewBox.height) }
         bezierPaths = flippedPaths
         #endif
 
-        let file = CAM_File(url: url, paths: bezierPaths)
-        files.append(file)
         if let object = factory.makeObject(name: url.lastPathComponent, paths: bezierPaths) {
             objects.append(object)
         }
     }
 
     func clear() {
-        files.removeAll()
         objects.removeAll()
         toolpaths.removeAll()
     }

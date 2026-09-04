@@ -28,7 +28,11 @@ class ProjectModel: ObservableObject {
     @Published var joystickStore = GameControllerStore()
 
     @Published var project: Project
-    @Published var projectData: ProjectData
+    @Published var projectData: ProjectData {
+        didSet {
+            print("project data changed to: \(projectData)")
+        }
+    }
     let paths: ProjectPaths
 
     private let encoder: JSONEncoder
@@ -54,6 +58,9 @@ class ProjectModel: ObservableObject {
             self.projectData = ProjectData(stock: nil, isStockVisible: nil, assets: nil)
         }
 
+        projectData.isStockVisible.publisher.sink { [weak self] newValue in
+            print("new isStockVisible \(newValue)")
+        }
         loadProjectData()
     }
 

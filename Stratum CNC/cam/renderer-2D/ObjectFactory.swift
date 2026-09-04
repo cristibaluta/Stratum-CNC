@@ -1,5 +1,5 @@
 //
-//  SVGObjectFactory.swift
+//  ObjectFactory.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 24.08.2026.
@@ -15,34 +15,23 @@ struct ObjectFactory {
             return nil
         }
 
-        guard let bounds = paths.combinedBounds else {
+        guard let combinedBounds = paths.combinedBounds else {
             return nil
         }
 
-        let originalSize = CGSize(width: max(bounds.width, 0.001),
-                                  height: max(bounds.height, 0.001))
+        let originalSize = CGSize(width: max(combinedBounds.width, 0.001),
+                                  height: max(combinedBounds.height, 0.001))
 
         let normalizedPaths = paths.map {
-            normalizedPath($0, relativeTo: bounds)
+            $0.normalize(relativeTo: combinedBounds)
         }
 
         return D2_Object(
             name: name,
             paths: normalizedPaths,
-            position: CGPoint(x: bounds.minX, y: bounds.minY),
+            position: CGPoint(x: combinedBounds.minX, y: combinedBounds.minY),
             originalSize: originalSize,
             width: originalSize.width
         )
-    }
-
-    private func normalizedPath(_ source: STBezierPath, relativeTo bounds: CGRect) -> STBezierPath {
-
-        guard let path = source.copy() as? STBezierPath else {
-            return source
-        }
-
-        path.transform(using: AffineTransform(translationByX: -bounds.minX, byY: -bounds.minY))
-
-        return path
     }
 }

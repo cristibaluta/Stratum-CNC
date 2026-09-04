@@ -1,11 +1,13 @@
 //
-//  NumberTextField.swift
+//  D2_CanvasNSView.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 24.08.2026.
 //
 
 import AppKit
+
+// This NSView draws the renderer result into the layer, and manages mouse interaction
 
 final class D2_CanvasNSView: NSView {
 
@@ -17,32 +19,16 @@ final class D2_CanvasNSView: NSView {
         case moveObject(UUID)
     }
 
-    var objects: [D2_Object] = [] {
+    var canvasState: D2_CanvasState = D2_CanvasState() {
         didSet {
-            print("Updating objects in canvas view to \(objects.count)")
-            state.setObjects(objects)
-            renderer.setObjects(objects)
             needsAutoFitAfterLayout = true
             fitContentInViewportIfPossible()
             render()
-            updateInspector()
         }
     }
 
-    var stockMaterial = StockMaterial(
-        name: "Workpiece",
-        material: .aluminum,
-        geometry: .rectangular(width: 100, height: 50, depth: 10)
-    ) {
-        didSet {
-            render()
-        }
-    }
-
-    private let state = D2_CanvasState()
     private let renderer = D2_CanvasRenderer()
     private let hitTester = PathHitTester(tolerance: 6)
-    private let inspectorView = ObjectsInspectorNSView()
 
     private var lastDragLocation: CGPoint?
     private var lastDragWorldLocation: CGPoint?
@@ -54,10 +40,9 @@ final class D2_CanvasNSView: NSView {
     private var rotationAngle: CGFloat = 0
 
     var currentPathCount: Int {
-        state.objects.reduce(0) { $0 + $1.paths.count }
+        canvasState.objects.reduce(0) { $0 + $1.paths.count }
     }
 
-    var onAddNew: (() -> Void)?
     /// Called whenever pan or zoom changes so the owner can persist the viewport.
     var onViewportChanged: ((CGPoint, CGFloat) -> Void)?
 
@@ -92,36 +77,35 @@ final class D2_CanvasNSView: NSView {
         wantsLayer = true
         layer?.backgroundColor = STColor.textBackgroundColor.cgColor
         layer?.addSublayer(renderer.workLayer)
-        setupInspector()
     }
 
-    private func setupInspector() {
-        inspectorView.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(inspectorView)
-        NSLayoutConstraint.activate([
-            inspectorView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            inspectorView.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            inspectorView.widthAnchor.constraint(equalToConstant: 270)
-        ])
-        inspectorView.onSelectionChanged = { [weak self] id in
-            self?.selectObject(id)
-        }
-        inspectorView.onValueChanged = { [weak self] id, property, value in
-            self?.updateObject(id: id, property: property, value: value)
-        }
-        inspectorView.onNudge = { [weak self] id, property, amount in
-            self?.nudgeObject(id: id, property: property, amount: amount)
-        }
-        inspectorView.onScale = { [weak self] id, scaleFactor in
-            self?.scaleObject(id: id, scaleFactor: scaleFactor)
-        }
-        inspectorView.onRotate = { [weak self] id, amount in
-            self?.rotateObject(id: id, degrees: amount)
-        }
-        inspectorView.onAddNew = { [weak self] in
-            self?.onAddNew?()
-        }
-    }
+//    private func setupInspector() {
+//        inspectorView.translatesAutoresizingMaskIntoConstraints = false
+//        addSubview(inspectorView)
+//        NSLayoutConstraint.activate([
+//            inspectorView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+//            inspectorView.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+//            inspectorView.widthAnchor.constraint(equalToConstant: 270)
+//        ])
+//        inspectorView.onSelectionChanged = { [weak self] id in
+//            self?.selectObject(id)
+//        }
+//        inspectorView.onValueChanged = { [weak self] id, property, value in
+//            self?.updateObject(id: id, property: property, value: value)
+//        }
+//        inspectorView.onNudge = { [weak self] id, property, amount in
+//            self?.nudgeObject(id: id, property: property, amount: amount)
+//        }
+//        inspectorView.onScale = { [weak self] id, scaleFactor in
+//            self?.scaleObject(id: id, scaleFactor: scaleFactor)
+//        }
+//        inspectorView.onRotate = { [weak self] id, amount in
+//            self?.rotateObject(id: id, degrees: amount)
+//        }
+//        inspectorView.onAddNew = { [weak self] in
+//            self?.onAddNew?()
+//        }
+//    }
     override func layout() {
         super.layout()
         renderer.workLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -133,12 +117,7 @@ final class D2_CanvasNSView: NSView {
     }
 
     private func render() {
-        renderer.render(objects: state.objects,
-                        stock: stockMaterial,
-                        isStockVisible: true,
-                        zoomScale: zoomScale,
-                        selectedObjectIDs: state.selectedObjectIDs,
-                        selectedPaths: state.selectedPaths)
+        renderer.render(state: canvasState)
     }
 
     private func updateWorldTransform() {
@@ -155,13 +134,13 @@ final class D2_CanvasNSView: NSView {
     }
 
     private func fitContentInViewportIfPossible() {
-        guard !state.objects.isEmpty else {
+        guard !canvasState.objects.isEmpty else {
             needsAutoFitAfterLayout = false
             return
         }
 
         var unionRect: CGRect?
-        for object in state.objects {
+        for object in canvasState.objects {
             unionRect = unionRect?.union(object.rotatedBounds) ?? object.rotatedBounds
         }
         guard let contentBounds = unionRect, !bounds.isEmpty else {
@@ -220,16 +199,17 @@ final class D2_CanvasNSView: NSView {
         lastDragWorldLocation = worldPoint
         dragMode = .pan
 
-        if let selectedObject = state.selectedObject,
-           let selectedNode = renderer.nodes[selectedObject.id],
+        //
+        if let selectedObjectId = canvasState.selectedObjectIDs.first,
+           let object = object(withID: selectedObjectId),
+           let selectedNode = renderer.nodes[selectedObjectId],
            selectedNode.isRotationCenterHit(worldPoint: worldPoint,
                                             worldLayer: renderer.workLayer,
-                                            objectScale: selectedObject.scale,
+                                            objectScale: object.scale,
                                             zoomScale: zoomScale) {
-            state.selectObject(selectedObject.id)
-            dragMode = .moveObject(selectedObject.id)
+            canvasState.selectObject(selectedObjectId)
+            dragMode = .moveObject(selectedObjectId)
             render()
-            updateInspector()
             return
         }
 
@@ -237,22 +217,21 @@ final class D2_CanvasNSView: NSView {
         let isMultiSelectModifierDown = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
 
         if let hit = hitTester.hitTest(worldPoint: worldPoint,
-                                       objects: state.objects,
+                                       objects: canvasState.objects,
                                        nodes: renderer.nodes,
                                        worldLayer: renderer.workLayer,
                                        zoomScale: zoomScale) {
             if isMultiSelectModifierDown {
-                state.togglePathSelection(objectID: hit.objectID, pathIndex: hit.pathIndex)
+                canvasState.togglePathSelection(objectID: hit.objectID, pathIndex: hit.pathIndex)
             } else {
-                state.selectPath(objectID: hit.objectID, pathIndex: hit.pathIndex)
+                canvasState.selectPath(objectID: hit.objectID, pathIndex: hit.pathIndex)
             }
         } else if !isMultiSelectModifierDown {
             // Only clear on an empty-space click when not multi-selecting,
             // so a stray shift/cmd click on empty canvas doesn't wipe the selection.
-            state.clearSelection()
+            canvasState.clearSelection()
         }
         render()
-        updateInspector()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -283,7 +262,6 @@ final class D2_CanvasNSView: NSView {
             object.position.x += worldPoint.x - lastWorld.x
             object.position.y += worldPoint.y - lastWorld.y
             render()
-            updateInspector()
         }
 
         lastDragLocation = location
@@ -297,13 +275,12 @@ final class D2_CanvasNSView: NSView {
     }
 
     private func selectObject(_ id: UUID) {
-        state.selectObject(id)
+        canvasState.selectObject(id)
         render()
-        updateInspector()
     }
 
-    private func updateObject(id: UUID, property: ObjectsInspectorNSView.Property, value: CGFloat) {
-        guard state.selectedObjectIDs.contains(id), let object = object(withID: id) else {
+    private func updateObject(id: UUID, property: Property, value: CGFloat) {
+        guard canvasState.selectedObjectIDs.contains(id), let object = object(withID: id) else {
             return
         }
         switch property {
@@ -314,11 +291,10 @@ final class D2_CanvasNSView: NSView {
             case .rotation: object.setRotation(value)
         }
         render()
-        updateInspector()
     }
 
-    private func nudgeObject(id: UUID, property: ObjectsInspectorNSView.Property, amount: CGFloat) {
-        guard state.selectedObjectIDs.contains(id), let object = object(withID: id) else {
+    private func nudgeObject(id: UUID, property: Property, amount: CGFloat) {
+        guard canvasState.selectedObjectIDs.contains(id), let object = object(withID: id) else {
             return
         }
         switch property {
@@ -327,11 +303,10 @@ final class D2_CanvasNSView: NSView {
             default: return
         }
         render()
-        updateInspector()
     }
 
     private func scaleObject(id: UUID, scaleFactor: Int) {
-        guard state.selectedObjectIDs.contains(id), let object = object(withID: id) else {
+        guard canvasState.selectedObjectIDs.contains(id), let object = object(withID: id) else {
             return
         }
         object.width = scaleFactor > 0
@@ -339,24 +314,17 @@ final class D2_CanvasNSView: NSView {
             : max(object.width / CGFloat(-scaleFactor), 0.001)
 
         render()
-        updateInspector()
     }
 
     private func rotateObject(id: UUID, degrees: CGFloat) {
-        guard state.selectedObjectIDs.contains(id), let object = object(withID: id) else {
+        guard canvasState.selectedObjectIDs.contains(id), let object = object(withID: id) else {
             return
         }
         object.rotate(by: degrees)
         render()
-        updateInspector()
     }
 
     private func object(withID id: UUID) -> D2_Object? {
-        state.objects.first { $0.id == id }
-    }
-
-    private func updateInspector() {
-        inspectorView.update(elements: state.objects,
-                             selectedID: state.selectedObjectIDs.first)
+        canvasState.objects.first { $0.id == id }
     }
 }

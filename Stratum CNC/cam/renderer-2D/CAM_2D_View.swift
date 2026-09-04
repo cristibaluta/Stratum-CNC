@@ -16,22 +16,15 @@ struct CAM_2D_View: NSViewRepresentable {
 
         let view = D2_CanvasNSView()
         view.clipsToBounds = true
-        view.objects = model.objects
-        view.stockMaterial = model.selectedStockMaterial
-        view.onAddNew = {
-            model.showingFilePicker = true
-        }
+        view.canvasState = model.canvasState
 
         return view
     }
 
     func updateNSView(_ nsView: D2_CanvasNSView, context: Context) {
 
-        if nsView.objects.count != model.objects.count {
-            nsView.objects = model.objects
-        }
-        if nsView.stockMaterial != model.selectedStockMaterial {
-            nsView.stockMaterial = model.selectedStockMaterial
+        if nsView.canvasState != model.canvasState {
+            nsView.canvasState = model.canvasState
         }
     }
 }

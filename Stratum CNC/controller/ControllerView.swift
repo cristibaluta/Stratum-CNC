@@ -200,9 +200,9 @@ struct ControllerView: View {
                         .foregroundStyle(.secondary)
                     Button {
                         // TODO: use toolpaths not paths
-                        if let file = camModel.files.first {
-                            gCodeModel.generateGCode(svgPaths: file.paths)
-                        }
+//                        if let file = camModel.files.first {
+//                            gCodeModel.generateGCode(svgPaths: file.paths)
+//                        }
                     } label: {
                         Text("Use from CAM")
                     }
