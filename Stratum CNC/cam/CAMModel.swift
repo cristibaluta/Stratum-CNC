@@ -7,39 +7,73 @@
 
 import Foundation
 import PocketSVG
+import CoreGraphics
 
 @MainActor
 class CAMModel: ObservableObject {
 
-    @Published var selectedStockMaterial = StockMaterial(
-        name: "Workpiece",
-        material: .aluminum,
-        geometry: .rectangular(width: 100, height: 50, depth: 10)
-    )
+    // ---- PERSISTENT DATA (mirrors ProjectData) ----
+    @Published var selectedStockMaterial: StockMaterial {
+        didSet {
+            onStockChanged?(selectedStockMaterial)
+        }
+    }
 
+    // ---- TEMPORARY UI STATE (session-only) ----
+    @Published var showingFilePicker = false
+    @Published var canvasState = D2_CanvasState()
+
+    // ---- TEMPORARY TOOLPATH EDITING ----
+    @Published var toolpaths: [ToolpathData] = []
+    @Published var selectedToolpathID: UUID?
+
+    // ---- CANVAS VIEWPORT STATE ----
     // Canvas viewport state — not @Published because changes must not trigger SwiftUI redraws
     var canvasPanOffset: CGPoint = .zero
     var canvasZoomScale: CGFloat = 3.0
-    /// True once the user has panned/zoomed or the auto-fit has run at least once.
     var canvasViewportSaved: Bool = false
 
-    // Insert new files. temporary vars to use
-    @Published var showingFilePicker = false
-
-    /// Persistent CAM objects derived from imported files.
-    /// Mutations (position, rotation, scale) made in the canvas are kept here since CAM_Object is a reference type.
-    @Published var canvasState = D2_CanvasState()
-    @Published var toolpaths: [ToolpathData] = []
+    // ---- CALLBACKS FOR PERSISTENCE ----
+    var onStockChanged: ((StockMaterial) -> Void)?
+    var onToolpathsChanged: (([ToolpathData]) -> Void)?
 
     private let factory = ObjectFactory()
+
+    init(selectedStockMaterial: StockMaterial, toolpaths: [ToolpathData]) {
+        self.selectedStockMaterial = selectedStockMaterial
+        self.toolpaths = toolpaths
+    }
 
     func loadAndParseFileAt(_ url: URL) {
 
         let svg = SVGImageView(contentsOf: url)
         print(svg.viewBox)
         print(svg.paths)
+        print(svg.attributeKeys)
 
-        var bezierPaths = svg.paths as [STBezierPath]
+        var bezierPaths: [STBezierPath] = []
+        let svgPaths: [SVGBezierPath] = svg.paths
+        for path in svgPaths {
+//            print(path.svgAttributes)
+            print(path.svgAttributes["transform"] as Any)
+            // Some svgs (saved by Inkscape) do not have the real values that will match the viewbox
+            // But they contain a transform we can use to scale everything down
+            if let cg = path.svgAttributes["transform"] as? CGAffineTransform {
+                let p = path
+                let nsTransform = AffineTransform(
+                    m11: cg.a,
+                    m12: cg.b,
+                    m21: cg.c,
+                    m22: cg.d,
+                    tX: cg.tx,
+                    tY: cg.ty
+                )
+                p.transform(using: nsTransform)
+                bezierPaths.append(p)
+            } else {
+                bezierPaths.append(path)
+            }
+        }
 
         #if os(macOS)
         // SVG coordinate system starts from top-left

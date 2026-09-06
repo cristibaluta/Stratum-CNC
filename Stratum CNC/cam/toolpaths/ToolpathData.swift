@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ToolpathData: Identifiable {
+struct ToolpathData: Identifiable, Codable, Hashable {
     var id = UUID()
 
     var name: String
@@ -29,7 +29,7 @@ struct ToolpathData: Identifiable {
     var safeZ: Double
 }
 
-enum ContourType: String, CaseIterable {
+enum ContourType: String, CaseIterable, Codable, Hashable {
     case inside = "Inside"
     case outside = "Outside"
     case outline = "Outline"

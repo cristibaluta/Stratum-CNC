@@ -98,8 +98,12 @@ final class ProjectsStore: ObservableObject {
 
         let lastUsedGeometry = StockGeometry.rectangular(width: 150, height: 25, depth: 5)
         let lastStockVisibility = true
-        let lastStockUsed = StockMaterial(name: "Aluminum", material: .aluminum, geometry: lastUsedGeometry)
-        let projectData = ProjectData(stock: lastStockUsed, isStockVisible: lastStockVisibility, assets: nil)
+        let lastStockUsed = StockMaterial(name: "Aluminum",
+                                          material: .aluminum,
+                                          geometry: lastUsedGeometry)
+        let projectData = ProjectData(stock: lastStockUsed,
+                                      isStockVisible: lastStockVisibility,
+                                      assets: nil)
 
         // Create supporting directories and files
         try FileManager.default.createDirectory(at: paths.projectDirectory, withIntermediateDirectories: true)

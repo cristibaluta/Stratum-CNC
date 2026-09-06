@@ -18,7 +18,7 @@ struct ProjectData: Identifiable, Codable, Hashable {
          stock: StockMaterial?,
          isStockVisible: Bool?,
          assets: [AssetData]?) {
-
+        
         self.id = id
         self.stock = stock
         self.isStockVisible = isStockVisible

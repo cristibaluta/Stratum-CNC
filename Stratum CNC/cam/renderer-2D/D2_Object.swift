@@ -1,5 +1,5 @@
 //
-//  SVGObject.swift
+//  D2_Object.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 24.08.2026.

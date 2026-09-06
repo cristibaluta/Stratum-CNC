@@ -120,8 +120,9 @@ struct CAMView: View {
 
     var toolpathsPanel: some View {
         GroupBox("TOOLPATHS") {
-            ToolpathListView(model: camModel)
-                .frame(maxWidth: .infinity)
+            ToolpathListView(
+                toolpaths: $camModel.toolpaths
+            )
         }
     }
 }

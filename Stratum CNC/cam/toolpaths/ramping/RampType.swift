@@ -7,13 +7,13 @@
 
 import Foundation
 
-enum RampType: String, CaseIterable {
+enum RampType: String, CaseIterable, Codable, Hashable {
     case none = "None"
     case linear = "Linear"
     case helix = "Helix"
 }
 
-struct RampingSettings {
+struct RampingSettings: Codable, Hashable {
     var enabled: Bool
     var type: RampType
     var angle: Double

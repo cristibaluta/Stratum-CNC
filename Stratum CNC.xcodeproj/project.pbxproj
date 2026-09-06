@@ -13,6 +13,7 @@
 		5679E7BC30389DE400B08A35 /* OCCTSwiftTools in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7BB30389DE400B08A35 /* OCCTSwiftTools */; };
 		5679E83F303C292E00B08A35 /* PocketSVG in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E83E303C292E00B08A35 /* PocketSVG */; };
 		56CEA0923035EC36008167CA /* OCCTSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 56CEA0913035EC36008167CA /* OCCTSwift */; };
+		6D0235C9304D268A004AE6F8 /* SwiftDXF in Frameworks */ = {isa = PBXBuildFile; productRef = 6D0235C8304D268A004AE6F8 /* SwiftDXF */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -57,6 +58,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				56CEA0923035EC36008167CA /* OCCTSwift in Frameworks */,
+				6D0235C9304D268A004AE6F8 /* SwiftDXF in Frameworks */,
 				5679E7B430389CC800B08A35 /* MeshIO in Frameworks */,
 				5679E7BC30389DE400B08A35 /* OCCTSwiftTools in Frameworks */,
 				5679E83F303C292E00B08A35 /* PocketSVG in Frameworks */,
@@ -110,6 +112,7 @@
 				5679E7B830389D8B00B08A35 /* OCCTSwiftViewport */,
 				5679E7BB30389DE400B08A35 /* OCCTSwiftTools */,
 				5679E83E303C292E00B08A35 /* PocketSVG */,
+				6D0235C8304D268A004AE6F8 /* SwiftDXF */,
 			);
 			productName = "MakeraStudio Lite";
 			productReference = 56CEA04D30356265008167CA /* Stratum CNC.app */;
@@ -146,6 +149,7 @@
 				5679E7B730389D8B00B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftViewport" */,
 				5679E7BA30389DE400B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftTools" */,
 				5679E83D303C292E00B08A35 /* XCRemoteSwiftPackageReference "PocketSVG" */,
+				6D0235C7304D268A004AE6F8 /* XCRemoteSwiftPackageReference "SwiftDXF" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 56CEA04E30356265008167CA /* Products */;
@@ -445,6 +449,14 @@
 				version = 3.0.0;
 			};
 		};
+		6D0235C7304D268A004AE6F8 /* XCRemoteSwiftPackageReference "SwiftDXF" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SecondMouseAU/SwiftDXF.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -477,6 +489,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 56CEA0903035EC36008167CA /* XCRemoteSwiftPackageReference "OCCTSwift" */;
 			productName = OCCTSwift;
+		};
+		6D0235C8304D268A004AE6F8 /* SwiftDXF */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6D0235C7304D268A004AE6F8 /* XCRemoteSwiftPackageReference "SwiftDXF" */;
+			productName = SwiftDXF;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

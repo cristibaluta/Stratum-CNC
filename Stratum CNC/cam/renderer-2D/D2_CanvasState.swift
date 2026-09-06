@@ -9,14 +9,6 @@ import Foundation
 
 final class D2_CanvasState: ObservableObject, Equatable {
 
-    static func == (lhs: borrowing D2_CanvasState, rhs: borrowing D2_CanvasState) -> Bool {
-        lhs.objects.count == rhs.objects.count &&
-        lhs.selectedObjectIDs.count == rhs.selectedObjectIDs.count &&
-        lhs.selectedPaths.count == rhs.selectedPaths.count &&
-        lhs.isStockVisible == rhs.isStockVisible &&
-        lhs.zoomScale == rhs.zoomScale
-    }
-
     @Published var objects: [D2_Object] = []
     private(set) var selectedObjectIDs: Set<UUID> = []
     private(set) var selectedPaths: [PathSelection] = []
@@ -26,14 +18,6 @@ final class D2_CanvasState: ObservableObject, Equatable {
         }
     }
     var zoomScale: Double = 1
-
-//    var selectedObject: D2_Object? {
-//        guard let id = selectedObjectIDs.first else {
-//            return nil
-//        }
-//
-//        return objects.first { $0.id == id }
-//    }
 
     // MARK: Objects
 
@@ -115,4 +99,13 @@ final class D2_CanvasState: ObservableObject, Equatable {
     func isPathSelected(objectID: UUID, pathIndex: Int) -> Bool {
         selectedPaths.contains(PathSelection(objectID: objectID, pathIndex: pathIndex))
     }
+
+    static func == (lhs: borrowing D2_CanvasState, rhs: borrowing D2_CanvasState) -> Bool {
+        lhs.objects.count == rhs.objects.count &&
+        lhs.selectedObjectIDs.count == rhs.selectedObjectIDs.count &&
+        lhs.selectedPaths.count == rhs.selectedPaths.count &&
+        lhs.isStockVisible == rhs.isStockVisible &&
+        lhs.zoomScale == rhs.zoomScale
+    }
+
 }

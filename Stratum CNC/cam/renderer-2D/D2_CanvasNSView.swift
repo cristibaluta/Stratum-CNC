@@ -163,8 +163,8 @@ final class D2_CanvasNSView: NSView {
     }
 
     override func scrollWheel(with event: NSEvent) {
-        panOffset.x += event.scrollingDeltaX// Scrolling right should move the canvas left
-        panOffset.y -= event.scrollingDeltaY// Scrolling up should move the canvas down
+        panOffset.x -= event.scrollingDeltaX// Scrolling right should move the canvas left
+        panOffset.y += event.scrollingDeltaY// Scrolling up should move the canvas down
         updateWorldTransform()
     }
 
