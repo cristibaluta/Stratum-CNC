@@ -6,6 +6,14 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
+
+extension UTType {
+    static let dxf = UTType(
+        exportedAs: "com.autodesk.dxf",
+        conformingTo: .data
+    )
+}
 
 // The main view of the CAM screen.
 // It holds the objects to model and the list of toolpaths
@@ -82,7 +90,9 @@ struct CAMView: View {
                 }
             }
         }
-        .fileImporter(isPresented: $camModel.showingFilePicker, allowedContentTypes: [.svg], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $camModel.showingFilePicker,
+                      allowedContentTypes: [.svg, .dxf],
+                      allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first {

@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import PocketSVG
 import CoreGraphics
 
 @MainActor
@@ -37,8 +36,6 @@ class CAMModel: ObservableObject {
     var onStockChanged: ((StockMaterial) -> Void)?
     var onToolpathsChanged: (([ToolpathData]) -> Void)?
 
-    private let factory = ObjectFactory()
-
     init(selectedStockMaterial: StockMaterial, toolpaths: [ToolpathData]) {
         self.selectedStockMaterial = selectedStockMaterial
         self.toolpaths = toolpaths
@@ -46,45 +43,21 @@ class CAMModel: ObservableObject {
 
     func loadAndParseFileAt(_ url: URL) {
 
-        let svg = SVGImageView(contentsOf: url)
-        print(svg.viewBox)
-        print(svg.paths)
-        print(svg.attributeKeys)
+        let ext = url.pathExtension
 
-        var bezierPaths: [STBezierPath] = []
-        let svgPaths: [SVGBezierPath] = svg.paths
-        for path in svgPaths {
-//            print(path.svgAttributes)
-            print(path.svgAttributes["transform"] as Any)
-            // Some svgs (saved by Inkscape) do not have the real values that will match the viewbox
-            // But they contain a transform we can use to scale everything down
-            if let cg = path.svgAttributes["transform"] as? CGAffineTransform {
-                let p = path
-                let nsTransform = AffineTransform(
-                    m11: cg.a,
-                    m12: cg.b,
-                    m21: cg.c,
-                    m22: cg.d,
-                    tX: cg.tx,
-                    tY: cg.ty
-                )
-                p.transform(using: nsTransform)
-                bezierPaths.append(p)
-            } else {
-                bezierPaths.append(path)
-            }
-        }
-
-        #if os(macOS)
-        // SVG coordinate system starts from top-left
-        // Mac coordinate system starts from bottom-left
-        // We need to flip all the y values of the bezierPaths while maintaining the viewbox
-        let flippedPaths = bezierPaths.map { $0.pathWithFlippedY(inHeight: svg.viewBox.height) }
-        bezierPaths = flippedPaths
-        #endif
-
-        if let object = factory.makeObject(name: url.lastPathComponent, paths: bezierPaths) {
-            canvasState.add(object, select: false)
+        switch ext.lowercased() {
+            case "svg":
+                if let obj = SVGImporter().parse(url: url) {
+                    canvasState.add(obj, select: false)
+                }
+            case "dxf":
+                if let obj = DXFImporter().parse(url: url) {
+                    canvasState.add(obj, select: false)
+                }
+            case "step":
+                print("import step")
+            default:
+                print("Unsupported file type: \(ext)")
         }
     }
 
