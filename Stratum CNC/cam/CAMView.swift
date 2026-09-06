@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 
 extension UTType {
     static let dxf = UTType(
-        exportedAs: "com.autodesk.dxf",
+        importedAs: "com.autodesk.dxf",
         conformingTo: .data
     )
 }
