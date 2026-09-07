@@ -5,9 +5,10 @@
 //  Created by Cristian Baluta on 06/09/2026.
 //
 
-
 import Foundation
 import SwiftDXF
+import AppKit
+import CoreText
 
 class DXFImporter: Importer {
 
@@ -20,6 +21,15 @@ class DXFImporter: Importer {
         }
         print(dwg.version)          // e.g. "AC1009" (R12)
         print(dwg.counts.total)     // entities read
+        print(dwg.bounds as Any)
+        var w = 100.0
+        var h = 297.0
+        var position = CGPoint.zero
+        if let bounds = dwg.bounds {
+            w = bounds.max.x - bounds.min.x
+            h = bounds.max.y - bounds.min.y
+            position = CGPoint(x: bounds.min.x, y: bounds.min.y)
+        }
 
         var paths: [STBezierPath] = []
         for entity in dwg.entities {
@@ -30,14 +40,14 @@ class DXFImporter: Importer {
         }
         let obj = D2_Object(name: url.lastPathComponent,
                             paths: paths,
-                            position: CGPoint.zero,
-                            originalSize: CGSize(width: 100, height: 297),
-                            width: 100)
+                            position: position,
+                            originalSize: CGSize(width: w, height: h),
+                            width: w)
         return obj
     }
 }
 
-extension SwiftDXF.DXF.Entity {
+extension DXF.Entity {
 
     func bezierPath() -> STBezierPath? {
         switch self {
@@ -74,28 +84,12 @@ extension SwiftDXF.DXF.Entity {
                 x: center.x + radius * cos(startDeg * .pi / 180),
                 y: center.y + radius * sin(startDeg * .pi / 180)
             )
-
             path.move(to: startPoint)
-
-            path.appendArc(
-                withCenter: center.cgPoint,
-                radius: radius,
-                startAngle: start,
-                endAngle: end,
-                clockwise: false
-            )
+            path.appendArc(withCenter: center.cgPoint, radius: radius, startAngle: start, endAngle: end, clockwise: false)
 
             return path
 
-        case let .ellipse(
-            center,
-            majorAxis,
-            ratio,
-            startParam,
-            endParam,
-            _,
-            _
-        ):
+        case let .ellipse(center, majorAxis, ratio, startParam, endParam, _, _):
             return ellipsePath(
                 center: center,
                 majorAxis: majorAxis,
@@ -118,19 +112,15 @@ extension SwiftDXF.DXF.Entity {
             return path
 
         case let .text(at, height, rotationDeg, string, _, _):
-            return nil
-//            return textPath(
-//                at: at,
-//                height: height,
-//                rotationDeg: rotationDeg,
-//                string: string
-//            )
+            return textPath(
+                at: at,
+                height: height,
+                rotationDeg: rotationDeg,
+                string: string
+            )
 
         case let .polyline(vertices, closed, _, _):
-            return polylinePath(
-                vertices: vertices,
-                closed: closed
-            )
+            return polylinePath(vertices: vertices, closed: closed)
 
         case .dimension:
             // SwiftDXF intentionally doesn't expose rendered
@@ -140,16 +130,13 @@ extension SwiftDXF.DXF.Entity {
     }
 }
 
-extension SwiftDXF.DXF.Point {
+extension DXF.Point {
     var cgPoint: CGPoint {
         CGPoint(x: x, y: y)
     }
 }
 
-private func polylinePath(
-    vertices: [SwiftDXF.DXF.PolyVertex],
-    closed: Bool
-) -> STBezierPath? {
+private func polylinePath(vertices: [DXF.PolyVertex], closed: Bool) -> STBezierPath? {
 
     guard vertices.count >= 2 else {
         return nil
@@ -318,36 +305,35 @@ private func ellipsePath(
     return path
 }
 
-//private func textPath(
-//    at point: SwiftDXF.DXF.Point,
-//    height: Double,
-//    rotationDeg: Double,
-//    string: String
-//) -> NSBezierPath {
-//
-//    let path = NSBezierPath()
-//
-//    let font = NSFont.systemFont(ofSize: height)
-//
-//    let attributes: [NSAttributedString.Key: Any] = [
-//        .font: font
-//    ]
-//
-//    let attributed = NSAttributedString(
-//        string: string,
-//        attributes: attributes
-//    )
-//
-//    let line = CTLineCreateWithAttributedString(
-//        attributed as CFAttributedString
-//    )
-//
-//    let runs = CTLineGetGlyphRuns(line) as NSArray
-//
-//    // This is primarily useful if you actually need
-//    // the text outline. For CNC, text should generally
-//    // be converted to glyph outlines separately.
-//    _ = runs
-//
-//    return path
-//}
+private func textPath(
+    at point: SwiftDXF.DXF.Point,
+    height: Double,
+    rotationDeg: Double,
+    string: String) -> STBezierPath {
+
+    let path = STBezierPath()
+
+    let font = NSFont.systemFont(ofSize: height)
+
+    let attributes: [NSAttributedString.Key: Any] = [
+        .font: font
+    ]
+
+    let attributed = NSAttributedString(
+        string: string,
+        attributes: attributes
+    )
+
+    let line = CTLineCreateWithAttributedString(
+        attributed as CFAttributedString
+    )
+
+    let runs = CTLineGetGlyphRuns(line) as NSArray
+
+    // This is primarily useful if you actually need
+    // the text outline. For CNC, text should generally
+    // be converted to glyph outlines separately.
+    _ = runs
+
+    return path
+}
