@@ -33,7 +33,7 @@ class CAMModel: ObservableObject {
     var canvasZoomScale: CGFloat = 3.0
     var canvasViewportSaved: Bool = false
 
-    let supportedFiles: [UTType] = [.svg, .dxf]
+    let supportedFiles: [UTType] = [.svg, .dxf, .init(filenameExtension: "step")!, .init(filenameExtension: "stp")!]
 
     // ---- CALLBACKS FOR PERSISTENCE ----
     var onStockChanged: ((StockMaterial) -> Void)?
@@ -57,7 +57,7 @@ class CAMModel: ObservableObject {
                 if let obj = DXFImporter().parse(url: url) {
                     canvasState.add(obj, select: false)
                 }
-            case "step":
+            case "step", "stp":
                 print("import step")
             default:
                 print("Unsupported file type: \(ext)")

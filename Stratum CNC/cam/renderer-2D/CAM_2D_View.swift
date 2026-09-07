@@ -23,8 +23,8 @@ struct CAM_2D_View: NSViewRepresentable {
 
     func updateNSView(_ nsView: D2_CanvasNSView, context: Context) {
 
-        if nsView.canvasState != canvasState {
+//        if nsView.canvasState != canvasState {
             nsView.canvasState = canvasState
-        }
+//        }
     }
 }

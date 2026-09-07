@@ -10,8 +10,8 @@ import Foundation
 final class D2_CanvasState: ObservableObject, Equatable {
 
     @Published var objects: [D2_Object] = []
-    private(set) var selectedObjectIDs: Set<UUID> = []
-    private(set) var selectedPaths: [PathSelection] = []
+    @Published private(set) var selectedObjectIDs: Set<UUID> = []
+    @Published private(set) var selectedPaths: [PathSelection] = []
     var isStockVisible: Bool = true {
         didSet {
             print("Set stock visible: \(isStockVisible)")

@@ -37,35 +37,13 @@ struct CAMView: View {
                 // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
                 CAM_2D_View(canvasState: camModel.canvasState)
 
+                // Align inspector to top-left
+                // Align materials and toolpaths to top-right
                 HStack {
                     VStack {
-                        ObjectsInspectorView(
-                            elements: camModel.canvasState.objects,
-                            selectedID: nil,
-                            onSelectionChanged: { id in
-                                //                            selectedID = id
-                            },
-                            onValueChanged: { id, property, value in
-                                // update your D2_Object
-                            },
-                            onNudge: { id, property, amount in
-                                // nudge your object
-                            },
-                            onScale: { id, factor in
-                                // scale your object
-                            },
-                            onRotate: { id, degrees in
-                                // rotate your object
-                            },
-                            onAddNew: {
-                                // add object
-                            },
-                            onDelete: { id in
-                                // delete object
-                            }
-                        )
-                        .frame(minWidth: 100, maxWidth: 200)
-                        .padding(16)
+                        inspectorPanel
+                            .frame(minWidth: 100, maxWidth: 200)
+                            .padding(16)
                         Spacer()
                     }
                     Spacer()
@@ -73,11 +51,11 @@ struct CAMView: View {
                         MaterialPanelView(projectData: $projectModel.projectData,
                                           stock: $camModel.selectedStockMaterial)
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
-                            .frame(width: 500)
+//                            .frame(width: 500)
                         toolpathsPanel
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
-                            .frame(width: 500)
                     }
+                    .frame(width: 500)
                     .padding(16)
                 }
             }
@@ -124,7 +102,36 @@ struct CAMView: View {
         }
     }
 
-    var toolpathsPanel: some View {
+    private var inspectorPanel: some View {
+        ObjectsInspectorView(
+            elements: camModel.canvasState.objects,
+            selectedID: nil,
+            onSelectionChanged: { id in
+                print("selected \(id)")
+                camModel.canvasState.selectObject(id)
+            },
+            onValueChanged: { id, property, value in
+                // update your D2_Object
+            },
+            onNudge: { id, property, amount in
+                // nudge your object
+            },
+            onScale: { id, factor in
+                // scale your object
+            },
+            onRotate: { id, degrees in
+                // rotate your object
+            },
+            onAddNew: {
+                // add object
+            },
+            onDelete: { id in
+                // delete object
+            }
+        )
+    }
+
+    private var toolpathsPanel: some View {
         GroupBox("TOOLPATHS") {
             ToolpathListView(
                 toolpaths: $camModel.toolpaths
