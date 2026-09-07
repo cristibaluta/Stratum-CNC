@@ -83,7 +83,7 @@ struct CAMView: View {
             }
         }
         .fileImporter(isPresented: $camModel.showingFilePicker,
-                      allowedContentTypes: [.svg, .dxf],
+                      allowedContentTypes: camModel.supportedFiles,
                       allowsMultipleSelection: false) { result in
             switch result {
             case .success(let urls):

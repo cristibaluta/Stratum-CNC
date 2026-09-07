@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreGraphics
+import UniformTypeIdentifiers
 
 @MainActor
 class CAMModel: ObservableObject {
@@ -31,6 +32,8 @@ class CAMModel: ObservableObject {
     var canvasPanOffset: CGPoint = .zero
     var canvasZoomScale: CGFloat = 3.0
     var canvasViewportSaved: Bool = false
+
+    let supportedFiles: [UTType] = [.svg, .dxf]
 
     // ---- CALLBACKS FOR PERSISTENCE ----
     var onStockChanged: ((StockMaterial) -> Void)?
