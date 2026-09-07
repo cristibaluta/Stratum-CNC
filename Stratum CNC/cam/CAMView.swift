@@ -6,14 +6,6 @@
 //
 
 import SwiftUI
-import UniformTypeIdentifiers
-
-extension UTType {
-    static let dxf = UTType(
-        importedAs: "com.autodesk.dxf",
-        conformingTo: .data
-    )
-}
 
 // The main view of the CAM screen.
 // It holds the objects to model and the list of toolpaths
@@ -121,7 +113,10 @@ struct CAMView: View {
             Text("No objects added yet!")
                 .font(.headline)
                 .foregroundColor(.secondary)
-            Button("Import SVG") {
+            Text("File types you can import: SVG, DXF.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Button("Import") {
                 camModel.showingFilePicker = true
             }
             Spacer()
