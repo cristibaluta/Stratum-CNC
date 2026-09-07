@@ -112,13 +112,14 @@ struct CAMView: View {
             Spacer()
             Text("No objects added yet!")
                 .font(.headline)
-                .foregroundColor(.secondary)
+                .foregroundColor(.primary)
             Text("File types you can import: SVG, DXF.")
                 .font(.caption)
                 .foregroundColor(.secondary)
             Button("Import") {
                 camModel.showingFilePicker = true
             }
+            .padding(8)
             Spacer()
         }
     }
