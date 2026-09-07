@@ -40,6 +40,7 @@ class DXFImporter: Importer {
         }
         let obj = D2_Object(name: url.lastPathComponent,
                             paths: paths,
+                            entities: dwg.entities,
                             position: position,
                             originalSize: CGSize(width: w, height: h),
                             width: w)
@@ -148,7 +149,7 @@ private func polylinePath(vertices: [DXF.PolyVertex], closed: Bool) -> STBezierP
 
     let segmentCount = closed
         ? vertices.count
-        : vertices.count - 1
+        : (vertices.count - 1)
 
     for i in 0..<segmentCount {
 

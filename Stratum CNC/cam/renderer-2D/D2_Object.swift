@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftDXF
 
 final class D2_Object {
 
@@ -14,6 +15,7 @@ final class D2_Object {
 
     /// Paths normalized so their origin is at (0, 0).
     let paths: [STBezierPath]
+    let entities: [DXF.Entity]
 
     /// Original imported dimensions.
     let originalSize: CGSize
@@ -31,6 +33,7 @@ final class D2_Object {
         id: UUID = UUID(),
         name: String,
         paths: [STBezierPath],
+        entities: [DXF.Entity],
         position: CGPoint,
         originalSize: CGSize,
         width: CGFloat
@@ -38,6 +41,7 @@ final class D2_Object {
         self.id = id
         self.name = name
         self.paths = paths
+        self.entities = entities
         self.position = position
         self.originalSize = originalSize
         self.width = width

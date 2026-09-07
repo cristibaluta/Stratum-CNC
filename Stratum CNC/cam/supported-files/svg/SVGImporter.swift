@@ -21,6 +21,7 @@ class SVGImporter: Importer {
         print(svg.attributeKeys)
 
         var bezierPaths: [STBezierPath] = []
+        var entities: [DXF.Entity] = []
         let svgPaths: [SVGBezierPath] = svg.paths
         for path in svgPaths {
 //            print(path.svgAttributes)
@@ -39,8 +40,10 @@ class SVGImporter: Importer {
                 )
                 p.transform(using: nsTransform)
                 bezierPaths.append(p)
+                entities += p.dxfEntities()
             } else {
                 bezierPaths.append(path)
+                entities += path.dxfEntities()
             }
         }
 
@@ -52,7 +55,7 @@ class SVGImporter: Importer {
         bezierPaths = flippedPaths
         #endif
 
-        if let object = factory.makeObject(name: url.lastPathComponent, paths: bezierPaths) {
+        if let object = factory.makeObject(name: url.lastPathComponent, paths: bezierPaths, entities: entities) {
             return object
         }
         return nil
@@ -61,11 +64,7 @@ class SVGImporter: Importer {
 
 extension STBezierPath {
 
-    func dxfEntities(
-        tolerance: Double = 0.01,
-        layer: String = "0",
-        color: Int = 0
-    ) -> [SwiftDXF.DXF.Entity] {
+    func dxfEntities(tolerance: Double = 0.01, layer: String = "0", color: Int = 0) -> [DXF.Entity] {
 
         var converter = DXFPathConverter(
             tolerance: tolerance,
@@ -83,7 +82,7 @@ extension STBezierPath {
 
 private struct DXFPathConverter {
 
-    private(set) var entities: [SwiftDXF.DXF.Entity] = []
+    private(set) var entities: [DXF.Entity] = []
 
     private let tolerance: Double
     private let layer: String
@@ -92,11 +91,7 @@ private struct DXFPathConverter {
     private var currentPoint: CGPoint?
     private var subpathStartPoint: CGPoint?
 
-    init(
-        tolerance: Double,
-        layer: String,
-        color: Int
-    ) {
+    init(tolerance: Double, layer: String, color: Int) {
         self.tolerance = max(tolerance, 0.000001)
         self.layer = layer
         self.color = color
@@ -117,12 +112,7 @@ private struct DXFPathConverter {
             }
 
             let end = element.points[0]
-
-            appendLine(
-                from: start,
-                to: end
-            )
-
+            appendLine(from: start, to: end)
             currentPoint = end
 
         case .addQuadCurveToPoint:
@@ -132,13 +122,7 @@ private struct DXFPathConverter {
 
             let control = element.points[0]
             let end = element.points[1]
-
-            appendFlattenedQuadratic(
-                from: start,
-                control: control,
-                to: end
-            )
-
+            appendFlattenedQuadratic(from: start, control: control, to: end)
             currentPoint = end
 
         case .addCurveToPoint:

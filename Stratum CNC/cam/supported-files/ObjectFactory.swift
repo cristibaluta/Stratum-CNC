@@ -6,10 +6,11 @@
 //
 
 import Foundation
+import SwiftDXF
 
 struct ObjectFactory {
 
-    func makeObject(name: String, paths: [STBezierPath]) -> D2_Object? {
+    func makeObject(name: String, paths: [STBezierPath], entities: [DXF.Entity]) -> D2_Object? {
 
         guard !paths.isEmpty else {
             return nil
@@ -29,6 +30,7 @@ struct ObjectFactory {
         return D2_Object(
             name: name,
             paths: normalizedPaths,
+            entities: entities,
             position: CGPoint(x: combinedBounds.minX, y: combinedBounds.minY),
             originalSize: originalSize,
             width: originalSize.width
