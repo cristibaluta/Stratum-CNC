@@ -49,7 +49,9 @@ final class D2_CanvasRenderer {
 
         stockLayer.isHidden = !canvasState.isStockVisible
         stockLayer.zoomScale = canvasState.zoomScale
-//        stockLayer.updateMaterial(with: canvasState.stock)
+        if let stock = canvasState.stock {
+            stockLayer.updateMaterial(with: stock)
+        }
         rulerLayer.updateRulerStrokeWidth(zoomScale: canvasState.zoomScale)
 
         removeAll()

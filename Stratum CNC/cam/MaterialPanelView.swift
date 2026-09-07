@@ -9,8 +9,11 @@ import SwiftUI
 
 struct MaterialPanelView: View {
 
-    @Binding var projectData: ProjectData
     @Binding var stock: StockMaterial
+    /// The single "should stock render on canvas" flag. CAMView is responsible
+    /// for keeping this and ProjectData.isStockVisible (the persisted value)
+    /// equal — this view no longer needs to know ProjectData exists at all.
+    @Binding var isStockVisible: Bool
 
     var body: some View {
         GroupBox("MATERIAL") {
@@ -44,14 +47,14 @@ struct MaterialPanelView: View {
 
     private var visibilityButton: some View {
         Button {
-            projectData.isStockVisible?.toggle()
+            isStockVisible.toggle()
         } label: {
-            Image(systemName: projectData.isStockVisible ?? false ? "eye" : "eye.slash")
-                .foregroundStyle(projectData.isStockVisible ?? false ? .primary : .secondary)
+            Image(systemName: isStockVisible ? "eye" : "eye.slash")
+                .foregroundStyle(isStockVisible ? .primary : .secondary)
                 .frame(width: 18)
         }
         .buttonStyle(.borderless)
-        .help(projectData.isStockVisible ?? false ? "Hide material in 2D" : "Show material in 2D")
+        .help(isStockVisible ? "Hide material in 2D" : "Show material in 2D")
     }
 
     private var shapeBinding: Binding<StockGeometry> {

@@ -77,23 +77,33 @@ struct ObjectsInspectorView: View {
     }
 
     private func objectRow(_ object: D2_Object) -> some View {
-        Button {
-            onSelectionChanged?(object.id)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: object.id == selectedID
-                      ? "checkmark.circle.fill"
-                      : "circle")
-                .foregroundStyle(object.id == selectedID ? .red : .secondary)
+        HStack(spacing: 4) {
+            Button {
+                onSelectionChanged?(object.id)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: object.id == selectedID
+                          ? "checkmark.circle.fill"
+                          : "circle")
+                    .foregroundStyle(object.id == selectedID ? .red : .secondary)
 
-                Text(object.name)
-                    .lineLimit(1)
+                    Text(object.name)
+                        .lineLimit(1)
 
-                Spacer()
+                    Spacer()
+                }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            Button {
+                onDelete?(object.id)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
         .padding(.vertical, 3)
         .padding(.horizontal, 4)
         .background(object.id == selectedID ? Color.accentColor.opacity(0.12) : Color.clear)
@@ -107,8 +117,7 @@ struct ObjectsInspectorView: View {
             Text("Properties")
                 .font(.system(size: 13, weight: .bold))
 
-            if let selectedID,
-               let object = elements.first(where: { $0.id == selectedID }) {
+            if let selectedID, let object = elements.first(where: { $0.id == selectedID }) {
 
                 positionRow(title: "X", value: object.position.x, property: .x, id: object.id)
                 positionRow(title: "Y", value: object.position.y, property: .y, id: object.id)
@@ -133,10 +142,11 @@ struct ObjectsInspectorView: View {
             NumberField2(value: value) { newValue in
                 onValueChanged?(id, property, newValue)
             }
+            .frame(width: 60)
 
             Text("mm")
                 .foregroundStyle(.secondary)
-                .frame(width: 20, alignment: .leading)
+                .frame(width: 30, alignment: .leading)
 
             SmallButton("−1") {
                 onNudge?(id, property, -1)
@@ -156,10 +166,11 @@ struct ObjectsInspectorView: View {
             NumberField2(value: value) { newValue in
                 onValueChanged?(id, .width, newValue)
             }
+            .frame(width: 60)
 
             Text("mm")
                 .foregroundStyle(.secondary)
-                .frame(width: 20, alignment: .leading)
+                .frame(width: 30, alignment: .leading)
 
             SmallButton("÷2") {
                 onScale?(id, -2)
@@ -179,10 +190,11 @@ struct ObjectsInspectorView: View {
             NumberField2(value: value) { newValue in
                 onValueChanged?(id, .height, newValue)
             }
+            .frame(width: 60)
 
             Text("mm")
                 .foregroundStyle(.secondary)
-                .frame(width: 20, alignment: .leading)
+                .frame(width: 30, alignment: .leading)
 
             Text("🔒")
                 .foregroundStyle(.secondary)
@@ -198,6 +210,7 @@ struct ObjectsInspectorView: View {
             NumberField2(value: value) { newValue in
                 onValueChanged?(id, .rotation, newValue)
             }
+            .frame(width: 60)
             SmallButton("−90°") {
                 // Preserving your original canvas rotation direction.
                 onRotate?(id, 90)
@@ -213,7 +226,7 @@ struct ObjectsInspectorView: View {
 
     private func rowLabel(_ title: String) -> some View {
         Text(title)
-            .frame(width: 50, alignment: .trailing)
+            .frame(width: 60, alignment: .trailing)
     }
 }
 
@@ -235,7 +248,6 @@ private struct NumberField2: View {
     var body: some View {
         TextField("", text: $text)
             .textFieldStyle(.roundedBorder)
-            .frame(width: 80)
             .onSubmit {
                 commit()
             }

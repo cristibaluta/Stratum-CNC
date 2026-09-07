@@ -12,15 +12,19 @@ import SwiftUI
 // You can access also the tools lib and stocks lib from the toolbar
 
 /*
-- CAMView
+- CAMView                                     <- the only place that talks to both CAMModel and ProjectModel;
+                                                  funnels values that both sides need to agree on
+                                                  (stock visibility) so no other view has to know about both.
     - CAMModel
-        - D2_CanvasState (all the properties and states of the drawing area)
-    - ProjectModel (ProjectData)
+        - D2_CanvasState (single source of truth for the canvas: objects,
+          selection, stock render state, live zoom — everything the
+          inspector, material panel and 2D view all read from and write to)
+    - ProjectModel (ProjectData)               <- persisted project data
     - CAM_2D_View
         - D2_CanvasNSView
             - D2_CanvasRenderer (based on the properties from D2_CanvasState)
-    - ObjectsInspectorView
-    - MaterialPanelView
+    - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
+    - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
     - ToolpathListView
 */
 struct CAMView: View {
@@ -35,23 +39,26 @@ struct CAMView: View {
             } else {
                 // TODO: This view should be swapable with a 3D view depending on the first open file
                 // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
-                CAM_2D_View(canvasState: camModel.canvasState)
+                CAM_2D_View(canvasState: camModel.canvasState,
+                            initialViewport: camModel.savedViewport,
+                            onViewportChanged: { pan, zoom in
+                                camModel.saveViewport(panOffset: pan, zoomScale: zoom)
+                            })
 
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right
                 HStack {
                     VStack {
                         inspectorPanel
-                            .frame(minWidth: 100, maxWidth: 200)
+                            .frame(minWidth: 200, maxWidth: 260)
                             .padding(16)
                         Spacer()
                     }
                     Spacer()
                     VStack(spacing: 16) {
-                        MaterialPanelView(projectData: $projectModel.projectData,
-                                          stock: $camModel.selectedStockMaterial)
+                        MaterialPanelView(stock: $camModel.selectedStockMaterial,
+                                          isStockVisible: stockVisibleBinding)
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
-//                            .frame(width: 500)
                         toolpathsPanel
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
                     }
@@ -59,6 +66,11 @@ struct CAMView: View {
                     .padding(16)
                 }
             }
+        }
+        .onAppear {
+            // Establish the canvas's copy of stock visibility from the
+            // persisted value the first time this screen appears.
+            camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
         .fileImporter(isPresented: $camModel.showingFilePicker,
                       allowedContentTypes: camModel.supportedFiles,
@@ -85,6 +97,20 @@ struct CAMView: View {
         }
     }
 
+    /// The single funnel for stock visibility: ProjectData stays the
+    /// persisted source of truth, D2_CanvasState stays the render-time
+    /// source of truth, and this binding is the one place that keeps them
+    /// equal. Nothing else in the app should write either of these directly.
+    private var stockVisibleBinding: Binding<Bool> {
+        Binding(
+            get: { projectModel.projectData.isStockVisible ?? true },
+            set: { newValue in
+                projectModel.projectData.isStockVisible = newValue
+                camModel.canvasState.isStockVisible = newValue
+            }
+        )
+    }
+
     private var emptyView: some View {
         VStack {
             Spacer()
@@ -105,28 +131,27 @@ struct CAMView: View {
     private var inspectorPanel: some View {
         ObjectsInspectorView(
             elements: camModel.canvasState.objects,
-            selectedID: nil,
+            selectedID: camModel.canvasState.selectedObjectIDs.first,
             onSelectionChanged: { id in
-                print("selected \(id)")
                 camModel.canvasState.selectObject(id)
             },
             onValueChanged: { id, property, value in
-                // update your D2_Object
+                camModel.canvasState.setValue(value, for: property, objectID: id)
             },
             onNudge: { id, property, amount in
-                // nudge your object
+                camModel.canvasState.nudge(id, property: property, amount: amount)
             },
             onScale: { id, factor in
-                // scale your object
+                camModel.canvasState.scaleWidth(id, factor: factor)
             },
             onRotate: { id, degrees in
-                // rotate your object
+                camModel.canvasState.rotateObject(id, by: degrees)
             },
             onAddNew: {
-                // add object
+                camModel.showingFilePicker = true
             },
             onDelete: { id in
-                // delete object
+                camModel.canvasState.removeObject(id)
             }
         )
     }

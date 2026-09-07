@@ -7,7 +7,13 @@
 
 import AppKit
 
-// This NSView draws the renderer result into the layer, and manages mouse interaction
+// This NSView draws the renderer result into the layer, and manages mouse interaction.
+//
+// All geometry edits (drag-to-move, inspector fields, nudge/scale/rotate) go
+// through D2_CanvasState's mutation methods now — this view never sets a
+// D2_Object's properties directly. D2_CanvasState is responsible for
+// notifying observers after every edit, which is what keeps the inspector,
+// the objects list and the canvas from drifting out of sync with each other.
 
 final class D2_CanvasNSView: NSView {
 
@@ -19,6 +25,10 @@ final class D2_CanvasNSView: NSView {
         case moveObject(UUID)
     }
 
+    /// Setting this to a *different* D2_CanvasState instance (a new document)
+    /// re-fits the viewport to the new content. If you just want to repaint
+    /// after an in-place edit to the same canvasState, call `refresh()`
+    /// instead — see CAM_2D_View.updateNSView for why this distinction matters.
     var canvasState: D2_CanvasState = D2_CanvasState() {
         didSet {
             needsAutoFitAfterLayout = true
@@ -52,6 +62,15 @@ final class D2_CanvasNSView: NSView {
         self.zoomScale = zoomScale
         needsAutoFitAfterLayout = false
         updateWorldTransform()
+        canvasState.zoomScale = zoomScale
+        render()
+    }
+
+    /// Re-renders using the current canvasState without touching the
+    /// viewport. Call this after any in-place edit (selection, object edit,
+    /// stock/material change) — anything that should repaint but must not
+    /// reset the user's current pan/zoom.
+    func refresh() {
         render()
     }
 
@@ -79,33 +98,6 @@ final class D2_CanvasNSView: NSView {
         layer?.addSublayer(renderer.workLayer)
     }
 
-//    private func setupInspector() {
-//        inspectorView.translatesAutoresizingMaskIntoConstraints = false
-//        addSubview(inspectorView)
-//        NSLayoutConstraint.activate([
-//            inspectorView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-//            inspectorView.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-//            inspectorView.widthAnchor.constraint(equalToConstant: 270)
-//        ])
-//        inspectorView.onSelectionChanged = { [weak self] id in
-//            self?.selectObject(id)
-//        }
-//        inspectorView.onValueChanged = { [weak self] id, property, value in
-//            self?.updateObject(id: id, property: property, value: value)
-//        }
-//        inspectorView.onNudge = { [weak self] id, property, amount in
-//            self?.nudgeObject(id: id, property: property, amount: amount)
-//        }
-//        inspectorView.onScale = { [weak self] id, scaleFactor in
-//            self?.scaleObject(id: id, scaleFactor: scaleFactor)
-//        }
-//        inspectorView.onRotate = { [weak self] id, amount in
-//            self?.rotateObject(id: id, degrees: amount)
-//        }
-//        inspectorView.onAddNew = { [weak self] in
-//            self?.onAddNew?()
-//        }
-//    }
     override func layout() {
         super.layout()
         renderer.workLayer.position = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -159,13 +151,16 @@ final class D2_CanvasNSView: NSView {
         panOffset = CGPoint(x: targetCenter.x - bounds.midX - contentCenter.x * zoomScale,
                             y: targetCenter.y - bounds.midY - contentCenter.y * zoomScale)
         updateWorldTransform()
+        canvasState.zoomScale = zoomScale
         needsAutoFitAfterLayout = false
+        onViewportChanged?(panOffset, zoomScale)
     }
 
     override func scrollWheel(with event: NSEvent) {
         panOffset.x -= event.scrollingDeltaX// Scrolling right should move the canvas left
         panOffset.y += event.scrollingDeltaY// Scrolling up should move the canvas down
         updateWorldTransform()
+        onViewportChanged?(panOffset, zoomScale)
     }
 
     override func magnify(with event: NSEvent) {
@@ -181,7 +176,9 @@ final class D2_CanvasNSView: NSView {
         panOffset.y = mouseFromCenter.y - (mouseFromCenter.y - panOffset.y) * ratio
         zoomScale = newScale
         updateWorldTransform()
+        canvasState.zoomScale = zoomScale
         render()
+        onViewportChanged?(panOffset, zoomScale)
     }
 
     override func rotate(with event: NSEvent) {
@@ -199,9 +196,8 @@ final class D2_CanvasNSView: NSView {
         lastDragWorldLocation = worldPoint
         dragMode = .pan
 
-        //
         if let selectedObjectId = canvasState.selectedObjectIDs.first,
-           let object = object(withID: selectedObjectId),
+           let object = canvasState.object(withID: selectedObjectId),
            let selectedNode = renderer.nodes[selectedObjectId],
            selectedNode.isRotationCenterHit(worldPoint: worldPoint,
                                             worldLayer: renderer.workLayer,
@@ -255,12 +251,13 @@ final class D2_CanvasNSView: NSView {
 
         case .moveObject(let objectID):
             guard let lastWorld = lastDragWorldLocation,
-                  let object = object(withID: objectID) else {
+                  let object = canvasState.object(withID: objectID) else {
                 break
             }
 
-            object.position.x += worldPoint.x - lastWorld.x
-            object.position.y += worldPoint.y - lastWorld.y
+            let newPosition = CGPoint(x: object.position.x + (worldPoint.x - lastWorld.x),
+                                       y: object.position.y + (worldPoint.y - lastWorld.y))
+            canvasState.moveObject(objectID, to: newPosition)
             render()
         }
 
@@ -269,62 +266,11 @@ final class D2_CanvasNSView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if case .pan = dragMode {
+            onViewportChanged?(panOffset, zoomScale)
+        }
         lastDragLocation = nil
         lastDragWorldLocation = nil
         dragMode = .pan
-    }
-
-    private func selectObject(_ id: UUID) {
-        canvasState.selectObject(id)
-        render()
-    }
-
-    private func updateObject(id: UUID, property: Property, value: CGFloat) {
-        guard canvasState.selectedObjectIDs.contains(id), let object = object(withID: id) else {
-            return
-        }
-        switch property {
-            case .x: object.position.x = value
-            case .y: object.position.y = value
-            case .width: object.width = max(value, 0.001)
-            case .height: object.setHeight(value)
-            case .rotation: object.setRotation(value)
-        }
-        render()
-    }
-
-    private func nudgeObject(id: UUID, property: Property, amount: CGFloat) {
-        guard canvasState.selectedObjectIDs.contains(id), let object = object(withID: id) else {
-            return
-        }
-        switch property {
-            case .x: object.position.x += amount
-            case .y: object.position.y += amount
-            default: return
-        }
-        render()
-    }
-
-    private func scaleObject(id: UUID, scaleFactor: Int) {
-        guard canvasState.selectedObjectIDs.contains(id), let object = object(withID: id) else {
-            return
-        }
-        object.width = scaleFactor > 0
-            ? max(object.width * CGFloat(scaleFactor), 0.001)
-            : max(object.width / CGFloat(-scaleFactor), 0.001)
-
-        render()
-    }
-
-    private func rotateObject(id: UUID, degrees: CGFloat) {
-        guard canvasState.selectedObjectIDs.contains(id), let object = object(withID: id) else {
-            return
-        }
-        object.rotate(by: degrees)
-        render()
-    }
-
-    private func object(withID id: UUID) -> D2_Object? {
-        canvasState.objects.first { $0.id == id }
     }
 }
