@@ -73,8 +73,8 @@ extension DXF.Entity {
 
         case let .line(a, b, layer, color):
             return .line(a: worldPoint(a.cgPoint).dxfPoint,
-                        b: worldPoint(b.cgPoint).dxfPoint,
-                        layer: layer, color: color)
+                         b: worldPoint(b.cgPoint).dxfPoint,
+                         layer: layer, color: color)
 
         case let .circle(center, radius, layer, color):
             return .circle(center: worldPoint(center.cgPoint).dxfPoint,
@@ -83,10 +83,10 @@ extension DXF.Entity {
 
         case let .arc(center, radius, startDeg, endDeg, layer, color):
             return .arc(center: worldPoint(center.cgPoint).dxfPoint,
-                       radius: radius * Double(scale),
-                       startDeg: startDeg + Double(rotationDegrees),
-                       endDeg: endDeg + Double(rotationDegrees),
-                       layer: layer, color: color)
+                        radius: radius * Double(scale),
+                        startDeg: startDeg + Double(rotationDegrees),
+                        endDeg: endDeg + Double(rotationDegrees),
+                        layer: layer, color: color)
 
         case let .ellipse(center, majorAxis, ratio, startParam, endParam, layer, color):
             return .ellipse(center: worldPoint(center.cgPoint).dxfPoint,
@@ -101,9 +101,9 @@ extension DXF.Entity {
 
         case let .text(at, height, rotationDeg, string, layer, color):
             return .text(at: worldPoint(at.cgPoint).dxfPoint,
-                        height: height * Double(scale),
-                        rotationDeg: rotationDeg + Double(rotationDegrees),
-                        string: string, layer: layer, color: color)
+                         height: height * Double(scale),
+                         rotationDeg: rotationDeg + Double(rotationDegrees),
+                         string: string, layer: layer, color: color)
 
         case let .polyline(vertices, closed, layer, color):
             let transformed = vertices.map {

@@ -6,9 +6,9 @@
 //
 
 import Foundation
-import SwiftDXF
 import AppKit
 import CoreText
+import SwiftDXF
 
 class DXFImporter: Importer {
 
@@ -40,82 +40,82 @@ class DXFImporter: Importer {
 extension DXF.Entity {
 
     func bezierPath() -> STBezierPath? {
+
         switch self {
+            case let .line(a, b, _, _):
+                let path = STBezierPath()
+                path.move(to: a.cgPoint)
+                path.line(to: b.cgPoint)
+                return path
 
-        case let .line(a, b, _, _):
-            let path = STBezierPath()
-            path.move(to: a.cgPoint)
-            path.line(to: b.cgPoint)
-            return path
-
-        case let .circle(center, radius, _, _):
-            return STBezierPath(
-                ovalIn: NSRect(
-                    x: center.x - radius,
-                    y: center.y - radius,
-                    width: radius * 2,
-                    height: radius * 2
+            case let .circle(center, radius, _, _):
+                return STBezierPath(
+                    ovalIn: NSRect(
+                        x: center.x - radius,
+                        y: center.y - radius,
+                        width: radius * 2,
+                        height: radius * 2
+                    )
                 )
-            )
 
-        case let .arc(center, radius, startDeg, endDeg, _, _):
-            let path = STBezierPath()
+            case let .arc(center, radius, startDeg, endDeg, _, _):
+                let path = STBezierPath()
 
-            let start = CGFloat(startDeg)
-            var end = CGFloat(endDeg)
+                let start = CGFloat(startDeg)
+                var end = CGFloat(endDeg)
 
-            // DXF arcs sweep CCW. Normalize the end so we
-            // don't accidentally get a negative sweep.
-            while end < start {
-                end += 360
-            }
+                // DXF arcs sweep CCW. Normalize the end so we
+                // don't accidentally get a negative sweep.
+                while end < start {
+                    end += 360
+                }
 
-            let startPoint = CGPoint(
-                x: center.x + radius * cos(startDeg * .pi / 180),
-                y: center.y + radius * sin(startDeg * .pi / 180)
-            )
-            path.move(to: startPoint)
-            path.appendArc(withCenter: center.cgPoint, radius: radius, startAngle: start, endAngle: end, clockwise: false)
+                let startPoint = CGPoint(
+                    x: center.x + radius * cos(startDeg * .pi / 180),
+                    y: center.y + radius * sin(startDeg * .pi / 180)
+                )
+                path.move(to: startPoint)
+                path.appendArc(withCenter: center.cgPoint, radius: radius, startAngle: start, endAngle: end, clockwise: false)
 
-            return path
+                return path
 
-        case let .ellipse(center, majorAxis, ratio, startParam, endParam, _, _):
-            return ellipsePath(
-                center: center,
-                majorAxis: majorAxis,
-                ratio: ratio,
-                startParam: startParam,
-                endParam: endParam
-            )
+            case let .ellipse(center, majorAxis, ratio, startParam, endParam, _, _):
+                return ellipsePath(
+                    center: center,
+                    majorAxis: majorAxis,
+                    ratio: ratio,
+                    startParam: startParam,
+                    endParam: endParam
+                )
 
-        case let .point(at, _, _):
-            // Represent a DXF POINT as a very small cross.
-            let size = 1.0
-            let path = STBezierPath()
+            case let .point(at, _, _):
+                // Represent a DXF POINT as a very small cross.
+                let size = 1.0
+                let path = STBezierPath()
 
-            path.move(to: CGPoint(x: at.x - size, y: at.y))
-            path.line(to: CGPoint(x: at.x + size, y: at.y))
+                path.move(to: CGPoint(x: at.x - size, y: at.y))
+                path.line(to: CGPoint(x: at.x + size, y: at.y))
 
-            path.move(to: CGPoint(x: at.x, y: at.y - size))
-            path.line(to: CGPoint(x: at.x, y: at.y + size))
+                path.move(to: CGPoint(x: at.x, y: at.y - size))
+                path.line(to: CGPoint(x: at.x, y: at.y + size))
 
-            return path
+                return path
 
-        case let .text(at, height, rotationDeg, string, _, _):
-            return textPath(
-                at: at,
-                height: height,
-                rotationDeg: rotationDeg,
-                string: string
-            )
+            case let .text(at, height, rotationDeg, string, _, _):
+                return textPath(
+                    at: at,
+                    height: height,
+                    rotationDeg: rotationDeg,
+                    string: string
+                )
 
-        case let .polyline(vertices, closed, _, _):
-            return polylinePath(vertices: vertices, closed: closed)
+            case let .polyline(vertices, closed, _, _):
+                return polylinePath(vertices: vertices, closed: closed)
 
-        case .dimension:
-            // SwiftDXF intentionally doesn't expose rendered
-            // dimension glyph geometry.
-            return nil
+            case .dimension:
+                // SwiftDXF intentionally doesn't expose rendered
+                // dimension glyph geometry.
+                return nil
         }
     }
 }
@@ -199,8 +199,7 @@ private func appendBulgeArc(
     let ny = dx / chord
 
     // Distance from midpoint to center.
-    let centerDistance =
-        halfChord / tan(abs(theta) / 2.0)
+    let centerDistance = halfChord / tan(abs(theta) / 2.0)
 
     // Bulge sign determines which side of the chord
     // the center lies on.
@@ -234,50 +233,26 @@ private func ellipsePath(
     endParam: Double
 ) -> STBezierPath {
 
-    let majorRadius = hypot(
-        majorAxis.x,
-        majorAxis.y
-    )
-
+    let majorRadius = hypot(majorAxis.x, majorAxis.y)
     let minorRadius = majorRadius * ratio
-
-    let rotation = atan2(
-        majorAxis.y,
-        majorAxis.x
-    )
+    let rotation = atan2(majorAxis.y, majorAxis.x)
 
     let path = STBezierPath()
 
-    let sampleCount = max(
-        32,
-        Int(abs(endParam - startParam) * 32 / (2 * .pi))
-    )
+    let sampleCount = max(32, Int(abs(endParam - startParam) * 32 / (2 * .pi)))
 
     for i in 0...sampleCount {
 
-        let t =
-            startParam +
-            (endParam - startParam) *
-            Double(i) /
-            Double(sampleCount)
+        let t = startParam + (endParam - startParam) * Double(i) / Double(sampleCount)
 
         // Parametric ellipse before rotation.
         let x = majorRadius * cos(t)
         let y = minorRadius * sin(t)
 
         // Rotate by major-axis angle.
-        let xr =
-            x * cos(rotation) -
-            y * sin(rotation)
-
-        let yr =
-            x * sin(rotation) +
-            y * cos(rotation)
-
-        let point = CGPoint(
-            x: center.x + xr,
-            y: center.y + yr
-        )
+        let xr = x * cos(rotation) - y * sin(rotation)
+        let yr = x * sin(rotation) + y * cos(rotation)
+        let point = CGPoint(x: center.x + xr, y: center.y + yr)
 
         if i == 0 {
             path.move(to: point)
@@ -289,29 +264,16 @@ private func ellipsePath(
     return path
 }
 
-private func textPath(
-    at point: SwiftDXF.DXF.Point,
-    height: Double,
-    rotationDeg: Double,
-    string: String) -> STBezierPath {
+private func textPath(at point: SwiftDXF.DXF.Point, height: Double, rotationDeg: Double, string: String) -> STBezierPath {
 
     let path = STBezierPath()
 
     let font = NSFont.systemFont(ofSize: height)
-
     let attributes: [NSAttributedString.Key: Any] = [
         .font: font
     ]
-
-    let attributed = NSAttributedString(
-        string: string,
-        attributes: attributes
-    )
-
-    let line = CTLineCreateWithAttributedString(
-        attributed as CFAttributedString
-    )
-
+    let attributed = NSAttributedString(string: string, attributes: attributes)
+    let line = CTLineCreateWithAttributedString(attributed as CFAttributedString)
     let runs = CTLineGetGlyphRuns(line) as NSArray
 
     // This is primarily useful if you actually need
