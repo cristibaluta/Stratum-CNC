@@ -22,11 +22,35 @@ class DXFImporter: Importer {
         print(dwg.version)          // e.g. "AC1009" (R12)
         print(dwg.counts.total)     // entities read
 
+        // Group the flat, unordered entity list into contours (connected
+        // chains of LINE/ARC/LWPOLYLINE/partial-ELLIPSE entities, plus one
+        // standalone contour each for circles/points/text/closed polylines/
+        // full ellipses/dimensions) before building bezier paths. Without
+        // this, a profile made of several DXF primitives becomes N
+        // unconnected paths — selectable and machinable only one segment
+        // at a time. See DXF+Chaining.swift.
+        let contours = EntityChainer.chain(dwg.entities)
+
         var paths: [STBezierPath] = []
-        for entity in dwg.entities {
-            if let path = entity.bezierPath() {
-                paths.append(path)
+        for contour in contours {
+
+            let path = STBezierPath()
+            for (index, chained) in contour.entities.enumerated() {
+                chained.entity.appendTo(path, isFirst: index == 0, reversed: chained.reversed)
             }
+            if contour.isClosed {
+                path.close()
+            }
+
+            // A DIMENSION entity (or a TEXT entity, since glyph outlines
+            // aren't built yet — see DXF+Chaining.swift) draws nothing.
+            // Skip the resulting empty path rather than adding a
+            // zero-bounds phantom entry to `paths`.
+            guard path.elementCount > 0 else {
+                continue
+            }
+
+            paths.append(path)
         }
 
         // ObjectFactory normalizes both paths and entities relative to the
