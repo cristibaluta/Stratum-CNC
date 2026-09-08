@@ -37,6 +37,7 @@ ProjectModel (owns ProjectData)
 */
 
 import SwiftUI
+import Combine
 
 enum ActiveTab: String, CaseIterable, Identifiable {
     case cam = "CAM"
@@ -69,6 +70,15 @@ class ProjectModel: ObservableObject {
 
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+
+    // Rapid-fire edits (dragging an object, nudging it, live-typing in the
+    // inspector) each call through to here — writing to disk on every one
+    // would mean dozens of writes per second. Every save request goes
+    // through this subject instead of hitting disk directly; `debounce`
+    // waits for a quiet gap before actually saving, so a burst of changes
+    // collapses into a single write once the user pauses.
+    private let saveMetadataTrigger = PassthroughSubject<Void, Never>()
+    private var cancellables = Set<AnyCancellable>()
 
     init(project: Project, paths: ProjectPaths) {
         self.project = project
@@ -108,7 +118,7 @@ class ProjectModel: ObservableObject {
 //        }
         camModel.onStockChanged = { [weak self] stock in
             self?.projectData.stock = stock
-            try? self?.saveProjectMetadata()
+            self?.saveMetadataTrigger.send(())
         }
 
         camModel.onToolpathsChanged = { [weak self] toolpaths in
@@ -126,8 +136,15 @@ class ProjectModel: ObservableObject {
         // a chance to apply it.
         camModel.onObjectsChanged = { [weak self] objects in
             self?.updateAssetTransforms(from: objects)
-            try? self?.saveProjectMetadata()
+            self?.saveMetadataTrigger.send(())
         }
+
+        saveMetadataTrigger
+            .debounce(for: .milliseconds(5000), scheduler: DispatchQueue.main)
+            .sink { [weak self] in
+                try? self?.saveProjectMetadata()
+            }
+            .store(in: &cancellables)
     }
 
     func loadProjectData() {
