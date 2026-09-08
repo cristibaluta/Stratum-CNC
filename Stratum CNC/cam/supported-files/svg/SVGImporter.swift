@@ -21,7 +21,6 @@ class SVGImporter: Importer {
         print(svg.attributeKeys)
 
         var bezierPaths: [STBezierPath] = []
-        var entities: [DXF.Entity] = []
         let svgPaths: [SVGBezierPath] = svg.paths
         for path in svgPaths {
 //            print(path.svgAttributes)
@@ -29,7 +28,6 @@ class SVGImporter: Importer {
             // Some svgs (saved by Inkscape) do not have the real values that will match the viewbox
             // But they contain a transform we can use to scale everything down
             if let cg = path.svgAttributes["transform"] as? CGAffineTransform {
-                let p = path
                 let nsTransform = AffineTransform(
                     m11: cg.a,
                     m12: cg.b,
@@ -38,27 +36,25 @@ class SVGImporter: Importer {
                     tX: cg.tx,
                     tY: cg.ty
                 )
-                p.transform(using: nsTransform)
-                bezierPaths.append(p)
-                entities += p.dxfEntities()
-            } else {
-                bezierPaths.append(path)
-                entities += path.dxfEntities()
+                path.transform(using: nsTransform)
             }
+            bezierPaths.append(path)
         }
 
         #if os(macOS)
         // SVG coordinate system starts from top-left
         // Mac coordinate system starts from bottom-left
         // We need to flip all the y values of the bezierPaths while maintaining the viewbox
-        let flippedPaths = bezierPaths.map { $0.pathWithFlippedY(inHeight: svg.viewBox.height) }
-        bezierPaths = flippedPaths
+        bezierPaths = bezierPaths.map { $0.pathWithFlippedY(inHeight: svg.viewBox.height) }
         #endif
 
-        if let object = factory.makeObject(name: url.lastPathComponent, paths: bezierPaths, entities: entities) {
-            return object
-        }
-        return nil
+        // Derive entities from the final, already-flipped paths so `entities`
+        // describes the exact same orientation as `paths` — computing them
+        // beforehand (from pre-flip geometry) would leave entities mirrored
+        // vertically relative to what's actually drawn.
+        let entities = bezierPaths.flatMap { $0.dxfEntities() }
+
+        return factory.makeObject(name: url.lastPathComponent, paths: bezierPaths, entities: entities)
     }
 }
 

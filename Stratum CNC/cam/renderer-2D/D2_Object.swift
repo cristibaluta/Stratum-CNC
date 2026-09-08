@@ -102,4 +102,49 @@ final class D2_Object {
 
         return result
     }
+
+    // MARK: G-code / export geometry
+
+    /// `entities` transformed into world/machine space using this object's
+    /// *current* position, scale and rotation.
+    ///
+    /// `entities` itself is stored once, at import time, in the same local
+    /// (origin-at-0,0, unrotated, 1:1) frame `paths` uses — it never changes
+    /// when the object is moved/resized/rotated. G-code generation should
+    /// always read `machineEntities`, computed fresh here, and never
+    /// `entities` directly: that guarantees the toolpath always matches
+    /// whatever is currently drawn on screen, instead of wherever the object
+    /// happened to sit at import time.
+    var machineEntities: [DXF.Entity] {
+        entities.map {
+            $0.resolved(worldPoint: worldPoint(fromLocal:),
+                       worldVector: worldVector(fromLocal:),
+                       scale: scale,
+                       rotationDegrees: rotationDegrees)
+        }
+    }
+
+    /// Maps a point in this object's local coordinate space into world
+    /// space, using the exact same translate/scale/rotate math
+    /// `D2_ObjectNode.update` uses to place the CALayer on screen. Keeping
+    /// this in sync with that method is what keeps drawing and machining
+    /// in agreement.
+    func worldPoint(fromLocal local: CGPoint) -> CGPoint {
+        let half = CGPoint(x: originalSize.width / 2, y: originalSize.height / 2)
+        let centered = CGPoint(x: (local.x - half.x) * scale, y: (local.y - half.y) * scale)
+        let angle = rotationDegrees * .pi / 180
+        let rotated = CGPoint(x: centered.x * cos(angle) - centered.y * sin(angle),
+                              y: centered.x * sin(angle) + centered.y * cos(angle))
+        return CGPoint(x: center.x + rotated.x, y: center.y + rotated.y)
+    }
+
+    /// Maps a local *direction* (e.g. an ellipse's `majorAxis`, which is
+    /// relative to its own center) into world space: rotated and scaled like
+    /// `worldPoint`, but never translated.
+    func worldVector(fromLocal local: CGPoint) -> CGPoint {
+        let scaled = CGPoint(x: local.x * scale, y: local.y * scale)
+        let angle = rotationDegrees * .pi / 180
+        return CGPoint(x: scaled.x * cos(angle) - scaled.y * sin(angle),
+                       y: scaled.x * sin(angle) + scaled.y * cos(angle))
+    }
 }

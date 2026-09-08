@@ -15,36 +15,25 @@ class DXFImporter: Importer {
     private let factory = ObjectFactory()
 
     func parse(url: URL) -> D2_Object? {
-        
+
         guard let dwg = try? DXF.read(contentsOf: url) else {
             return nil
         }
         print(dwg.version)          // e.g. "AC1009" (R12)
         print(dwg.counts.total)     // entities read
-        print(dwg.bounds as Any)
-        var w = 100.0
-        var h = 297.0
-        var position = CGPoint.zero
-        if let bounds = dwg.bounds {
-            w = bounds.max.x - bounds.min.x
-            h = bounds.max.y - bounds.min.y
-            position = CGPoint(x: bounds.min.x, y: bounds.min.y)
-        }
 
         var paths: [STBezierPath] = []
         for entity in dwg.entities {
-            print(entity)
             if let path = entity.bezierPath() {
                 paths.append(path)
             }
         }
-        let obj = D2_Object(name: url.lastPathComponent,
-                            paths: paths,
-                            entities: dwg.entities,
-                            position: position,
-                            originalSize: CGSize(width: w, height: h),
-                            width: w)
-        return obj
+
+        // ObjectFactory normalizes both paths and entities relative to the
+        // same bounds, so they stay in agreement about where local (0, 0)
+        // is — this used to be built by hand here, in un-normalized file
+        // coordinates, which disagreed with `paths`.
+        return factory.makeObject(name: url.lastPathComponent, paths: paths, entities: dwg.entities)
     }
 }
 
@@ -128,12 +117,6 @@ extension DXF.Entity {
             // dimension glyph geometry.
             return nil
         }
-    }
-}
-
-extension DXF.Point {
-    var cgPoint: CGPoint {
-        CGPoint(x: x, y: y)
     }
 }
 

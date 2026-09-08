@@ -26,11 +26,16 @@ struct ObjectFactory {
         let normalizedPaths = paths.map {
             $0.normalize(relativeTo: combinedBounds)
         }
+        // Keep entities describing the exact same local (0,0)-origin frame
+        // as paths — see DXF+Transform.swift. Without this they'd stay in
+        // raw import coordinates while paths get normalized, and the two
+        // would silently disagree about where the geometry sits.
+        let normalizedEntities = entities.normalized(relativeTo: combinedBounds)
 
         return D2_Object(
             name: name,
             paths: normalizedPaths,
-            entities: entities,
+            entities: normalizedEntities,
             position: CGPoint(x: combinedBounds.minX, y: combinedBounds.minY),
             originalSize: originalSize,
             width: originalSize.width
