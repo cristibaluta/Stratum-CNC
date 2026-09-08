@@ -42,6 +42,14 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// instead of the stale default it used to be stuck at.
     @Published var zoomScale: CGFloat = 1
 
+    /// Invoked after any edit that changes an object's persisted transform
+    /// (position, width/scale, rotation) or the object list itself
+    /// (add/remove). ProjectModel listens to this to keep
+    /// `ProjectData.assets[].transform` in sync and persist it to disk.
+    /// Not invoked by `restoreTransform`, since that's the load path itself
+    /// writing back values that already came from disk.
+    var onObjectsChanged: (() -> Void)?
+
     // MARK: Objects
 
     func add(_ object: D2_Object, select: Bool) {
@@ -50,21 +58,25 @@ final class D2_CanvasState: ObservableObject, Equatable {
         if select {
             selectObject(object.id)
         }
+        onObjectsChanged?()
     }
 
     func setObjects(_ objects: [D2_Object]) {
         self.objects = objects
+        onObjectsChanged?()
     }
 
     func removeObject(_ id: UUID) {
         objects.removeAll { $0.id == id }
         selectedObjectIDs.remove(id)
         selectedPaths.removeAll { $0.objectID == id }
+        onObjectsChanged?()
     }
 
     func removeAll() {
         objects.removeAll()
         clearSelection()
+        onObjectsChanged?()
     }
 
     func object(withID id: UUID) -> D2_Object? {
@@ -144,6 +156,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
         guard let object = object(withID: id) else { return }
         objectWillChange.send()
         object.position = position
+        onObjectsChanged?()
     }
 
     /// Used by the inspector's text fields (X, Y, Width, Height, Rotation).
@@ -157,6 +170,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
         case .height: object.setHeight(value)
         case .rotation: object.setRotation(value)
         }
+        onObjectsChanged?()
     }
 
     /// Used by the inspector's +1/-1 nudge buttons.
@@ -168,6 +182,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
         case .y: object.position.y += amount
         default: break
         }
+        onObjectsChanged?()
     }
 
     /// Used by the inspector's ÷2/×2 buttons.
@@ -177,6 +192,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
         object.width = factor > 0
             ? max(object.width * CGFloat(factor), 0.001)
             : max(object.width / CGFloat(-factor), 0.001)
+        onObjectsChanged?()
     }
 
     /// Used by the inspector's -90°/+90° buttons.
@@ -184,6 +200,21 @@ final class D2_CanvasState: ObservableObject, Equatable {
         guard let object = object(withID: objectID) else { return }
         objectWillChange.send()
         object.rotate(by: degrees)
+        onObjectsChanged?()
+    }
+
+    /// Applies a previously-saved position/width/rotation to an object.
+    /// Used only when restoring a project from disk on load, to put an
+    /// object back where the user left it. Deliberately does NOT invoke
+    /// `onObjectsChanged` — the caller here *is* the load path, so writing
+    /// these same values straight back into ProjectData would be a
+    /// redundant (if harmless) save.
+    func restoreTransform(_ transform: AssetTransform, objectID: UUID) {
+        guard let object = object(withID: objectID) else { return }
+        objectWillChange.send()
+        object.position = CGPoint(x: transform.x, y: transform.y)
+        object.width = max(transform.width, 0.001)
+        object.rotationDegrees = transform.rotation
     }
 
     static func == (lhs: borrowing D2_CanvasState, rhs: borrowing D2_CanvasState) -> Bool {

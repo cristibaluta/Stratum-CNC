@@ -117,6 +117,17 @@ class ProjectModel: ObservableObject {
         }
 
         loadProjectData()
+
+        // Wired up only after the initial load/restore above has finished:
+        // loadProjectData() itself calls camModel.loadAndParseFileAt for
+        // every saved asset, which would otherwise fire this callback with
+        // each object's just-created *default* transform and immediately
+        // persist that over the real saved one, before restoreTransform has
+        // a chance to apply it.
+        camModel.onObjectsChanged = { [weak self] objects in
+            self?.updateAssetTransforms(from: objects)
+            try? self?.saveProjectMetadata()
+        }
     }
 
     func loadProjectData() {
@@ -125,10 +136,13 @@ class ProjectModel: ObservableObject {
             camModel.selectedStockMaterial = stock
         }
 
-        // 2. Load assets and import into CAM
+        // 2. Load assets and import into CAM, then restore each object's
+        // saved position/scale/rotation on top of the freshly-parsed one.
         for asset in projectData.assets ?? [] {
             let url = paths.assetsDirectory.appendingPathComponent(asset.name)
-            camModel.loadAndParseFileAt(url)
+            if let object = camModel.loadAndParseFileAt(url), let transform = asset.transform {
+                camModel.canvasState.restoreTransform(transform, objectID: object.id)
+            }
         }
 
         // 3. Load toolpaths and display in CAM
@@ -161,6 +175,25 @@ class ProjectModel: ObservableObject {
         try saveProjectMetadata()
 
         return asset
+    }
+
+    /// Mirrors each live canvas object's position/scale/rotation back into
+    /// `projectData.assets`, matched by file name (the same name both
+    /// `AssetData` and `D2_Object` use). Called whenever the canvas reports
+    /// an object was added, removed, moved, resized, or rotated, so the
+    /// transform on disk always matches what's currently on screen.
+    private func updateAssetTransforms(from objects: [D2_Object]) {
+        guard var assets = projectData.assets, !assets.isEmpty else { return }
+
+        for object in objects {
+            guard let index = assets.firstIndex(where: { $0.name == object.name }) else { continue }
+            assets[index].transform = AssetTransform(x: object.position.x,
+                                                      y: object.position.y,
+                                                      width: object.width,
+                                                      height: object.height,
+                                                      rotation: object.rotationDegrees)
+        }
+        projectData.assets = assets
     }
 
     private func saveProjectMetadata() throws {

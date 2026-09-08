@@ -53,6 +53,11 @@ class CAMModel: ObservableObject {
     // ---- CALLBACKS FOR PERSISTENCE ----
     var onStockChanged: ((StockMaterial) -> Void)?
     var onToolpathsChanged: (([ToolpathData]) -> Void)?
+    /// Fired after any object is added/removed/moved/resized/rotated on the
+    /// canvas, with the full current object list. ProjectModel uses this to
+    /// mirror each object's transform back into `ProjectData.assets` and
+    /// persist it.
+    var onObjectsChanged: (([D2_Object]) -> Void)?
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -71,9 +76,15 @@ class CAMModel: ObservableObject {
         canvasState.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+
+        canvasState.onObjectsChanged = { [weak self] in
+            guard let self else { return }
+            self.onObjectsChanged?(self.canvasState.objects)
+        }
     }
 
-    func loadAndParseFileAt(_ url: URL) {
+    @discardableResult
+    func loadAndParseFileAt(_ url: URL) -> D2_Object? {
 
         let ext = url.pathExtension
 
@@ -81,16 +92,19 @@ class CAMModel: ObservableObject {
             case "svg":
                 if let obj = SVGImporter().parse(url: url) {
                     canvasState.add(obj, select: false)
+                    return obj
                 }
             case "dxf":
                 if let obj = DXFImporter().parse(url: url) {
                     canvasState.add(obj, select: false)
+                    return obj
                 }
             case "step", "stp":
                 print("import step")
             default:
                 print("Unsupported file type: \(ext)")
         }
+        return nil
     }
 
     func clear() {
