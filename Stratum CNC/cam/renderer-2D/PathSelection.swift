@@ -9,7 +9,7 @@ import Foundation
 
 // The paths you click in a 2D drawing
 
-struct PathSelection: Hashable {
+struct PathSelection: Hashable, Codable {
     let objectID: UUID
     let pathIndex: Int
 }

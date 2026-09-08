@@ -11,8 +11,6 @@ import AppKit
 
 enum GCodeGenerator {
 
-    /// Units the G-code output should declare and assume all numeric
-    /// parameters (feeds, depths, Z heights) are expressed in.
     enum Units {
         case millimeters
         case inches
@@ -25,40 +23,11 @@ enum GCodeGenerator {
         }
     }
 
-    /// Generates a complete G-code program from an array of subpaths
-    /// (each subpath an array of NSPoint, e.g. from BezierPathFlattener).
-    ///
-    /// - Parameters:
-    ///   - subpaths: array of point arrays, one per continuous cut path.
-    ///   - units: mm or inches — must match the units your points/depths/feeds are in.
-    ///   - safeHeightZ: Z height for rapid travel between cuts. Must clear all clamps/stock.
-    ///   - cutDepthZ: Z height (typically negative) the tool plunges down to for cutting.
-    ///     Pass a single final depth here; for multi-pass depth-of-cut, see `passDepths`.
-    ///   - passDepths: optional explicit list of Z depths to cut at, in order
-    ///     (e.g. [-1.0, -2.0, -3.0] to rough down in three passes). If provided,
-    ///     this overrides `cutDepthZ` and each subpath is fully retraced at every
-    ///     depth before moving to the next subpath. If nil, `cutDepthZ` is used once.
-    ///   - feedRateCut: feedrate (units/min) for lateral cutting moves (G1 X Y).
-    ///   - feedRatePlunge: feedrate (units/min) for the vertical plunge move (G1 Z).
-    ///     Usually significantly slower than feedRateCut to avoid tool/machine strain.
-    ///   - feedRateRetract: feedrate for the retract move. If nil, retract is done
-    ///     as a rapid (G0) instead of a controlled feed — fine for air moves with
-    ///     no obstructions above the stock; use a feed here instead if you need a
-    ///     controlled vertical exit (e.g. very deep or fragile setups).
-    ///   - spindleSpeed: RPM for M3 spindle-on command. Pass nil to omit spindle
-    ///     control entirely (e.g. for a laser or plotter setup).
-    ///   - rapidFeedRate: informational only — most controllers use a fixed max
-    ///     rapid rate (G0 doesn't take an F parameter). Included so you can
-    ///     document/comment it, or use it for time estimation elsewhere.
-    ///   - closePathTolerance: if the last point of a subpath is within this
-    ///     distance of the first point, treated as already closed (avoids a
-    ///     redundant zero-length final move). Set to 0 to disable the check.
-    ///   - coordinateDecimalPlaces: rounding precision for emitted X/Y/Z values.
-    ///   - preamble: extra raw G-code lines inserted after the units/positioning
-    ///     setup and before the first move (e.g. work offset G54, tool number).
-    ///   - postamble: extra raw G-code lines appended at the very end, after
-    ///     spindle-off and final retract (e.g. program end M30).
-    /// - Returns: the full G-code program as a newline-separated string.
+    /// - Parameters: (unchanged params omitted from doc for brevity — see original)
+    ///   - ramp: if provided and `enabled`, each pass's plunge ramps in along
+    ///     the start of the path instead of dropping straight down. Only
+    ///     `.linear` is implemented; `.helix` falls back to a straight plunge
+    ///     with a `; NOTE:` comment rather than silently pretending to ramp.
     static func generate(
         subpaths: [[NSPoint]],
         units: Units = .millimeters,
@@ -72,6 +41,7 @@ enum GCodeGenerator {
         rapidFeedRate: Double? = nil,
         closePathTolerance: Double = 0.001,
         coordinateDecimalPlaces: Int = 2,
+        ramp: RampingSettings? = nil,
         preamble: [String] = [],
         postamble: [String] = ["M30 ; program end"]
     ) -> String {
@@ -81,8 +51,6 @@ enum GCodeGenerator {
         func fmt(_ value: Double) -> String {
             String(format: "%.\(coordinateDecimalPlaces)f", value)
         }
-
-        // MARK: Header
 
         lines.append(units.gcodeHeader)
         lines.append("G90 ; absolute positioning")
@@ -97,8 +65,6 @@ enum GCodeGenerator {
         }
 
         lines.append("G0 Z\(fmt(safeHeightZ)) ; retract to safe height before starting")
-
-        // MARK: Determine depth passes
 
         let depths: [Double] = passDepths ?? [cutDepthZ]
 
@@ -118,37 +84,89 @@ enum GCodeGenerator {
 
         // MARK: Cutting passes
 
+        var previousDepths = [Double](repeating: 0, count: subpaths.count) // Z0 = top of material
+        var warnedHelix = false
+
         for depth in depths {
-            for subpath in subpaths {
+            for (subpathIndex, subpath) in subpaths.enumerated() {
                 guard let first = subpath.first else { continue }
 
-                // Normalize: drop a redundant final point that just re-closes the start.
                 var points = subpath
                 if let last = points.last, points.count > 1,
                    closePathTolerance > 0,
                    distance(last, first) <= closePathTolerance {
                     points.removeLast()
-                    points.append(first) // keep an explicit close, but only one
+                    points.append(first)
                 }
 
-                // Rapid to start of this subpath at safe height.
+                let previousDepth = previousDepths[subpathIndex]
+                let stepdown = previousDepth - depth // positive: how far this pass must plunge
+
                 emitMove(command: "G0", x: Double(first.x), y: Double(first.y))
 
-                // Plunge down to this pass's cut depth.
-                emitMove(command: "G1", z: depth, feed: feedRatePlunge)
+                if let ramp, ramp.enabled, ramp.type != .none, points.count > 2, stepdown > 0.0001 {
 
-                // Cut along every subsequent point at cutting feed.
+                    if ramp.type == .helix {
+                        if !warnedHelix {
+                            lines.append("; NOTE: helix ramping isn't implemented yet — plunging straight instead")
+                            warnedHelix = true
+                        }
+                        emitMove(command: "G1", z: depth, feed: feedRatePlunge)
+
+                    } else { // .linear
+                        let outcome = RampMath.linearRampOutcome(angle: ramp.angle, length: ramp.length, stepdown: stepdown)
+                        let totalLength = Self.pathLength(points)
+                        let usedLength = min(outcome.usedLength, totalLength * 0.9)
+                        let (rampPoints, splitSegmentIndex) = Self.rampPrefix(points, distance: usedLength)
+
+                        if !outcome.reachesStepdown || usedLength < outcome.usedLength {
+                            lines.append("; WARNING: ramp length \(fmt(ramp.length)) at \(fmt(ramp.angle))deg is short for a \(fmt(stepdown)) stepdown — finishing this pass's plunge straight")
+                        }
+
+                        // Ramp down: Z interpolated across the ramp's XY travel.
+                        for (point, dist) in rampPoints.dropFirst() {
+                            let reachedFraction = min(dist / max(usedLength, 0.0001), 1.0)
+                            let z = previousDepth - stepdown * reachedFraction
+                            emitMove(command: "G1", x: Double(point.x), y: Double(point.y), z: z, feed: feedRatePlunge)
+                        }
+                        // Guarantees full depth even if the ramp came up short (warned above).
+                        emitMove(command: "G1", z: depth, feed: feedRatePlunge)
+
+                        // Ramp back: retrace the same stretch at full depth.
+                        for (point, _) in rampPoints.reversed().dropFirst() {
+                            emitMove(command: "G1", x: Double(point.x), y: Double(point.y), feed: feedRateCut)
+                        }
+
+                        // Continue the normal cut for the rest of the loop.
+                        for point in points[(splitSegmentIndex + 1)...] {
+                            emitMove(command: "G1", x: Double(point.x), y: Double(point.y), feed: feedRateCut)
+                        }
+
+                        if let feedRateRetract {
+                            emitMove(command: "G1", z: safeHeightZ, feed: feedRateRetract)
+                        } else {
+                            lastFeedEmitted = nil
+                            emitMove(command: "G0", z: safeHeightZ)
+                        }
+                        previousDepths[subpathIndex] = depth
+                        continue
+                    }
+                } else {
+                    emitMove(command: "G1", z: depth, feed: feedRatePlunge)
+                }
+
                 for point in points.dropFirst() {
                     emitMove(command: "G1", x: Double(point.x), y: Double(point.y), feed: feedRateCut)
                 }
 
-                // Retract to safe height before moving to the next subpath.
                 if let feedRateRetract {
                     emitMove(command: "G1", z: safeHeightZ, feed: feedRateRetract)
                 } else {
-                    lastFeedEmitted = nil // G0 carries no feed; next G1 must re-declare F
+                    lastFeedEmitted = nil
                     emitMove(command: "G0", z: safeHeightZ)
                 }
+
+                previousDepths[subpathIndex] = depth
             }
         }
 
@@ -167,36 +185,44 @@ enum GCodeGenerator {
         let dy = Double(a.y - b.y)
         return (dx * dx + dy * dy).squareRoot()
     }
+
+    private static func pathLength(_ points: [NSPoint]) -> Double {
+        guard points.count > 1 else { return 0 }
+        var total = 0.0
+        for i in 0..<(points.count - 1) {
+            total += distance(points[i], points[i + 1])
+        }
+        return total
+    }
+
+    /// Walks `points` from the start, returning the points needed to draw a
+    /// ramp of length `distance` (each paired with cumulative distance from
+    /// the start), plus the index `i` such that the split falls within
+    /// segment `points[i]...points[i+1]` — callers resume normal cutting at
+    /// `points[i+1]`.
+    private static func rampPrefix(_ points: [NSPoint], distance: Double) -> (points: [(NSPoint, Double)], splitSegmentIndex: Int) {
+        guard points.count > 1 else { return ([(points.first ?? .zero, 0)], 0) }
+
+        var result: [(NSPoint, Double)] = [(points[0], 0)]
+        var traveled = 0.0
+
+        for i in 0..<(points.count - 1) {
+            let a = points[i]
+            let b = points[i + 1]
+            let segLength = Self.distance(a, b)
+
+            if traveled + segLength >= distance {
+                let remaining = distance - traveled
+                let t = segLength > 0 ? remaining / segLength : 0
+                let split = NSPoint(x: a.x + (b.x - a.x) * CGFloat(t), y: a.y + (b.y - a.y) * CGFloat(t))
+                result.append((split, distance))
+                return (result, i)
+            }
+
+            traveled += segLength
+            result.append((b, traveled))
+        }
+
+        return (result, points.count - 2) // distance exceeded the whole path — ramp uses all of it
+    }
 }
-
-// MARK: - Usage example
-
-/*
-let subpaths = BezierPathFlattener.flatten(svgPaths, tolerance: 0.05) // mm
-
-let gcode = GCodeGenerator.generate(
-    subpaths: subpaths,
-    units: .millimeters,
-    safeHeightZ: 5.0,
-    cutDepthZ: -2.0,
-    feedRateCut: 900,
-    feedRatePlunge: 150,
-    spindleSpeed: 15000
-)
-
-print(gcode)
-// or write to disk:
-// try? gcode.write(toFile: "/path/to/output.nc", atomically: true, encoding: .utf8)
-*/
-
-/*
-Example with multi-pass depth of cut, cutting the same outlines three times
-at increasing depth to rough out a 3mm-deep pocket outline in 1mm passes:
-
-let gcode = GCodeGenerator.generate(
-    subpaths: subpaths,
-    passDepths: [-1.0, -2.0, -3.0],
-    feedRateCut: 900,
-    feedRatePlunge: 150
-)
-*/

@@ -27,23 +27,13 @@ class GCodeStore: ObservableObject {
         return types
     }
 
-
-    func generateGCode(svgPaths: [NSBezierPath]) {
-
-        let flattenPaths = BezierPathFlattener.flatten(svgPaths, tolerance: 0.05) // mm
-
-        let gcode = GCodeGenerator.generate(
-            subpaths: flattenPaths,
-            units: .millimeters,
-            safeHeightZ: 5.0,
-            cutDepthZ: -2.0,
-            feedRateCut: 900,
-            feedRatePlunge: 150,
-            spindleSpeed: 15000
-        )
-
-        print(gcode)
-        document.load(from: gcode)
+    func generateGCode(for toolpath: ToolpathData, canvasState: D2_CanvasState) {
+        do {
+            let gcode = try ToolpathGCodeBuilder.generate(for: toolpath, canvasState: canvasState)
+            document.load(from: gcode)
+        } catch {
+            print("G-code generation failed: \(error.localizedDescription)")
+            // consider surfacing this in the UI, e.g. an @Published var lastError: String?
+        }
     }
-
 }

@@ -27,6 +27,10 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     var stepDown: Double
     var stepOver: Double
     var safeZ: Double
+
+    /// Which contour this toolpath cuts. Nil until it's assigned — e.g. by
+    /// creating the toolpath from the currently-selected contour.
+    var target: PathSelection? = nil
 }
 
 enum ContourType: String, CaseIterable, Codable, Hashable {
