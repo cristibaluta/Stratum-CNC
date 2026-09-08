@@ -307,3 +307,112 @@ private func textPath(at point: SwiftDXF.DXF.Point, height: Double, rotationDeg:
 
     return path
 }
+
+extension DXF.Entity {
+
+    /// Appends this entity's geometry onto `path`, continuing from the path's
+    /// current point. `isFirst` means this is the first entity in its contour
+    /// (so we need an initial `move(to:)`). `reversed` means EntityChainer is
+    /// walking this entity from its "b" endpoint to its "a" endpoint — the
+    /// entity's stored data is never mutated, only the direction it's drawn in.
+    func appendTo(_ path: STBezierPath, isFirst: Bool, reversed: Bool) {
+
+        switch self {
+        case let .line(a, b, _, _):
+            let start = reversed ? b.cgPoint : a.cgPoint
+            let end = reversed ? a.cgPoint : b.cgPoint
+            if isFirst { path.move(to: start) }
+            path.line(to: end)
+
+        case let .circle(center, radius, _, _):
+            // EntityChainer never chains circles — always its own contour.
+            path.append(STBezierPath(ovalIn: NSRect(
+                x: center.x - radius, y: center.y - radius,
+                width: radius * 2, height: radius * 2
+            )))
+
+        case let .arc(center, radius, startDeg, endDeg, _, _):
+            let start = CGFloat(startDeg)
+            var end = CGFloat(endDeg)
+            while end < start { end += 360 } // DXF arcs sweep CCW start→end
+
+            let startPoint = CGPoint(x: center.x + radius * cos(startDeg * .pi / 180),
+                                      y: center.y + radius * sin(startDeg * .pi / 180))
+            let endPoint = CGPoint(x: center.x + radius * cos(Double(end) * .pi / 180),
+                                    y: center.y + radius * sin(Double(end) * .pi / 180))
+
+            if reversed {
+                // Same physical arc, traced from `end` back down to `start`.
+                if isFirst { path.move(to: endPoint) }
+                path.appendArc(withCenter: center.cgPoint, radius: radius,
+                                startAngle: end, endAngle: start, clockwise: true)
+            } else {
+                if isFirst { path.move(to: startPoint) }
+                path.appendArc(withCenter: center.cgPoint, radius: radius,
+                                startAngle: start, endAngle: end, clockwise: false)
+            }
+
+        case let .ellipse(center, majorAxis, ratio, startParam, endParam, _, _):
+            // EntityChainer never chains ellipses — always its own contour.
+            path.append(ellipsePath(center: center, majorAxis: majorAxis, ratio: ratio,
+                                     startParam: startParam, endParam: endParam))
+
+        case let .point(at, _, _):
+            let size = 1.0
+            path.move(to: CGPoint(x: at.x - size, y: at.y))
+            path.line(to: CGPoint(x: at.x + size, y: at.y))
+            path.move(to: CGPoint(x: at.x, y: at.y - size))
+            path.line(to: CGPoint(x: at.x, y: at.y + size))
+
+        case let .text(at, height, rotationDeg, string, _, _):
+            path.append(textPath(at: at, height: height, rotationDeg: rotationDeg, string: string))
+
+        case let .polyline(vertices, closed, _, _):
+            let ordered = reversed ? Self.reversedVertices(vertices, closed: closed) : vertices
+            appendPolyline(vertices: ordered, closed: closed, isFirst: isFirst, to: path)
+
+        case .dimension:
+            break // no drawable geometry
+        }
+    }
+
+    /// Reverses vertex order for traversal, negating each bulge so curved
+    /// segments still trace the same physical arc, just the other way.
+    /// Bulge is stored on the *start* vertex of the segment it curves.
+    private static func reversedVertices(_ vertices: [DXF.PolyVertex], closed: Bool) -> [DXF.PolyVertex] {
+        let n = vertices.count
+        guard n > 1 else { return vertices }
+        return (0..<n).map { i in
+            let originalIndex = n - 1 - i
+            let bulgeSourceIndex = originalIndex - 1
+            let bulge: Double
+            if bulgeSourceIndex >= 0 {
+                bulge = -vertices[bulgeSourceIndex].bulge
+            } else if closed {
+                bulge = -vertices[n - 1].bulge
+            } else {
+                bulge = 0
+            }
+            return DXF.PolyVertex(vertices[originalIndex].point, bulge: bulge)
+        }
+    }
+}
+
+private func appendPolyline(vertices: [DXF.PolyVertex], closed: Bool, isFirst: Bool, to path: STBezierPath) {
+    guard vertices.count >= 2 else { return }
+
+    if isFirst {
+        path.move(to: vertices[0].point.cgPoint)
+    }
+
+    let segmentCount = closed ? vertices.count : (vertices.count - 1)
+    for i in 0..<segmentCount {
+        let current = vertices[i]
+        let next = vertices[(i + 1) % vertices.count]
+        if abs(current.bulge) < 1e-12 {
+            path.line(to: next.point.cgPoint)
+        } else {
+            appendBulgeArc(to: path, from: current.point, to: next.point, bulge: current.bulge)
+        }
+    }
+}

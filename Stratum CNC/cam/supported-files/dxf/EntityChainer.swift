@@ -20,17 +20,15 @@ enum EntityChainer {
                     return (a.cgPoint, b.cgPoint)
 
                 case let .polyline(vertices, _, _, _):
-                    guard let f = vertices.first, let l = vertices.last else {
-                        return nil
-                    }
+                    guard let f = vertices.first, let l = vertices.last else { return nil }
                     return (f.point.cgPoint, l.point.cgPoint)
 
                 case let .arc(center, r, start, end, _, _):
                     let s = CGPoint(x: center.x + r*cos(start * .pi/180), y: center.y + r*sin(start * .pi/180))
                     let e2 = CGPoint(x: center.x + r*cos(end * .pi/180), y: center.y + r*sin(end * .pi/180))
                     return (s, e2)
-                    
-                default: return nil // circles/points/text/dimension: standalone
+
+                default: return nil // circles/points/text/ellipse/dimension: standalone
             }
         }
 
@@ -42,30 +40,24 @@ enum EntityChainer {
             guard !remaining[startIndex].used, let (s0, e0) = endpoints(remaining[startIndex].entity) else {
                 continue
             }
-            if remaining[startIndex].used {
-                continue
-            }
 
-            var chain: [DXF.Entity] = [remaining[startIndex].entity]
+            var chain: [Contour.Chained] = [Contour.Chained(entity: remaining[startIndex].entity, reversed: false)]
             remaining[startIndex].used = true
             var tail = e0
 
             var extended = true
-
             while extended {
                 extended = false
                 for i in remaining.indices where !remaining[i].used {
-                    guard let (a, b) = endpoints(remaining[i].entity) else {
-                        continue
-                    }
+                    guard let (a, b) = endpoints(remaining[i].entity) else { continue }
                     if close(tail, a) {
-                        chain.append(remaining[i].entity)
+                        chain.append(Contour.Chained(entity: remaining[i].entity, reversed: false))
                         remaining[i].used = true
                         tail = b
                         extended = true
                         break
                     } else if close(tail, b) {
-                        chain.append(remaining[i].entity.reversed())
+                        chain.append(Contour.Chained(entity: remaining[i].entity, reversed: true))
                         remaining[i].used = true
                         tail = a
                         extended = true
@@ -77,9 +69,8 @@ enum EntityChainer {
             contours.append(Contour(entities: chain, isClosed: close(tail, s0)))
         }
 
-        // Anything without endpoints (circle, point, text) becomes its own single-entity contour
         for i in remaining.indices where !remaining[i].used {
-            contours.append(Contour(entities: [remaining[i].entity], isClosed: true))
+            contours.append(Contour(entities: [Contour.Chained(entity: remaining[i].entity, reversed: false)], isClosed: true))
             remaining[i].used = true
         }
 

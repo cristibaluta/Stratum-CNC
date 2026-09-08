@@ -8,6 +8,10 @@
 import SwiftDXF
 
 struct Contour {
-    let entities: [DXF.Entity]   // ordered, oriented so each entity's end == next entity's start
+    struct Chained {
+        let entity: DXF.Entity
+        let reversed: Bool   // true if this entity is walked from its "b" endpoint to its "a" endpoint
+    }
+    let entities: [Chained]
     let isClosed: Bool
 }
