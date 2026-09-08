@@ -12,6 +12,14 @@ enum StockGeometry: Codable, Hashable, CaseIterable {
     case cylindrical(diameter: Double, length: Double)
     case disk(outerDiameter: Double, innerDiameter: Double, depth: Double)
 
+    var id: String {
+        switch self {
+        case .rectangular: return "rectangular"
+        case .cylindrical: return "cylindrical"
+        case .disk: return "disk"
+        }
+    }
+
     var displayName: String {
         switch self {
             case .rectangular: "Rectangular"

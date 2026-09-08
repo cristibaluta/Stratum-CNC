@@ -15,6 +15,8 @@ struct MaterialPanelView: View {
     /// equal — this view no longer needs to know ProjectData exists at all.
     @Binding var isStockVisible: Bool
 
+    @State private var selectedShapeID = "rectangular"
+
     var body: some View {
         GroupBox("MATERIAL") {
             HStack(spacing: 8) {
@@ -28,10 +30,19 @@ struct MaterialPanelView: View {
                 }
                 .labelsHidden()
 
-                Picker("Geometry", selection: shapeBinding) {
-                    ForEach(StockGeometry.allCases, id: \.self) { shape in
+                Picker("Geometry", selection: Binding(
+                    get: {
+                        shapeBinding.wrappedValue.id
+                    },
+                    set: { newID in
+                        if let newShape = StockGeometry.allCases.first(where: { $0.id == newID }) {
+                            shapeBinding.wrappedValue = newShape
+                        }
+                    }
+                )) {
+                    ForEach(StockGeometry.allCases, id: \.id) { shape in
                         Text(shape.displayName)
-                            .tag(shape)
+                            .tag(shape.id)
                     }
                 }
                 .labelsHidden()

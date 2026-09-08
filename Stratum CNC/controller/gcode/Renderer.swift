@@ -89,12 +89,7 @@ final class Renderer: NSObject, MTKViewDelegate {
         return vertices
     }
 
-    private func boxVertices(
-        origin: SIMD3<Float>,
-        width: Float,
-        height: Float,
-        depth: Float
-    ) -> [SIMD3<Float>] {
+    private func boxVertices(origin: SIMD3<Float>, width: Float, height: Float, depth: Float) -> [SIMD3<Float>] {
 
         let x = width / 2
         let y = height / 2
@@ -176,17 +171,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         super.init()
 
-        // ---------------------------------------------------------
-        // Geometry
-        // ---------------------------------------------------------
-
-        let vertices: [SIMD3<Float>] =
-            axisVertices + boxVertices(
-                origin: SIMD3<Float>(75, 12.5, 1),
-                width: 150,
-                height: 25,
-                depth: 2
-            )
+        let vertices: [SIMD3<Float>] = axisVertices + boxVertices(origin: SIMD3<Float>(75, 12.5, 1), width: 150, height: 25, depth: -2)
 
         guard let buffer = device.makeBuffer(
             bytes: vertices,
@@ -256,10 +241,7 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // MARK: Camera helpers
 
-    private func orbit(
-        dx: Float,
-        dy: Float
-    ) {
+    private func orbit(dx: Float, dy: Float) {
 
         let sensitivity: Float = 0.008
 
@@ -278,16 +260,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         // Prevent the camera from flipping upside down.
         let limit = Float.pi / 2 - 0.01
 
-        pitch = max(
-            -limit,
-            min(limit, pitch)
-        )
+        pitch = max(-limit, min(limit, pitch))
     }
 
-    private func pan(
-        dx: Float,
-        dy: Float
-    ) {
+    private func pan(dx: Float, dy: Float) {
 
         // Camera position relative to target.
         let direction = simd_normalize(
@@ -300,19 +276,12 @@ final class Renderer: NSObject, MTKViewDelegate {
         // horizontal panning remains stable.
         let worldUp = SIMD3<Float>(0, 1, 0)
 
-        var right = simd_cross(
-            worldUp,
-            direction
-        )
-
+        var right = simd_cross(worldUp, direction)
         right = simd_normalize(right)
 
         // Screen-up vector.
         let up = simd_normalize(
-            simd_cross(
-                direction,
-                right
-            )
+            simd_cross(direction, right)
         )
 
         // Scale panning with zoom level.
@@ -330,17 +299,12 @@ final class Renderer: NSObject, MTKViewDelegate {
     // MARK: Mouse / Trackpad pan
 
     @objc
-    func handlePan(
-        _ gesture: NSPanGestureRecognizer
-    ) {
+    func handlePan(_ gesture: NSPanGestureRecognizer) {
 
-        let translation =
-            gesture.translation(in: gesture.view)
+        let translation = gesture.translation(in: gesture.view)
 
         if gesture.state == .began {
-
             lastPanTranslation = translation
-
             return
         }
 
@@ -348,30 +312,17 @@ final class Renderer: NSObject, MTKViewDelegate {
             return
         }
 
-        let dx = Float(
-            translation.x -
-            lastPanTranslation.x
-        )
-
-        let dy = Float(
-            translation.y -
-            lastPanTranslation.y
-        )
+        let dx = Float(translation.x - lastPanTranslation.x)
+        let dy = Float(translation.y - lastPanTranslation.y)
 
         lastPanTranslation = translation
 
         // Shift + drag = orbit
         // Normal drag   = pan
         if NSEvent.modifierFlags.contains(.shift) {
-            orbit(
-                dx: dx,
-                dy: -dy
-            )
+            orbit(dx: dx, dy: -dy)
         } else {
-            pan(
-                dx: dx,
-                dy: -dy
-            )
+            pan(dx: dx, dy: -dy)
         }
 
         requestRedraw()
@@ -379,7 +330,9 @@ final class Renderer: NSObject, MTKViewDelegate {
     }
 
     private func requestRedraw() {
-        guard let metalView else { return }
+        guard let metalView else {
+            return
+        }
         metalView.setNeedsDisplay(metalView.bounds)
     }
 
@@ -390,15 +343,10 @@ final class Renderer: NSObject, MTKViewDelegate {
 
         if gesture.state == .changed {
 
-            let amount =
-                Float(gesture.magnification)
+            let amount = Float(gesture.magnification)
 
             zoom *= 1 - amount
-
-            zoom = max(
-                minZoom,
-                min(maxZoom, zoom)
-            )
+            zoom = max(minZoom, min(maxZoom, zoom))
 
             gesture.magnification = 0
 
@@ -418,21 +366,12 @@ final class Renderer: NSObject, MTKViewDelegate {
 
     // MARK: MTKViewDelegate
 
-    func mtkView(
-        _ view: MTKView,
-        drawableSizeWillChange size: CGSize
-    ) {
-        viewportSize = SIMD2<Float>(
-            Float(size.width),
-            Float(size.height)
-        )
-
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        viewportSize = SIMD2<Float>(Float(size.width), Float(size.height))
         requestRedraw()
     }
 
-    func draw(
-        in view: MTKView
-    ) {
+    func draw(in view: MTKView) {
 
         guard
             let drawable = view.currentDrawable,
@@ -442,108 +381,37 @@ final class Renderer: NSObject, MTKViewDelegate {
             return
         }
 
-        let encoder =
-            commandBuffer.makeRenderCommandEncoder(
-                descriptor: descriptor
-            )!
-
-        encoder.setRenderPipelineState(
-            pipelineState
-        )
+        let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor)!
+        encoder.setRenderPipelineState(pipelineState)
 
         var viewMatrix = viewMatrix()
         var projectionMatrix = projectionMatrix()
 
-        encoder.setVertexBytes(
-            &viewMatrix,
-            length: MemoryLayout<float4x4>.stride,
-            index: 1
-        )
-
-        encoder.setVertexBytes(
-            &projectionMatrix,
-            length: MemoryLayout<float4x4>.stride,
-            index: 2
-        )
-
-        encoder.setVertexBuffer(
-            vertexBuffer,
-            offset: 0,
-            index: 0
-        )
+        encoder.setVertexBytes(&viewMatrix, length: MemoryLayout<float4x4>.stride, index: 1)
+        encoder.setVertexBytes(&projectionMatrix, length: MemoryLayout<float4x4>.stride, index: 2)
+        encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
 
         // X axis + arrowhead
-        drawLine(
-            encoder: encoder,
-            vertexStart: 0,
-            color: SIMD4<Float>(1, 0, 0, 1)
-        )
-
-        drawLine(
-            encoder: encoder,
-            vertexStart: 2,
-            color: SIMD4<Float>(1, 0, 0, 1)
-        )
-
-        drawLine(
-            encoder: encoder,
-            vertexStart: 4,
-            color: SIMD4<Float>(1, 0, 0, 1)
-        )
-
+        let red = SIMD4<Float>(1, 0, 0, 1)
+        drawLine(encoder: encoder, vertexStart: 0, color: red)
+        drawLine(encoder: encoder, vertexStart: 2, color: red)
+        drawLine(encoder: encoder, vertexStart: 4, color: red)
         // Y axis + arrowhead
-        drawLine(
-            encoder: encoder,
-            vertexStart: 6,
-            color: SIMD4<Float>(0, 1, 0, 1)
-        )
-
-        drawLine(
-            encoder: encoder,
-            vertexStart: 8,
-            color: SIMD4<Float>(0, 1, 0, 1)
-        )
-
-        drawLine(
-            encoder: encoder,
-            vertexStart: 10,
-            color: SIMD4<Float>(0, 1, 0, 1)
-        )
-
+        let green = SIMD4<Float>(0, 1, 0, 1)
+        drawLine(encoder: encoder, vertexStart: 6, color: green)
+        drawLine(encoder: encoder, vertexStart: 8, color: green)
+        drawLine(encoder: encoder, vertexStart: 10, color: green)
         // Z axis + arrowhead
-        drawLine(
-            encoder: encoder,
-            vertexStart: 12,
-            color: SIMD4<Float>(0, 0.4, 1, 1)
-        )
-
-        drawLine(
-            encoder: encoder,
-            vertexStart: 14,
-            color: SIMD4<Float>(0, 0.4, 1, 1)
-        )
-
-        drawLine(
-            encoder: encoder,
-            vertexStart: 16,
-            color: SIMD4<Float>(0, 0.4, 1, 1)
-        )
+        let blue = SIMD4<Float>(0, 0.4, 1, 1)
+        drawLine(encoder: encoder, vertexStart: 12, color: blue)
+        drawLine(encoder: encoder, vertexStart: 14, color: blue)
+        drawLine(encoder: encoder, vertexStart: 16, color: blue)
 
         // Cube
-        let cubeColor =
-            SIMD4<Float>(1, 1, 1, 1)
+        let cubeColor = SIMD4<Float>(0, 0, 0, 1)
 
-        for i in stride(
-            from: 18,
-            to: 42,
-            by: 2
-        ) {
-
-            drawLine(
-                encoder: encoder,
-                vertexStart: i,
-                color: cubeColor
-            )
+        for i in stride(from: 18, to: 42, by: 2) {
+            drawLine(encoder: encoder, vertexStart: i, color: cubeColor)
         }
 
         encoder.endEncoding()
@@ -552,25 +420,10 @@ final class Renderer: NSObject, MTKViewDelegate {
         commandBuffer.commit()
     }
 
-    private func drawLine(
-        encoder: MTLRenderCommandEncoder,
-        vertexStart: Int,
-        color: SIMD4<Float>
-    ) {
-
+    private func drawLine(encoder: MTLRenderCommandEncoder, vertexStart: Int, color: SIMD4<Float>) {
         var color = color
-
-        encoder.setFragmentBytes(
-            &color,
-            length: MemoryLayout<SIMD4<Float>>.stride,
-            index: 0
-        )
-
-        encoder.drawPrimitives(
-            type: .line,
-            vertexStart: vertexStart,
-            vertexCount: 2
-        )
+        encoder.setFragmentBytes(&color, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+        encoder.drawPrimitives(type: .line, vertexStart: vertexStart, vertexCount: 2)
     }
 }
 
@@ -581,8 +434,7 @@ extension float4x4 {
     init(
         lookAt eye: SIMD3<Float>,
         target: SIMD3<Float>,
-        up: SIMD3<Float>
-    ) {
+        up: SIMD3<Float>) {
 
         let z =
             simd_normalize(
