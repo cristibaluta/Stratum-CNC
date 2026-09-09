@@ -11,9 +11,13 @@ import SwiftDXF
 
 enum GerberParser {
 
-    struct Result {
+    struct ParsedFile {
+        let name: String
         let entities: [DXF.Entity]
-        let fileCount: Int
+    }
+
+    struct Result {
+        let files: [ParsedFile]
     }
 
     enum ParserError: Error {
@@ -67,7 +71,7 @@ enum GerberParser {
             throw ParserError.noGerberFiles(extractionDirectory)
         }
 
-        var allEntities: [DXF.Entity] = []
+        var parsedFiles: [ParsedFile] = []
 
         for file in gerberFiles {
             let data = try Data(contentsOf: file)
@@ -76,12 +80,24 @@ enum GerberParser {
                 continue
             }
             let layer = file.deletingPathExtension().lastPathComponent
-            let parser = SingleGerberParser(source: text, layer: layer)
+            let ext = file.pathExtension.lowercased()
 
-            allEntities.append(contentsOf: parser.parse())
+            // Excellon drill files use a different command language than
+            // RS-274X Gerber files, so they need their own parser.
+            let entities: [DXF.Entity]
+
+            if ext == "drl" {
+                let parser = ExcellonParser(source: text, layer: layer)
+                entities = parser.parse()
+            } else {
+                let parser = SingleGerberParser(source: text, layer: layer)
+                entities = parser.parse()
+            }
+
+            parsedFiles.append(ParsedFile(name: layer, entities: entities))
         }
 
-        return Result(entities: allEntities, fileCount: gerberFiles.count)
+        return Result(files: parsedFiles)
     }
 
     private static func isGerberFile(_ url: URL) -> Bool {

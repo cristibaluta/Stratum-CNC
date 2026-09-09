@@ -59,6 +59,11 @@ final class SingleGerberParser {
     private var currentRegion: [DXF.Point] = []
     private var isInRegion = false
 
+    // How finely arcs are tessellated when they fall inside a G36/G37
+    // region (regions are stored as plain point lists, so curved edges
+    // need to be approximated with short line segments).
+    private let arcTessellationDegreesPerSegment = 6.0
+
     // MARK: - Init
 
     init(source: String, layer: String) {
@@ -301,32 +306,6 @@ final class SingleGerberParser {
         }
     }
 
-    // MARK: - D Codes
-
-    private func parseDCode(_ command: String) {
-
-        let cleaned = command
-            .replacingOccurrences(of: "*", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard cleaned.hasPrefix("D") else {
-            return
-        }
-
-        let number = String(cleaned.dropFirst())
-
-        guard let code = Int(number) else {
-            return
-        }
-
-        // D01 / D02 / D03 are handled by coordinate commands.
-        // D10+ selects an aperture.
-
-        if code >= 10 {
-            currentAperture = code
-        }
-    }
-
     // MARK: - Coordinates
 
     private func parseCoordinateCommand(_ command: String) {
@@ -345,10 +324,22 @@ final class SingleGerberParser {
             return
         }
 
+        // D-codes of 10 and above select an aperture; they carry no
+        // coordinate/draw semantics of their own. Previously this fell
+        // through to the switch below and hit `default: break`, so the
+        // aperture was never actually selected and every subsequent
+        // flash (D03) silently did nothing.
+        if dCode >= 10 {
+            currentAperture = dCode
+            return
+        }
+
         let oldPoint = currentPoint
 
         let x = parsed.x.flatMap(parseCoordinate) ?? currentPoint.x
         let y = parsed.y.flatMap(parseCoordinate) ?? currentPoint.y
+        let i = parsed.i.flatMap(parseCoordinate)
+        let j = parsed.j.flatMap(parseCoordinate)
 
         let newPoint = DXF.Point(x, y)
 
@@ -356,7 +347,7 @@ final class SingleGerberParser {
 
         case 1:
             // D01 = draw
-            draw(to: newPoint, from: oldPoint)
+            draw(to: newPoint, from: oldPoint, i: i, j: j)
 
         case 2:
             // D02 = move
@@ -465,7 +456,9 @@ final class SingleGerberParser {
 
     private func draw(
         to point: DXF.Point,
-        from start: DXF.Point
+        from start: DXF.Point,
+        i: Double?,
+        j: Double?
     ) {
 
         guard start != point else {
@@ -473,8 +466,15 @@ final class SingleGerberParser {
         }
 
         if isInRegion {
-            currentRegion.append(start)
-            currentRegion.append(point)
+
+            if interpolation != .linear,
+               let arcPoints = tessellateArc(from: start, to: point, i: i, j: j, clockwise: interpolation == .clockwise) {
+                currentRegion.append(contentsOf: arcPoints)
+            } else {
+                currentRegion.append(start)
+                currentRegion.append(point)
+            }
+
             currentPoint = point
             return
         }
@@ -495,14 +495,181 @@ final class SingleGerberParser {
         case .clockwise,
              .counterClockwise:
 
-            // Gerber arcs require I/J offsets.
-            // This simple POC only handles arcs when
-            // the center can be calculated from the command.
-
-            break
+            if let arc = makeArcEntity(from: start, to: point, i: i, j: j, clockwise: interpolation == .clockwise) {
+                entities.append(arc)
+            } else {
+                // Couldn't resolve the arc center from the I/J offsets
+                // (e.g. missing data) - fall back to a straight segment
+                // so the contour at least stays connected.
+                entities.append(
+                    .line(
+                        a: start,
+                        b: point,
+                        layer: layer,
+                        color: 256
+                    )
+                )
+            }
         }
 
         currentPoint = point
+    }
+
+    // MARK: - Arc geometry
+
+    /// Resolves the arc's center/radius/endpoint-angles from the Gerber
+    /// I/J offsets. In multi-quadrant mode (G75) the offsets are signed
+    /// and unambiguous. In single-quadrant mode (G74) the offsets are
+    /// unsigned, so all four sign combinations are tried and the one
+    /// that (a) produces a consistent radius at both endpoints and
+    /// (b) sweeps 90 degrees or less is kept.
+    private func arcGeometry(
+        from start: DXF.Point,
+        to end: DXF.Point,
+        iOffset: Double,
+        jOffset: Double,
+        clockwise: Bool
+    ) -> (center: DXF.Point, radius: Double, startAngle: Double, endAngle: Double)? {
+
+        let candidateOffsets: [(Double, Double)]
+
+        if quadrantMode == .multi {
+            candidateOffsets = [(iOffset, jOffset)]
+        } else {
+            let ai = abs(iOffset)
+            let aj = abs(jOffset)
+            candidateOffsets = [(ai, aj), (ai, -aj), (-ai, aj), (-ai, -aj)]
+        }
+
+        var best: (center: DXF.Point, radius: Double, startAngle: Double, endAngle: Double, error: Double)?
+
+        for (di, dj) in candidateOffsets {
+
+            let center = DXF.Point(start.x + di, start.y + dj)
+
+            let r1 = hypot(start.x - center.x, start.y - center.y)
+            let r2 = hypot(end.x - center.x, end.y - center.y)
+
+            guard r1 > 0.0000001 else {
+                continue
+            }
+
+            let radiusError = abs(r1 - r2)
+
+            let startAngle = normalizedDegrees(atan2(start.y - center.y, start.x - center.x))
+            let endAngle = normalizedDegrees(atan2(end.y - center.y, end.x - center.x))
+
+            if quadrantMode == .single {
+                let sweep = sweepDegrees(from: startAngle, to: endAngle, clockwise: clockwise)
+                // Single-quadrant arcs are always <= 90 degrees; reject
+                // sign combinations that don't satisfy that.
+                guard sweep <= 90.5 else {
+                    continue
+                }
+            }
+
+            if best == nil || radiusError < best!.error {
+                best = (center, (r1 + r2) / 2, startAngle, endAngle, radiusError)
+            }
+        }
+
+        guard let result = best else {
+            return nil
+        }
+
+        return (result.center, result.radius, result.startAngle, result.endAngle)
+    }
+
+    private func normalizedDegrees(_ radians: Double) -> Double {
+        var degrees = radians * 180.0 / .pi
+        degrees = degrees.truncatingRemainder(dividingBy: 360)
+        if degrees < 0 {
+            degrees += 360
+        }
+        return degrees
+    }
+
+    private func sweepDegrees(from startAngle: Double, to endAngle: Double, clockwise: Bool) -> Double {
+        var sweep = clockwise ? (startAngle - endAngle) : (endAngle - startAngle)
+        sweep = sweep.truncatingRemainder(dividingBy: 360)
+        if sweep <= 0 {
+            sweep += 360
+        }
+        return sweep
+    }
+
+    /// Builds a DXF arc entity for a contour segment.
+    ///
+    /// NOTE: this assumes `DXF.Entity` exposes a
+    /// `.arc(center:radius:startAngle:endAngle:layer:color:)` case with
+    /// angles in degrees, following the standard DXF convention where an
+    /// ARC always sweeps counter-clockwise from startAngle to endAngle.
+    /// If your version of SwiftDXF names this case/parameters
+    /// differently, adjust this one call accordingly.
+    private func makeArcEntity(
+        from start: DXF.Point,
+        to end: DXF.Point,
+        i: Double?,
+        j: Double?,
+        clockwise: Bool
+    ) -> DXF.Entity? {
+
+        guard let i = i, let j = j,
+              let geo = arcGeometry(from: start, to: end, iOffset: i, jOffset: j, clockwise: clockwise) else {
+            return nil
+        }
+
+        // DXF ARC entities always sweep counter-clockwise from startAngle
+        // to endAngle. A clockwise Gerber arc traces the exact same set
+        // of points as a counter-clockwise arc between the same two
+        // angles in reverse order, so we swap them here.
+        let startAngle = clockwise ? geo.endAngle : geo.startAngle
+        let endAngle = clockwise ? geo.startAngle : geo.endAngle
+
+        return .arc(
+            center: geo.center,
+            radius: geo.radius,
+            startDeg: startAngle,
+            endDeg: endAngle,
+            layer: layer,
+            color: 256
+        )
+    }
+
+    /// Approximates an arc segment as a series of points, for use inside
+    /// G36/G37 regions (which are stored/emitted as a plain polyline).
+    private func tessellateArc(
+        from start: DXF.Point,
+        to end: DXF.Point,
+        i: Double?,
+        j: Double?,
+        clockwise: Bool
+    ) -> [DXF.Point]? {
+
+        guard let i = i, let j = j,
+              let geo = arcGeometry(from: start, to: end, iOffset: i, jOffset: j, clockwise: clockwise) else {
+            return nil
+        }
+
+        let sweep = sweepDegrees(from: geo.startAngle, to: geo.endAngle, clockwise: clockwise)
+        let segmentCount = max(Int((sweep / arcTessellationDegreesPerSegment).rounded(.up)), 2)
+
+        var points: [DXF.Point] = []
+        points.reserveCapacity(segmentCount + 1)
+
+        for step in 0...segmentCount {
+            let t = Double(step) / Double(segmentCount)
+            let angle = clockwise ? geo.startAngle - sweep * t : geo.startAngle + sweep * t
+            let radians = angle * .pi / 180
+            points.append(
+                DXF.Point(
+                    geo.center.x + geo.radius * cos(radians),
+                    geo.center.y + geo.radius * sin(radians)
+                )
+            )
+        }
+
+        return points
     }
 
     // MARK: - Flash

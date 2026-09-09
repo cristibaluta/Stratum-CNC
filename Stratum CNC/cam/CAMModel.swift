@@ -102,10 +102,11 @@ class CAMModel: ObservableObject {
             case "step", "stp":
                 print("import step")
             case "zip":
-                if let obj = GerberImporter().parse(url: url) {
+                let objs: [D2_Object] = GerberImporter().parse(url: url)
+                for obj in objs {
                     canvasState.add(obj, select: false)
-                    return obj
                 }
+                return objs.first
             default:
                 print("Unsupported file type: \(ext)")
         }
