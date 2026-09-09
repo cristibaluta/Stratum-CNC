@@ -26,6 +26,10 @@ final class SingleGerberParser {
     private enum Aperture {
         case circle(diameter: Double)
         case rectangle(width: Double, height: Double)
+        // KiCad's "RoundRect" aperture macro: a rounding radius plus the
+        // 4 corner-arc centers (the sharp-rectangle corners inset by the
+        // radius), and an optional rotation in degrees.
+        case roundedRectangle(cornerRadius: Double, corners: [(x: Double, y: Double)], rotationDegrees: Double)
     }
 
     private struct CoordinateCommand {
@@ -244,6 +248,12 @@ final class SingleGerberParser {
         // Examples:
         // %ADD10C,0.100000*%
         // %ADD17R,0.400000X3.200000*%
+        // %ADD10RoundRect,0.2X-0.3X0.2X-0.3X-0.2X0.3X-0.2X0.3X0.2X0*%
+        //
+        // Note the D-code number and the template name are NOT
+        // comma-separated - they're concatenated ("10RoundRect",
+        // "10C", "17R"). Only the modifier values after the template
+        // name are comma/X-separated.
 
         let cleaned = command
             .replacingOccurrences(of: "%", with: "")
@@ -255,30 +265,31 @@ final class SingleGerberParser {
 
         let body = String(cleaned.dropFirst(3))
 
-        guard let commaIndex = body.firstIndex(of: ",") else {
+        // The D-code number is the leading run of digits.
+        var numberEndIndex = body.startIndex
+        while numberEndIndex < body.endIndex, body[numberEndIndex].isNumber {
+            numberEndIndex = body.index(after: numberEndIndex)
+        }
+
+        guard numberEndIndex > body.startIndex,
+              let apertureNumber = Int(body[body.startIndex..<numberEndIndex]) else {
             return
         }
 
-        let numberString = String(body[..<commaIndex])
+        guard let commaIndex = body[numberEndIndex...].firstIndex(of: ",") else {
+            return
+        }
+
+        // Everything between the digits and the first comma is the
+        // template name (e.g. "C", "R", "RoundRect").
+        let templateName = String(body[numberEndIndex..<commaIndex])
         let definition = String(body[body.index(after: commaIndex)...])
 
-        guard let apertureNumber = Int(numberString) else {
-            return
-        }
-
-        let parts = definition.split(separator: ",")
-
-        guard let type = parts.first else {
-            return
-        }
-
-        let values = parts.dropFirst().joined(separator: ",")
-
-        switch type {
+        switch templateName {
 
         case "C":
 
-            guard let diameter = Double(values) else {
+            guard let diameter = Double(definition) else {
                 return
             }
 
@@ -288,7 +299,7 @@ final class SingleGerberParser {
 
         case "R":
 
-            let dimensions = values
+            let dimensions = definition
                 .split(separator: "X")
                 .compactMap { Double($0) }
 
@@ -299,6 +310,31 @@ final class SingleGerberParser {
             apertures[apertureNumber] = .rectangle(
                 width: dimensions[0],
                 height: dimensions[1]
+            )
+
+        case "RoundRect":
+
+            let values = definition
+                .split(separator: "X")
+                .compactMap { Double($0) }
+
+            // $1 = corner rounding radius, $2..$9 = 4 corner (x,y)
+            // pairs, optional $10 = rotation in degrees.
+            guard values.count >= 9 else {
+                return
+            }
+
+            let corners: [(x: Double, y: Double)] = [
+                (x: values[1], y: values[2]),
+                (x: values[3], y: values[4]),
+                (x: values[5], y: values[6]),
+                (x: values[7], y: values[8])
+            ]
+
+            apertures[apertureNumber] = .roundedRectangle(
+                cornerRadius: values[0],
+                corners: corners,
+                rotationDegrees: values.count > 9 ? values[9] : 0
             )
 
         default:
@@ -722,7 +758,123 @@ final class SingleGerberParser {
                     color: 256
                 )
             )
+
+        case .roundedRectangle(let cornerRadius, let corners, let rotationDegrees):
+
+            flashRoundedRectangle(
+                at: point,
+                cornerRadius: cornerRadius,
+                corners: corners,
+                rotationDegrees: rotationDegrees
+            )
         }
+    }
+
+    /// Flashes a KiCad-style "RoundRect" aperture: 4 corner-arc centers
+    /// plus a rounding radius. Built as 4 straight edges tangent to 4
+    /// quarter-circle corner arcs, pushed straight into `entities` (the
+    /// same way normal contour segments are) so the existing chaining
+    /// pipeline assembles them into one closed shape.
+    private func flashRoundedRectangle(
+        at point: DXF.Point,
+        cornerRadius: Double,
+        corners: [(x: Double, y: Double)],
+        rotationDegrees: Double
+    ) {
+
+        guard corners.count == 4, cornerRadius > 0 else {
+            return
+        }
+
+        let radius = cornerRadius * unitScale
+        let rotationRadians = rotationDegrees * .pi / 180
+
+        let absoluteCorners: [DXF.Point] = corners.map { corner in
+            let sx = corner.x * unitScale
+            let sy = corner.y * unitScale
+            let rx = sx * cos(rotationRadians) - sy * sin(rotationRadians)
+            let ry = sx * sin(rotationRadians) + sy * cos(rotationRadians)
+            return DXF.Point(point.x + rx, point.y + ry)
+        }
+
+        // Winding direction, so corner arcs sweep the correct way.
+        var signedArea = 0.0
+        for index in 0..<4 {
+            let a = absoluteCorners[index]
+            let b = absoluteCorners[(index + 1) % 4]
+            signedArea += a.x * b.y - b.x * a.y
+        }
+        let isCounterClockwise = signedArea > 0
+
+        // For each corner, find the two tangent points where the
+        // straight edges meet the rounding arc.
+        var arcStartPoints: [DXF.Point] = []
+        var arcEndPoints: [DXF.Point] = []
+
+        for index in 0..<4 {
+            let previous = absoluteCorners[(index + 3) % 4]
+            let current = absoluteCorners[index]
+            let next = absoluteCorners[(index + 1) % 4]
+
+            let incoming = unitVector(from: previous, to: current)
+            let outgoing = unitVector(from: current, to: next)
+
+            arcStartPoints.append(
+                DXF.Point(current.x - incoming.x * radius, current.y - incoming.y * radius)
+            )
+            arcEndPoints.append(
+                DXF.Point(current.x + outgoing.x * radius, current.y + outgoing.y * radius)
+            )
+        }
+
+        for index in 0..<4 {
+
+            let center = absoluteCorners[index]
+
+            let physicalStartAngle = normalizedDegrees(
+                atan2(arcStartPoints[index].y - center.y, arcStartPoints[index].x - center.x)
+            )
+            let physicalEndAngle = normalizedDegrees(
+                atan2(arcEndPoints[index].y - center.y, arcEndPoints[index].x - center.x)
+            )
+
+            // DXF ARC entities always sweep counter-clockwise from
+            // startAngle to endAngle - swap the two if this corner's
+            // physical sweep runs clockwise.
+            let entityStartAngle = isCounterClockwise ? physicalStartAngle : physicalEndAngle
+            let entityEndAngle = isCounterClockwise ? physicalEndAngle : physicalStartAngle
+
+            entities.append(
+                .arc(
+                    center: center,
+                    radius: radius,
+                    startDeg: entityStartAngle,
+                    endDeg: entityEndAngle,
+                    layer: layer,
+                    color: 256
+                )
+            )
+
+            let next = (index + 1) % 4
+            entities.append(
+                .line(
+                    a: arcEndPoints[index],
+                    b: arcStartPoints[next],
+                    layer: layer,
+                    color: 256
+                )
+            )
+        }
+    }
+
+    private func unitVector(from start: DXF.Point, to end: DXF.Point) -> DXF.Point {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let length = hypot(dx, dy)
+        guard length > 0.0000001 else {
+            return DXF.Point(0, 0)
+        }
+        return DXF.Point(dx / length, dy / length)
     }
 
     // MARK: - Regions
