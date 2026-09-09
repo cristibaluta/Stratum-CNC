@@ -48,7 +48,7 @@ class CAMModel: ObservableObject {
         canvasViewportSaved = true
     }
 
-    let supportedFiles: [UTType] = [.svg, .dxf, .init(filenameExtension: "step")!, .init(filenameExtension: "stp")!]
+    let supportedFiles: [UTType] = [.svg, .dxf, .init(filenameExtension: "step")!, .init(filenameExtension: "stp")!, .zip]
 
     // ---- CALLBACKS FOR PERSISTENCE ----
     var onStockChanged: ((StockMaterial) -> Void)?
@@ -101,6 +101,11 @@ class CAMModel: ObservableObject {
                 }
             case "step", "stp":
                 print("import step")
+            case "zip":
+                if let obj = GerberImporter().parse(url: url) {
+                    canvasState.add(obj, select: false)
+                    return obj
+                }
             default:
                 print("Unsupported file type: \(ext)")
         }
