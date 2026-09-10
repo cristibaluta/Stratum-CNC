@@ -80,18 +80,16 @@ enum GerberParser {
                 continue
             }
             let layer = file.deletingPathExtension().lastPathComponent
-            let ext = file.pathExtension.lowercased()
+            let extensionName = file.pathExtension.lowercased()
 
-            // Excellon drill files use a different command language than
-            // RS-274X Gerber files, so they need their own parser.
+            // Copper is special: a Gerber line is a centerline plus an aperture
+            // width, not a hairline. Convert copper into physical filled polygons
+            // and union all overlapping geometry before exposing it as DXF.
             let entities: [DXF.Entity]
-
-            if ext == "drl" {
-                let parser = ExcellonParser(source: text, layer: layer)
-                entities = parser.parse()
+            if extensionName == "gtl" || extensionName == "gbl" {
+                entities = CopperGerberParser(source: text, layer: layer).parse()
             } else {
-                let parser = SingleGerberParser(source: text, layer: layer)
-                entities = parser.parse()
+                entities = SingleGerberParser(source: text, layer: layer).parse()
             }
 
             parsedFiles.append(ParsedFile(name: layer, entities: entities))

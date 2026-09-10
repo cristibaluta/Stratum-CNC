@@ -1,6 +1,42 @@
 {
-  "originHash" : "96ade615066233c04fd5f41d814dabf7681d4851b35ee4984224aa3bae1342e3",
+  "originHash" : "4ec7987a429efd40c9ab131e69b836fcfbdad0f8c8b5ad8f1b435e9f30a7e40d",
   "pins" : [
+    {
+      "identity" : "ifixfloat",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/iShape-Swift/iFixFloat",
+      "state" : {
+        "revision" : "c5c9a1fa50d8e6822a5ac8cd1385bc21196cb1bb",
+        "version" : "1.9.0"
+      }
+    },
+    {
+      "identity" : "ioverlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/iShape-Swift/iOverlay",
+      "state" : {
+        "revision" : "6a505d514485f7c0d059492e0386d668123441af",
+        "version" : "1.22.0"
+      }
+    },
+    {
+      "identity" : "ishape",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/iShape-Swift/iShape",
+      "state" : {
+        "revision" : "5093a243acb8bad08545a74165bd82aa84fda313",
+        "version" : "1.13.0"
+      }
+    },
+    {
+      "identity" : "itree",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/iShape-Swift/iTree",
+      "state" : {
+        "revision" : "e0c99fc3fceb69d8d5b05766202d64af1e670bbf",
+        "version" : "0.5.0"
+      }
+    },
     {
       "identity" : "nodal",
       "kind" : "remoteSourceControl",

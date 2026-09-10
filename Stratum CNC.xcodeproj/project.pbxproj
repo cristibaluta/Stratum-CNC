@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		560F75753052662B0017EE04 /* iOverlay in Frameworks */ = {isa = PBXBuildFile; productRef = 560F75743052662B0017EE04 /* iOverlay */; };
 		5679E7B430389CC800B08A35 /* MeshIO in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B330389CC800B08A35 /* MeshIO */; };
 		5679E7B630389CC800B08A35 /* OCCTSwiftIO in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B530389CC800B08A35 /* OCCTSwiftIO */; };
 		5679E7B930389D8B00B08A35 /* OCCTSwiftViewport in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B830389D8B00B08A35 /* OCCTSwiftViewport */; };
@@ -60,6 +61,7 @@
 				56CEA0923035EC36008167CA /* OCCTSwift in Frameworks */,
 				6D0235C9304D268A004AE6F8 /* SwiftDXF in Frameworks */,
 				5679E7B430389CC800B08A35 /* MeshIO in Frameworks */,
+				560F75753052662B0017EE04 /* iOverlay in Frameworks */,
 				5679E7BC30389DE400B08A35 /* OCCTSwiftTools in Frameworks */,
 				5679E83F303C292E00B08A35 /* PocketSVG in Frameworks */,
 				5679E7B630389CC800B08A35 /* OCCTSwiftIO in Frameworks */,
@@ -113,6 +115,7 @@
 				5679E7BB30389DE400B08A35 /* OCCTSwiftTools */,
 				5679E83E303C292E00B08A35 /* PocketSVG */,
 				6D0235C8304D268A004AE6F8 /* SwiftDXF */,
+				560F75743052662B0017EE04 /* iOverlay */,
 			);
 			productName = "MakeraStudio Lite";
 			productReference = 56CEA04D30356265008167CA /* Stratum CNC.app */;
@@ -150,6 +153,7 @@
 				5679E7BA30389DE400B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftTools" */,
 				5679E83D303C292E00B08A35 /* XCRemoteSwiftPackageReference "PocketSVG" */,
 				6D0235C7304D268A004AE6F8 /* XCRemoteSwiftPackageReference "SwiftDXF" */,
+				560F75733052662B0017EE04 /* XCRemoteSwiftPackageReference "iOverlay" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 56CEA04E30356265008167CA /* Products */;
@@ -411,6 +415,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		560F75733052662B0017EE04 /* XCRemoteSwiftPackageReference "iOverlay" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/iShape-Swift/iOverlay";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.22.0;
+			};
+		};
 		5679E7B230389CC800B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftIO" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SecondMouseAU/OCCTSwiftIO.git";
@@ -462,6 +474,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		560F75743052662B0017EE04 /* iOverlay */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 560F75733052662B0017EE04 /* XCRemoteSwiftPackageReference "iOverlay" */;
+			productName = iOverlay;
+		};
 		5679E7B330389CC800B08A35 /* MeshIO */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 5679E7B230389CC800B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftIO" */;
