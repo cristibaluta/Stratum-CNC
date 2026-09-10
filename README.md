@@ -47,26 +47,25 @@ Stratum CNC relies entirely on Apple’s modern native frameworks:
 * Apple Silicon (M1/M2/M3/M4 series) recommended for maximum Metal performance.
 * A Makera CNC machine, but it can be used also without if you want just the CAM and G-code
 
-### Installation & Development
-1. AppStore
-2. Releases page
-3. Compile locally
+* NOTE: To compile from sources you need to also download StratumCAM. This is temporary till development is getting more stable and will be imported
 
 ---
 
 ## Dependencies
-* **SwiftDXF** for parsing DXF files. The internal dxf model is used also inside the app, all the shapes are stored as DXF.Entity from import to G-code generation
+* **StratumCAM** the CAM toolpaths generator. It was split from the project for better testing and separation. It uses SwiftDXF model internally
+* **SwiftDXF** for parsing DXF files. The internal dxf model is used also inside the app, all the shapes are stored as DXF.Entity from import to toolpath generation
 * **PocketSVG** for parsing SVG files.
 * **OCCTSwift** for parsing 3d STEP files
+* **zip** for unzipping gerber archives. The lib is already a dependency of OCCTSwift
+* **iShape** for merging geometries together, used for pcb traces
 
 ---
 
 ## Roadmap
 
 - [ ] 3D objects support
-- [ ] Support for features Z1 doesn't have
-- [ ] Support for other Makera CNCs
-- [ ] Support for other CNCs
+- [ ] Support for features Z1 doesn't have, like automatic tool change
+- [ ] Support for other CNCs if possible
 
 ---
 
