@@ -542,11 +542,26 @@ final class CopperGerberParser {
             //
             // Do this cleanup ONLY for the positive union. For a difference result,
             // an inner contour can be a real hole and therefore must be preserved.
+            //
+            // IMPORTANT: `extractShapes(overlayRule: .union)` returns each merged
+            // region as its own top-level shape. A stroke that only grazes/touches
+            // a pad or pour (a near-tangent overlap - e.g. the straight body of a
+            // capsule ending just inside a pad boundary) is not always fully fused
+            // by the boolean op into a single shape: iOverlay can leave the
+            // fully-enclosed remainder as its own separate shape rather than as an
+            // extra path grouped with the containing shape. Comparing a candidate
+            // only against the other paths *in its own shape* can never catch that,
+            // since a plain union of same-polarity fills never produces holes and
+            // each shape here is really just a single outer contour. So flatten
+            // every contour from every shape first and test containment against
+            // that global set instead.
+            let allPaths = shapes.flatMap { $0.filter { $0.count >= 3 } }
+
             shapes = shapes.map { shape in
                 let paths = shape.filter { $0.count >= 3 }
                 return paths.filter { candidate in
                     guard !candidate.isEmpty else { return false }
-                    return !paths.contains { other in
+                    return !allPaths.contains { other in
                         guard !samePath(candidate, other),
                               polygonArea(other) > polygonArea(candidate) else {
                             return false
@@ -601,6 +616,18 @@ final class CopperGerberParser {
         return polygonArea(a) == polygonArea(b) && a[0] == b[0]
     }
 
+    // iOverlay's boolean engine snaps coordinates to an internal fixed-point
+    // grid and re-derives intersection points; a vertex that is conceptually
+    // "exactly on" a boundary after a union/difference can come back off that
+    // boundary by much more than double-precision round-off. A containment
+    // epsilon of 1e-9 (the previous value) is tighter than that engine's own
+    // precision, so genuinely-contained, boundary-touching contours (like the
+    // leftover straight segment of a capsule stroke that only grazes a pad)
+    // could fail the containment test and wrongly survive as extra shapes.
+    // 1e-4 mm (0.1 micron) is comfortably above the boolean engine's slop
+    // while still far below any real, physically-distinct copper feature.
+    private static let containmentEpsilon = 1.0e-4
+
     private func point(_ point: CGPoint, isInside polygon: [CGPoint]) -> Bool {
         guard polygon.count >= 3 else { return false }
 
@@ -610,15 +637,22 @@ final class CopperGerberParser {
         var previous = polygon[polygon.count - 1]
 
         for current in polygon {
+            let edgeLength = hypot(current.x - previous.x, current.y - previous.y)
             let cross = (current.x - previous.x) * (point.y - previous.y) -
                         (current.y - previous.y) * (point.x - previous.x)
+            // `cross` is twice the (signed) area of the triangle formed by the
+            // edge and `point`, so it scales with edge length - dividing by the
+            // edge length turns it into the actual perpendicular distance from
+            // `point` to the (infinite) line through the edge, which is what we
+            // actually want to compare against a fixed physical tolerance.
+            let distanceToLine = edgeLength > 0 ? abs(cross) / edgeLength : abs(cross)
             let minX = min(previous.x, current.x)
             let maxX = max(previous.x, current.x)
             let minY = min(previous.y, current.y)
             let maxY = max(previous.y, current.y)
-            let epsilon = 1.0e-9
+            let epsilon = Self.containmentEpsilon
 
-            if abs(cross) <= epsilon &&
+            if distanceToLine <= epsilon &&
                 point.x >= minX - epsilon && point.x <= maxX + epsilon &&
                 point.y >= minY - epsilon && point.y <= maxY + epsilon {
                 return true
