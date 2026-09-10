@@ -13,18 +13,15 @@ struct NumberField: View {
     let suffix: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(title)
                 .font(.system(size: 9))
                 .foregroundStyle(.primary)
 
             HStack {
-                TextField(
-                    "",
-                    value: $value,
-                    format: .number
-                )
-                .textFieldStyle(.plain)
+                TextField("", value: $value, format: .number.precision(.fractionLength(2)).locale(Locale(identifier: "en_US")))
+                    .textFieldStyle(.plain)
+//                    .keyboardType(.decimalPad)
 
                 Text(suffix)
                     .font(.system(size: 10))
@@ -50,12 +47,8 @@ struct IntField: View {
                 .foregroundStyle(.primary)
 
             HStack {
-                TextField(
-                    "",
-                    value: $value,
-                    format: .number
-                )
-                .textFieldStyle(.plain)
+                TextField("", value: $value, format: .number.grouping(.never))
+                    .textFieldStyle(.plain)
 
                 Text(suffix)
                     .font(.system(size: 10))

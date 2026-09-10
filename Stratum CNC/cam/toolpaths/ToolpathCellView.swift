@@ -43,8 +43,8 @@ struct ToolpathCellView: View {
                     ToolPicker(tool: $toolpath.tool)
 
                     // Z range
-                    ZField(title: "START Z", value: $toolpath.startZ)
-                    ZField(title: "END Z", value: $toolpath.endZ)
+                    NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
+                    NumberField(title: "END Z", value: $toolpath.endZ, suffix: "mm")
 
                     // Contour
                     ContourPicker(selection: $toolpath.contour)
