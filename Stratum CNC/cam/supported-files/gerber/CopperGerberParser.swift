@@ -421,10 +421,51 @@ final class CopperGerberParser {
 
     private func add(path: [CGPoint]) {
         guard path.count >= 3 else { return }
+        // iOverlay's `.union` runs under the `nonZero` fill rule, which counts
+        // signed winding contributions per contour rather than simple nesting
+        // depth. That's the right rule for merging arbitrarily-overlapping
+        // same-polarity copper - PROVIDED every contour we feed it winds in
+        // the same direction. `circle`, `capsule`, and the flash `rectangle`
+        // helpers below are all generated consistently, but a G36/G37 region
+        // is built from the Gerber file's own vertex order (`finishRegion`),
+        // which can just as easily come out wound the opposite way depending
+        // on the authoring tool. Two same-polarity contours with opposite
+        // winding contribute opposite-signed winding numbers, so wherever they
+        // truly overlap the numbers can cancel to zero - which `nonZero`
+        // treats as *outside*, even though the copper there is genuinely
+        // solid. That reads exactly like "two shapes overlap but don't join",
+        // or, once a third contour (e.g. a connecting trace) pushes part of
+        // that region back to a nonzero winding, "one fused shape with an
+        // empty channel where the other two directly overlapped".
+        //
+        // Normalizing every path to one canonical winding here - regardless
+        // of where it came from - guarantees winding numbers only ever add up
+        // (1, 2, 3...) and never cancel, so any overlap between same-polarity
+        // copper is always treated as solid.
+        let normalized = orientedCounterClockwise(path)
         switch polarity {
-        case .dark: positivePaths.append(path)
-        case .clear: negativePaths.append(path)
+        case .dark: positivePaths.append(normalized)
+        case .clear: negativePaths.append(normalized)
         }
+    }
+
+    /// Returns `path` reordered so it winds counterclockwise (positive
+    /// signed area), reversing it if it was clockwise. Degenerate
+    /// (zero-area) paths are returned unchanged.
+    private func orientedCounterClockwise(_ path: [CGPoint]) -> [CGPoint] {
+        signedArea(path) < 0 ? path.reversed() : path
+    }
+
+    private func signedArea(_ path: [CGPoint]) -> Double {
+        guard path.count >= 3 else { return 0 }
+        var sum = 0.0
+        for index in path.indices {
+            let next = path.index(after: index) == path.endIndex
+                ? path.startIndex
+                : path.index(after: index)
+            sum += path[index].x * path[next].y - path[next].x * path[index].y
+        }
+        return sum * 0.5
     }
 
     // MARK: - Polygon primitives
@@ -515,17 +556,52 @@ final class CopperGerberParser {
 
     // MARK: - Boolean merge
 
+    // iOverlay quantizes coordinates onto an internal fixed-point grid before
+    // it computes intersections; its own docs put the useful working range at
+    // roughly ±100,000 units with ~0.01-unit resolution. Our copper paths are
+    // in millimeters, so raw pad/trace coordinates sit around 1-200 - only a
+    // tiny sliver of that range - which means the *absolute* snap tolerance
+    // the engine applies (on the order of 0.01mm = 10 microns) is coarse
+    // relative to a 0.2mm trace meeting the dead-straight edge of a
+    // rectangular pad. Two shapes that truly overlap by a sub-tolerance
+    // sliver along a perfectly axis-aligned edge (the common "trace lands
+    // exactly on a rectangular SMD pad's boundary" case) can get snapped to
+    // merely touching rather than overlapping, so the union leaves them as
+    // two separate, still-overlapping contours instead of fusing them.
+    // Curved boundaries (circle/capsule) are far less likely to align edge-
+    // for-edge with anything, which is why this shows up specifically with
+    // perfect rectangles and not with round pads or traces.
+    //
+    // The fix is not to touch the input geometry's precision (it's already a
+    // Double), but to give the fixed-point engine more resolution to work
+    // with: scale every coordinate up before handing it to iOverlay, then
+    // scale the result back down. This moves our mm-scale values into
+    // iOverlay's well-conditioned working range without changing the
+    // geometry, so the same absolute engine tolerance now corresponds to a
+    // far smaller physical distance (hundredths of a micron instead of tens
+    // of microns), comfortably below anything that should ever be treated as
+    // a real gap.
+    private static let overlayPrecisionScale: Double = 1000.0
+
     private func mergedEntities() -> [DXF.Entity] {
         guard !positivePaths.isEmpty else { return [] }
+
+        let scale = Self.overlayPrecisionScale
+        func scaledUp(_ path: [CGPoint]) -> [CGPoint] {
+            path.map { CGPoint(x: $0.x * scale, y: $0.y * scale) }
+        }
+        func scaledDown(_ path: [CGPoint]) -> [CGPoint] {
+            path.map { CGPoint(x: $0.x / scale, y: $0.y / scale) }
+        }
 
         var overlay = CGOverlay()
 
         for path in positivePaths {
-            overlay.add(path: path, type: .subject)
+            overlay.add(path: scaledUp(path), type: .subject)
         }
 
         for path in negativePaths {
-            overlay.add(path: path, type: .clip)
+            overlay.add(path: scaledUp(path), type: .clip)
         }
 
         let graph = overlay.buildGraph()
@@ -533,6 +609,7 @@ final class CopperGerberParser {
 
         if negativePaths.isEmpty {
             shapes = graph.extractShapes(overlayRule: .union)
+                .map { $0.map(scaledDown) }
 
             // A positive copper union must not contain a second contour completely
             // inside another positive contour. This can happen with overlay graphs
@@ -575,6 +652,7 @@ final class CopperGerberParser {
             }
         } else {
             shapes = graph.extractShapes(overlayRule: .difference)
+                .map { $0.map(scaledDown) }
         }
 
         var entities: [DXF.Entity] = []
@@ -600,16 +678,9 @@ final class CopperGerberParser {
     // MARK: - Positive-union contour cleanup
 
     private func polygonArea(_ path: [CGPoint]) -> Double {
-        guard path.count >= 3 else { return 0 }
-        var sum = 0.0
-        for index in path.indices {
-            let next = path.index(after: index) == path.endIndex
-                ? path.startIndex
-                : path.index(after: index)
-            sum += path[index].x * path[next].y - path[next].x * path[index].y
-        }
-        return abs(sum) * 0.5
+        abs(signedArea(path))
     }
+
 
     private func samePath(_ a: [CGPoint], _ b: [CGPoint]) -> Bool {
         guard a.count == b.count, !a.isEmpty else { return false }
