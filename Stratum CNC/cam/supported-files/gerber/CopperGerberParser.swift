@@ -529,10 +529,35 @@ final class CopperGerberParser {
         }
 
         let graph = overlay.buildGraph()
-        let shapes: [[[CGPoint]]]
+        var shapes: [[[CGPoint]]]
 
         if negativePaths.isEmpty {
             shapes = graph.extractShapes(overlayRule: .union)
+
+            // A positive copper union must not contain a second contour completely
+            // inside another positive contour. This can happen with overlay graphs
+            // when one primitive (for example a thin trace) is wholly contained by
+            // a larger copper pour/pad. Such a contour is not an additional boundary
+            // for machining; it is already copper.
+            //
+            // Do this cleanup ONLY for the positive union. For a difference result,
+            // an inner contour can be a real hole and therefore must be preserved.
+            shapes = shapes.map { shape in
+                let paths = shape.filter { $0.count >= 3 }
+                return paths.filter { candidate in
+                    guard !candidate.isEmpty else { return false }
+                    return !paths.contains { other in
+                        guard !samePath(candidate, other),
+                              polygonArea(other) > polygonArea(candidate) else {
+                            return false
+                        }
+                        // Require the whole candidate contour to be contained, not
+                        // merely one vertex. This prevents a genuinely intersecting
+                        // contour from being mistaken for an enclosed one.
+                        return candidate.allSatisfy { point($0, isInside: other) }
+                    }
+                }
+            }
         } else {
             shapes = graph.extractShapes(overlayRule: .difference)
         }
@@ -555,5 +580,61 @@ final class CopperGerberParser {
         }
 
         return entities
+    }
+
+    // MARK: - Positive-union contour cleanup
+
+    private func polygonArea(_ path: [CGPoint]) -> Double {
+        guard path.count >= 3 else { return 0 }
+        var sum = 0.0
+        for index in path.indices {
+            let next = path.index(after: index) == path.endIndex
+                ? path.startIndex
+                : path.index(after: index)
+            sum += path[index].x * path[next].y - path[next].x * path[index].y
+        }
+        return abs(sum) * 0.5
+    }
+
+    private func samePath(_ a: [CGPoint], _ b: [CGPoint]) -> Bool {
+        guard a.count == b.count, !a.isEmpty else { return false }
+        return polygonArea(a) == polygonArea(b) && a[0] == b[0]
+    }
+
+    private func point(_ point: CGPoint, isInside polygon: [CGPoint]) -> Bool {
+        guard polygon.count >= 3 else { return false }
+
+        // Ray-casting test. Points on the boundary are considered inside so a
+        // coincident/contained trace cannot survive as a redundant contour.
+        var inside = false
+        var previous = polygon[polygon.count - 1]
+
+        for current in polygon {
+            let cross = (current.x - previous.x) * (point.y - previous.y) -
+                        (current.y - previous.y) * (point.x - previous.x)
+            let minX = min(previous.x, current.x)
+            let maxX = max(previous.x, current.x)
+            let minY = min(previous.y, current.y)
+            let maxY = max(previous.y, current.y)
+            let epsilon = 1.0e-9
+
+            if abs(cross) <= epsilon &&
+                point.x >= minX - epsilon && point.x <= maxX + epsilon &&
+                point.y >= minY - epsilon && point.y <= maxY + epsilon {
+                return true
+            }
+
+            if (current.y > point.y) != (previous.y > point.y) {
+                let xAtY = (previous.x - current.x) *
+                           (point.y - current.y) /
+                           (previous.y - current.y) + current.x
+                if point.x < xAtY {
+                    inside.toggle()
+                }
+            }
+            previous = current
+        }
+
+        return inside
     }
 }
