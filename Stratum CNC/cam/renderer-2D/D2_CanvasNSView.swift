@@ -126,6 +126,8 @@ final class D2_CanvasNSView: NSView {
     }
 
     private func fitContentInViewportIfPossible() {
+        fitContentInTrueToLifeSize()
+        return
         guard !canvasState.objects.isEmpty else {
             needsAutoFitAfterLayout = false
             return
@@ -150,6 +152,40 @@ final class D2_CanvasNSView: NSView {
         let contentCenter = CGPoint(x: contentBounds.midX, y: contentBounds.midY)
         panOffset = CGPoint(x: targetCenter.x - bounds.midX - contentCenter.x * zoomScale,
                             y: targetCenter.y - bounds.midY - contentCenter.y * zoomScale)
+        updateWorldTransform()
+        canvasState.zoomScale = zoomScale
+        needsAutoFitAfterLayout = false
+        onViewportChanged?(panOffset, zoomScale)
+    }
+
+    private func fitContentInTrueToLifeSize() {
+        guard !canvasState.objects.isEmpty else {
+            needsAutoFitAfterLayout = false
+            return
+        }
+
+        var unionRect: CGRect?
+        for object in canvasState.objects {
+            unionRect = unionRect?.union(object.rotatedBounds) ?? object.rotatedBounds
+        }
+        guard let contentBounds = unionRect, !bounds.isEmpty else {
+            return
+        }
+
+        let usableWidth = max(bounds.width - Self.rightViewportPadding, 1)
+
+        // Set zoom scale to physical 1mm : 1pt ratio
+        zoomScale = trueToLifeZoomScale
+
+        // Center content inside usable viewport area
+        let targetCenter = CGPoint(x: usableWidth / 2, y: bounds.midY)
+        let contentCenter = CGPoint(x: contentBounds.midX, y: contentBounds.midY)
+
+        panOffset = CGPoint(
+            x: targetCenter.x - bounds.midX - contentCenter.x * zoomScale,
+            y: targetCenter.y - bounds.midY - contentCenter.y * zoomScale
+        )
+
         updateWorldTransform()
         canvasState.zoomScale = zoomScale
         needsAutoFitAfterLayout = false
@@ -272,5 +308,14 @@ final class D2_CanvasNSView: NSView {
         lastDragLocation = nil
         lastDragWorldLocation = nil
         dragMode = .pan
+    }
+
+    private var trueToLifeZoomScale: CGFloat {
+        // 1. Get the screen where the NSView currently resides, or default to main
+        guard let screen = window?.screen ?? NSScreen.main else {
+            return 72.0 / 25.4 // Fallback (~2.835) assuming standard 72 DPI
+        }
+
+        return screen.trueToLifeZoomScale(in: window)
     }
 }
