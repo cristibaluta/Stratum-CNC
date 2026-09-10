@@ -807,7 +807,13 @@ final class SingleGerberParser {
         let isCounterClockwise = signedArea > 0
 
         // For each corner, find the two tangent points where the
-        // straight edges meet the rounding arc.
+        // straight edges meet the rounding arc. The aperture's corner
+        // points are the SHARP box corners (KiCad's RoundRect macro is
+        // a union of that box, a radius-r circle at each corner, and
+        // radius-r-thick edges - i.e. the box expanded outward by r).
+        // So each tangent point sits on the corresponding edge's
+        // OUTWARD perpendicular offset by r, not slid along the edge
+        // itself.
         var arcStartPoints: [DXF.Point] = []
         var arcEndPoints: [DXF.Point] = []
 
@@ -819,11 +825,14 @@ final class SingleGerberParser {
             let incoming = unitVector(from: previous, to: current)
             let outgoing = unitVector(from: current, to: next)
 
+            let incomingNormal = outwardNormal(for: incoming, isCounterClockwise: isCounterClockwise)
+            let outgoingNormal = outwardNormal(for: outgoing, isCounterClockwise: isCounterClockwise)
+
             arcStartPoints.append(
-                DXF.Point(current.x - incoming.x * radius, current.y - incoming.y * radius)
+                DXF.Point(current.x + incomingNormal.x * radius, current.y + incomingNormal.y * radius)
             )
             arcEndPoints.append(
-                DXF.Point(current.x + outgoing.x * radius, current.y + outgoing.y * radius)
+                DXF.Point(current.x + outgoingNormal.x * radius, current.y + outgoingNormal.y * radius)
             )
         }
 
@@ -875,6 +884,19 @@ final class SingleGerberParser {
             return DXF.Point(0, 0)
         }
         return DXF.Point(dx / length, dy / length)
+    }
+
+    /// Perpendicular to `direction`, pointing away from the polygon's
+    /// interior. For a counter-clockwise polygon the interior is to the
+    /// left of travel, so outward is a -90 degree (clockwise) rotation
+    /// of the direction vector; for a clockwise polygon it's the
+    /// opposite (+90 degree) rotation.
+    private func outwardNormal(for direction: DXF.Point, isCounterClockwise: Bool) -> DXF.Point {
+        if isCounterClockwise {
+            return DXF.Point(direction.y, -direction.x)
+        } else {
+            return DXF.Point(-direction.y, direction.x)
+        }
     }
 
     // MARK: - Regions
