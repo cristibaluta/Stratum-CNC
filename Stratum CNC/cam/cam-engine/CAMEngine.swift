@@ -114,28 +114,196 @@ final class CAMEngine {
         return segments
     }
 
-    private func convert(entity: DXF.Entity, reversed: Bool) -> [Segment] {
-        // Implement conversion from DXF.Entity to [Segment]
-        // Respect start/end reversal when reversed == true
-        switch entity {
-            case .line(let a, let b, _, _):
-                let start = reversed ? b : a
-                let end = reversed ? a : b
-                return [.line(start: CGPoint(x: start.x, y: start.y), end: CGPoint(x: end.x, y: end.y))]
+    /// Converts a raw DXF entity into normalized CNC path primitives (`Segment`).
+    /// - Parameters:
+    ///   - entity: The source DXF entity from the contour chain.
+    ///   - reversed: `true` if EntityChainer is walking the entity backwards.
+    /// - Returns: An array of linear and circular arc segments representing the cutter motion.
+    public func convert(entity: DXF.Entity, reversed: Bool) -> [Segment] {
 
-            case .arc(let center, let radius, let startDeg, let endDeg, _, _):
-                let startRad = startDeg * .pi / 180.0
-                let endRad = endDeg * .pi / 180.0
+        switch entity {
+            case let .line(a, b, _, _):
+                let start = reversed ? b.cgPoint : a.cgPoint
+                let end = reversed ? a.cgPoint : b.cgPoint
+                return [.line(start: start, end: end)]
+
+            case let .circle(center, radius, _, _):
+                let centerPt = center.cgPoint
+                // DXF circles map to 2x 180° arcs to ensure compatibility with standard CNC controllers
                 if reversed {
-                    return [.arc(center: CGPoint(x: center.x, y: center.y), radius: radius, startAngle: endRad, endAngle: startRad, isCCW: false)]
+                    return [
+                        .arc(center: centerPt, radius: radius, startAngle: .pi, endAngle: 0, isCCW: false),
+                        .arc(center: centerPt, radius: radius, startAngle: 2 * .pi, endAngle: .pi, isCCW: false)
+                    ]
                 } else {
-                    return [.arc(center: CGPoint(x: center.x, y: center.y), radius: radius, startAngle: startRad, endAngle: endRad, isCCW: true)]
+                    return [
+                        .arc(center: centerPt, radius: radius, startAngle: 0, endAngle: .pi, isCCW: true),
+                        .arc(center: centerPt, radius: radius, startAngle: .pi, endAngle: 2 * .pi, isCCW: true)
+                    ]
                 }
 
-            default:
-                // Tessellate polyline bulges, ellipses, and splines into line segments
+            case let .arc(center, radius, startDeg, endDeg, _, _):
+                let start = startDeg * .pi / 180.0
+                var end = endDeg * .pi / 180.0
+
+                // DXF arcs sweep CCW start -> end. Normalize end angle.
+                while end < start {
+                    end += 2 * .pi
+                }
+
+                let centerPt = center.cgPoint
+                if reversed {
+                    // Same physical arc, swept backwards (CW)
+                    return [.arc(center: centerPt, radius: radius, startAngle: end, endAngle: start, isCCW: false)]
+                } else {
+                    return [.arc(center: centerPt, radius: radius, startAngle: start, endAngle: end, isCCW: true)]
+                }
+
+            case let .polyline(vertices, closed, _, _):
+                let ordered = reversed ? reversedPolylineVertices(vertices, closed: closed) : vertices
+                return segmentsFromPolyline(vertices: ordered, closed: closed)
+
+            case let .ellipse(center, majorAxis, ratio, startParam, endParam, _, _):
+                // Tessellate ellipse into tiny linear segments (G1 moves)
+                return segmentsFromEllipse(
+                    center: center.cgPoint,
+                    majorAxis: majorAxis.cgPoint,
+                    ratio: ratio,
+                    startParam: startParam,
+                    endParam: endParam,
+                    reversed: reversed
+                )
+
+            case .point, .text, .dimension:
+                // Non-machinable primitives generate no physical toolpath moves
                 return []
         }
+    }
+
+    // MARK: - Polyline Helpers
+
+    private func segmentsFromPolyline(vertices: [DXF.PolyVertex], closed: Bool) -> [Segment] {
+        guard vertices.count >= 2 else { return [] }
+        var segments: [Segment] = []
+
+        let segmentCount = closed ? vertices.count : (vertices.count - 1)
+        for i in 0..<segmentCount {
+            let current = vertices[i]
+            let next = vertices[(i + 1) % vertices.count]
+
+            let startPt = current.point.cgPoint
+            let endPt = next.point.cgPoint
+
+            if abs(current.bulge) < 1e-12 {
+                segments.append(.line(start: startPt, end: endPt))
+            } else if let bulgeArc = createBulgeArc(from: startPt, to: endPt, bulge: current.bulge) {
+                segments.append(bulgeArc)
+            }
+        }
+
+        return segments
+    }
+
+    /// Converts a polyline bulge value into a CCW/CW arc segment.
+    private func createBulgeArc(from a: CGPoint, to b: CGPoint, bulge: Double) -> Segment? {
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let chord = hypot(dx, dy)
+
+        guard chord > 1e-12 else { return nil }
+
+        let theta = 4.0 * atan(bulge)
+        let halfChord = chord / 2.0
+        let radius = halfChord / abs(sin(theta / 2.0))
+
+        let mx = (a.x + b.x) / 2.0
+        let my = (a.y + b.y) / 2.0
+
+        // Unit perpendicular vector
+        let nx = -dy / chord
+        let ny = dx / chord
+
+        let centerDistance = halfChord / tan(abs(theta) / 2.0)
+        let sign = bulge >= 0 ? 1.0 : -1.0
+
+        let center = CGPoint(
+            x: mx + nx * centerDistance * sign,
+            y: my + ny * centerDistance * sign
+        )
+
+        let startAngle = atan2(a.y - center.y, a.x - center.x)
+        let endAngle = atan2(b.y - center.y, b.x - center.x)
+        let isCCW = bulge > 0
+
+        return .arc(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            isCCW: isCCW
+        )
+    }
+
+    /// Reverses polyline vertex order and flips bulge signs for backward walking.
+    private func reversedPolylineVertices(_ vertices: [DXF.PolyVertex], closed: Bool) -> [DXF.PolyVertex] {
+        let n = vertices.count
+        guard n > 1 else { return vertices }
+
+        return (0..<n).map { i in
+            let originalIndex = n - 1 - i
+            let bulgeSourceIndex = originalIndex - 1
+            let bulge: Double
+
+            if bulgeSourceIndex >= 0 {
+                bulge = -vertices[bulgeSourceIndex].bulge
+            } else if closed {
+                bulge = -vertices[n - 1].bulge
+            } else {
+                bulge = 0
+            }
+
+            return DXF.PolyVertex(vertices[originalIndex].point, bulge: bulge)
+        }
+    }
+
+    // MARK: - Ellipse Helpers
+
+    private func segmentsFromEllipse(
+        center: CGPoint,
+        majorAxis: CGPoint,
+        ratio: Double,
+        startParam: Double,
+        endParam: Double,
+        reversed: Bool
+    ) -> [Segment] {
+        let majorRadius = hypot(majorAxis.x, majorAxis.y)
+        let minorRadius = majorRadius * ratio
+        let rotation = atan2(majorAxis.y, majorAxis.x)
+
+        let sampleCount = max(32, Int(abs(endParam - startParam) * 32 / (2 * .pi)))
+        var points: [CGPoint] = []
+
+        for i in 0...sampleCount {
+            let t = startParam + (endParam - startParam) * Double(i) / Double(sampleCount)
+
+            let x = majorRadius * cos(t)
+            let y = minorRadius * sin(t)
+
+            let xr = x * cos(rotation) - y * sin(rotation)
+            let yr = x * sin(rotation) + y * cos(rotation)
+
+            points.append(CGPoint(x: center.x + xr, y: center.y + yr))
+        }
+
+        if reversed {
+            points.reverse()
+        }
+
+        var segments: [Segment] = []
+        for i in 0..<(points.count - 1) {
+            segments.append(.line(start: points[i], end: points[i + 1]))
+        }
+        return segments
     }
 
     /// Gives a list of passes

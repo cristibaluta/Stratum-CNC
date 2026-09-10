@@ -20,7 +20,9 @@ enum EntityChainer {
                     return (a.cgPoint, b.cgPoint)
 
                 case let .polyline(vertices, _, _, _):
-                    guard let f = vertices.first, let l = vertices.last else { return nil }
+                    guard let f = vertices.first, let l = vertices.last else {
+                        return nil
+                    }
                     return (f.point.cgPoint, l.point.cgPoint)
 
                 case let .arc(center, r, start, end, _, _):
