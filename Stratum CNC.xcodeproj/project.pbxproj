@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		560F75753052662B0017EE04 /* iOverlay in Frameworks */ = {isa = PBXBuildFile; productRef = 560F75743052662B0017EE04 /* iOverlay */; };
+		560F78F4305336B90017EE04 /* StratumCAM in Frameworks */ = {isa = PBXBuildFile; productRef = 560F78F3305336B90017EE04 /* StratumCAM */; };
 		5679E7B430389CC800B08A35 /* MeshIO in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B330389CC800B08A35 /* MeshIO */; };
 		5679E7B630389CC800B08A35 /* OCCTSwiftIO in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B530389CC800B08A35 /* OCCTSwiftIO */; };
 		5679E7B930389D8B00B08A35 /* OCCTSwiftViewport in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B830389D8B00B08A35 /* OCCTSwiftViewport */; };
@@ -83,6 +84,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				56CEA0923035EC36008167CA /* OCCTSwift in Frameworks */,
+				560F78F4305336B90017EE04 /* StratumCAM in Frameworks */,
 				6D0235C9304D268A004AE6F8 /* SwiftDXF in Frameworks */,
 				5679E7B430389CC800B08A35 /* MeshIO in Frameworks */,
 				560F75753052662B0017EE04 /* iOverlay in Frameworks */,
@@ -96,12 +98,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		560F78F2305336B90017EE04 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		56CEA04430356265008167CA = {
 			isa = PBXGroup;
 			children = (
 				560F76B63053164E0017EE04 /* StratumCAM */,
 				56CEA04F30356265008167CA /* Stratum CNC */,
 				560F76AB3052C5A40017EE04 /* Stratum CNC Tests */,
+				560F78F2305336B90017EE04 /* Frameworks */,
 				56CEA04E30356265008167CA /* Products */,
 			);
 			sourceTree = "<group>";
@@ -166,6 +176,7 @@
 				5679E83E303C292E00B08A35 /* PocketSVG */,
 				6D0235C8304D268A004AE6F8 /* SwiftDXF */,
 				560F75743052662B0017EE04 /* iOverlay */,
+				560F78F3305336B90017EE04 /* StratumCAM */,
 			);
 			productName = "MakeraStudio Lite";
 			productReference = 56CEA04D30356265008167CA /* Stratum CNC.app */;
@@ -602,6 +613,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 560F75733052662B0017EE04 /* XCRemoteSwiftPackageReference "iOverlay" */;
 			productName = iOverlay;
+		};
+		560F78F3305336B90017EE04 /* StratumCAM */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = StratumCAM;
 		};
 		5679E7B330389CC800B08A35 /* MeshIO */ = {
 			isa = XCSwiftPackageProductDependency;

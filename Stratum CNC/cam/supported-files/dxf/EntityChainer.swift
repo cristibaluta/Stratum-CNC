@@ -11,9 +11,9 @@ import StratumCAM
 
 enum EntityChainer {
 
-    static func chain(_ entities: [DXF.Entity], tolerance: Double = 1e-3) -> [StratumCAM.Contour] {
+    static func chain(_ entities: [DXF.Entity], tolerance: Double = 1e-3) -> [SC.Contour] {
         var remaining = entities.map { (entity: $0, used: false) }
-        var contours: [StratumCAM.Contour] = []
+        var contours: [SC.Contour] = []
 
         func endpoints(_ e: DXF.Entity) -> (CGPoint, CGPoint)? {
             switch e {
@@ -44,7 +44,7 @@ enum EntityChainer {
                 continue
             }
 
-            var chain: [Contour.Chained] = [Contour.Chained(entity: remaining[startIndex].entity, reversed: false)]
+            var chain: [SC.Contour.Chained] = [SC.Contour.Chained(entity: remaining[startIndex].entity, reversed: false)]
             remaining[startIndex].used = true
             var tail = e0
 
@@ -54,13 +54,13 @@ enum EntityChainer {
                 for i in remaining.indices where !remaining[i].used {
                     guard let (a, b) = endpoints(remaining[i].entity) else { continue }
                     if close(tail, a) {
-                        chain.append(Contour.Chained(entity: remaining[i].entity, reversed: false))
+                        chain.append(SC.Contour.Chained(entity: remaining[i].entity, reversed: false))
                         remaining[i].used = true
                         tail = b
                         extended = true
                         break
                     } else if close(tail, b) {
-                        chain.append(Contour.Chained(entity: remaining[i].entity, reversed: true))
+                        chain.append(SC.Contour.Chained(entity: remaining[i].entity, reversed: true))
                         remaining[i].used = true
                         tail = a
                         extended = true
@@ -69,11 +69,15 @@ enum EntityChainer {
                 }
             }
 
-            contours.append(Contour(entities: chain, isClosed: close(tail, s0)))
+            contours.append(
+                SC.Contour(entities: chain, isClosed: close(tail, s0))
+            )
         }
 
         for i in remaining.indices where !remaining[i].used {
-            contours.append(Contour(entities: [Contour.Chained(entity: remaining[i].entity, reversed: false)], isClosed: true))
+            contours.append(
+                SC.Contour(entities: [SC.Contour.Chained(entity: remaining[i].entity, reversed: false)], isClosed: true)
+            )
             remaining[i].used = true
         }
 

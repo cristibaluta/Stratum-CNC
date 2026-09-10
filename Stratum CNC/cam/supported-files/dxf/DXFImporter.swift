@@ -9,6 +9,7 @@ import Foundation
 import AppKit
 import CoreText
 import SwiftDXF
+import StratumCAM
 
 class DXFImporter: Importer {
 
