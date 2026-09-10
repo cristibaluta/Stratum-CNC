@@ -47,6 +47,14 @@ final class SingleGerberParser {
 
     private var entities: [DXF.Entity] = []
 
+    /// Single choke point for emitting output geometry. Suppresses the
+    /// entity (without touching any parser state) while inside a `%TO.C`
+    /// component-attribute scope - see `isInsideComponentAttribute`.
+    private func appendEntity(_ entity: DXF.Entity) {
+        guard !isInsideComponentAttribute else { return }
+        entities.append(entity)
+    }
+
     private var apertures: [Int: Aperture] = [:]
     private var currentAperture: Int?
 
@@ -62,6 +70,19 @@ final class SingleGerberParser {
 
     private var currentRegion: [DXF.Point] = []
     private var isInRegion = false
+
+    // KiCad's Gerber X2/X3 output echoes each pad's shape and location onto
+    // every layer (not just copper), tagged with the owning component's
+    // reference designator via a `%TO.C,<ref>*%` object attribute, purely so
+    // CAM/AOI/pick-and-place tools can cross-reference pads to components on
+    // any given file. That attribute scope is closed by `%TD*%`. These
+    // objects are metadata, not artwork - on a silkscreen/legend layer they
+    // are not meant to be rendered as visible ink (real legend graphics like
+    // reference-designator text appear with no attribute scope active at
+    // all). So while this flag is set, drawn/flashed geometry is tracked
+    // internally as usual (position, region points, etc.) but not emitted
+    // as an output entity.
+    private var isInsideComponentAttribute = false
 
     // How finely arcs are tessellated when they fall inside a G36/G37
     // region (regions are stored as plain point lists, so curved edges
@@ -147,6 +168,23 @@ final class SingleGerberParser {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         if command.isEmpty {
+            return
+        }
+
+        // Component object attribute scope (see `isInsideComponentAttribute`).
+        // Checked with a comma right after "C" so it only matches the
+        // Component attribute itself, not lookalikes like `%TO.CRef,...%`
+        // or `%TO.CVal,...%`.
+        if command.hasPrefix("%TO.C,") {
+            isInsideComponentAttribute = true
+            return
+        }
+
+        // `%TD*%` deletes the currently-open object attribute(s). This file
+        // format only ever uses it to close a `%TO.C` scope, so treating any
+        // `%TD` as "attribute scope closed" is sufficient here.
+        if command.hasPrefix("%TD") {
+            isInsideComponentAttribute = false
             return
         }
 
@@ -519,7 +557,7 @@ final class SingleGerberParser {
 
         case .linear:
 
-            entities.append(
+            appendEntity(
                 .line(
                     a: start,
                     b: point,
@@ -532,12 +570,12 @@ final class SingleGerberParser {
              .counterClockwise:
 
             if let arc = makeArcEntity(from: start, to: point, i: i, j: j, clockwise: interpolation == .clockwise) {
-                entities.append(arc)
+                appendEntity(arc)
             } else {
                 // Couldn't resolve the arc center from the I/J offsets
                 // (e.g. missing data) - fall back to a straight segment
                 // so the contour at least stays connected.
-                entities.append(
+                appendEntity(
                     .line(
                         a: start,
                         b: point,
@@ -721,7 +759,7 @@ final class SingleGerberParser {
 
         case .circle(let diameter):
 
-            entities.append(
+            appendEntity(
                 .circle(
                     center: point,
                     radius: diameter / 2 * unitScale,
@@ -750,7 +788,7 @@ final class SingleGerberParser {
                 )
             ]
 
-            entities.append(
+            appendEntity(
                 .polyline(
                     vertices: vertices,
                     closed: true,
@@ -853,7 +891,7 @@ final class SingleGerberParser {
             let entityStartAngle = isCounterClockwise ? physicalStartAngle : physicalEndAngle
             let entityEndAngle = isCounterClockwise ? physicalEndAngle : physicalStartAngle
 
-            entities.append(
+            appendEntity(
                 .arc(
                     center: center,
                     radius: radius,
@@ -865,7 +903,7 @@ final class SingleGerberParser {
             )
 
             let next = (index + 1) % 4
-            entities.append(
+            appendEntity(
                 .line(
                     a: arcEndPoints[index],
                     b: arcStartPoints[next],
@@ -913,7 +951,7 @@ final class SingleGerberParser {
             DXF.PolyVertex($0)
         }
 
-        entities.append(
+        appendEntity(
             .polyline(
                 vertices: vertices,
                 closed: true,
