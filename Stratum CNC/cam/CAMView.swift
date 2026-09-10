@@ -55,6 +55,11 @@ struct CAMView: View {
                         Spacer()
                     }
                     Spacer()
+//                    VStack {
+//                        CanvasZoomToolbar(viewModel: camModel)
+//                        Spacer()
+//                    }
+                    Spacer()
                     VStack(spacing: 16) {
                         MaterialPanelView(stock: $camModel.selectedStockMaterial,
                                           isStockVisible: stockVisibleBinding)
@@ -117,7 +122,7 @@ struct CAMView: View {
             Text("No objects added yet!")
                 .font(.headline)
                 .foregroundColor(.primary)
-            Text("File types you can import: SVG, DXF.")
+            Text("File types you can import: SVG, DXF, Gerber (zipped)")
                 .font(.caption)
                 .foregroundColor(.secondary)
             Button("Import") {

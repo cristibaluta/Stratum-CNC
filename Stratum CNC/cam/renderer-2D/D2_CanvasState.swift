@@ -40,7 +40,11 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// every pan/zoom/fit so anything computing zoom-dependent stroke widths
     /// (stock texture, ruler) reads the value that's actually on screen,
     /// instead of the stale default it used to be stuck at.
-    @Published var zoomScale: CGFloat = 1
+    @Published var zoomScale: CGFloat = 1 {
+        didSet {
+            print(zoomScale)
+        }
+    }
 
     /// Invoked after any edit that changes an object's persisted transform
     /// (position, width/scale, rotation) or the object list itself

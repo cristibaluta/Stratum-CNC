@@ -9,6 +9,7 @@ import Foundation
 import CoreGraphics
 import Combine
 import UniformTypeIdentifiers
+import AppKit
 
 @MainActor
 class CAMModel: ObservableObject {
@@ -94,19 +95,23 @@ class CAMModel: ObservableObject {
                     canvasState.add(obj, select: false)
                     return obj
                 }
+
             case "dxf":
                 if let obj = DXFImporter().parse(url: url) {
                     canvasState.add(obj, select: false)
                     return obj
                 }
+
             case "step", "stp":
                 print("import step")
+
             case "zip":
                 let objs: [D2_Object] = GerberImporter().parse(url: url)
                 for obj in objs {
                     canvasState.add(obj, select: false)
                 }
                 return objs.first
+                
             default:
                 print("Unsupported file type: \(ext)")
         }
@@ -116,5 +121,52 @@ class CAMModel: ObservableObject {
     func clear() {
         canvasState.removeAll()
         toolpaths.removeAll()
+    }
+
+    /// True-to-life scale (Points Per MM for current display)
+    private(set) var trueToLifeScale: CGFloat = 2.8346
+
+    /// Normalized slider position: 0.0 (min) ... 0.5 (1:1 scale) ... 1.0 (max)
+    var sliderPosition: Double {
+        get {
+            // Map zoomScale -> normalized 0...1 range around trueToLifeScale
+            let ratio = canvasState.zoomScale / trueToLifeScale
+            let logRatio = log2(ratio) // 0 when 1:1
+            let maxLog: Double = 3.3219 // log2(10) -> 10x range
+
+            let normalized = (logRatio / maxLog + 1.0) / 2.0
+            return min(max(normalized, 0.0), 1.0)
+        }
+        set {
+            // Map normalized 0...1 slider position -> zoomScale
+            let maxLog: Double = 3.3219
+            let logRatio = (newValue * 2.0 - 1.0) * maxLog
+            let ratio = pow(2.0, logRatio)
+
+            canvasState.zoomScale = trueToLifeScale * ratio
+        }
+    }
+
+    /// Call this on init or when the NSView moves to a new screen
+    func updateTrueToLifeScale(for screen: NSScreen?) {
+        guard let screen = screen else { return }
+
+        let deviceDescription = screen.deviceDescription
+        guard let displayID = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
+              let displaySizeMM = Optional(CGDisplayScreenSize(displayID)), displaySizeMM.width > 0,
+              let backingScale = Optional(screen.backingScaleFactor) else {
+            return
+        }
+
+        // Compute actual physical DPI / point scale
+        let pixelWidth = (deviceDescription[NSDeviceDescriptionKey.size] as? NSSize ?? .zero).width * backingScale
+        let physicalDPI = (pixelWidth / displaySizeMM.width) * 25.4
+        let pointsPerMM = (physicalDPI / 25.4) / backingScale
+
+        self.trueToLifeScale = pointsPerMM
+    }
+
+    func resetToTrueToLife() {
+        canvasState.zoomScale = trueToLifeScale
     }
 }

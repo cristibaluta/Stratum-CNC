@@ -56,10 +56,7 @@ enum GerberParser {
         // Recursively find all extracted files.
         let extractedFiles = fileManager.enumerator(
             at: extractionDirectory,
-            includingPropertiesForKeys: [
-                .isRegularFileKey,
-                .isDirectoryKey
-            ],
+            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
             options: [.skipsHiddenFiles]
         )?.compactMap { $0 as? URL } ?? []
 
@@ -79,7 +76,7 @@ enum GerberParser {
             guard let text = String(data: data, encoding: .utf8) else {
                 continue
             }
-            let layer = file.deletingPathExtension().lastPathComponent
+            let layer = file.lastPathComponent
             let extensionName = file.pathExtension.lowercased()
 
             // Copper is special: a Gerber line is a centerline plus an aperture
