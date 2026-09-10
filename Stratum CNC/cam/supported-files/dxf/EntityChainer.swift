@@ -7,12 +7,13 @@
 
 import Foundation
 import SwiftDXF
+import StratumCAM
 
 enum EntityChainer {
 
-    static func chain(_ entities: [DXF.Entity], tolerance: Double = 1e-3) -> [Contour] {
+    static func chain(_ entities: [DXF.Entity], tolerance: Double = 1e-3) -> [StratumCAM.Contour] {
         var remaining = entities.map { (entity: $0, used: false) }
-        var contours: [Contour] = []
+        var contours: [StratumCAM.Contour] = []
 
         func endpoints(_ e: DXF.Entity) -> (CGPoint, CGPoint)? {
             switch e {

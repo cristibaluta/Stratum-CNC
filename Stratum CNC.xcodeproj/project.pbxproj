@@ -29,6 +29,7 @@
 
 /* Begin PBXFileReference section */
 		560F76AA3052C5A40017EE04 /* Stratum CNC Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Stratum CNC Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		560F76B63053164E0017EE04 /* StratumCAM */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = StratumCAM; path = ../StratumCAM; sourceTree = SOURCE_ROOT; };
 		56CEA04D30356265008167CA /* Stratum CNC.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Stratum CNC.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -98,6 +99,7 @@
 		56CEA04430356265008167CA = {
 			isa = PBXGroup;
 			children = (
+				560F76B63053164E0017EE04 /* StratumCAM */,
 				56CEA04F30356265008167CA /* Stratum CNC */,
 				560F76AB3052C5A40017EE04 /* Stratum CNC Tests */,
 				56CEA04E30356265008167CA /* Products */,
