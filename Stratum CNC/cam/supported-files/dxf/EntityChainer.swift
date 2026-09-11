@@ -52,7 +52,9 @@ enum EntityChainer {
             while extended {
                 extended = false
                 for i in remaining.indices where !remaining[i].used {
-                    guard let (a, b) = endpoints(remaining[i].entity) else { continue }
+                    guard let (a, b) = endpoints(remaining[i].entity) else {
+                        continue
+                    }
                     if close(tail, a) {
                         chain.append(SC.Contour.Chained(entity: remaining[i].entity, reversed: false))
                         remaining[i].used = true
