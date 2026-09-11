@@ -7,13 +7,14 @@
 
 import Foundation
 import SwiftDXF
+import StratumCAM
 
 final class GerberImporter: Importer {
 
     private let factory = ObjectFactory()
 
     func parse(url: URL) -> D2_Object? {
-        return nil
+        fatalError("Not implemented, use `parse(url: URL) -> [D2_Object]`")
     }
 
     func parse(url: URL) -> [D2_Object] {

@@ -51,23 +51,20 @@ final class SingleGerberParser {
     /// entity (without touching any parser state) while inside a `%TO.C`
     /// component-attribute scope - see `isInsideComponentAttribute`.
     private func appendEntity(_ entity: DXF.Entity) {
-        guard !isInsideComponentAttribute else { return }
+        guard !isInsideComponentAttribute else {
+            return
+        }
         entities.append(entity)
     }
 
     private var apertures: [Int: Aperture] = [:]
     private var currentAperture: Int?
-
     private var currentPoint = DXF.Point(0, 0)
-
     private var unitScale = 1.0
-
     private var formatIntegerDigits = 6
     private var formatDecimalDigits = 6
-
     private var interpolation: Interpolation = .linear
     private var quadrantMode: QuadrantMode = .single
-
     private var currentRegion: [DXF.Point] = []
     private var isInRegion = false
 
@@ -101,7 +98,6 @@ final class SingleGerberParser {
     func parse() -> [DXF.Entity] {
 
         let commands = tokenize(source)
-
         for command in commands {
             parseCommand(command)
         }
@@ -120,7 +116,6 @@ final class SingleGerberParser {
 
         var commands: [String] = []
         var current = ""
-
         var inExtendedCommand = false
 
         for character in source {
@@ -164,9 +159,7 @@ final class SingleGerberParser {
 
     private func parseCommand(_ command: String) {
 
-        let command = command
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
+        let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
         if command.isEmpty {
             return
         }
@@ -324,59 +317,49 @@ final class SingleGerberParser {
         let definition = String(body[body.index(after: commaIndex)...])
 
         switch templateName {
+            case "C":
+                guard let diameter = Double(definition) else {
+                    return
+                }
+                apertures[apertureNumber] = .circle(
+                    diameter: diameter
+                )
 
-        case "C":
+            case "R":
+                let dimensions = definition
+                    .split(separator: "X")
+                    .compactMap { Double($0) }
+                guard dimensions.count >= 2 else {
+                    return
+                }
+                apertures[apertureNumber] = .rectangle(
+                    width: dimensions[0],
+                    height: dimensions[1]
+                )
 
-            guard let diameter = Double(definition) else {
-                return
-            }
+            case "RoundRect":
+                let values = definition
+                    .split(separator: "X")
+                    .compactMap { Double($0) }
+                // $1 = corner rounding radius, $2..$9 = 4 corner (x,y)
+                // pairs, optional $10 = rotation in degrees.
+                guard values.count >= 9 else {
+                    return
+                }
+                let corners: [(x: Double, y: Double)] = [
+                    (x: values[1], y: values[2]),
+                    (x: values[3], y: values[4]),
+                    (x: values[5], y: values[6]),
+                    (x: values[7], y: values[8])
+                ]
+                apertures[apertureNumber] = .roundedRectangle(
+                    cornerRadius: values[0],
+                    corners: corners,
+                    rotationDegrees: values.count > 9 ? values[9] : 0
+                )
 
-            apertures[apertureNumber] = .circle(
-                diameter: diameter
-            )
-
-        case "R":
-
-            let dimensions = definition
-                .split(separator: "X")
-                .compactMap { Double($0) }
-
-            guard dimensions.count >= 2 else {
-                return
-            }
-
-            apertures[apertureNumber] = .rectangle(
-                width: dimensions[0],
-                height: dimensions[1]
-            )
-
-        case "RoundRect":
-
-            let values = definition
-                .split(separator: "X")
-                .compactMap { Double($0) }
-
-            // $1 = corner rounding radius, $2..$9 = 4 corner (x,y)
-            // pairs, optional $10 = rotation in degrees.
-            guard values.count >= 9 else {
-                return
-            }
-
-            let corners: [(x: Double, y: Double)] = [
-                (x: values[1], y: values[2]),
-                (x: values[3], y: values[4]),
-                (x: values[5], y: values[6]),
-                (x: values[7], y: values[8])
-            ]
-
-            apertures[apertureNumber] = .roundedRectangle(
-                cornerRadius: values[0],
-                corners: corners,
-                rotationDegrees: values.count > 9 ? values[9] : 0
-            )
-
-        default:
-            break
+            default:
+                break
         }
     }
 
@@ -418,31 +401,27 @@ final class SingleGerberParser {
         let newPoint = DXF.Point(x, y)
 
         switch dCode {
+            case 1:
+                // D01 = draw
+                draw(to: newPoint, from: oldPoint, i: i, j: j)
 
-        case 1:
-            // D01 = draw
-            draw(to: newPoint, from: oldPoint, i: i, j: j)
+            case 2:
+                // D02 = move
+                currentPoint = newPoint
 
-        case 2:
-            // D02 = move
-            currentPoint = newPoint
+            case 3:
+                // D03 = flash
+                currentPoint = newPoint
+                flash(at: newPoint)
 
-        case 3:
-            // D03 = flash
-            currentPoint = newPoint
-            flash(at: newPoint)
-
-        default:
-            break
+            default:
+                break
         }
     }
 
-    private func parseCoordinateFields(
-        _ command: String
-    ) -> CoordinateCommand {
+    private func parseCoordinateFields(_ command: String) -> CoordinateCommand {
 
         var result = CoordinateCommand()
-
         var index = command.startIndex
 
         while index < command.endIndex {
@@ -459,7 +438,6 @@ final class SingleGerberParser {
             }
 
             let nextIndex = command.index(after: index)
-
             var end = nextIndex
 
             while end < command.endIndex {
@@ -480,24 +458,23 @@ final class SingleGerberParser {
             let value = String(command[nextIndex..<end])
 
             switch character {
+                case "X":
+                    result.x = value
 
-            case "X":
-                result.x = value
+                case "Y":
+                    result.y = value
 
-            case "Y":
-                result.y = value
+                case "I":
+                    result.i = value
 
-            case "I":
-                result.i = value
+                case "J":
+                    result.j = value
 
-            case "J":
-                result.j = value
+                case "D":
+                    result.dCode = Int(value)
 
-            case "D":
-                result.dCode = Int(value)
-
-            default:
-                break
+                default:
+                    break
             }
 
             index = end
@@ -513,34 +490,27 @@ final class SingleGerberParser {
         guard !value.isEmpty else {
             return nil
         }
-
         guard let integer = Int(value) else {
             return nil
         }
 
-        let divisor = pow(
-            10.0,
-            Double(formatDecimalDigits)
-        )
+        let divisor = pow(10.0, Double(formatDecimalDigits))
 
         return Double(integer) / divisor * unitScale
     }
 
     // MARK: - Drawing
 
-    private func draw(
-        to point: DXF.Point,
-        from start: DXF.Point,
-        i: Double?,
-        j: Double?
-    ) {
+    private func draw(to point: DXF.Point,
+                      from start: DXF.Point,
+                      i: Double?,
+                      j: Double?) {
 
         guard start != point else {
             return
         }
 
         if isInRegion {
-
             if interpolation != .linear,
                let arcPoints = tessellateArc(from: start, to: point, i: i, j: j, clockwise: interpolation == .clockwise) {
                 currentRegion.append(contentsOf: arcPoints)
@@ -554,36 +524,23 @@ final class SingleGerberParser {
         }
 
         switch interpolation {
-
-        case .linear:
-
-            appendEntity(
-                .line(
-                    a: start,
-                    b: point,
-                    layer: layer,
-                    color: 256
-                )
-            )
-
-        case .clockwise,
-             .counterClockwise:
-
-            if let arc = makeArcEntity(from: start, to: point, i: i, j: j, clockwise: interpolation == .clockwise) {
-                appendEntity(arc)
-            } else {
-                // Couldn't resolve the arc center from the I/J offsets
-                // (e.g. missing data) - fall back to a straight segment
-                // so the contour at least stays connected.
+            case .linear:
                 appendEntity(
-                    .line(
-                        a: start,
-                        b: point,
-                        layer: layer,
-                        color: 256
-                    )
+                    .line(a: start, b: point, layer: layer, color: 256)
                 )
-            }
+
+            case .clockwise, .counterClockwise:
+
+                if let arc = makeArcEntity(from: start, to: point, i: i, j: j, clockwise: interpolation == .clockwise) {
+                    appendEntity(arc)
+                } else {
+                    // Couldn't resolve the arc center from the I/J offsets
+                    // (e.g. missing data) - fall back to a straight segment
+                    // so the contour at least stays connected.
+                    appendEntity(
+                        .line(a: start, b: point, layer: layer, color: 256)
+                    )
+                }
         }
 
         currentPoint = point
@@ -597,13 +554,11 @@ final class SingleGerberParser {
     /// unsigned, so all four sign combinations are tried and the one
     /// that (a) produces a consistent radius at both endpoints and
     /// (b) sweeps 90 degrees or less is kept.
-    private func arcGeometry(
-        from start: DXF.Point,
-        to end: DXF.Point,
-        iOffset: Double,
-        jOffset: Double,
-        clockwise: Bool
-    ) -> (center: DXF.Point, radius: Double, startAngle: Double, endAngle: Double)? {
+    private func arcGeometry(from start: DXF.Point,
+                             to end: DXF.Point,
+                             iOffset: Double,
+                             jOffset: Double,
+                             clockwise: Bool) -> (center: DXF.Point, radius: Double, startAngle: Double, endAngle: Double)? {
 
         let candidateOffsets: [(Double, Double)]
 
@@ -680,13 +635,11 @@ final class SingleGerberParser {
     /// ARC always sweeps counter-clockwise from startAngle to endAngle.
     /// If your version of SwiftDXF names this case/parameters
     /// differently, adjust this one call accordingly.
-    private func makeArcEntity(
-        from start: DXF.Point,
-        to end: DXF.Point,
-        i: Double?,
-        j: Double?,
-        clockwise: Bool
-    ) -> DXF.Entity? {
+    private func makeArcEntity(from start: DXF.Point,
+                               to end: DXF.Point,
+                               i: Double?,
+                               j: Double?,
+                               clockwise: Bool) -> DXF.Entity? {
 
         guard let i = i, let j = j,
               let geo = arcGeometry(from: start, to: end, iOffset: i, jOffset: j, clockwise: clockwise) else {
@@ -700,25 +653,21 @@ final class SingleGerberParser {
         let startAngle = clockwise ? geo.endAngle : geo.startAngle
         let endAngle = clockwise ? geo.startAngle : geo.endAngle
 
-        return .arc(
-            center: geo.center,
-            radius: geo.radius,
-            startDeg: startAngle,
-            endDeg: endAngle,
-            layer: layer,
-            color: 256
-        )
+        return .arc(center: geo.center,
+                    radius: geo.radius,
+                    startDeg: startAngle,
+                    endDeg: endAngle,
+                    layer: layer,
+                    color: 256)
     }
 
     /// Approximates an arc segment as a series of points, for use inside
     /// G36/G37 regions (which are stored/emitted as a plain polyline).
-    private func tessellateArc(
-        from start: DXF.Point,
-        to end: DXF.Point,
-        i: Double?,
-        j: Double?,
-        clockwise: Bool
-    ) -> [DXF.Point]? {
+    private func tessellateArc(from start: DXF.Point,
+                               to end: DXF.Point,
+                               i: Double?,
+                               j: Double?,
+                               clockwise: Bool) -> [DXF.Point]? {
 
         guard let i = i, let j = j,
               let geo = arcGeometry(from: start, to: end, iOffset: i, jOffset: j, clockwise: clockwise) else {
@@ -757,54 +706,48 @@ final class SingleGerberParser {
 
         switch aperture {
 
-        case .circle(let diameter):
+            case .circle(let diameter):
 
-            appendEntity(
-                .circle(
-                    center: point,
-                    radius: diameter / 2 * unitScale,
-                    layer: layer,
-                    color: 256
+                appendEntity(
+                    .circle(center: point,
+                            radius: diameter / 2 * unitScale,
+                            layer: layer,
+                            color: 256)
                 )
-            )
 
-        case .rectangle(let width, let height):
+            case .rectangle(let width, let height):
 
-            let hw = width / 2 * unitScale
-            let hh = height / 2 * unitScale
+                let hw = width / 2 * unitScale
+                let hh = height / 2 * unitScale
 
-            let vertices = [
-                DXF.PolyVertex(
-                    DXF.Point(point.x - hw, point.y - hh)
-                ),
-                DXF.PolyVertex(
-                    DXF.Point(point.x + hw, point.y - hh)
-                ),
-                DXF.PolyVertex(
-                    DXF.Point(point.x + hw, point.y + hh)
-                ),
-                DXF.PolyVertex(
-                    DXF.Point(point.x - hw, point.y + hh)
+                let vertices = [
+                    DXF.PolyVertex(
+                        DXF.Point(point.x - hw, point.y - hh)
+                    ),
+                    DXF.PolyVertex(
+                        DXF.Point(point.x + hw, point.y - hh)
+                    ),
+                    DXF.PolyVertex(
+                        DXF.Point(point.x + hw, point.y + hh)
+                    ),
+                    DXF.PolyVertex(
+                        DXF.Point(point.x - hw, point.y + hh)
+                    )
+                ]
+
+                appendEntity(
+                    .polyline(vertices: vertices,
+                              closed: true,
+                              layer: layer,
+                              color: 256)
                 )
-            ]
 
-            appendEntity(
-                .polyline(
-                    vertices: vertices,
-                    closed: true,
-                    layer: layer,
-                    color: 256
-                )
-            )
+            case .roundedRectangle(let cornerRadius, let corners, let rotationDegrees):
 
-        case .roundedRectangle(let cornerRadius, let corners, let rotationDegrees):
-
-            flashRoundedRectangle(
-                at: point,
-                cornerRadius: cornerRadius,
-                corners: corners,
-                rotationDegrees: rotationDegrees
-            )
+                flashRoundedRectangle(at: point,
+                                      cornerRadius: cornerRadius,
+                                      corners: corners,
+                                      rotationDegrees: rotationDegrees)
         }
     }
 
@@ -813,12 +756,10 @@ final class SingleGerberParser {
     /// quarter-circle corner arcs, pushed straight into `entities` (the
     /// same way normal contour segments are) so the existing chaining
     /// pipeline assembles them into one closed shape.
-    private func flashRoundedRectangle(
-        at point: DXF.Point,
-        cornerRadius: Double,
-        corners: [(x: Double, y: Double)],
-        rotationDegrees: Double
-    ) {
+    private func flashRoundedRectangle(at point: DXF.Point,
+                                       cornerRadius: Double,
+                                       corners: [(x: Double, y: Double)],
+                                       rotationDegrees: Double) {
 
         guard corners.count == 4, cornerRadius > 0 else {
             return
@@ -892,24 +833,20 @@ final class SingleGerberParser {
             let entityEndAngle = isCounterClockwise ? physicalEndAngle : physicalStartAngle
 
             appendEntity(
-                .arc(
-                    center: center,
-                    radius: radius,
-                    startDeg: entityStartAngle,
-                    endDeg: entityEndAngle,
-                    layer: layer,
-                    color: 256
-                )
+                .arc(center: center,
+                     radius: radius,
+                     startDeg: entityStartAngle,
+                     endDeg: entityEndAngle,
+                     layer: layer,
+                     color: 256)
             )
 
             let next = (index + 1) % 4
             appendEntity(
-                .line(
-                    a: arcEndPoints[index],
-                    b: arcStartPoints[next],
-                    layer: layer,
-                    color: 256
-                )
+                .line(a: arcEndPoints[index],
+                      b: arcStartPoints[next],
+                      layer: layer,
+                      color: 256)
             )
         }
     }

@@ -33,32 +33,20 @@ enum GerberParser {
             throw ParserError.archiveNotFound(url)
         }
 
+        // TODO: unzip in memory instead of saving to a temporary dir
         // Create a unique temporary directory for this import.
-        let extractionDirectory = fileManager.temporaryDirectory
-            .appendingPathComponent("GerberImport-\(UUID().uuidString)",
-                                    isDirectory: true)
-
-        try fileManager.createDirectory(
-            at: extractionDirectory,
-            withIntermediateDirectories: true
-        )
+        let extractionDirectory = fileManager.temporaryDirectory.appendingPathComponent("GerberImport-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: extractionDirectory, withIntermediateDirectories: true)
 
         defer {
             try? fileManager.removeItem(at: extractionDirectory)
         }
-
-        // Extract the archive.
-        //
-        // Use the exact unzip method exposed by your installed
-        // version of tomasf/Zip here.
         try unzip(url, to: extractionDirectory)
 
         // Recursively find all extracted files.
-        let extractedFiles = fileManager.enumerator(
-            at: extractionDirectory,
-            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        )?.compactMap { $0 as? URL } ?? []
+        let extractedFiles = fileManager.enumerator(at: extractionDirectory,
+                                                    includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+                                                    options: [.skipsHiddenFiles])?.compactMap { $0 as? URL } ?? []
 
         let gerberFiles = extractedFiles.filter {
             isGerberFile($0)
@@ -110,24 +98,14 @@ enum GerberParser {
         ].contains(ext)
     }
 
-    private static func unzip(
-        _ url: URL,
-        to directory: URL
-    ) throws {
+    private static func unzip(_ url: URL, to directory: URL) throws {
 
         let fileManager = FileManager.default
-
-        try fileManager.createDirectory(
-            at: directory,
-            withIntermediateDirectories: true
-        )
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
         let archive = try ZipArchive(url: url, mode: .readOnly)
-
         for entry in try archive.entries {
-
             let entryPath = entry.path
-
             // Prevent ZIP path traversal.
             let destination = directory.appendingPathComponent(entryPath)
 
