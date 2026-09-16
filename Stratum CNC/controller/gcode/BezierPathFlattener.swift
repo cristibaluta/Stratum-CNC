@@ -13,16 +13,6 @@ enum BezierPathFlattener {
     /// subpath is an array of NSPoint forming a polyline approximation of the
     /// original curves.
     ///
-    /// Each `moveTo` in the source path(s) starts a new subpath in the result.
-    /// A `closePath` element appends the subpath's starting point to close the loop.
-    ///
-    /// - Parameters:
-    ///   - paths: the source paths (e.g. parsed from an SVG)
-    ///   - tolerance: max allowed deviation (in the path's own coordinate units)
-    ///     between the flattened polyline and the true curve. Smaller = smoother
-    ///     but more points. 0.05–0.2 is a reasonable starting range if your units
-    ///     are millimeters; scale accordingly for points/pixels.
-    /// - Returns: array of subpaths, each an array of points in order.
     static func flatten(_ paths: [NSBezierPath], tolerance: CGFloat = 0.1) -> [[NSPoint]] {
         var allSubpaths: [[NSPoint]] = []
 

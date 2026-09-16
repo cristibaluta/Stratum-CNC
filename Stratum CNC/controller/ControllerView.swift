@@ -13,6 +13,7 @@ struct ControllerView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
+    @State private var renderBatch: [RenderBatch] = []
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -25,7 +26,7 @@ struct ControllerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                MetalView()
+                MetalCanvasView(batches: $renderBatch)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .padding(.trailing, -16)
@@ -58,7 +59,7 @@ struct ControllerView: View {
                     }
                     .padding(.top, 4)
                 ) {
-                    GCodeViewerView(model: gCodeModel)
+                    GCodeViewer(model: gCodeModel)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -255,26 +256,4 @@ struct ControllerView: View {
                 .foregroundStyle(.secondary)
         }
     }
-
-//    private var feedOverride: some View {
-//        HStack(spacing: 5) {
-//            Text("Feed")
-//                .font(.caption)
-//                .foregroundStyle(.secondary)
-//
-//            Picker("Feed", selection: $model.selectedFeedOverride) {
-//                Text("25%").tag(25)
-//                Text("50%").tag(50)
-//                Text("75%").tag(75)
-//                Text("100%").tag(100)
-//                Text("125%").tag(125)
-//                Text("150%").tag(150)
-//            }
-//            .labelsHidden()
-//            .frame(width: 80)
-//            .onChange(of: model.selectedFeedOverride) {
-//                model.sendCommand(CNC.feedOverride.with(percent: model.selectedFeedOverride))
-//            }
-//        }
-//    }
 }

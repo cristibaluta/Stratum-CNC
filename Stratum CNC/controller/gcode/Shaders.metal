@@ -6,34 +6,40 @@
 //
 
 #include <metal_stdlib>
-
 using namespace metal;
 
-struct VertexOut {
-    float4 position [[position]];
+struct Uniforms {
+    float4x4 modelViewProjectionMatrix;
+    float dashLength; // > 0 enables dashing (e.g., 5.0), 0 = solid line
 };
 
-vertex VertexOut line_vertex(
-    const device float3 *vertices [[buffer(0)]],
-    constant float4x4 &viewMatrix [[buffer(1)]],
-    constant float4x4 &projectionMatrix [[buffer(2)]],
-    uint vertexID [[vertex_id]]
-) {
-    VertexOut out;
+struct VertexInput {
+    float3 position [[attribute(0)]];
+    float4 color    [[attribute(1)]];
+    float  dist     [[attribute(2)]]; // Accumulated path distance
+};
 
-    float4 position =
-        float4(vertices[vertexID], 1.0);
+struct VertexOutput {
+    float4 position [[position]];
+    float4 color;
+    float  dist;
+};
 
-    out.position =
-        projectionMatrix *
-        viewMatrix *
-        position;
-
+vertex VertexOutput vertex_main(VertexInput in [[stage_in]], constant Uniforms& uniforms [[buffer(1)]]) {
+    VertexOutput out;
+    out.position = uniforms.modelViewProjectionMatrix * float4(in.position, 1.0);
+    out.color = in.color;
+    out.dist = in.dist;
     return out;
 }
 
-fragment float4 line_fragment(
-    constant float4 &color [[buffer(0)]]
-) {
-    return color;
+fragment float4 fragment_main(VertexOutput in [[stage_in]], constant Uniforms& uniforms [[buffer(1)]]) {
+    if (uniforms.dashLength > 0.0) {
+        // Evaluate dash/gap state along the segment distance
+        float pattern = fmod(in.dist, uniforms.dashLength * 2.0);
+        if (pattern > uniforms.dashLength) {
+            discard_fragment(); // Skip rendering the "gap"
+        }
+    }
+    return in.color;
 }

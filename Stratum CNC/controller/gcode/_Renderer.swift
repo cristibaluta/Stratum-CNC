@@ -9,7 +9,7 @@ import MetalKit
 import simd
 
 @MainActor
-final class Renderer: NSObject, MTKViewDelegate {
+final class Renderer_: NSObject, MTKViewDelegate {
 
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue

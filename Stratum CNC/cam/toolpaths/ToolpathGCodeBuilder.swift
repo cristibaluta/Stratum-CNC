@@ -60,24 +60,27 @@ enum ToolpathGCodeBuilder {
             }
         }
 
-        return GCodeGenerator.generate(
-            subpaths: subpaths,
-            units: .millimeters,
-            safeHeightZ: toolpath.safeZ,
-            passDepths: passDepths(startZ: toolpath.startZ, endZ: toolpath.endZ, stepDown: toolpath.stepDown),
-            feedRateCut: Int(toolpath.feedRate),
-            feedRatePlunge: Int(toolpath.plungeRate),
-            spindleSpeed: toolpath.spindleRPM,
-            ramp: toolpath.ramping,
-            preamble: ["; \(toolpath.name) — T\(toolpath.tool.displayName) \u{00D8}\(toolpath.tool.toolDiameter)mm"]
-        )
+//        return GCodeGenerator.generate(
+//            subpaths: subpaths,
+//            units: .millimeters,
+//            safeHeightZ: toolpath.safeZ,
+//            passDepths: passDepths(startZ: toolpath.startZ, endZ: toolpath.endZ, stepDown: toolpath.stepDown),
+//            feedRateCut: Int(toolpath.feedRate),
+//            feedRatePlunge: Int(toolpath.plungeRate),
+//            spindleSpeed: toolpath.spindleRPM,
+//            ramp: toolpath.ramping,
+//            preamble: ["; \(toolpath.name) — T\(toolpath.tool.displayName) \u{00D8}\(toolpath.tool.toolDiameter)mm"]
+//        )
+        return ""
     }
 
     /// Depth-of-cut passes from `startZ` down to `endZ` in `stepDown`
     /// increments, always ending exactly on `endZ` (the final pass is
     /// whatever remainder is left, even if smaller than a full stepDown).
     static func passDepths(startZ: Double, endZ: Double, stepDown: Double) -> [Double] {
-        guard endZ < startZ, stepDown > 0 else { return [endZ] }
+        guard endZ < startZ, stepDown > 0 else {
+            return [endZ]
+        }
         var depths: [Double] = []
         var z = startZ
         while z - stepDown > endZ {

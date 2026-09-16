@@ -1,13 +1,14 @@
+//
+//  GCodeViewer.swift
+//  Stratum CNC
+//
+//  Created by Cristian Baluta on 26.08.2026.
+//
+
 import SwiftUI
 import AppKit
 
-/// Standalone NC/G-code file viewer with a lightweight toolpath navigator.
-///
-/// The G-code itself remains in a real NSTableView for large-file performance.
-/// The left sidebar is SwiftUI and contains the toolpaths detected from the
-/// currently loaded lines. Selecting a toolpath asks the NSTableView to jump
-/// to its first G-code line.
-struct GCodeViewerView: View {
+struct GCodeViewer: View {
 
     @ObservedObject var model: GCodeStore
     var highlightedLine: Int? = nil

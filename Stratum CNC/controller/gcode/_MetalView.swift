@@ -9,10 +9,10 @@ import SwiftUI
 import MetalKit
 import simd
 
-struct MetalView: NSViewRepresentable {
+struct MetalView_: NSViewRepresentable {
 
-    func makeCoordinator() -> Renderer {
-        Renderer()
+    func makeCoordinator() -> Renderer_ {
+        Renderer_()
     }
 
     func makeNSView(context: Context) -> MTKView {
@@ -37,11 +37,11 @@ struct MetalView: NSViewRepresentable {
         }
 
         // Mouse drag → orbit
-        let pan = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Renderer.handlePan(_:)))
+        let pan = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Renderer_.handlePan(_:)))
         view.addGestureRecognizer(pan)
 
         // Trackpad pinch → zoom
-        let magnification = NSMagnificationGestureRecognizer(target: context.coordinator, action: #selector(Renderer.handleMagnification(_:)))
+        let magnification = NSMagnificationGestureRecognizer(target: context.coordinator, action: #selector(Renderer_.handleMagnification(_:)))
         view.addGestureRecognizer(magnification)
 
         return view

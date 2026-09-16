@@ -38,7 +38,7 @@
 		56CEA0B130371425008167CA /* Exceptions for "Stratum CNC" folder in "Stratum CNC" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"controller/gcode/float4x4+ext.swift",
+				"controller/gcode/metal-canvas/float4x4+ext.swift",
 			);
 			target = 56CEA04C30356265008167CA /* Stratum CNC */;
 		};
@@ -49,7 +49,7 @@
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			buildPhase = 56CEA04B30356265008167CA /* Resources */;
 			membershipExceptions = (
-				"controller/gcode/float4x4+ext.swift",
+				"controller/gcode/metal-canvas/float4x4+ext.swift",
 			);
 		};
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
