@@ -147,36 +147,26 @@ enum CNCCommand {
     )
 
     /// Use workspace coordinates.
-    ///
     /// Example: G54
     case workspaceG54
 
     /// Absolute mode (default). Command is modal.
-    ///
     /// Example: G90
     case absoluteMode
 
     /// Relative mode. Command is modal.
-    ///
     /// Example: G91
     case relativeMode
 
     /// Set global workspace coordinate system to specified coordinates.
-    ///
     /// Example: G92 X0 Y0 Z0
-    case setGlobalWorkspace(
-        x: Double?,
-        y: Double?,
-        z: Double?
-    )
+    case setGlobalWorkspace(x: Double?, y: Double?, z: Double?)
 
     /// Clear the G92 offsets.
-    ///
     /// Example: G92.1
     case clearGlobalWorkspace
 
     /// Manually set homing (MCS) for XYZ.
-    ///
     /// Example: G92.4 X0 Y0 Z0
     case setMachineHoming(
         x: Double?,
@@ -189,47 +179,38 @@ enum CNCCommand {
 
     /// Starts the spindle. The S parameter sets the speed in rotations
     /// per minute.
-    ///
     /// Example: M3 S5000
     case spindleOn(rpm: Int)
 
     /// Stops the spindle.
-    ///
     /// Example: M5
     case spindleOff
 
     /// Auto tool change. T0 indicates wireless probe, T-1 indicates None.
-    ///
     /// Example: M6 T1
     case toolChange(tool: Int)
 
     /// Starts the airflow.
-    ///
     /// Example: M7
     case airflowOn
 
     /// Stops the airflow.
-    ///
     /// Example: M9
     case airflowOff
 
     /// End of the program, no action on the Carvera.
-    ///
     /// Example: M30
     case programEnd
 
     /// Read the current spindle temperature.
-    ///
     /// Example: M105
     case spindleTemperature
 
     /// Set feed speed factor override percentage.
-    ///
     /// Example: M220 S50
     case feedOverride(percent: Int)
 
     /// Set spindle speed factor override percentage.
-    ///
     /// Example: M223 S80
     case spindleSpeedOverride(percent: Int)
 
@@ -241,78 +222,60 @@ enum CNCCommand {
     case enterLaserMode
 
     /// Exit the laser mode.
-    ///
     /// Example: M322
     case exitLaserMode
 
-    /// Enter the laser test mode. The laser module will be supplied a very
-    /// low power, usually used for re-focusing the laser.
-    ///
+    /// Enter the laser test mode. The laser module will be supplied a very low power, usually used for re-focusing the laser.
     /// Example: M323
     case enterLaserTestMode
 
     /// Exit the laser test mode.
-    ///
     /// Example: M324
     case exitLaserTestMode
 
     /// Set laser power factor override percentage.
-    ///
     /// Example: M325 S50
     case laserPowerOverride(percent: Int)
 
     /// Turn on the auto vacuum mode. If on, the vacuum will be turned on
     /// automatically when the spindle is running and turned off when the
     /// spindle is not running.
-    ///
     /// Example: M331
     case automaticVacuumOn
 
     /// Turn off the auto vacuum mode.
-    ///
     /// Example: M332
     case automaticVacuumOff
 
-    /// Clear the auto bed levelling data and disable the compensation
-    /// until G32 is run again.
-    ///
+    /// Clear the auto bed levelling data and disable the compensation until G32 is run again.
     /// Example: M370
     case clearBedLeveling
 
     /// Display the current bed leveling grid data in the MDI window.
-    ///
     /// Example: M375.1
     case displayBedLevelingGrid
 
     /// Retrieve device MAC address.
-    ///
     /// Example: M482.4
     case deviceMACAddress
 
     /// Retrieve device IP address.
-    ///
     /// Example: M482.5
     case deviceIPAddress
 
-    /// Execute the ATC homing process. Homing will be executed automatically
-    /// when issuing M490.1 or M490.2 if needed.
-    ///
+    /// Execute the ATC homing process. Homing will be executed automatically when issuing M490.1 or M490.2 if needed.
     /// Example: M490
     case automaticToolChangerHome
 
     /// Tightens the spindle collet to secure a new tool in the spindle.
-    ///
     /// Example: M490.1
     case tightenSpindleCollet
 
     /// Loosens the spindle collet and drops the current milling bit.
-    ///
     /// Example: M490.2
     case loosenSpindleCollet
 
-    /// Execute a calibration, and the TLO (tool length offset) for the
-    /// current tool will be reset.
-    ///
+    /// Execute a calibration, and the TLO (tool length offset) for the current tool will be reset.
     /// Example: M491
     case calibrateTool
 
@@ -331,80 +294,62 @@ enum CNCCommand {
     case automaticToolChangeStatus(status: ATCStatus)
 
     /// Pauses the machine and waits for a resume command to continue.
-    ///
     /// Example: M600
     case pause
 
-    /// Turn on the internal vacuum (Carvera). The S parameter sets the
-    /// power of the vacuum. S100 = 100%.
-    ///
+    /// Turn on the internal vacuum (Carvera). The S parameter sets the power of the vacuum. S100 = 100%.
     /// Example: M801 S100
     case internalVacuumOn(percent: Int)
 
     /// Turn off the internal vacuum (Carvera).
-    ///
     /// Example: M802
     case internalVacuumOff
 
-    /// Turn on the spindle cooling fan. The S parameter sets the power
-    /// of the fan.
-    ///
+    /// Turn on the spindle cooling fan. The S parameter sets the power of the fan.
     /// Example: M811 S100
     case spindleCoolingFanOn(percent: Int)
 
     /// Turn off the spindle cooling fan.
-    ///
     /// Example: M812
     case spindleCoolingFanOff
 
     /// Turn on the light.
-    ///
     /// Example: M821
     case lightOn
 
     /// Turn off the light.
-    ///
     /// Example: M822
     case lightOff
 
     /// Turn on the tool detector sensor laser.
-    ///
     /// Example: M831
     case toolDetectorLaserOn
 
     /// Turn off the tool detector sensor laser.
-    ///
     /// Example: M832
     case toolDetectorLaserOff
 
     /// Turn on the wireless probe charging power.
-    ///
     /// Example: M841
     case wirelessProbeChargingOn
 
     /// Turn off the wireless probe charging power.
-    ///
     /// Example: M842
     case wirelessProbeChargingOff
 
-    /// Turn on the extended port power. The S parameter sets the PWM
-    /// output of the port, such as the suction power.
-    ///
+    /// Turn on the extended port power. The S parameter sets the PWM output of the port, such as the suction power.
     /// Example: M851 S50
     case extendedPortOn(percent: Int)
 
     /// Turn off the extended port power.
-    ///
     /// Example: M852
     case extendedPortOff
 
     /// Turn on the beep. Only for Carvera Air.
-    ///
     /// Example: M861
     case beepOn
 
     /// Turn off the beep. Only for Carvera Air.
-    ///
     /// Example: M862
     case beepOff
 }
@@ -413,28 +358,12 @@ enum CNCCommand {
 // MARK: - ATC Status
 
 enum ATCStatus: Int {
-
-    /// No automatic tool-change operation.
     case none = 0
-
-    /// Drop tool.
     case dropTool = 1
-
-    /// Pick tool.
     case pickTool = 2
-
-    /// Calibrate.
     case calibrate = 3
-
-    /// Margin.
     case margin = 4
-
-    /// Z probe.
     case zProbe = 5
-
-    /// Autolevel.
     case autoLevel = 6
-
-    /// Done.
     case done = 7
 }

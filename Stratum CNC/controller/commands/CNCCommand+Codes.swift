@@ -8,193 +8,70 @@
 import Foundation
 
 extension CNCCommand {
-
     /// The base G-code or M-code represented by this command.
-    var code: String {
+    var gcode: String {
         switch self {
-
-        case .rapidMove:
-            return "G0"
-
-        case .linearMove:
-            return "G1"
-
-        case .clockwiseArc:
-            return "G2"
-
-        case .counterClockwiseArc:
-            return "G3"
-
-        case .dwell:
-            return "G4"
-
-        case .setWorkspaceCoordinates:
-            return "G10"
-
-        case .selectXYZPlane:
-            return "G17"
-
-        case .selectXZYPlane:
-            return "G18"
-
-        case .selectYZXPlane:
-            return "G19"
-
-        case .inchMode:
-            return "G20"
-
-        case .millimeterMode:
-            return "G21"
-
-        case .clearancePosition:
-            return "G28"
-
-        case .probeGrid:
-            return "G32"
-
-        case .probe:
-            return "G38.2"
-
-        case .machineCoordinates:
-            return "G53"
-
-        case .workspaceG54:
-            return "G54"
-
-        case .absoluteMode:
-            return "G90"
-
-        case .relativeMode:
-            return "G91"
-
-        case .setGlobalWorkspace:
-            return "G92"
-
-        case .clearGlobalWorkspace:
-            return "G92.1"
-
-        case .setMachineHoming:
-            return "G92.4"
-
-        case .spindleOn:
-            return "M3"
-
-        case .spindleOff:
-            return "M5"
-
-        case .toolChange:
-            return "M6"
-
-        case .airflowOn:
-            return "M7"
-
-        case .airflowOff:
-            return "M9"
-
-        case .programEnd:
-            return "M30"
-
-        case .spindleTemperature:
-            return "M105"
-
-        case .feedOverride:
-            return "M220"
-
-        case .spindleSpeedOverride:
-            return "M223"
-
-        case .enterLaserMode:
-            return "M321"
-
-        case .exitLaserMode:
-            return "M322"
-
-        case .enterLaserTestMode:
-            return "M323"
-
-        case .exitLaserTestMode:
-            return "M324"
-
-        case .laserPowerOverride:
-            return "M325"
-
-        case .automaticVacuumOn:
-            return "M331"
-
-        case .automaticVacuumOff:
-            return "M332"
-
-        case .clearBedLeveling:
-            return "M370"
-
-        case .displayBedLevelingGrid:
-            return "M375.1"
-
-        case .deviceMACAddress:
-            return "M482.4"
-
-        case .deviceIPAddress:
-            return "M482.5"
-
-        case .automaticToolChangerHome:
-            return "M490"
-
-        case .tightenSpindleCollet:
-            return "M490.1"
-
-        case .loosenSpindleCollet:
-            return "M490.2"
-
-        case .calibrateTool:
-            return "M491"
-
-        case .automaticToolChangeStatus:
-            return "M497"
-
-        case .pause:
-            return "M600"
-
-        case .internalVacuumOn:
-            return "M801"
-
-        case .internalVacuumOff:
-            return "M802"
-
-        case .spindleCoolingFanOn:
-            return "M811"
-
-        case .spindleCoolingFanOff:
-            return "M812"
-
-        case .lightOn:
-            return "M821"
-
-        case .lightOff:
-            return "M822"
-
-        case .toolDetectorLaserOn:
-            return "M831"
-
-        case .toolDetectorLaserOff:
-            return "M832"
-
-        case .wirelessProbeChargingOn:
-            return "M841"
-
-        case .wirelessProbeChargingOff:
-            return "M842"
-
-        case .extendedPortOn:
-            return "M851"
-
-        case .extendedPortOff:
-            return "M852"
-
-        case .beepOn:
-            return "M861"
-
-        case .beepOff:
-            return "M862"
+            case .rapidMove: "G0"
+            case .linearMove: "G1"
+            case .clockwiseArc: "G2"
+            case .counterClockwiseArc: "G3"
+            case .dwell: "G4"
+            case .setWorkspaceCoordinates: "G10"
+            case .selectXYZPlane: "G17"
+            case .selectXZYPlane: "G18"
+            case .selectYZXPlane: "G19"
+            case .inchMode: "G20"
+            case .millimeterMode: "G21"
+            case .clearancePosition: "G28"
+            case .probeGrid: "G32"
+            case .probe: "G38.2"
+            case .machineCoordinates: "G53"
+            case .workspaceG54: "G54"
+            case .absoluteMode: "G90"
+            case .relativeMode: "G91"
+            case .setGlobalWorkspace: "G92"
+            case .clearGlobalWorkspace: "G92.1"
+            case .setMachineHoming: "G92.4"
+            case .spindleOn: "M3"
+            case .spindleOff: "M5"
+            case .toolChange: "M6"
+            case .airflowOn: "M7"
+            case .airflowOff: "M9"
+            case .programEnd: "M30"
+            case .spindleTemperature: "M105"
+            case .feedOverride: "M220"
+            case .spindleSpeedOverride: "M223"
+            case .enterLaserMode: "M321"
+            case .exitLaserMode: "M322"
+            case .enterLaserTestMode: "M323"
+            case .exitLaserTestMode: "M324"
+            case .laserPowerOverride: "M325"
+            case .automaticVacuumOn: "M331"
+            case .automaticVacuumOff: "M332"
+            case .clearBedLeveling: "M370"
+            case .displayBedLevelingGrid: "M375.1"
+            case .deviceMACAddress: "M482.4"
+            case .deviceIPAddress: "M482.5"
+            case .automaticToolChangerHome: "M490"
+            case .tightenSpindleCollet: "M490.1"
+            case .loosenSpindleCollet: "M490.2"
+            case .calibrateTool: "M491"
+            case .automaticToolChangeStatus: "M497"
+            case .pause: "M600"
+            case .internalVacuumOn: "M801"
+            case .internalVacuumOff: "M802"
+            case .spindleCoolingFanOn: "M811"
+            case .spindleCoolingFanOff: "M812"
+            case .lightOn: "M821"
+            case .lightOff: "M822"
+            case .toolDetectorLaserOn: "M831"
+            case .toolDetectorLaserOff: "M832"
+            case .wirelessProbeChargingOn: "M841"
+            case .wirelessProbeChargingOff: "M842"
+            case .extendedPortOn: "M851"
+            case .extendedPortOff: "M852"
+            case .beepOn: "M861"
+            case .beepOff: "M862"
         }
     }
 }
