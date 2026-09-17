@@ -30,6 +30,38 @@ class Camera {
 
     var distance: Float = 20.0
 
+    /// The camera's right/up basis vectors in world space, for the current rotation.
+    /// These match the view-space x/y axes computed in `matrix_look_at`.
+    private func basisVectors() -> (right: SIMD3<Float>, up: SIMD3<Float>) {
+        let pitch = simd_quaternion(rotation.x, SIMD3<Float>(1, 0, 0))
+        let yaw = simd_quaternion(rotation.y, SIMD3<Float>(0, 1, 0))
+        let rotDict = simd_mul(yaw, pitch)
+
+        let eye = target + simd_act(rotDict, SIMD3<Float>(0, 0, distance))
+        let z = simd_normalize(eye - target)
+        let x = simd_normalize(simd_cross(up, z))
+        let y = simd_cross(z, x)
+        return (x, y)
+    }
+
+    /// Changes `distance` (zoom level) while keeping the world point currently under
+    /// `ndc` fixed on screen, instead of zooming around `target`.
+    /// - Parameter ndc: screen position in normalized device coords, -1...1,
+    ///   where (0,0) is the screen center, +1 is right/top.
+    func zoom(to newDistance: Float, towards ndc: SIMD2<Float>) {
+        let oldHalfHeight = distance * tan(fov * 0.5)
+        let oldHalfWidth = oldHalfHeight * aspectRatio
+
+        let newHalfHeight = newDistance * tan(fov * 0.5)
+        let newHalfWidth = newHalfHeight * aspectRatio
+
+        let (right, camUp) = basisVectors()
+        target += right * (ndc.x * (oldHalfWidth - newHalfWidth))
+                + camUp * (ndc.y * (oldHalfHeight - newHalfHeight))
+
+        distance = newDistance
+    }
+
     func updateMatrix() -> matrix_float4x4 {
         let pitch = simd_quaternion(rotation.x, SIMD3<Float>(1, 0, 0))
         let yaw = simd_quaternion(rotation.y, SIMD3<Float>(0, 1, 0))

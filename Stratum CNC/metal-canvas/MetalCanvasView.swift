@@ -72,7 +72,7 @@ struct MetalCanvasView: NSViewRepresentable {
                 return
             }
             let translation = gesture.translation(in: gesture.view)
-            
+
             if NSEvent.modifierFlags.contains(.shift) {
                 // Orbit Camera (Drag)
                 let sensitivity: Float = 0.005
@@ -97,14 +97,24 @@ struct MetalCanvasView: NSViewRepresentable {
         }
 
         @objc func handleMagnification( _ gesture: NSMagnificationGestureRecognizer) {
-            guard let camera = renderer?.camera else {
+            guard let camera = renderer?.camera, let view = gesture.view else {
                 return
             }
             if gesture.state == .changed {
                 let amount = Float(gesture.magnification)
-                zoom *= 1 - amount
-                zoom = max(minZoom, min(maxZoom, zoom))
-                camera.distance = zoom
+                let newZoom = max(minZoom, min(maxZoom, zoom * (1 - amount)))
+
+                // Convert the cursor position to normalized device coords (-1...1,
+                // origin at screen center) so the camera can keep that point fixed.
+                let location = gesture.location(in: view)
+                let size = view.bounds.size
+                let ndc = SIMD2<Float>(
+                    Float(location.x / size.width) * 2 - 1,
+                    Float(location.y / size.height) * 2 - 1
+                )
+
+                camera.zoom(to: newZoom, towards: ndc)
+                zoom = newZoom
                 gesture.magnification = 0
             }
         }
