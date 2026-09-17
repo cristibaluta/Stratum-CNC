@@ -35,9 +35,9 @@ struct MetalCanvasView: NSViewRepresentable {
         mtkView.delegate = renderer
 
         // Handle Scroll Wheel / Pinch for Zooming
-        mtkView.onScroll = { [weak coordinator = context.coordinator] event in
-            coordinator?.handleScroll(event)
-        }
+//        mtkView.onScroll = { [weak coordinator = context.coordinator] event in
+//            coordinator?.handleScroll(event)
+//        }
 
         // Mouse drag → orbit
         let panGesture = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
@@ -97,13 +97,15 @@ struct MetalCanvasView: NSViewRepresentable {
         }
 
         @objc func handleMagnification( _ gesture: NSMagnificationGestureRecognizer) {
+            guard let camera = renderer?.camera else {
+                return
+            }
             if gesture.state == .changed {
                 let amount = Float(gesture.magnification)
                 zoom *= 1 - amount
                 zoom = max(minZoom, min(maxZoom, zoom))
+                camera.distance = zoom
                 gesture.magnification = 0
-//                requestRedraw()
-//                printCamera()
             }
         }
 
