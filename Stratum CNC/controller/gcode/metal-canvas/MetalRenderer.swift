@@ -77,7 +77,7 @@ class MetalRenderer: NSObject {
     /// Dash length used for hidden portions of a line that isn't already
     /// dashed itself. Lines that already have their own `isDashed` pattern
     /// keep that pattern when hidden.
-    private let hiddenLineDashLength: Float = 4.0
+    private let hiddenLineDashLength: Float = 1.0
 
     /// Depth bias applied only while drawing occluder faces (pass 0), so an
     /// edge sitting exactly on its own solid's surface reliably wins the

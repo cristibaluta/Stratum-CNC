@@ -11,8 +11,19 @@ struct ControllerView: View {
 
     @ObservedObject var model: ControllerModel
     @ObservedObject var camModel: CAMModel
+    @ObservedObject var projectModel: ProjectModel
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
+
+    private var stockVisibleBinding: Binding<Bool> {
+        Binding(
+            get: { projectModel.projectData.isStockVisible ?? true },
+            set: { newValue in
+                projectModel.projectData.isStockVisible = newValue
+                camModel.canvasState.isStockVisible = newValue
+            }
+        )
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -34,6 +45,8 @@ struct ControllerView: View {
             // Right panels with g-
             VStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
+                    MaterialPanelView(stock: $camModel.selectedStockMaterial,
+                                      isStockVisible: stockVisibleBinding)
                     PanelCoordinate(model: model)
                     PanelProbe(model: model)
                 }

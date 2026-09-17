@@ -25,6 +25,7 @@ struct ProjectView: View {
                 case .controller:
                     ControllerView(model: projectModel.controllerModel,
                                    camModel: projectModel.camModel,
+                                   projectModel: projectModel,
                                    gCodeModel: projectModel.gCodeStore,
                                    joystickStore: projectModel.joystickStore)
             }
