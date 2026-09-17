@@ -59,6 +59,12 @@ class MetalRenderer: NSObject {
     var camera = Camera()
     private var renderBatches: [RenderBatch] = []
 
+    // Kept around only so we can compute a bounding sphere for the initial
+    // "fit to screen" — the GPU buffers built into `renderBatches` don't carry
+    // positions in a form that's cheap to read back.
+    private var lastObjects: [RenderObject] = []
+    private var hasFittedInitialContent = false
+
     init?(metalView: MTKView) {
         super.init()
         guard let defaultDevice = MTLCreateSystemDefaultDevice() else {
@@ -147,7 +153,72 @@ class MetalRenderer: NSObject {
     /// This is the seam: everything upstream of here (model, views) only ever
     /// deals with `RenderObject`; only this call touches `device.makeBuffer`.
     func updateGeometry(objects: [RenderObject]) {
+        lastObjects = objects
         renderBatches = objects.compactMap { buildRenderBatch(from: $0) }
+    }
+
+    /// Centers and zooms the camera to frame everything currently in
+    /// `lastObjects`, with some breathing room around it. Only ever runs
+    /// once per `MetalRenderer` instance (i.e. once per time the canvas
+    /// appears) — after that the person's own pan/zoom takes over.
+    ///
+    /// Called from `draw(in:)` rather than `drawableSizeWillChange` because
+    /// that callback fires *before* the new size takes effect — reading
+    /// `view.drawableSize` there returns the stale (often zero) value, which
+    /// silently failed the size check every time and left the camera at its
+    /// untouched default target of (0, 0, 0). `draw(in:)` runs every frame
+    /// with a guaranteed-current `drawableSize`, so this is self-correcting
+    /// regardless of whether geometry or layout arrives first.
+    private func attemptInitialFit(viewSize: CGSize, padding: Float = 1.3) {
+        guard !hasFittedInitialContent else {
+            return
+        }
+        guard viewSize.width > 0, viewSize.height > 0 else {
+            return
+        }
+        guard let (center, radius) = boundingSphere(of: lastObjects) else {
+            return
+        }
+
+        let aspect = Float(viewSize.width / viewSize.height)
+        let paddedRadius = radius * padding // padding > 1 leaves margin around the content
+
+        // Orthographic half-extents at the current distance are
+        // `distance * tan(fov/2)` vertically and that times aspect
+        // horizontally; solve for the distance that makes both at least
+        // `paddedRadius` so the content fits regardless of the view's shape.
+        let halfHeight = paddedRadius / min(aspect, 1)
+        let requiredDistance = halfHeight / tan(camera.fov * 0.5)
+
+        camera.target = center
+        camera.distance = min(max(requiredDistance, 2.0), 2000.0)
+
+        hasFittedInitialContent = true
+    }
+
+    /// Bounding sphere (center + radius) of every point across `objects`,
+    /// used only for framing the camera — rotation-invariant, so it doesn't
+    /// matter that the camera can orbit.
+    private func boundingSphere(of objects: [RenderObject]) -> (center: SIMD3<Float>, radius: Float)? {
+        var minPoint = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
+        var maxPoint = SIMD3<Float>(repeating: -.greatestFiniteMagnitude)
+        var found = false
+
+        for object in objects {
+            for point in object.points {
+                found = true
+                minPoint = simd_min(minPoint, point)
+                maxPoint = simd_max(maxPoint, point)
+            }
+        }
+
+        guard found else {
+            return nil
+        }
+
+        let center = (minPoint + maxPoint) * 0.5
+        let radius = max(simd_length(maxPoint - minPoint) * 0.5, 0.001)
+        return (center, radius)
     }
 
 }
@@ -159,6 +230,8 @@ extension MetalRenderer: MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+
+        attemptInitialFit(viewSize: view.drawableSize)
 
         guard let descriptor = view.currentRenderPassDescriptor,
               let commandBuffer = commandQueue.makeCommandBuffer(),
