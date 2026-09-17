@@ -14,11 +14,21 @@ enum RenderPrimitive {
     case lineList   // points consumed in disconnected pairs (start, end, start, end, ...)
 }
 
+/// What a `RenderObject` represents, for the handful of cases where upstream
+/// code needs to find one again inside a scene array (e.g. swapping in a
+/// freshly-built stock wireframe whenever `CAMModel.selectedStockMaterial`
+/// changes, without disturbing the axes/toolpath/marker objects around it).
+/// Nothing about rendering depends on this — it's purely a lookup tag.
+enum RenderRole: Equatable {
+    case stock
+}
+
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
 /// Pure CPU-side data: no `MTLDevice`, no `MTLBuffer`. The model builds these;
 /// only `MetalRenderer` knows how to turn them into GPU buffers.
 struct RenderObject: Identifiable {
     let id = UUID()
+    var role: RenderRole? = nil
     var points: [SIMD3<Float>]
     var color: SIMD4<Float>
     var primitive: RenderPrimitive = .lineStrip
@@ -32,6 +42,26 @@ struct RenderObject: Identifiable {
     /// the GPU is concerned: an edge is only ever hidden by *another edge*
     /// landing on the same pixel, never by the surface it's actually behind.
     var occluderFaces: [SIMD3<Float>] = []
+}
+
+/// Find-and-replace helpers keyed by `RenderRole`, so callers holding a full
+/// scene array (axes + stock + toolpath preview + marker, etc.) can update
+/// just the one object that changed.
+extension Array where Element == RenderObject {
+    /// Swaps in `object` for whichever existing element shares its `role`,
+    /// leaving everything else in the scene untouched. Appends it if the
+    /// scene doesn't have one of that role yet.
+    mutating func updating(_ object: RenderObject) {
+        guard let role = object.role else {
+            append(object)
+            return
+        }
+        if let index = firstIndex(where: { $0.role == role }) {
+            self[index] = object
+        } else {
+            append(object)
+        }
+    }
 }
 
 // MARK: - Common shapes
@@ -80,7 +110,163 @@ extension RenderObject {
             c100, c110, c111,  c100, c111, c101,
         ]
 
-        return RenderObject(points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
+        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
+    }
+
+    /// Wireframe stock preview built straight from a `StockMaterial` — picks
+    /// the right shape for `stock.geometry` (box / cylinder / disk) and sizes
+    /// it from that geometry's own dimensions, in millimeters, so this is
+    /// always in sync with whatever `MaterialPanelView` last set on
+    /// `CAMModel.selectedStockMaterial`. Origin convention matches
+    /// `StockLayer`'s 2D drawing: the shape's bounding box starts at
+    /// (0, 0) and grows into +X/+Y, with the top face at Z = 0 and material
+    /// extending downward from there (matching `stockBox(minX:...)`'s own
+    /// defaults, which are just a rectangular stock with width 100 / height
+    /// 50 / depth 10).
+    static func stockBox(for stock: StockMaterial,
+                          color: SIMD4<Float> = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)) -> RenderObject {
+        switch stock.geometry {
+        case let .rectangular(width, height, depth):
+            return stockBox(minX: 0, maxX: Float(width),
+                             minY: 0, maxY: Float(height),
+                             topZ: 0, bottomZ: Float(-depth),
+                             color: color)
+
+        case let .cylindrical(diameter, length):
+            return stockCylinder(diameter: Float(diameter), height: Float(length), color: color)
+
+        case let .disk(outerDiameter, innerDiameter, depth):
+            return stockDisk(outerDiameter: Float(outerDiameter),
+                              innerDiameter: Float(innerDiameter),
+                              depth: Float(depth),
+                              color: color)
+        }
+    }
+
+    /// Wireframe cylinder (round stock, e.g. for a rotary/4th-axis job) —
+    /// top/bottom rings, a handful of vertical struts so it still reads as
+    /// round from any angle, and fan/quad-triangulated occluder faces so it
+    /// hidden-lines correctly like `stockBox()` does.
+    private static func stockCylinder(diameter: Float, height: Float,
+                                       segments: Int = 48, strutCount: Int = 4,
+                                       color: SIMD4<Float>) -> RenderObject {
+        let radius = max(0, diameter) / 2
+        let centerXY = SIMD2<Float>(radius, radius) // bounding box starts at (0, 0), same as StockLayer
+        let topZ: Float = 0
+        let bottomZ = -height
+
+        func ring(_ i: Int, z: Float) -> SIMD3<Float> {
+            let t = Float(i) / Float(segments)
+            let angle = t * 2 * Float.pi
+            return SIMD3<Float>(centerXY.x + radius * cos(angle), centerXY.y + radius * sin(angle), z)
+        }
+
+        var points: [SIMD3<Float>] = []
+        for i in 0..<segments {
+            points.append(ring(i, z: topZ)); points.append(ring(i + 1, z: topZ))
+        }
+        for i in 0..<segments {
+            points.append(ring(i, z: bottomZ)); points.append(ring(i + 1, z: bottomZ))
+        }
+        let clampedStruts = max(0, strutCount)
+        for s in 0..<clampedStruts {
+            let i = (s * segments) / max(1, clampedStruts)
+            points.append(ring(i, z: topZ)); points.append(ring(i, z: bottomZ))
+        }
+
+        let topCenter = SIMD3<Float>(centerXY.x, centerXY.y, topZ)
+        let bottomCenter = SIMD3<Float>(centerXY.x, centerXY.y, bottomZ)
+        var occluderFaces: [SIMD3<Float>] = []
+        for i in 0..<segments {
+            // Caps: fan-triangulated from the center point.
+            occluderFaces.append(topCenter); occluderFaces.append(ring(i, z: topZ)); occluderFaces.append(ring(i + 1, z: topZ))
+            occluderFaces.append(bottomCenter); occluderFaces.append(ring(i + 1, z: bottomZ)); occluderFaces.append(ring(i, z: bottomZ))
+
+            // Side wall: one quad (2 triangles) per segment.
+            let t0 = ring(i, z: topZ), t1 = ring(i + 1, z: topZ)
+            let b0 = ring(i, z: bottomZ), b1 = ring(i + 1, z: bottomZ)
+            occluderFaces.append(t0); occluderFaces.append(b0); occluderFaces.append(b1)
+            occluderFaces.append(t0); occluderFaces.append(b1); occluderFaces.append(t1)
+        }
+
+        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
+    }
+
+    /// Wireframe disk/washer (outer stock with a bored-out center, e.g. a
+    /// ring blank) — outer + inner rings top and bottom, struts on the
+    /// outer wall only (a strut across the hole would read as a spoke that
+    /// isn't actually part of the stock).
+    private static func stockDisk(outerDiameter: Float, innerDiameter: Float, depth: Float,
+                                   segments: Int = 48, strutCount: Int = 4,
+                                   color: SIMD4<Float>) -> RenderObject {
+        let outerRadius = max(0, outerDiameter) / 2
+        let innerRadius = max(0, min(innerDiameter, outerDiameter)) / 2
+        let centerXY = SIMD2<Float>(outerRadius, outerRadius) // bounding box starts at (0, 0), same as StockLayer
+        let topZ: Float = 0
+        let bottomZ = -depth
+        let hasHole = innerRadius > 0
+
+        func ring(_ i: Int, radius: Float, z: Float) -> SIMD3<Float> {
+            let t = Float(i) / Float(segments)
+            let angle = t * 2 * Float.pi
+            return SIMD3<Float>(centerXY.x + radius * cos(angle), centerXY.y + radius * sin(angle), z)
+        }
+
+        var points: [SIMD3<Float>] = []
+        for i in 0..<segments {
+            points.append(ring(i, radius: outerRadius, z: topZ)); points.append(ring(i + 1, radius: outerRadius, z: topZ))
+        }
+        for i in 0..<segments {
+            points.append(ring(i, radius: outerRadius, z: bottomZ)); points.append(ring(i + 1, radius: outerRadius, z: bottomZ))
+        }
+        if hasHole {
+            for i in 0..<segments {
+                points.append(ring(i, radius: innerRadius, z: topZ)); points.append(ring(i + 1, radius: innerRadius, z: topZ))
+            }
+            for i in 0..<segments {
+                points.append(ring(i, radius: innerRadius, z: bottomZ)); points.append(ring(i + 1, radius: innerRadius, z: bottomZ))
+            }
+        }
+        let clampedStruts = max(0, strutCount)
+        for s in 0..<clampedStruts {
+            let i = (s * segments) / max(1, clampedStruts)
+            points.append(ring(i, radius: outerRadius, z: topZ)); points.append(ring(i, radius: outerRadius, z: bottomZ))
+        }
+
+        let topCenter = SIMD3<Float>(centerXY.x, centerXY.y, topZ)
+        let bottomCenter = SIMD3<Float>(centerXY.x, centerXY.y, bottomZ)
+        var occluderFaces: [SIMD3<Float>] = []
+        for i in 0..<segments {
+            let to0 = ring(i, radius: outerRadius, z: topZ), to1 = ring(i + 1, radius: outerRadius, z: topZ)
+            let bo0 = ring(i, radius: outerRadius, z: bottomZ), bo1 = ring(i + 1, radius: outerRadius, z: bottomZ)
+
+            // Outer wall: one quad per segment.
+            occluderFaces.append(to0); occluderFaces.append(bo0); occluderFaces.append(bo1)
+            occluderFaces.append(to0); occluderFaces.append(bo1); occluderFaces.append(to1)
+
+            if hasHole {
+                let ti0 = ring(i, radius: innerRadius, z: topZ), ti1 = ring(i + 1, radius: innerRadius, z: topZ)
+                let bi0 = ring(i, radius: innerRadius, z: bottomZ), bi1 = ring(i + 1, radius: innerRadius, z: bottomZ)
+
+                // Inner (bore) wall — wound the opposite way from the outer
+                // wall since it's the inside surface of the hole.
+                occluderFaces.append(ti0); occluderFaces.append(bi1); occluderFaces.append(bi0)
+                occluderFaces.append(ti0); occluderFaces.append(ti1); occluderFaces.append(bi1)
+
+                // Top/bottom annulus between the inner and outer ring.
+                occluderFaces.append(to0); occluderFaces.append(to1); occluderFaces.append(ti1)
+                occluderFaces.append(to0); occluderFaces.append(ti1); occluderFaces.append(ti0)
+
+                occluderFaces.append(bo0); occluderFaces.append(bi0); occluderFaces.append(bi1)
+                occluderFaces.append(bo0); occluderFaces.append(bi1); occluderFaces.append(bo1)
+            } else {
+                // No hole: falls back to a solid fan-triangulated disk cap.
+                occluderFaces.append(topCenter); occluderFaces.append(to0); occluderFaces.append(to1)
+                occluderFaces.append(bottomCenter); occluderFaces.append(bo1); occluderFaces.append(bo0)
+            }
+        }
+
+        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
     }
 
     /// Small cylinder marker (e.g. current position, a probe point).

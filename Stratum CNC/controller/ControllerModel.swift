@@ -30,6 +30,15 @@ class ControllerModel: ObservableObject {
     /// types here — MetalRenderer is the only thing that turns this into GPU buffers.
     @Published var renderObjects: [RenderObject] = RenderObject.defaultScene()
 
+    /// Rebuilds just the stock wireframe from `stock`'s shape and dimensions,
+    /// leaving the rest of the scene (axes, toolpath preview, position
+    /// marker) untouched. `ControllerView` calls this whenever
+    /// `CAMModel.selectedStockMaterial` changes, so the box drawn here always
+    /// matches whatever was last set in `MaterialPanelView`.
+    func updateStock(_ stock: StockMaterial) {
+        renderObjects.updating(.stockBox(for: stock))
+    }
+
     func sendCommand(_ command: CNCCommand) {
         sendRawCommand(command.command)
     }

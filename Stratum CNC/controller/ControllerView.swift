@@ -40,6 +40,15 @@ struct ControllerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .padding(.trailing, -16)
+                    .onAppear {
+                        // Sync once up front — `renderObjects` otherwise still
+                        // holds `defaultScene()`'s placeholder box, not
+                        // whatever material the project actually has selected.
+                        model.updateStock(camModel.selectedStockMaterial)
+                    }
+                    .onChange(of: camModel.selectedStockMaterial) { _, newStock in
+                        model.updateStock(newStock)
+                    }
             }
 
             // Right panels with g-
