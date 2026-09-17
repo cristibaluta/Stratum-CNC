@@ -89,32 +89,20 @@ class GCodeStore: ObservableObject {
     /// Thin wrapper around `RenderObject.marker(at:...)` kept here so callers
     /// that already hold a `GCodeStore` (e.g. "mark the point under the cursor")
     /// don't need to know that markers are just another `RenderObject`.
-    func markerObject(at point: SIMD3<Float>,
-                      diameter: Float = 6.0,
-                      height: Float = 12.0,
-                      segments: Int = 28,
-                      strutCount: Int = 4,
-                      color: SIMD4<Float> = SIMD4<Float>(1.0, 0.05, 0.05, 1.0)) -> RenderObject {
-        RenderObject.marker(at: point,
-                            diameter: diameter,
-                            height: height,
-                            segments: segments,
-                            strutCount: strutCount,
-                            color: color)
-    }
+//    func markerObject(at point: SIMD3<Float>,
+//                      diameter: Float = 6.0,
+//                      height: Float = 12.0,
+//                      segments: Int = 28,
+//                      strutCount: Int = 4,
+//                      color: SIMD4<Float> = SIMD4<Float>(1.0, 0.05, 0.05, 1.0)) -> RenderObject {
+//        RenderObject.marker(at: point,
+//                            diameter: diameter,
+//                            height: height,
+//                            segments: segments,
+//                            strutCount: strutCount,
+//                            color: color)
+//    }
 
-    /// `buildWaypoints`/toolpath passes only carry the *endpoints* of each move (plus a
-    /// center + direction for arcs) since that's all a real controller needs for `G02`/`G03`.
-    /// For the on-screen preview we need actual curvature, so this walks the waypoints and,
-    /// for any `arcCW`/`arcCCW` motion, inserts interpolated points along the true arc between
-    /// the previous waypoint and this one instead of drawing a straight chord between them.
-    /// Internal rather than `private` so a subclass in another file (e.g.
-    /// `DemoSlotting`'s boundary-recognition demos, which need to build a
-    /// combined result from two different contours -- the physical boundary for
-    /// the blue reference, a derived centerline for the yellow toolpath -- rather
-    /// than the single shared contour `run(contour:...)` assumes) can tessellate
-    /// its own waypoints the same way `run(contours:...)`/`run(facing:)` do,
-    /// without duplicating this arc-interpolation logic a third time.
     func tessellateForRender(_ waypoints: [SC.Waypoint], segmentsPerArc: Int = 32) -> [SIMD3<Float>] {
         var points: [SIMD3<Float>] = []
         var previous: SC.Waypoint?

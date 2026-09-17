@@ -91,6 +91,7 @@ extension RenderObject {
                           minY: Float = 0, maxY: Float = 50,
                           topZ: Float = 0, bottomZ: Float = -10,
                           color: SIMD4<Float> = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)) -> RenderObject {
+
         let c000 = SIMD3<Float>(minX, minY, bottomZ)
         let c100 = SIMD3<Float>(maxX, minY, bottomZ)
         let c110 = SIMD3<Float>(maxX, maxY, bottomZ)
@@ -131,43 +132,30 @@ extension RenderObject {
         return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
     }
 
-    /// Wireframe stock preview built straight from a `StockMaterial` — picks
-    /// the right shape for `stock.geometry` (box / cylinder / disk) and sizes
-    /// it from that geometry's own dimensions, in millimeters, so this is
-    /// always in sync with whatever `MaterialPanelView` last set on
-    /// `CAMModel.selectedStockMaterial`. Origin convention matches
-    /// `StockLayer`'s 2D drawing: the shape's bounding box starts at
-    /// (0, 0) and grows into +X/+Y, with the top face at Z = 0 and material
-    /// extending downward from there (matching `stockBox(minX:...)`'s own
-    /// defaults, which are just a rectangular stock with width 100 / height
-    /// 50 / depth 10).
-    static func stockBox(for stock: StockMaterial,
-                          color: SIMD4<Float> = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)) -> RenderObject {
+    static func stockBox(for stock: StockMaterial, color: SIMD4<Float> = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)) -> RenderObject {
+
         switch stock.geometry {
-        case let .rectangular(width, height, depth):
-            return stockBox(minX: 0, maxX: Float(width),
-                             minY: 0, maxY: Float(height),
-                             topZ: 0, bottomZ: Float(-depth),
-                             color: color)
+            case let .rectangular(width, height, depth):
+                return stockBox(minX: 0, maxX: Float(width),
+                                minY: 0, maxY: Float(height),
+                                topZ: 0, bottomZ: Float(-depth),
+                                color: color)
 
-        case let .cylindrical(diameter, length):
-            return stockCylinder(diameter: Float(diameter), height: Float(length), color: color)
+            case let .cylindrical(diameter, length):
+                return stockCylinder(diameter: Float(diameter), height: Float(length), color: color)
 
-        case let .disk(outerDiameter, innerDiameter, depth):
-            return stockDisk(outerDiameter: Float(outerDiameter),
-                              innerDiameter: Float(innerDiameter),
-                              depth: Float(depth),
-                              color: color)
+            case let .disk(outerDiameter, innerDiameter, depth):
+                return stockDisk(outerDiameter: Float(outerDiameter),
+                                 innerDiameter: Float(innerDiameter),
+                                 depth: Float(depth),
+                                 color: color)
         }
     }
 
-    /// Wireframe cylinder (round stock, e.g. for a rotary/4th-axis job) —
-    /// top/bottom rings, a handful of vertical struts so it still reads as
-    /// round from any angle, and fan/quad-triangulated occluder faces so it
-    /// hidden-lines correctly like `stockBox()` does.
     private static func stockCylinder(diameter: Float, height: Float,
-                                       segments: Int = 48, strutCount: Int = 4,
-                                       color: SIMD4<Float>) -> RenderObject {
+                                      segments: Int = 48, strutCount: Int = 4,
+                                      color: SIMD4<Float>) -> RenderObject {
+
         let radius = max(0, diameter) / 2
         let centerXY = SIMD2<Float>(radius, radius) // bounding box starts at (0, 0), same as StockLayer
         let topZ: Float = 0
@@ -197,14 +185,22 @@ extension RenderObject {
         var occluderFaces: [SIMD3<Float>] = []
         for i in 0..<segments {
             // Caps: fan-triangulated from the center point.
-            occluderFaces.append(topCenter); occluderFaces.append(ring(i, z: topZ)); occluderFaces.append(ring(i + 1, z: topZ))
-            occluderFaces.append(bottomCenter); occluderFaces.append(ring(i + 1, z: bottomZ)); occluderFaces.append(ring(i, z: bottomZ))
+            occluderFaces.append(topCenter)
+            occluderFaces.append(ring(i, z: topZ))
+            occluderFaces.append(ring(i + 1, z: topZ))
+            occluderFaces.append(bottomCenter)
+            occluderFaces.append(ring(i + 1, z: bottomZ))
+            occluderFaces.append(ring(i, z: bottomZ))
 
             // Side wall: one quad (2 triangles) per segment.
             let t0 = ring(i, z: topZ), t1 = ring(i + 1, z: topZ)
             let b0 = ring(i, z: bottomZ), b1 = ring(i + 1, z: bottomZ)
-            occluderFaces.append(t0); occluderFaces.append(b0); occluderFaces.append(b1)
-            occluderFaces.append(t0); occluderFaces.append(b1); occluderFaces.append(t1)
+            occluderFaces.append(t0)
+            occluderFaces.append(b0)
+            occluderFaces.append(b1)
+            occluderFaces.append(t0)
+            occluderFaces.append(b1)
+            occluderFaces.append(t1)
         }
 
         return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
@@ -215,8 +211,9 @@ extension RenderObject {
     /// outer wall only (a strut across the hole would read as a spoke that
     /// isn't actually part of the stock).
     private static func stockDisk(outerDiameter: Float, innerDiameter: Float, depth: Float,
-                                   segments: Int = 48, strutCount: Int = 4,
-                                   color: SIMD4<Float>) -> RenderObject {
+                                  segments: Int = 48, strutCount: Int = 4,
+                                  color: SIMD4<Float>) -> RenderObject {
+
         let outerRadius = max(0, outerDiameter) / 2
         let innerRadius = max(0, min(innerDiameter, outerDiameter)) / 2
         let centerXY = SIMD2<Float>(outerRadius, outerRadius) // bounding box starts at (0, 0), same as StockLayer
@@ -287,22 +284,10 @@ extension RenderObject {
         return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
     }
 
-    /// Turns `GCodeParser`'s flat `ToolpathSegment` list — already plain
-    /// `SIMD3<Float>` start/end coordinates, that's all `GCodeParser` ever
-    /// produces — into `RenderObject`s `MetalCanvasView` can draw.
-    ///
-    /// Segments are split into two groups by motion type rather than merged
-    /// into one object: rapids (G0) are drawn in a different color from
-    /// cutting/arc moves (G1/G2/G3), the same convention most CAM viewers
-    /// use so a rapid reposition doesn't read as a cut. Both are solid
-    /// lines. Both groups use `.lineList`, not `.lineStrip` — segments are
-    /// independent moves, often with gaps between them (e.g. a rapid up,
-    /// over, and back down), and `.lineStrip` would draw a spurious
-    /// connecting line across every gap since it always joins consecutive
-    /// points.
     static func toolpath(from segments: [ToolpathSegment],
-                          rapidColor: SIMD4<Float> = SIMD4<Float>(1.0, 0.85, 0.2, 1.0),
-                          cuttingColor: SIMD4<Float> = SIMD4<Float>(0.2, 0.8, 1.0, 1.0)) -> [RenderObject] {
+                         rapidColor: SIMD4<Float> = SIMD4<Float>(1.0, 0.85, 0.2, 1.0),
+                         cuttingColor: SIMD4<Float> = SIMD4<Float>(0.2, 0.8, 1.0, 1.0)) -> [RenderObject] {
+
         guard !segments.isEmpty else {
             return []
         }
@@ -338,22 +323,13 @@ extension RenderObject {
         return objects
     }
 
-    /// The cutter itself, drawn as a true-size wireframe cylinder at the
-    /// machine's current position — same ring+strut construction as
-    /// `marker(at:)`/`stockCylinder`, just parameterized by the tool's real
-    /// `diameter`/`length` (both in millimeters, matching every other
-    /// `RenderObject` in this file) instead of fixed marker dimensions.
-    ///
-    /// `tipPosition` is where the cutting tip actually is — typically the
-    /// machine's current work position (X/Y/Z) — and the cylinder extends
-    /// upward from there (+Z) by `length`, i.e. up into the spindle, the
-    /// same way the physical tool sticks up above whatever it's cutting.
     static func tool(at tipPosition: SIMD3<Float>,
-                      diameter: Double,
-                      length: Double,
-                      segments: Int = 32,
-                      strutCount: Int = 6,
-                      color: SIMD4<Float> = SIMD4<Float>(0.9, 0.9, 0.9, 1.0)) -> RenderObject {
+                     diameter: Double,
+                     length: Double,
+                     segments: Int = 32,
+                     strutCount: Int = 6,
+                     color: SIMD4<Float> = SIMD4<Float>(0.9, 0.0, 0.0, 1.0)) -> RenderObject {
+
         let clampedSegments = max(3, segments)
         let radius = Float(max(0, diameter) / 2)
         let baseZ = tipPosition.z
@@ -397,46 +373,46 @@ extension RenderObject {
     }
 
     /// Small cylinder marker (e.g. current position, a probe point).
-    static func marker(at point: SIMD3<Float>,
-                        diameter: Float = 6.0,
-                        height: Float = 12.0,
-                        segments: Int = 28,
-                        strutCount: Int = 4,
-                        color: SIMD4<Float> = SIMD4<Float>(1.0, 0.05, 0.05, 1.0)) -> RenderObject {
-        let clampedSegments = max(3, segments)
-        let radius = max(0, diameter) / 2
-        let baseZ = point.z
-        let topZ = point.z + height
-
-        func ringPoint(_ i: Int, z: Float) -> SIMD3<Float> {
-            let t = Float(i) / Float(clampedSegments)
-            let angle = t * 2 * Float.pi
-            let x = point.x + radius * cos(angle)
-            let y = point.y + radius * sin(angle)
-            return SIMD3<Float>(x, y, z)
-        }
-
-        var points: [SIMD3<Float>] = []
-        points.reserveCapacity(clampedSegments * 4 + max(0, strutCount) * 2)
-
-        for i in 0..<clampedSegments {
-            points.append(ringPoint(i, z: baseZ))
-            points.append(ringPoint(i + 1, z: baseZ))
-        }
-        for i in 0..<clampedSegments {
-            points.append(ringPoint(i, z: topZ))
-            points.append(ringPoint(i + 1, z: topZ))
-        }
-
-        let clampedStruts = max(0, strutCount)
-        for s in 0..<clampedStruts {
-            let i = (s * clampedSegments) / max(1, clampedStruts)
-            points.append(ringPoint(i, z: baseZ))
-            points.append(ringPoint(i, z: topZ))
-        }
-
-        return RenderObject(points: points, color: color, primitive: .lineList)
-    }
+//    static func marker(at point: SIMD3<Float>,
+//                        diameter: Float = 6.0,
+//                        height: Float = 12.0,
+//                        segments: Int = 28,
+//                        strutCount: Int = 4,
+//                        color: SIMD4<Float> = SIMD4<Float>(1.0, 0.05, 0.05, 1.0)) -> RenderObject {
+//        let clampedSegments = max(3, segments)
+//        let radius = max(0, diameter) / 2
+//        let baseZ = point.z
+//        let topZ = point.z + height
+//
+//        func ringPoint(_ i: Int, z: Float) -> SIMD3<Float> {
+//            let t = Float(i) / Float(clampedSegments)
+//            let angle = t * 2 * Float.pi
+//            let x = point.x + radius * cos(angle)
+//            let y = point.y + radius * sin(angle)
+//            return SIMD3<Float>(x, y, z)
+//        }
+//
+//        var points: [SIMD3<Float>] = []
+//        points.reserveCapacity(clampedSegments * 4 + max(0, strutCount) * 2)
+//
+//        for i in 0..<clampedSegments {
+//            points.append(ringPoint(i, z: baseZ))
+//            points.append(ringPoint(i + 1, z: baseZ))
+//        }
+//        for i in 0..<clampedSegments {
+//            points.append(ringPoint(i, z: topZ))
+//            points.append(ringPoint(i + 1, z: topZ))
+//        }
+//
+//        let clampedStruts = max(0, strutCount)
+//        for s in 0..<clampedStruts {
+//            let i = (s * clampedSegments) / max(1, clampedStruts)
+//            points.append(ringPoint(i, z: baseZ))
+//            points.append(ringPoint(i, z: topZ))
+//        }
+//
+//        return RenderObject(points: points, color: color, primitive: .lineList)
+//    }
 
     /// XYZ axis gizmo at the origin — one `RenderObject` per axis since each
     /// needs its own color (red/green/blue). Each axis is drawn as 3 parallel
@@ -516,35 +492,33 @@ extension RenderObject {
 
     /// Closed dashed polygon — stands in for e.g. a toolpath preview or a
     /// selection outline. Shape/position are arbitrary defaults, not meaningful.
-    static func dashedShape(center: SIMD3<Float> = SIMD3<Float>(50, 25, 15),
-                            outerRadius: Float = 22,
-                            innerRadius: Float = 9,
-                            points pointCount: Int = 5,
-                            color: SIMD4<Float> = SIMD4<Float>(1.0, 0.75, 0.1, 1.0),
-                            dashLength: Float = 3.0) -> RenderObject {
-        let spikes = max(3, pointCount)
-        var vertices: [SIMD3<Float>] = []
-        vertices.reserveCapacity(spikes * 2 + 1)
+//    static func dashedShape(center: SIMD3<Float> = SIMD3<Float>(50, 25, 15),
+//                            outerRadius: Float = 22,
+//                            innerRadius: Float = 9,
+//                            points pointCount: Int = 5,
+//                            color: SIMD4<Float> = SIMD4<Float>(1.0, 0.75, 0.1, 1.0),
+//                            dashLength: Float = 3.0) -> RenderObject {
+//        let spikes = max(3, pointCount)
+//        var vertices: [SIMD3<Float>] = []
+//        vertices.reserveCapacity(spikes * 2 + 1)
+//
+//        for i in 0..<(spikes * 2) {
+//            let angle = Float(i) * .pi / Float(spikes)
+//            let radius = i % 2 == 0 ? outerRadius : innerRadius
+//            vertices.append(SIMD3<Float>(center.x + radius * cos(angle),
+//                                         center.y + radius * sin(angle),
+//                                         center.z))
+//        }
+//        vertices.append(vertices[0]) // close the loop
+//
+//        return RenderObject(points: vertices,
+//                            color: color,
+//                            primitive: .lineStrip,
+//                            isDashed: true,
+//                            dashLength: dashLength)
+//    }
 
-        for i in 0..<(spikes * 2) {
-            let angle = Float(i) * .pi / Float(spikes)
-            let radius = i % 2 == 0 ? outerRadius : innerRadius
-            vertices.append(SIMD3<Float>(center.x + radius * cos(angle),
-                                         center.y + radius * sin(angle),
-                                         center.z))
-        }
-        vertices.append(vertices[0]) // close the loop
-
-        return RenderObject(points: vertices,
-                            color: color,
-                            primitive: .lineStrip,
-                            isDashed: true,
-                            dashLength: dashLength)
-    }
-
-    /// The four default items: axes, stock outline, a dashed example shape,
-    /// and a position marker — everything `MetalCanvasView` draws out of the box.
     static func defaultScene() -> [RenderObject] {
-        axes() + [.stockBox(), .dashedShape(), .marker(at: SIMD3<Float>(50, 25, 0))]
+        axes() + [.stockBox()]
     }
 }
