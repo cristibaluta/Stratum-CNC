@@ -103,7 +103,7 @@ extension RenderObject {
     /// strands arranged around the centerline (poor man's thick line — Metal's
     /// line primitives are always hairline-width, there's no `glLineWidth`
     /// equivalent) plus a small cone arrowhead at the tip.
-    static func axes(length: Float = 50, thickness: Float = 0.6) -> [RenderObject] {
+    static func axes(length: Float = 7.5, thickness: Float = 0.09) -> [RenderObject] {
         let headLength = min(length * 0.15, 8)
         let headRadius = thickness * 3
         let x = axisArrow(direction: SIMD3<Float>(1, 0, 0), length: length, thickness: thickness,

@@ -6,17 +6,40 @@
 //
 
 import SwiftUI
+import Combine
 import UniformTypeIdentifiers
 import StratumCAM
 
 @MainActor
 class GCodeStore: ObservableObject {
 
-    @Published var document = NCFileDocument()
+    @Published var document = NCFileDocument() {
+        didSet {
+            bindDocument()
+        }
+    }
 
     @Published var selectedToolpathID: UUID?
     @Published var requestedLine: Int?
     @Published var analyzedLineCount = -1
+
+    // `document` is its own `ObservableObject` (it publishes `lines`, `isLoading`,
+    // etc. independently). Views here only ever observe `GCodeStore`, so without
+    // this, a change to `document.lines` — e.g. finishing an async file load —
+    // never triggers a re-render: `GCodeStore.objectWillChange` only fires when
+    // the `document` *reference* itself is reassigned, not when its internal
+    // @Published properties mutate. Forwarding its publisher closes that gap.
+    private var documentCancellable: AnyCancellable?
+
+    init() {
+        bindDocument()
+    }
+
+    private func bindDocument() {
+        documentCancellable = document.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+    }
 
     var allowedContentTypes: [UTType] {
         var types: [UTType] = [.plainText]
