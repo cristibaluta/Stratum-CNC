@@ -26,6 +26,8 @@ enum RenderRole: Hashable {
     case toolpathRapid
     /// G1/G2/G3 cutting and arc moves, tessellated the same way.
     case toolpathCutting
+    /// The cutter itself, drawn at true size at the machine's current position.
+    case tool
 }
 
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
@@ -334,6 +336,64 @@ extension RenderObject {
                                         primitive: .lineList))
         }
         return objects
+    }
+
+    /// The cutter itself, drawn as a true-size wireframe cylinder at the
+    /// machine's current position — same ring+strut construction as
+    /// `marker(at:)`/`stockCylinder`, just parameterized by the tool's real
+    /// `diameter`/`length` (both in millimeters, matching every other
+    /// `RenderObject` in this file) instead of fixed marker dimensions.
+    ///
+    /// `tipPosition` is where the cutting tip actually is — typically the
+    /// machine's current work position (X/Y/Z) — and the cylinder extends
+    /// upward from there (+Z) by `length`, i.e. up into the spindle, the
+    /// same way the physical tool sticks up above whatever it's cutting.
+    static func tool(at tipPosition: SIMD3<Float>,
+                      diameter: Double,
+                      length: Double,
+                      segments: Int = 32,
+                      strutCount: Int = 6,
+                      color: SIMD4<Float> = SIMD4<Float>(0.9, 0.9, 0.9, 1.0)) -> RenderObject {
+        let clampedSegments = max(3, segments)
+        let radius = Float(max(0, diameter) / 2)
+        let baseZ = tipPosition.z
+        let topZ = tipPosition.z + Float(max(0, length))
+
+        func ringPoint(_ i: Int, z: Float) -> SIMD3<Float> {
+            let t = Float(i) / Float(clampedSegments)
+            let angle = t * 2 * Float.pi
+            let x = tipPosition.x + radius * cos(angle)
+            let y = tipPosition.y + radius * sin(angle)
+            return SIMD3<Float>(x, y, z)
+        }
+
+        var points: [SIMD3<Float>] = []
+        points.reserveCapacity(clampedSegments * 4 + max(0, strutCount) * 2 + 2)
+
+        // Bottom ring — the cutting tip.
+        for i in 0..<clampedSegments {
+            points.append(ringPoint(i, z: baseZ))
+            points.append(ringPoint(i + 1, z: baseZ))
+        }
+        // Top ring — where the flute/shank ends, `length` above the tip.
+        for i in 0..<clampedSegments {
+            points.append(ringPoint(i, z: topZ))
+            points.append(ringPoint(i + 1, z: topZ))
+        }
+        // Vertical struts so the shape reads as a cylinder from any angle.
+        let clampedStruts = max(0, strutCount)
+        for s in 0..<clampedStruts {
+            let i = (s * clampedSegments) / max(1, clampedStruts)
+            points.append(ringPoint(i, z: baseZ))
+            points.append(ringPoint(i, z: topZ))
+        }
+        // Short centerline stub at the very tip so the actual cutting point
+        // stays visible even when the tool is thin enough that its ring
+        // barely reads on screen.
+        points.append(SIMD3<Float>(tipPosition.x, tipPosition.y, baseZ))
+        points.append(SIMD3<Float>(tipPosition.x, tipPosition.y, baseZ + max(radius, 1.0)))
+
+        return RenderObject(role: .tool, points: points, color: color, primitive: .lineList)
     }
 
     /// Small cylinder marker (e.g. current position, a probe point).

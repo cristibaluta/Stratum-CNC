@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import simd
 
 @MainActor
 class ControllerModel: ObservableObject {
@@ -47,6 +48,22 @@ class ControllerModel: ObservableObject {
     func updateToolpath(_ segments: [ToolpathSegment]) {
         renderObjects.replacing(roles: [.toolpathRapid, .toolpathCutting],
                                 with: RenderObject.toolpath(from: segments))
+    }
+
+    /// Real diameter/length of the tool currently drawn on the canvas, in
+    /// millimeters. Defaults to a common 1/8" end mill; set these from the
+    /// active `Tool` (`ToolLibrary`/`ToolsStore`) once tool selection is
+    /// tracked for a running job, and `updateToolPosition` will pick up the
+    /// new size on the next call.
+    @Published var toolDiameter: Double = 3.175
+    @Published var toolLength: Double = 40
+
+    /// Rebuilds the cutter wireframe at `point` (the machine's current
+    /// work position) using `toolDiameter`/`toolLength`, replacing whatever
+    /// was drawn there before — axes, stock, and the toolpath preview are
+    /// untouched. Call this whenever the machine reports a new position.
+    func updateToolPosition(_ point: SIMD3<Float>) {
+        renderObjects.updating(.tool(at: point, diameter: toolDiameter, length: toolLength))
     }
 
     func sendCommand(_ command: CNCCommand) {

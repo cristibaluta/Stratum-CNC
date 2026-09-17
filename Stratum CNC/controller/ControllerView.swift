@@ -6,6 +6,31 @@
 //
 
 import SwiftUI
+import simd
+
+/// Invisible helper that keeps the tool cylinder in sync with the machine's
+/// reported position. Needs its own `@ObservedObject` on `MachineConnection`
+/// (the same pattern `PanelPosition` uses) because `status` is published by
+/// `MachineConnection` itself, not by `ControllerModel` — `ControllerModel`
+/// never forwards it, so observing `model` alone wouldn't pick up changes.
+private struct ToolPositionSync: View {
+    @ObservedObject var connection: MachineConnection
+    let onUpdate: (SIMD3<Float>) -> Void
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear { sync(connection.status) }
+            .onChange(of: connection.status) { _, status in sync(status) }
+    }
+
+    private func sync(_ status: MakeraMachineStatus?) {
+        guard let status else { return }
+        onUpdate(SIMD3<Float>(Float(status.workPosition.x),
+                              Float(status.workPosition.y),
+                              Float(status.workPosition.z)))
+    }
+}
 
 struct ControllerView: View {
 
@@ -40,6 +65,11 @@ struct ControllerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .padding(.trailing, -16)
+                    .overlay(
+                        ToolPositionSync(connection: model.connection) { point in
+                            model.updateToolPosition(point)
+                        }
+                    )
                     .onAppear {
                         // Sync once up front — `renderObjects` otherwise still
                         // holds `defaultScene()`'s placeholder box, not
