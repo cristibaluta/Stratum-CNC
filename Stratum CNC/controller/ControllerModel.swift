@@ -28,7 +28,7 @@ class ControllerModel: ObservableObject {
 
     /// Plain CPU-side data describing what the 3D canvas should draw. No Metal
     /// types here — MetalRenderer is the only thing that turns this into GPU buffers.
-    @Published var renderObjects: [RenderObject] = [.stockBox()]
+    @Published var renderObjects: [RenderObject] = RenderObject.defaultScene()
 
     func sendCommand(_ command: CNCCommand) {
         sendRawCommand(command.command)

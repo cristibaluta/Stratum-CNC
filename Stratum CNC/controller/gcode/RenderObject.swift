@@ -97,4 +97,56 @@ extension RenderObject {
 
         return RenderObject(points: points, color: color, primitive: .lineList)
     }
+
+    /// XYZ axis gizmo at the origin — one `RenderObject` per axis since each
+    /// needs its own color (red/green/blue). `RenderObject` doesn't support
+    /// per-vertex color changes within a single object, so three thin
+    /// objects is simpler than adding that.
+    static func axes(length: Float = 50) -> [RenderObject] {
+        let origin = SIMD3<Float>(0, 0, 0)
+        let x = RenderObject(points: [origin, SIMD3<Float>(length, 0, 0)],
+                             color: SIMD4<Float>(1.0, 0.15, 0.15, 1.0),
+                             primitive: .lineStrip)
+        let y = RenderObject(points: [origin, SIMD3<Float>(0, length, 0)],
+                             color: SIMD4<Float>(0.15, 1.0, 0.15, 1.0),
+                             primitive: .lineStrip)
+        let z = RenderObject(points: [origin, SIMD3<Float>(0, 0, length)],
+                             color: SIMD4<Float>(0.15, 0.45, 1.0, 1.0),
+                             primitive: .lineStrip)
+        return [x, y, z]
+    }
+
+    /// Closed dashed polygon — stands in for e.g. a toolpath preview or a
+    /// selection outline. Shape/position are arbitrary defaults, not meaningful.
+    static func dashedShape(center: SIMD3<Float> = SIMD3<Float>(50, 25, 15),
+                            outerRadius: Float = 22,
+                            innerRadius: Float = 9,
+                            points pointCount: Int = 5,
+                            color: SIMD4<Float> = SIMD4<Float>(1.0, 0.75, 0.1, 1.0),
+                            dashLength: Float = 3.0) -> RenderObject {
+        let spikes = max(3, pointCount)
+        var vertices: [SIMD3<Float>] = []
+        vertices.reserveCapacity(spikes * 2 + 1)
+
+        for i in 0..<(spikes * 2) {
+            let angle = Float(i) * .pi / Float(spikes)
+            let radius = i % 2 == 0 ? outerRadius : innerRadius
+            vertices.append(SIMD3<Float>(center.x + radius * cos(angle),
+                                         center.y + radius * sin(angle),
+                                         center.z))
+        }
+        vertices.append(vertices[0]) // close the loop
+
+        return RenderObject(points: vertices,
+                            color: color,
+                            primitive: .lineStrip,
+                            isDashed: true,
+                            dashLength: dashLength)
+    }
+
+    /// The four default items: axes, stock outline, a dashed example shape,
+    /// and a position marker — everything `MetalCanvasView` draws out of the box.
+    static func defaultScene() -> [RenderObject] {
+        axes() + [.stockBox(), .dashedShape(), .marker(at: SIMD3<Float>(50, 25, 0))]
+    }
 }
