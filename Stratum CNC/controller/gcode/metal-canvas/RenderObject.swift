@@ -17,10 +17,15 @@ enum RenderPrimitive {
 /// What a `RenderObject` represents, for the handful of cases where upstream
 /// code needs to find one again inside a scene array (e.g. swapping in a
 /// freshly-built stock wireframe whenever `CAMModel.selectedStockMaterial`
-/// changes, without disturbing the axes/toolpath/marker objects around it).
+/// changes, or refreshing the toolpath preview whenever a G-code file
+/// (re)loads, without disturbing the other objects in the scene).
 /// Nothing about rendering depends on this — it's purely a lookup tag.
-enum RenderRole: Equatable {
+enum RenderRole: Hashable {
     case stock
+    /// G0 rapid moves, tessellated from `GCodeParser`'s `ToolpathSegment`s.
+    case toolpathRapid
+    /// G1/G2/G3 cutting and arc moves, tessellated the same way.
+    case toolpathCutting
 }
 
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
@@ -61,6 +66,17 @@ extension Array where Element == RenderObject {
         } else {
             append(object)
         }
+    }
+
+    /// Removes every existing element whose role is in `roles`, then appends
+    /// `objects` in their place. Unlike `updating(_:)` (one object, matched
+    /// and swapped 1:1), this is for a *group* that can grow or shrink
+    /// between updates — e.g. a reloaded G-code file might now have rapid
+    /// moves where it didn't before, or vice versa, so stale leftovers can't
+    /// just be matched by role and overwritten in place.
+    mutating func replacing(roles: Set<RenderRole>, with objects: [RenderObject]) {
+        removeAll { element in element.role.map(roles.contains) ?? false }
+        append(contentsOf: objects)
     }
 }
 
@@ -267,6 +283,58 @@ extension RenderObject {
         }
 
         return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
+    }
+
+    /// Turns `GCodeParser`'s flat `ToolpathSegment` list — already plain
+    /// `SIMD3<Float>` start/end coordinates, that's all `GCodeParser` ever
+    /// produces — into `RenderObject`s `MetalCanvasView` can draw.
+    ///
+    /// Segments are split into two groups by motion type rather than merged
+    /// into one object: rapids (G0) are drawn dashed in a different color
+    /// from cutting/arc moves (G1/G2/G3), the same convention most CAM
+    /// viewers use so a rapid reposition doesn't read as a cut. Both groups
+    /// use `.lineList`, not `.lineStrip` — segments are independent moves,
+    /// often with gaps between them (e.g. a rapid up, over, and back down),
+    /// and `.lineStrip` would draw a spurious connecting line across every
+    /// gap since it always joins consecutive points.
+    static func toolpath(from segments: [ToolpathSegment],
+                          rapidColor: SIMD4<Float> = SIMD4<Float>(1.0, 0.85, 0.2, 1.0),
+                          cuttingColor: SIMD4<Float> = SIMD4<Float>(0.2, 0.8, 1.0, 1.0)) -> [RenderObject] {
+        guard !segments.isEmpty else {
+            return []
+        }
+
+        var rapidPoints: [SIMD3<Float>] = []
+        var cuttingPoints: [SIMD3<Float>] = []
+        rapidPoints.reserveCapacity(segments.count * 2)
+        cuttingPoints.reserveCapacity(segments.count * 2)
+
+        for segment in segments {
+            if segment.flags & ToolpathFlags.rapid != 0 {
+                rapidPoints.append(segment.start)
+                rapidPoints.append(segment.end)
+            } else {
+                cuttingPoints.append(segment.start)
+                cuttingPoints.append(segment.end)
+            }
+        }
+
+        var objects: [RenderObject] = []
+        if !rapidPoints.isEmpty {
+            objects.append(RenderObject(role: .toolpathRapid,
+                                        points: rapidPoints,
+                                        color: rapidColor,
+                                        primitive: .lineList,
+                                        isDashed: true,
+                                        dashLength: 3.0))
+        }
+        if !cuttingPoints.isEmpty {
+            objects.append(RenderObject(role: .toolpathCutting,
+                                        points: cuttingPoints,
+                                        color: cuttingColor,
+                                        primitive: .lineList))
+        }
+        return objects
     }
 
     /// Small cylinder marker (e.g. current position, a probe point).

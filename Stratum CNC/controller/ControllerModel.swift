@@ -39,6 +39,16 @@ class ControllerModel: ObservableObject {
         renderObjects.updating(.stockBox(for: stock))
     }
 
+    /// Rebuilds the toolpath preview from a freshly (re)parsed G-code file,
+    /// replacing whichever rapid/cutting objects were drawn before — axes,
+    /// stock, and the position marker are untouched. `ControllerView` calls
+    /// this whenever `GCodeStore.document.toolpathSegments` changes, so the
+    /// canvas always shows the currently loaded program.
+    func updateToolpath(_ segments: [ToolpathSegment]) {
+        renderObjects.replacing(roles: [.toolpathRapid, .toolpathCutting],
+                                with: RenderObject.toolpath(from: segments))
+    }
+
     func sendCommand(_ command: CNCCommand) {
         sendRawCommand(command.command)
     }

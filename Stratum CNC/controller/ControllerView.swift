@@ -45,9 +45,13 @@ struct ControllerView: View {
                         // holds `defaultScene()`'s placeholder box, not
                         // whatever material the project actually has selected.
                         model.updateStock(camModel.selectedStockMaterial)
+                        model.updateToolpath(gCodeModel.document.toolpathSegments)
                     }
                     .onChange(of: camModel.selectedStockMaterial) { _, newStock in
                         model.updateStock(newStock)
+                    }
+                    .onChange(of: gCodeModel.document.toolpathSegments) { _, newSegments in
+                        model.updateToolpath(newSegments)
                     }
             }
 
