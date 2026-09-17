@@ -442,20 +442,9 @@ final class GCodeParser {
             return
         }
 
-        let startAngle =
-            atan2(
-                startVector.y,
-                startVector.x
-            )
-
-        let endAngle =
-            atan2(
-                endVector.y,
-                endVector.x
-            )
-
-        var delta =
-            endAngle - startAngle
+        let startAngle = atan2(startVector.y, startVector.x)
+        let endAngle = atan2(endVector.y, endVector.x)
+        var delta = endAngle - startAngle
 
         if clockwise {
             if delta >= 0 {
@@ -507,10 +496,7 @@ final class GCodeParser {
         let start = index
 
         // Sign.
-        if index < bytes.count &&
-           (bytes[index] == 0x2B ||
-            bytes[index] == 0x2D) {
-
+        if index < bytes.count && (bytes[index] == 0x2B || bytes[index] == 0x2D) {
             index += 1
         }
         var hasDigits = false
@@ -545,35 +531,24 @@ final class GCodeParser {
 
         // Scientific notation.
         if index < bytes.count {
-
             let byte = bytes[index]
 
             if byte == 0x45 || byte == 0x65 { // E/e
-
                 let exponentStart = index
-
                 index += 1
 
-                if index < bytes.count &&
-                   (bytes[index] == 0x2B ||
-                    bytes[index] == 0x2D) {
-
+                if index < bytes.count && (bytes[index] == 0x2B || bytes[index] == 0x2D) {
                     index += 1
                 }
 
                 var exponentHasDigits = false
 
                 while index < bytes.count {
-
                     let digit = bytes[index]
-
                     if digit >= 48 && digit <= 57 {
-
                         exponentHasDigits = true
                         index += 1
-
                     } else {
-
                         break
                     }
                 }

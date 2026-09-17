@@ -7,6 +7,7 @@
 
 import SwiftUI
 import simd
+import StratumCAM
 
 /// Invisible helper that keeps the tool cylinder in sync with the machine's
 /// reported position. Needs its own `@ObservedObject` on `MachineConnection`
@@ -40,6 +41,10 @@ struct ControllerView: View {
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
 
+    @State private var toolpathPoints: [SIMD3<Float>] = []
+    @State private var activeTool: SC.ToolParams = SC.ToolParams()
+    @State private var scrubIndex: Double = 0
+
     private var stockVisibleBinding: Binding<Bool> {
         Binding(
             get: { projectModel.projectData.isStockVisible ?? true },
@@ -70,6 +75,25 @@ struct ControllerView: View {
                             model.updateToolPosition(point)
                         }
                     )
+                    .overlay(alignment: .bottomLeading) {
+                        if !toolpathPoints.isEmpty {
+                            HStack(spacing: 8) {
+                                Slider(value: $scrubIndex, in: 0...Double(max(0, toolpathPoints.count - 1)))
+                                    .onChange(of: scrubIndex) { _ in
+                                        rebuildRenderBatches()
+                                    }
+                                    .frame(minWidth: 160)
+                                Text("\(Int(scrubIndex.rounded())) / \(max(0, toolpathPoints.count - 1))")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .frame(minWidth: 56, alignment: .trailing)
+                            }
+                            .padding(8)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(6)
+                            .padding()
+                        }
+                    }
                     .onAppear {
                         // Sync once up front — `renderObjects` otherwise still
                         // holds `defaultScene()`'s placeholder box, not
@@ -310,5 +334,24 @@ struct ControllerView: View {
                 .font(.caption2.monospaced())
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func rebuildRenderBatches() {
+        var batches = staticBatches
+        if !toolpathPoints.isEmpty {
+            let prefixIndex = Int(scrubIndex.rounded(.down))
+            let prefix = Demo.pointsPrefix(toolpathPoints, upTo: prefixIndex)
+
+            if let slicedBatch = previewDemo.renderBatch(forPoints: prefix, color: SIMD4<Float>(1.0, 0.8, 0.0, 1.0)) {
+                batches.append(slicedBatch)
+            }
+            if let markerPoint = Demo.interpolatedPoint(toolpathPoints, at: scrubIndex),
+               let marker = previewDemo.markerBatch(at: markerPoint,
+                                                    diameter: Float(activeTool.diameter),
+                                                    height: Float(activeTool.fluteLength)) {
+                batches.append(marker)
+            }
+        }
+        renderBatches = batches
     }
 }
