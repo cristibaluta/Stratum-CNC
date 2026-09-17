@@ -7,7 +7,6 @@
 
 import SwiftUI
 import simd
-import StratumCAM
 
 /// Invisible helper that keeps the tool cylinder in sync with the machine's
 /// reported position. Needs its own `@ObservedObject` on `MachineConnection`
@@ -41,16 +40,46 @@ struct ControllerView: View {
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
 
-    @State private var toolpathPoints: [SIMD3<Float>] = []
-    @State private var activeTool: SC.ToolParams = SC.ToolParams()
-    @State private var scrubIndex: Double = 0
-
     private var stockVisibleBinding: Binding<Bool> {
         Binding(
             get: { projectModel.projectData.isStockVisible ?? true },
             set: { newValue in
                 projectModel.projectData.isStockVisible = newValue
                 camModel.canvasState.isStockVisible = newValue
+            }
+        )
+    }
+
+    /// Drives the scrub slider. `Slider` needs a `Double`, but the scrub
+    /// position is really a 1-based G-code line, so this rounds to the
+    /// nearest line on every drag tick. Setting `gCodeModel.requestedLine`
+    /// is what makes `GCodeTableView` select and scroll to that row (it's
+    /// edge-triggered on the value changing, which fits a slider that fires
+    /// on every tick); re-rendering the canvas reuses `ControllerModel`'s
+    /// existing role-based replace (`updateToolpath`) with just the segments
+    /// up to that line, instead of the full file.
+    private var scrubBinding: Binding<Double> {
+        Binding(
+            get: { Double(gCodeModel.scrubLine) },
+            set: { newValue in
+                let line = Int(newValue.rounded())
+                guard line != gCodeModel.scrubLine else { return }
+
+                gCodeModel.scrubLine = line
+                gCodeModel.requestedLine = line
+
+                let prefix = gCodeModel.document.toolpathSegments(upTo: line)
+                model.updateToolpath(Array(prefix))
+
+                // Move the cutter marker to wherever the scrubbed path ends,
+                // so the canvas reads as "the tool is here" rather than just
+                // a partially-drawn line. If a machine is connected,
+                // `ToolPositionSync` will overwrite this on the next status
+                // update — scrubbing is meant for reviewing an offline file,
+                // not for tracking a job that's actually running.
+                if let last = prefix.last {
+                    model.updateToolPosition(last.end)
+                }
             }
         )
     }
@@ -76,23 +105,18 @@ struct ControllerView: View {
                         }
                     )
                     .overlay(alignment: .bottomLeading) {
-                        if !toolpathPoints.isEmpty {
-                            HStack(spacing: 8) {
-                                Slider(value: $scrubIndex, in: 0...Double(max(0, toolpathPoints.count - 1)))
-                                    .onChange(of: scrubIndex) { _ in
-                                        rebuildRenderBatches()
-                                    }
-                                    .frame(minWidth: 160)
-                                Text("\(Int(scrubIndex.rounded())) / \(max(0, toolpathPoints.count - 1))")
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                                    .frame(minWidth: 56, alignment: .trailing)
-                            }
-                            .padding(8)
-                            .background(.ultraThinMaterial)
-                            .cornerRadius(6)
-                            .padding()
+                        HStack(spacing: 8) {
+                            Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count))
+                                .frame(minWidth: 160)
+                            Text("Line \(gCodeModel.scrubLine) / \(gCodeModel.document.lines.count)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(minWidth: 90, alignment: .trailing)
                         }
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(6)
+                        .padding()
                     }
                     .onAppear {
                         // Sync once up front — `renderObjects` otherwise still
@@ -100,12 +124,17 @@ struct ControllerView: View {
                         // whatever material the project actually has selected.
                         model.updateStock(camModel.selectedStockMaterial)
                         model.updateToolpath(gCodeModel.document.toolpathSegments)
+                        gCodeModel.scrubLine = gCodeModel.document.lines.count
                     }
                     .onChange(of: camModel.selectedStockMaterial) { _, newStock in
                         model.updateStock(newStock)
                     }
                     .onChange(of: gCodeModel.document.toolpathSegments) { _, newSegments in
+                        // A freshly (re)parsed file replaces the whole preview
+                        // and parks the scrubber at the end, so what's drawn
+                        // always matches where the slider sits.
                         model.updateToolpath(newSegments)
+                        gCodeModel.scrubLine = gCodeModel.document.lines.count
                     }
             }
 
@@ -138,7 +167,7 @@ struct ControllerView: View {
                     }
                     .padding(.top, 4)
                 ) {
-                    GCodeViewer(model: gCodeModel)
+                    GCodeViewer(model: gCodeModel, highlightedLine: gCodeModel.scrubLine)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -334,24 +363,5 @@ struct ControllerView: View {
                 .font(.caption2.monospaced())
                 .foregroundStyle(.secondary)
         }
-    }
-
-    private func rebuildRenderBatches() {
-        var batches = staticBatches
-        if !toolpathPoints.isEmpty {
-            let prefixIndex = Int(scrubIndex.rounded(.down))
-            let prefix = Demo.pointsPrefix(toolpathPoints, upTo: prefixIndex)
-
-            if let slicedBatch = previewDemo.renderBatch(forPoints: prefix, color: SIMD4<Float>(1.0, 0.8, 0.0, 1.0)) {
-                batches.append(slicedBatch)
-            }
-            if let markerPoint = Demo.interpolatedPoint(toolpathPoints, at: scrubIndex),
-               let marker = previewDemo.markerBatch(at: markerPoint,
-                                                    diameter: Float(activeTool.diameter),
-                                                    height: Float(activeTool.fluteLength)) {
-                batches.append(marker)
-            }
-        }
-        renderBatches = batches
     }
 }

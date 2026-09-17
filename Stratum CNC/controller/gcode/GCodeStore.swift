@@ -23,6 +23,12 @@ class GCodeStore: ObservableObject {
     @Published var requestedLine: Int?
     @Published var analyzedLineCount = -1
 
+    /// 1-based G-code line the scrub slider is currently parked on. `0` means
+    /// nothing has run yet (empty canvas); `document.lines.count` means the
+    /// whole program, which is also where this resets to whenever a file
+    /// (re)loads — see `ControllerView`'s `toolpathSegments` `onChange`.
+    @Published var scrubLine: Int = 0
+
     // `document` is its own `ObservableObject` (it publishes `lines`, `isLoading`,
     // etc. independently). Views here only ever observe `GCodeStore`, so without
     // this, a change to `document.lines` — e.g. finishing an async file load —
@@ -61,7 +67,7 @@ class GCodeStore: ObservableObject {
         }
     }
 
-    
+
 
     /// Builds a plain-data `RenderObject` for a toolpath (or any point path).
     /// No `MTLDevice` involved — GCodeStore never touches Metal. MetalRenderer
