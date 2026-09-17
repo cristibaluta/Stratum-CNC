@@ -24,6 +24,11 @@ private struct RenderBatch {
     var primitiveType: MTLPrimitiveType
     var isDashed: Bool = false
     var dashLength: Float = 5.0
+    /// Depth-only face geometry for this batch's solid, if it has one (see
+    /// `RenderObject.occluderFaces`). Drawn in `draw(in:)` pass 0, before
+    /// any edges, so the edge passes have real surface depth to test against.
+    var occluderBuffer: MTLBuffer?
+    var occluderVertexCount: Int = 0
 }
 
 private extension RenderPrimitive {
@@ -51,10 +56,36 @@ private extension RenderPrimitive {
 
 @MainActor
 class MetalRenderer: NSObject {
-    
+
     private var device: MTLDevice!
     private var commandQueue: MTLCommandQueue!
     private var pipelineState: MTLRenderPipelineState!
+    /// Same shaders as `pipelineState`, but with color writes disabled.
+    /// Used for the occluder-face pre-pass — it needs to affect the depth
+    /// buffer only, never what's actually on screen.
+    private var depthOnlyPipelineState: MTLRenderPipelineState!
+
+    // Depth states for the two-pass hidden-line render (see `draw(in:)`):
+    // `depthStateVisible` is the normal pass, `depthStateHidden` is the
+    // second pass that picks up everything the first pass occluded.
+    private var depthStateVisible: MTLDepthStencilState!
+    private var depthStateHidden: MTLDepthStencilState!
+
+    /// Turn the second pass on/off. When off, occluded geometry simply
+    /// isn't drawn (the old behavior).
+    var showHiddenLines: Bool = true
+    /// Dash length used for hidden portions of a line that isn't already
+    /// dashed itself. Lines that already have their own `isDashed` pattern
+    /// keep that pattern when hidden.
+    private let hiddenLineDashLength: Float = 4.0
+
+    /// Depth bias applied only while drawing occluder faces (pass 0), so an
+    /// edge sitting exactly on its own solid's surface reliably wins the
+    /// depth test against that surface instead of z-fighting with it.
+    /// Empirical — nudge these if edges flicker or a solid's own outline
+    /// starts vanishing at certain angles.
+    private let occluderDepthBias: Float = 2.0
+    private let occluderDepthBiasSlope: Float = 2.0
 
     var camera = Camera()
     private var renderBatches: [RenderBatch] = []
@@ -74,10 +105,11 @@ class MetalRenderer: NSObject {
         metalView.device = defaultDevice
         metalView.clearColor = MTLClearColor(red: 0.1, green: 0.11, blue: 0.13, alpha: 1.0)
         metalView.depthStencilPixelFormat = .depth32Float
-        
+
         self.commandQueue = device.makeCommandQueue()
 
         setupPipeline(metalView: metalView)
+        setupDepthStates()
 
         renderBatches = [buildRenderBatch(from: .stockBox())].compactMap { $0 }
     }
@@ -91,11 +123,29 @@ class MetalRenderer: NSObject {
                                              options: .storageModeShared) else {
             return nil
         }
+
+        // Occluder faces don't need real color/dist — nothing ever reads them
+        // (the depth-only pipeline writes no color, and `dashLength` is
+        // forced to 0 for this pass so the fragment shader never discards).
+        // They're just packed into the same `RenderVertex` layout so both
+        // passes can share one vertex descriptor/shader pair.
+        var occluderBuffer: MTLBuffer?
+        if !object.occluderFaces.isEmpty {
+            let occluderVertices = object.occluderFaces.map {
+                RenderVertex(position: $0, color: SIMD4<Float>(repeating: 0), dist: 0)
+            }
+            occluderBuffer = device.makeBuffer(bytes: occluderVertices,
+                                               length: occluderVertices.count * MemoryLayout<RenderVertex>.stride,
+                                               options: .storageModeShared)
+        }
+
         return RenderBatch(vertexBuffer: buffer,
                            vertexCount: vertices.count,
                            primitiveType: object.primitive.mtlPrimitiveType,
                            isDashed: object.isDashed,
-                           dashLength: object.dashLength)
+                           dashLength: object.dashLength,
+                           occluderBuffer: occluderBuffer,
+                           occluderVertexCount: object.occluderFaces.count)
     }
 
     /// Expands a `RenderObject`'s points into GPU vertices, accumulating
@@ -122,12 +172,6 @@ class MetalRenderer: NSObject {
             return
         }
 
-        let pipelineDescriptor = MTLRenderPipelineDescriptor()
-        pipelineDescriptor.vertexFunction = vertexFunction
-        pipelineDescriptor.fragmentFunction = fragmentFunction
-        pipelineDescriptor.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
-        pipelineDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat
-
         let vertexDescriptor = MTLVertexDescriptor()
         // Position
         vertexDescriptor.attributes[0].format = .float3
@@ -144,9 +188,52 @@ class MetalRenderer: NSObject {
         vertexDescriptor.attributes[2].bufferIndex = 0
 
         vertexDescriptor.layouts[0].stride = MemoryLayout<RenderVertex>.stride
+
+        let pipelineDescriptor = MTLRenderPipelineDescriptor()
+        pipelineDescriptor.vertexFunction = vertexFunction
+        pipelineDescriptor.fragmentFunction = fragmentFunction
+        pipelineDescriptor.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
+        pipelineDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
 
         pipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+
+        // Depth-only variant for the occluder-face pre-pass: same shaders,
+        // same vertex layout, but no color writes — it exists purely to
+        // stamp solid-surface depth into the depth buffer before any edges
+        // are drawn (see `RenderObject.occluderFaces` and `draw(in:)` pass 0).
+        let depthOnlyDescriptor = MTLRenderPipelineDescriptor()
+        depthOnlyDescriptor.vertexFunction = vertexFunction
+        depthOnlyDescriptor.fragmentFunction = fragmentFunction
+        depthOnlyDescriptor.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
+        depthOnlyDescriptor.colorAttachments[0].writeMask = []
+        depthOnlyDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat
+        depthOnlyDescriptor.vertexDescriptor = vertexDescriptor
+
+        depthOnlyPipelineState = try? device.makeRenderPipelineState(descriptor: depthOnlyDescriptor)
+    }
+
+    /// Two depth-stencil states, one per pass of the hidden-line render:
+    /// - `depthStateVisible`: ordinary depth test (`.less`), writes depth.
+    ///   Whatever's actually in front ends up in the depth buffer.
+    /// - `depthStateHidden`: inverted test (`.greater`), no depth write.
+    ///   A fragment only survives this pass if it's *farther* from the
+    ///   camera than what pass one already put in the depth buffer at that
+    ///   pixel — i.e. exactly the parts of the geometry that are occluded.
+    ///   Not writing depth here means this pass can't occlude itself or
+    ///   later batches, and an exact tie (a line's hidden pass falling on
+    ///   its own already-drawn pixels) fails `.greater`, so it doesn't
+    ///   double-draw on top of the solid pass.
+    private func setupDepthStates() {
+        let visibleDescriptor = MTLDepthStencilDescriptor()
+        visibleDescriptor.depthCompareFunction = .less
+        visibleDescriptor.isDepthWriteEnabled = true
+        depthStateVisible = device.makeDepthStencilState(descriptor: visibleDescriptor)
+
+        let hiddenDescriptor = MTLDepthStencilDescriptor()
+        hiddenDescriptor.depthCompareFunction = .greater
+        hiddenDescriptor.isDepthWriteEnabled = false
+        depthStateHidden = device.makeDepthStencilState(descriptor: hiddenDescriptor)
     }
 
     /// Rebuild GPU buffers from the model's plain-data description of what to draw.
@@ -223,6 +310,40 @@ class MetalRenderer: NSObject {
 
 }
 
+private extension MetalRenderer {
+
+    /// Binds one batch's uniforms/buffer and issues its draw call. Shared by
+    /// both the visible and hidden passes in `draw(in:)` — they differ only
+    /// in which depth state is bound and what dash length they pass in.
+    func drawBatch(_ batch: RenderBatch, mvp: matrix_float4x4, dashLength: Float, encoder: MTLRenderCommandEncoder) {
+        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: dashLength)
+
+        // Bind uniforms to Vertex Shader (buffer index 1)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+
+        // Bind uniforms to Fragment Shader (buffer index 1)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+
+        // Bind vertex geometry buffer (buffer index 0)
+        encoder.setVertexBuffer(batch.vertexBuffer, offset: 0, index: 0)
+
+        // Draw primitives
+        encoder.drawPrimitives(type: batch.primitiveType, vertexStart: 0, vertexCount: batch.vertexCount)
+    }
+
+    /// Same binding dance as `drawBatch`, for occluder-face geometry: always
+    /// `dashLength: 0` (no discards — a face pre-pass needs to be solid to
+    /// be useful) and always `.triangle` (occluder buffers are triangle
+    /// lists regardless of what primitive type their owning batch's edges use).
+    func drawOccluder(_ buffer: MTLBuffer, vertexCount: Int, mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: 0)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        encoder.setVertexBuffer(buffer, offset: 0, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertexCount)
+    }
+}
+
 extension MetalRenderer: MTKViewDelegate {
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -239,25 +360,43 @@ extension MetalRenderer: MTKViewDelegate {
             return
         }
 
+        let mvp = camera.updateMatrix() // same for every batch/pass this frame
+
+        // Pass 0 — occluder faces. Depth-only, color writes off, drawn
+        // before any edges so their surfaces are already in the depth
+        // buffer when the edge passes run. A small depth bias pushes these
+        // faces a hair farther away than they really are, so an edge lying
+        // exactly on its own solid's surface reliably wins pass 1 instead
+        // of z-fighting with the face it's coincident with.
+        renderEncoder.setRenderPipelineState(depthOnlyPipelineState)
+        renderEncoder.setDepthStencilState(depthStateVisible)
+        renderEncoder.setDepthBias(occluderDepthBias, slopeScale: occluderDepthBiasSlope, clamp: 0)
+        for batch in renderBatches {
+            guard let occluderBuffer = batch.occluderBuffer, batch.occluderVertexCount > 0 else {
+                continue
+            }
+            drawOccluder(occluderBuffer, vertexCount: batch.occluderVertexCount, mvp: mvp, encoder: renderEncoder)
+        }
+        renderEncoder.setDepthBias(0, slopeScale: 0, clamp: 0)
         renderEncoder.setRenderPipelineState(pipelineState)
 
+        // Pass 1 — visible geometry. Normal depth test, writes depth, drawn
+        // however each object specifies (solid, or its own dash pattern).
+        renderEncoder.setDepthStencilState(depthStateVisible)
         for batch in renderBatches {
-            var uniforms = Uniforms(
-                modelViewProjectionMatrix: camera.updateMatrix(),
-                dashLength: batch.isDashed ? batch.dashLength : 0.0
-            )
+            drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0.0, encoder: renderEncoder)
+        }
 
-            // Bind uniforms to Vertex Shader (buffer index 1)
-            renderEncoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
-
-            // Bind uniforms to Fragment Shader (buffer index 1)
-            renderEncoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
-
-            // Bind vertex geometry buffer (buffer index 0)
-            renderEncoder.setVertexBuffer(batch.vertexBuffer, offset: 0, index: 0)
-
-            // Draw primitives
-            renderEncoder.drawPrimitives(type: batch.primitiveType, vertexStart: 0, vertexCount: batch.vertexCount)
+        // Pass 2 — hidden geometry. Re-draws every batch with the depth
+        // test inverted, so only the portions occluded by pass 0 or pass 1
+        // survive, and forces them dashed (the technical-drawing convention
+        // for an edge that exists but is hidden behind something else).
+        if showHiddenLines {
+            renderEncoder.setDepthStencilState(depthStateHidden)
+            for batch in renderBatches {
+                let dash = batch.isDashed ? batch.dashLength : hiddenLineDashLength
+                drawBatch(batch, mvp: mvp, dashLength: dash, encoder: renderEncoder)
+            }
         }
 
         renderEncoder.endEncoding()

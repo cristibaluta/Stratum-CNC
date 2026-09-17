@@ -24,6 +24,14 @@ struct RenderObject: Identifiable {
     var primitive: RenderPrimitive = .lineStrip
     var isDashed: Bool = false
     var dashLength: Float = 5.0
+    /// Invisible triangle geometry (3 points per triangle) for a solid this
+    /// object represents. Never drawn on screen — `MetalRenderer` only uses
+    /// it to populate the depth buffer, so that `points` edges genuinely
+    /// behind this solid's surface can be detected as occluded and drawn
+    /// dashed. Without this, a wireframe shape has no "inside" as far as
+    /// the GPU is concerned: an edge is only ever hidden by *another edge*
+    /// landing on the same pixel, never by the surface it's actually behind.
+    var occluderFaces: [SIMD3<Float>] = []
 }
 
 // MARK: - Common shapes
@@ -53,7 +61,26 @@ extension RenderObject {
             c000, c001, c100, c101, c110, c111, c010, c011
         ]
 
-        return RenderObject(points: points, color: color, primitive: .lineList)
+        // Invisible faces for the depth pre-pass — see `occluderFaces` doc.
+        // Two triangles per face, 6 faces. Winding is irrelevant here since
+        // this geometry is never color-drawn and the depth-only pipeline
+        // doesn't cull.
+        let occluderFaces: [SIMD3<Float>] = [
+            // Bottom (z = bottomZ)
+            c000, c100, c110,  c000, c110, c010,
+            // Top (z = topZ)
+            c001, c101, c111,  c001, c111, c011,
+            // Front (y = minY)
+            c000, c100, c101,  c000, c101, c001,
+            // Back (y = maxY)
+            c010, c110, c111,  c010, c111, c011,
+            // Left (x = minX)
+            c000, c010, c011,  c000, c011, c001,
+            // Right (x = maxX)
+            c100, c110, c111,  c100, c111, c101,
+        ]
+
+        return RenderObject(points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
     }
 
     /// Small cylinder marker (e.g. current position, a probe point).
