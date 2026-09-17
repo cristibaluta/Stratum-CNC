@@ -38,19 +38,9 @@ class Camera {
         let eye = target + simd_act(rotDict, SIMD3<Float>(0, 0, distance))
         let view = matrix_look_at(eye: eye, target: target, up: up)
 
-        // Orthographic rather than perspective: toolpaths are precise geometry the
-        // user is trying to read dimensions/alignment off of, and perspective's
-        // foreshortening makes a square look trapezoidal and two parallel toolpath
-        // passes look non-parallel the moment the camera isn't dead-on. Orthographic
-        // keeps parallel lines parallel and true lengths true at any orbit angle.
-        //
-        // The view's half-height is tied to `distance` (via the old perspective
-        // `fov`) purely so scroll-to-zoom keeps behaving the way it already does --
-        // objects at the target plane are still the same apparent size they'd have
-        // been under perspective at this same distance, so zooming still feels
-        // continuous across the switch rather than jumping in scale.
         let halfHeight = distance * tan(fov * 0.5)
         let halfWidth = halfHeight * aspectRatio
+
         let proj = matrix_orthographic(left: -halfWidth, right: halfWidth,
                                        bottom: -halfHeight, top: halfHeight,
                                        nearZ: nearZ, farZ: farZ)
@@ -73,9 +63,6 @@ class Camera {
         )
     }
 
-    /// Kept alongside `matrix_orthographic` (unused by `updateMatrix()` now) in case
-    /// a perspective toggle is ever wanted again -- swapping the call in
-    /// `updateMatrix()` is then a one-line change instead of rewriting this.
     private func matrix_perspective(fovY: Float, aspect: Float, nearZ: Float, farZ: Float) -> matrix_float4x4 {
         let yScale = 1 / tan(fovY * 0.5)
         let xScale = yScale / aspect
@@ -90,10 +77,6 @@ class Camera {
         )
     }
 
-    /// Standard symmetric-frustum orthographic projection into Metal's [0, 1] depth
-    /// range (matching `matrix_perspective`'s own convention above): unlike
-    /// perspective there's no `w` divide, so parallel lines in view space stay
-    /// parallel on screen regardless of orbit angle or distance from the target.
     private func matrix_orthographic(left: Float, right: Float, bottom: Float, top: Float, nearZ: Float, farZ: Float) -> matrix_float4x4 {
         let xScale = 2 / (right - left)
         let yScale = 2 / (top - bottom)

@@ -13,7 +13,6 @@ struct ControllerView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
-    @State private var renderBatch: [RenderBatch] = []
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -26,7 +25,7 @@ struct ControllerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                MetalCanvasView(batches: $renderBatch)
+                MetalCanvasView(batches: $model.renderBatch)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .padding(.trailing, -16)

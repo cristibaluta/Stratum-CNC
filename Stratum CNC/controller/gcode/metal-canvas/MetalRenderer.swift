@@ -23,12 +23,27 @@ struct RenderBatch {
     var dashLength: Float = 5.0
 }
 
+/// The rendering pipeline:
+/// 1. Device — the GPU itself
+/// 2. Command Queue — the pipeline of work
+/// 3. Command Buffer — one frame's worth of instructions
+/// 4. Render Pass Descriptor + Encoder — the actual draw commands
+/// 5. Pipeline State — the compiled shaders
+/// 6. Submit and present
+///Get a drawable (the texture you'll draw into, usually from MTKView or CAMetalLayer)
+///Make a command buffer from the queue
+///Make a render command encoder with a render pass descriptor pointing at that drawable
+///Set pipeline state, bind buffers/textures, issue draw calls
+///End encoding
+///Present the drawable and commit the command buffer
+
 @MainActor
-class MetalRenderer: NSObject, MTKViewDelegate {
-    var device: MTLDevice!
-    var commandQueue: MTLCommandQueue!
-    var pipelineState: MTLRenderPipelineState!
+class MetalRenderer: NSObject {
     
+    private var device: MTLDevice!
+    private var commandQueue: MTLCommandQueue!
+    private var pipelineState: MTLRenderPipelineState!
+
     var camera = Camera()
     var renderBatches: [RenderBatch] = []
 
@@ -43,24 +58,74 @@ class MetalRenderer: NSObject, MTKViewDelegate {
         metalView.depthStencilPixelFormat = .depth32Float
         
         self.commandQueue = device.makeCommandQueue()
+
         setupPipeline(metalView: metalView)
+
+        renderBatches = [buildRenderBatch(forPoints: [], color: SIMD4<Float>(0.6, 0.2, 0.85, 1.0))!]
+    }
+
+    static func stockBoxVertices(color: SIMD4<Float> = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)) -> [RenderVertex] {
+        let minX = Float(0)
+        let maxX = Float(0 + 100)
+        let minY = Float(0)
+        let maxY = Float(0 + 50)
+        let topZ = Float(0)
+        let bottomZ = Float(0 - 10)
+
+        let c000 = SIMD3<Float>(minX, minY, bottomZ)
+        let c100 = SIMD3<Float>(maxX, minY, bottomZ)
+        let c110 = SIMD3<Float>(maxX, maxY, bottomZ)
+        let c010 = SIMD3<Float>(minX, maxY, bottomZ)
+        let c001 = SIMD3<Float>(minX, minY, topZ)
+        let c101 = SIMD3<Float>(maxX, minY, topZ)
+        let c111 = SIMD3<Float>(maxX, maxY, topZ)
+        let c011 = SIMD3<Float>(minX, maxY, topZ)
+
+        let edges: [(SIMD3<Float>, SIMD3<Float>)] = [
+            // Bottom face
+            (c000, c100), (c100, c110), (c110, c010), (c010, c000),
+            // Top face
+            (c001, c101), (c101, c111), (c111, c011), (c011, c001),
+            // Verticals joining the two faces
+            (c000, c001), (c100, c101), (c110, c111), (c010, c011)
+        ]
+
+        var vertices: [RenderVertex] = []
+        vertices.reserveCapacity(edges.count * 2)
+        for (start, end) in edges {
+            vertices.append(RenderVertex(position: start, color: color, dist: 0))
+            vertices.append(RenderVertex(position: end, color: color, dist: 0))
+        }
+        return vertices
+    }
+
+    func buildRenderBatch(forPoints points: [SIMD3<Float>],
+                          color: SIMD4<Float>,
+                          isDashed: Bool = false,
+                          dashLength: Float = 5.0) -> RenderBatch? {
+        let vertices = Self.stockBoxVertices()
+        guard !vertices.isEmpty,
+              let buffer = device.makeBuffer(bytes: vertices,
+                                             length: vertices.count * MemoryLayout<RenderVertex>.stride,
+                                             options: .storageModeShared) else {
+            return nil
+        }
+        return RenderBatch(vertexBuffer: buffer,
+                           vertexCount: vertices.count,
+                           primitiveType: .lineStrip,
+                           isDashed: isDashed,
+                           dashLength: dashLength)
     }
 
     private func setupPipeline(metalView: MTKView) {
-        // The library is the metal shaders compiled
-        guard let library = (try? device.makeDefaultLibrary(bundle: .main)) ?? device.makeDefaultLibrary() else {
-            print("❌ Error: Could not load Metal shader library from Bundle.module.")
-            return
-        }
 
-        guard let vertexFunction = library.makeFunction(name: "vertex_main"),
+        guard let library = device.makeDefaultLibrary(),
+              let vertexFunction = library.makeFunction(name: "vertex_main"),
               let fragmentFunction = library.makeFunction(name: "fragment_main") else {
             print("❌ Error: Could not find shader functions.")
             return
         }
-        guard let library = device.makeDefaultLibrary() else {
-            return
-        }
+
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
@@ -88,9 +153,14 @@ class MetalRenderer: NSObject, MTKViewDelegate {
         pipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
     }
 
+    /// Redraw the screen
     func updateGeometry(batches: [RenderBatch]) {
-        self.renderBatches = batches
+//        self.renderBatches = batches
     }
+
+}
+
+extension MetalRenderer: MTKViewDelegate {
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         camera.aspectRatio = Float(size.width / size.height)

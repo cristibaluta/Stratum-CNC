@@ -26,6 +26,8 @@ class ControllerModel: ObservableObject {
     @Published var isLightOn = false
     @Published var terminalAutoScroll = true
 
+    @Published var renderBatch: [RenderBatch] = []
+
     func sendCommand(_ command: CNCCommand) {
         sendRawCommand(command.command)
     }
