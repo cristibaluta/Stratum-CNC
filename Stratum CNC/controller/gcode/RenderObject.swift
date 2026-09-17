@@ -99,21 +99,79 @@ extension RenderObject {
     }
 
     /// XYZ axis gizmo at the origin — one `RenderObject` per axis since each
-    /// needs its own color (red/green/blue). `RenderObject` doesn't support
-    /// per-vertex color changes within a single object, so three thin
-    /// objects is simpler than adding that.
-    static func axes(length: Float = 50) -> [RenderObject] {
-        let origin = SIMD3<Float>(0, 0, 0)
-        let x = RenderObject(points: [origin, SIMD3<Float>(length, 0, 0)],
-                             color: SIMD4<Float>(1.0, 0.15, 0.15, 1.0),
-                             primitive: .lineStrip)
-        let y = RenderObject(points: [origin, SIMD3<Float>(0, length, 0)],
-                             color: SIMD4<Float>(0.15, 1.0, 0.15, 1.0),
-                             primitive: .lineStrip)
-        let z = RenderObject(points: [origin, SIMD3<Float>(0, 0, length)],
-                             color: SIMD4<Float>(0.15, 0.45, 1.0, 1.0),
-                             primitive: .lineStrip)
+    /// needs its own color (red/green/blue). Each axis is drawn as 3 parallel
+    /// strands arranged around the centerline (poor man's thick line — Metal's
+    /// line primitives are always hairline-width, there's no `glLineWidth`
+    /// equivalent) plus a small cone arrowhead at the tip.
+    static func axes(length: Float = 50, thickness: Float = 0.6) -> [RenderObject] {
+        let headLength = min(length * 0.15, 8)
+        let headRadius = thickness * 3
+        let x = axisArrow(direction: SIMD3<Float>(1, 0, 0), length: length, thickness: thickness,
+                          color: SIMD4<Float>(1.0, 0.15, 0.15, 1.0), headLength: headLength, headRadius: headRadius)
+        let y = axisArrow(direction: SIMD3<Float>(0, 1, 0), length: length, thickness: thickness,
+                          color: SIMD4<Float>(0.15, 1.0, 0.15, 1.0), headLength: headLength, headRadius: headRadius)
+        let z = axisArrow(direction: SIMD3<Float>(0, 0, 1), length: length, thickness: thickness,
+                          color: SIMD4<Float>(0.15, 0.45, 1.0, 1.0), headLength: headLength, headRadius: headRadius)
         return [x, y, z]
+    }
+
+    /// Builds one axis: a 3-strand thick shaft from the origin plus a cone
+    /// arrowhead at the tip, all as a single `.lineList` object.
+    private static func axisArrow(direction: SIMD3<Float>,
+                                  length: Float,
+                                  thickness: Float,
+                                  color: SIMD4<Float>,
+                                  headLength: Float,
+                                  headRadius: Float,
+                                  headSegments: Int = 10) -> RenderObject {
+        let dir = simd_normalize(direction)
+        let tip = dir * length
+        let shaftEnd = tip - dir * headLength // shaft stops where the arrowhead begins
+        let (u, v) = perpendicularBasis(for: dir)
+
+        var points: [SIMD3<Float>] = []
+
+        // Shaft: 3 parallel strands spaced evenly around the centerline, so
+        // the line reads as thick from most viewing angles rather than just one.
+        let strands = 3
+        for i in 0..<strands {
+            let angle = Float(i) * (2 * .pi / Float(strands))
+            let offset = thickness * (cos(angle) * u + sin(angle) * v)
+            points.append(offset)
+            points.append(shaftEnd + offset)
+        }
+
+        // Arrowhead: a ring at the base of the cone plus struts converging
+        // to the tip — same construction as `marker(at:)`'s cylinder, just
+        // tapering to a point instead of a second ring.
+        let segs = max(3, headSegments)
+        func ringPoint(_ i: Int) -> SIMD3<Float> {
+            let t = Float(i) / Float(segs)
+            let angle = t * 2 * .pi
+            return shaftEnd + headRadius * (cos(angle) * u + sin(angle) * v)
+        }
+        for i in 0..<segs {
+            points.append(ringPoint(i))
+            points.append(ringPoint(i + 1))
+        }
+        for i in 0..<segs {
+            points.append(ringPoint(i))
+            points.append(tip)
+        }
+
+        return RenderObject(points: points, color: color, primitive: .lineList)
+    }
+
+    /// Any two unit vectors perpendicular to `direction` and to each other —
+    /// used to build geometry (shaft strands, cone rings) around an arbitrary axis.
+    private static func perpendicularBasis(for direction: SIMD3<Float>) -> (SIMD3<Float>, SIMD3<Float>) {
+        let d = simd_normalize(direction)
+        // Pick a helper vector that's never near-parallel to `d`, so the cross
+        // product below doesn't degenerate.
+        let helper = abs(d.x) < 0.9 ? SIMD3<Float>(1, 0, 0) : SIMD3<Float>(0, 1, 0)
+        let u = simd_normalize(simd_cross(d, helper))
+        let v = simd_cross(d, u)
+        return (u, v)
     }
 
     /// Closed dashed polygon — stands in for e.g. a toolpath preview or a
