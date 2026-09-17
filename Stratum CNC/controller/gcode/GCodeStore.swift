@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import StratumCAM
 
 @MainActor
 class GCodeStore: ObservableObject {
@@ -39,96 +40,38 @@ class GCodeStore: ObservableObject {
 
     
 
-    func renderBatch(forPoints points: [SIMD3<Float>],
-                     color: SIMD4<Float>,
-                     isDashed: Bool = false,
-                     dashLength: Float = 5.0) -> RenderBatch? {
-        let vertices = buildVertices(points: points, color: color, zOffset: 0.0)
-        guard !vertices.isEmpty,
-              let buffer = device.makeBuffer(bytes: vertices,
-                                             length: vertices.count * MemoryLayout<RenderVertex>.stride,
-                                             options: .storageModeShared) else {
+    /// Builds a plain-data `RenderObject` for a toolpath (or any point path).
+    /// No `MTLDevice` involved — GCodeStore never touches Metal. MetalRenderer
+    /// turns this into a GPU buffer once it reaches the canvas.
+    func renderObject(forPoints points: [SIMD3<Float>],
+                      color: SIMD4<Float>,
+                      isDashed: Bool = false,
+                      dashLength: Float = 5.0) -> RenderObject? {
+        guard !points.isEmpty else {
             return nil
         }
-        return RenderBatch(vertexBuffer: buffer,
-                           vertexCount: vertices.count,
-                           primitiveType: .lineStrip,
-                           isDashed: isDashed,
-                           dashLength: dashLength)
+        return RenderObject(points: points,
+                            color: color,
+                            primitive: .lineStrip,
+                            isDashed: isDashed,
+                            dashLength: dashLength)
     }
 
-    static func markerCylinderVertices(at point: SIMD3<Float>,
-                                       diameter: Float = 2.0,
-                                       height: Float = 4.0,
-                                       segments: Int = 28,
-                                       strutCount: Int = 4,
-                                       color: SIMD4<Float> = SIMD4<Float>(1.0, 0.05, 0.05, 1.0)) -> [RenderVertex] {
-        let clampedSegments = max(3, segments)
-        let radius = max(0, diameter) / 2
-        let baseZ = point.z
-        let topZ = point.z + height
-
-        func ringPoint(_ i: Int, z: Float) -> SIMD3<Float> {
-            let t = Float(i) / Float(clampedSegments)
-            let angle = t * 2 * Float.pi
-            let x = point.x + radius * cos(angle)
-            let y = point.y + radius * sin(angle)
-            return SIMD3<Float>(x, y, z)
-        }
-
-        var vertices: [RenderVertex] = []
-        vertices.reserveCapacity(clampedSegments * 4 + max(0, strutCount) * 2)
-
-        // Base and top rings, each as `.line` segment pairs (i -> i+1) rather than
-        // a closed strip, so both rings can share one buffer with the struts below.
-        for i in 0..<clampedSegments {
-            vertices.append(RenderVertex(position: ringPoint(i, z: baseZ), color: color, dist: 0))
-            vertices.append(RenderVertex(position: ringPoint(i + 1, z: baseZ), color: color, dist: 0))
-        }
-        for i in 0..<clampedSegments {
-            vertices.append(RenderVertex(position: ringPoint(i, z: topZ), color: color, dist: 0))
-            vertices.append(RenderVertex(position: ringPoint(i + 1, z: topZ), color: color, dist: 0))
-        }
-
-        // Vertical struts connecting the two rings, evenly spaced around the
-        // circumference, so the shape reads as a cylinder rather than two
-        // unconnected rings floating at different heights.
-        let clampedStruts = max(0, strutCount)
-        for s in 0..<clampedStruts {
-            let i = (s * clampedSegments) / max(1, clampedStruts)
-            vertices.append(RenderVertex(position: ringPoint(i, z: baseZ), color: color, dist: 0))
-            vertices.append(RenderVertex(position: ringPoint(i, z: topZ), color: color, dist: 0))
-        }
-
-        return vertices
-    }
-
-    /// Builds the marker `RenderBatch` for a given point -- thin wrapper around
-    /// `markerCylinderVertices(at:diameter:height:segments:strutCount:color:)` that
-    /// turns the vertices into a GPU buffer the same way `renderBatch(forPoints:...)`
-    /// does above. Kept as an instance method (not `static`) only because it needs
-    /// `device` for the buffer, same split as `pointsPrefix`/`renderBatch` above.
-    func markerBatch(at point: SIMD3<Float>,
-                     diameter: Float = 6.0,
-                     height: Float = 12.0,
-                     segments: Int = 28,
-                     strutCount: Int = 4,
-                     color: SIMD4<Float> = SIMD4<Float>(1.0, 0.05, 0.05, 1.0)) -> RenderBatch? {
-        let vertices = Self.markerCylinderVertices(at: point,
-                                                   diameter: diameter,
-                                                   height: height,
-                                                   segments: segments,
-                                                   strutCount: strutCount,
-                                                   color: color)
-        guard !vertices.isEmpty,
-              let buffer = device.makeBuffer(bytes: vertices,
-                                             length: vertices.count * MemoryLayout<RenderVertex>.stride,
-                                             options: .storageModeShared) else {
-            return nil
-        }
-        return RenderBatch(vertexBuffer: buffer,
-                           vertexCount: vertices.count,
-                           primitiveType: .line)
+    /// Thin wrapper around `RenderObject.marker(at:...)` kept here so callers
+    /// that already hold a `GCodeStore` (e.g. "mark the point under the cursor")
+    /// don't need to know that markers are just another `RenderObject`.
+    func markerObject(at point: SIMD3<Float>,
+                      diameter: Float = 6.0,
+                      height: Float = 12.0,
+                      segments: Int = 28,
+                      strutCount: Int = 4,
+                      color: SIMD4<Float> = SIMD4<Float>(1.0, 0.05, 0.05, 1.0)) -> RenderObject {
+        RenderObject.marker(at: point,
+                            diameter: diameter,
+                            height: height,
+                            segments: segments,
+                            strutCount: strutCount,
+                            color: color)
     }
 
     /// `buildWaypoints`/toolpath passes only carry the *endpoints* of each move (plus a
@@ -189,20 +132,5 @@ class GCodeStore: ObservableObject {
         }
 
         return points
-    }
-
-    // Helper to build RenderVertex array with computed path distances
-    private func buildVertices(points: [SIMD3<Float>], color: SIMD4<Float>, zOffset: Float) -> [RenderVertex] {
-        var vertices: [RenderVertex] = []
-        var totalDistance: Float = 0.0
-
-        for i in 0..<points.count {
-            let pt = SIMD3<Float>(points[i].x, points[i].y, points[i].z + zOffset)
-            if i > 0 {
-                totalDistance += simd_distance(points[i], points[i - 1])
-            }
-            vertices.append(RenderVertex(position: pt, color: color, dist: totalDistance))
-        }
-        return vertices
     }
 }

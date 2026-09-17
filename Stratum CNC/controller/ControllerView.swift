@@ -25,7 +25,7 @@ struct ControllerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                MetalCanvasView(batches: $model.renderBatch)
+                MetalCanvasView(objects: $model.renderObjects)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .padding(.trailing, -16)

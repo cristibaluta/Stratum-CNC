@@ -19,7 +19,7 @@ struct MetalCanvasView: NSViewRepresentable {
         }
     }
 
-    @Binding var batches: [RenderBatch]
+    @Binding var objects: [RenderObject]
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -51,7 +51,7 @@ struct MetalCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: MTKView, context: Context) {
-        context.coordinator.renderer?.updateGeometry(batches: batches)
+        context.coordinator.renderer?.updateGeometry(objects: objects)
     }
 
     @MainActor

@@ -15,12 +15,24 @@ struct RenderVertex {
     var dist: Float // Distance along path
 }
 
-struct RenderBatch {
+/// GPU-backed draw call. Holds a live `MTLBuffer`, so it can only be built
+/// where a `MTLDevice` is available — that's `MetalRenderer`, and nowhere else.
+/// The model layer never sees this type; it only ever hands over `RenderObject`.
+private struct RenderBatch {
     var vertexBuffer: MTLBuffer
     var vertexCount: Int
     var primitiveType: MTLPrimitiveType
     var isDashed: Bool = false
     var dashLength: Float = 5.0
+}
+
+private extension RenderPrimitive {
+    var mtlPrimitiveType: MTLPrimitiveType {
+        switch self {
+            case .lineStrip: return .lineStrip
+            case .lineList: return .line
+        }
+    }
 }
 
 /// The rendering pipeline:
@@ -45,7 +57,7 @@ class MetalRenderer: NSObject {
     private var pipelineState: MTLRenderPipelineState!
 
     var camera = Camera()
-    var renderBatches: [RenderBatch] = []
+    private var renderBatches: [RenderBatch] = []
 
     init?(metalView: MTKView) {
         super.init()
@@ -61,49 +73,12 @@ class MetalRenderer: NSObject {
 
         setupPipeline(metalView: metalView)
 
-        renderBatches = [buildRenderBatch(forPoints: [], color: SIMD4<Float>(0.6, 0.2, 0.85, 1.0))!]
+        renderBatches = [buildRenderBatch(from: .stockBox())].compactMap { $0 }
     }
 
-    static func stockBoxVertices(color: SIMD4<Float> = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)) -> [RenderVertex] {
-        let minX = Float(0)
-        let maxX = Float(0 + 100)
-        let minY = Float(0)
-        let maxY = Float(0 + 50)
-        let topZ = Float(0)
-        let bottomZ = Float(0 - 10)
-
-        let c000 = SIMD3<Float>(minX, minY, bottomZ)
-        let c100 = SIMD3<Float>(maxX, minY, bottomZ)
-        let c110 = SIMD3<Float>(maxX, maxY, bottomZ)
-        let c010 = SIMD3<Float>(minX, maxY, bottomZ)
-        let c001 = SIMD3<Float>(minX, minY, topZ)
-        let c101 = SIMD3<Float>(maxX, minY, topZ)
-        let c111 = SIMD3<Float>(maxX, maxY, topZ)
-        let c011 = SIMD3<Float>(minX, maxY, topZ)
-
-        let edges: [(SIMD3<Float>, SIMD3<Float>)] = [
-            // Bottom face
-            (c000, c100), (c100, c110), (c110, c010), (c010, c000),
-            // Top face
-            (c001, c101), (c101, c111), (c111, c011), (c011, c001),
-            // Verticals joining the two faces
-            (c000, c001), (c100, c101), (c110, c111), (c010, c011)
-        ]
-
-        var vertices: [RenderVertex] = []
-        vertices.reserveCapacity(edges.count * 2)
-        for (start, end) in edges {
-            vertices.append(RenderVertex(position: start, color: color, dist: 0))
-            vertices.append(RenderVertex(position: end, color: color, dist: 0))
-        }
-        return vertices
-    }
-
-    func buildRenderBatch(forPoints points: [SIMD3<Float>],
-                          color: SIMD4<Float>,
-                          isDashed: Bool = false,
-                          dashLength: Float = 5.0) -> RenderBatch? {
-        let vertices = Self.stockBoxVertices()
+    /// The only place a `RenderObject` gets turned into a GPU-backed `RenderBatch`.
+    private func buildRenderBatch(from object: RenderObject) -> RenderBatch? {
+        let vertices = buildVertices(for: object)
         guard !vertices.isEmpty,
               let buffer = device.makeBuffer(bytes: vertices,
                                              length: vertices.count * MemoryLayout<RenderVertex>.stride,
@@ -112,9 +87,24 @@ class MetalRenderer: NSObject {
         }
         return RenderBatch(vertexBuffer: buffer,
                            vertexCount: vertices.count,
-                           primitiveType: .lineStrip,
-                           isDashed: isDashed,
-                           dashLength: dashLength)
+                           primitiveType: object.primitive.mtlPrimitiveType,
+                           isDashed: object.isDashed,
+                           dashLength: object.dashLength)
+    }
+
+    /// Expands a `RenderObject`'s points into GPU vertices, accumulating
+    /// distance-along-path as we go (used for dashing in the fragment shader).
+    private func buildVertices(for object: RenderObject) -> [RenderVertex] {
+        var vertices: [RenderVertex] = []
+        vertices.reserveCapacity(object.points.count)
+        var totalDistance: Float = 0
+        for (i, point) in object.points.enumerated() {
+            if i > 0 {
+                totalDistance += simd_distance(point, object.points[i - 1])
+            }
+            vertices.append(RenderVertex(position: point, color: object.color, dist: totalDistance))
+        }
+        return vertices
     }
 
     private func setupPipeline(metalView: MTKView) {
@@ -153,9 +143,11 @@ class MetalRenderer: NSObject {
         pipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
     }
 
-    /// Redraw the screen
-    func updateGeometry(batches: [RenderBatch]) {
-//        self.renderBatches = batches
+    /// Rebuild GPU buffers from the model's plain-data description of what to draw.
+    /// This is the seam: everything upstream of here (model, views) only ever
+    /// deals with `RenderObject`; only this call touches `device.makeBuffer`.
+    func updateGeometry(objects: [RenderObject]) {
+        renderBatches = objects.compactMap { buildRenderBatch(from: $0) }
     }
 
 }
