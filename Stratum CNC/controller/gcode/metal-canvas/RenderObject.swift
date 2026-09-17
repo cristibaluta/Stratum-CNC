@@ -290,13 +290,14 @@ extension RenderObject {
     /// produces — into `RenderObject`s `MetalCanvasView` can draw.
     ///
     /// Segments are split into two groups by motion type rather than merged
-    /// into one object: rapids (G0) are drawn dashed in a different color
-    /// from cutting/arc moves (G1/G2/G3), the same convention most CAM
-    /// viewers use so a rapid reposition doesn't read as a cut. Both groups
-    /// use `.lineList`, not `.lineStrip` — segments are independent moves,
-    /// often with gaps between them (e.g. a rapid up, over, and back down),
-    /// and `.lineStrip` would draw a spurious connecting line across every
-    /// gap since it always joins consecutive points.
+    /// into one object: rapids (G0) are drawn in a different color from
+    /// cutting/arc moves (G1/G2/G3), the same convention most CAM viewers
+    /// use so a rapid reposition doesn't read as a cut. Both are solid
+    /// lines. Both groups use `.lineList`, not `.lineStrip` — segments are
+    /// independent moves, often with gaps between them (e.g. a rapid up,
+    /// over, and back down), and `.lineStrip` would draw a spurious
+    /// connecting line across every gap since it always joins consecutive
+    /// points.
     static func toolpath(from segments: [ToolpathSegment],
                           rapidColor: SIMD4<Float> = SIMD4<Float>(1.0, 0.85, 0.2, 1.0),
                           cuttingColor: SIMD4<Float> = SIMD4<Float>(0.2, 0.8, 1.0, 1.0)) -> [RenderObject] {
@@ -324,9 +325,7 @@ extension RenderObject {
             objects.append(RenderObject(role: .toolpathRapid,
                                         points: rapidPoints,
                                         color: rapidColor,
-                                        primitive: .lineList,
-                                        isDashed: true,
-                                        dashLength: 3.0))
+                                        primitive: .lineList))
         }
         if !cuttingPoints.isEmpty {
             objects.append(RenderObject(role: .toolpathCutting,
