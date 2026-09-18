@@ -22,6 +22,7 @@ private struct RenderBatch {
     var vertexBuffer: MTLBuffer
     var vertexCount: Int
     var primitiveType: MTLPrimitiveType
+    var role: RenderRole? = nil
     var isDashed: Bool = false
     var dashLength: Float = 5.0
     /// Depth-only face geometry for this batch's solid, if it has one (see
@@ -142,6 +143,7 @@ class MetalRenderer: NSObject {
         return RenderBatch(vertexBuffer: buffer,
                            vertexCount: vertices.count,
                            primitiveType: object.primitive.mtlPrimitiveType,
+                           role: object.role,
                            isDashed: object.isDashed,
                            dashLength: object.dashLength,
                            occluderBuffer: occluderBuffer,
@@ -389,12 +391,19 @@ extension MetalRenderer: MTKViewDelegate {
 
         // Pass 2 — hidden geometry. Re-draws every batch with the depth
         // test inverted, so only the portions occluded by pass 0 or pass 1
-        // survive, and forces them dashed (the technical-drawing convention
-        // for an edge that exists but is hidden behind something else).
+        // survive. Only stock gets the dashed technical-drawing treatment
+        // here; everything else (toolpaths, tool, axes) is redrawn solid,
+        // so it stays fully visible — just not dashed — wherever it's
+        // behind the stock.
         if showHiddenLines {
             renderEncoder.setDepthStencilState(depthStateHidden)
             for batch in renderBatches {
-                let dash = batch.isDashed ? batch.dashLength : hiddenLineDashLength
+                let dash: Float
+                if batch.role == .stock {
+                    dash = batch.isDashed ? batch.dashLength : hiddenLineDashLength
+                } else {
+                    dash = batch.isDashed ? batch.dashLength : 0.0
+                }
                 drawBatch(batch, mvp: mvp, dashLength: dash, encoder: renderEncoder)
             }
         }
