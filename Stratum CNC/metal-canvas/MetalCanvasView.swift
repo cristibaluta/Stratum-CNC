@@ -36,6 +36,18 @@ struct MetalCanvasView: NSViewRepresentable {
 
     @Binding var objects: [RenderObject]
 
+    /// M4: which draw path `MetalRenderer.draw(in:)` takes, forwarded
+    /// straight through in `updateNSView`. A plain `let`, not a `@Binding` —
+    /// nothing downstream of the renderer ever needs to change it back, it
+    /// only ever flows from `CanvasSceneModel.renderMode`.
+    var renderMode: CanvasRenderMode = .wireframe
+
+    /// M4: the heightmap surface to draw when `renderMode == .heightmap`.
+    /// `nil` until `CanvasSceneModel.updateHeightmap` has run at least once
+    /// (or if it ran with no assigned tool). Re-uploaded to the GPU only
+    /// when it's actually a new mesh — see `Coordinator.lastHeightmapMeshID`.
+    var heightmapMesh: HeightmapMesh?
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -91,6 +103,18 @@ struct MetalCanvasView: NSViewRepresentable {
 
     func updateNSView(_ nsView: MTKView, context: Context) {
         context.coordinator.renderer?.updateGeometry(objects: objects)
+        context.coordinator.renderer?.renderMode = renderMode
+
+        // `HeightmapMesh.id` is fresh per `init`, so this tells "a new carve
+        // landed" apart from "this view's body just re-ran for an unrelated
+        // reason" (e.g. a scrub tick touching `objects`) without diffing the
+        // mesh's own vertex/index arrays — see `updateHeightmapMesh`'s doc
+        // comment on why re-uploading isn't meant to happen every frame.
+        if context.coordinator.lastHeightmapMeshID != heightmapMesh?.id {
+            context.coordinator.renderer?.updateHeightmapMesh(heightmapMesh)
+            context.coordinator.lastHeightmapMeshID = heightmapMesh?.id
+        }
+
         // Force an immediate frame rather than waiting for the view's own
         // continuous-mode redraw timer. That timer runs independently of
         // AppKit's main-thread event handling, and during an NSSlider's
@@ -105,6 +129,10 @@ struct MetalCanvasView: NSViewRepresentable {
     class Coordinator: NSObject {
         var parent: MetalCanvasView
         var renderer: MetalRenderer?
+        /// M4: id of the last `HeightmapMesh` actually uploaded to the GPU
+        /// (see `updateNSView`). `nil` alongside `heightmapMesh == nil`
+        /// means nothing's been uploaded yet.
+        var lastHeightmapMeshID: UUID?
         /// Weak: so the view — which owns the coordinator via AppKit's
         /// retain graph, not the other way around — can be requested to
         /// draw() from the gesture handlers below without creating a cycle.

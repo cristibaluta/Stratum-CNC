@@ -36,6 +36,33 @@ class CanvasSceneModel: ObservableObject {
     @Published var toolDiameter: Double = 3.175
     @Published var toolLength: Double = 40
 
+    /// Which of the two canvas renderers `MetalCanvasView` should draw. See
+    /// `CanvasRenderMode` — this is M4's UI-facing switch; `CanvasSection`
+    /// binds a segmented `Picker` to it and forwards the value into
+    /// `MetalRenderer.renderMode` on every geometry update.
+    @Published var renderMode: CanvasRenderMode = .wireframe
+
+    /// The heightmap surface's current mesh, if there's enough to show one
+    /// (a stock and at least one cutting segment). `nil` draws no surface —
+    /// same "just don't draw it" handling `MetalRenderer.updateHeightmapMesh`
+    /// already gives a mesh with no triangles.
+    ///
+    /// Rebuilt only by `updateHeightmap`, called from the same places
+    /// `updateStock`/`updateToolpath` are (`CanvasSection`'s `onAppear`/
+    /// `onChange`), so it's already sitting ready by the time someone flips
+    /// `renderMode` to `.heightmap` — switching modes doesn't itself trigger
+    /// a carve. `private(set)`: only this file decides when a new carve is
+    /// warranted, same as `renderObjects`'s mutations all go through the
+    /// `update*` methods below rather than being poked at directly.
+    @Published private(set) var heightmapMesh: HeightmapMesh?
+
+    /// Grid resolution for the heightmap carve. Fixed for now — M6's
+    /// roadmap item is turning this into a user-facing quality/speed
+    /// tradeoff; until then, a coarse-ish 1mm cell keeps a full-file carve
+    /// fast enough to redo on every relevant `onChange` without a visible
+    /// hitch.
+    private let heightmapCellSize: Float = 1.0
+
     /// Rebuilds just the stock wireframe from `stock`'s shape and dimensions,
     /// leaving the rest of the scene (axes, toolpath preview, position
     /// marker) untouched. `ControllerView` calls this whenever
@@ -76,5 +103,30 @@ class CanvasSceneModel: ObservableObject {
     /// the scrubber moves the "as-if-running" position.
     func updateToolPosition(_ point: SIMD3<Float>) {
         renderObjects.updating(.tool(at: point, diameter: toolDiameter, length: toolLength))
+    }
+
+    /// Recarves the heightmap grid from scratch and rebuilds `heightmapMesh`
+    /// from it — the M4 counterpart to `updateStock`/`updateToolpath`, called
+    /// alongside them (see `CanvasSection`) whenever the stock, the loaded
+    /// toolpath, or the tool doing the cutting changes. Not called on every
+    /// scrub tick: a full-grid carve is real work (see `HeightmapGrid.carve`),
+    /// so the scrubber gets its own throttled path later (M5) rather than
+    /// riding this one.
+    ///
+    /// `tool` is `nil` when the file's `T` number hasn't been assigned a
+    /// `ToolSpec` yet (see `GCodeStore.toolSpecAssignments`/`ToolsPickerView`)
+    /// — there's no footprint to carve with, so this just clears the surface
+    /// rather than guessing a tool size. Only ever carves with one tool for
+    /// the whole file; per-segment tool switching for multi-tool programs is
+    /// the M6 follow-up `HeightmapGrid.carve(segments:tool:)` already flags.
+    func updateHeightmap(stock: StockMaterial, segments: [ToolpathSegment], tool: ToolSpec?) {
+        guard let tool else {
+            heightmapMesh = nil
+            return
+        }
+
+        var grid = HeightmapGrid(stock: stock, cellSize: heightmapCellSize)
+        grid.carve(segments: segments, tool: tool)
+        heightmapMesh = HeightmapMesh(grid: grid)
     }
 }

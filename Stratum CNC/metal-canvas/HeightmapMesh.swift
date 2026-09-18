@@ -36,6 +36,13 @@ struct HeightmapMesh {
         var normal: SIMD3<Float>
     }
 
+    /// Fresh on every `init` — lets `MetalCanvasView.Coordinator` (M4) tell
+    /// "this is a genuinely new mesh, re-upload it" apart from "same mesh,
+    /// SwiftUI just re-ran this view's body" without diffing
+    /// `vertices`/`indices` (which, at real grid sizes, would cost more than
+    /// the GPU upload it's trying to avoid).
+    let id = UUID()
+
     /// Row-major, same order/count as `HeightmapGrid.heights`
     /// (`vertices[row * columns + col]`), so a future incremental update
     /// (M5) can touch just the vertices whose underlying cell changed

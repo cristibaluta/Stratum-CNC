@@ -12,12 +12,12 @@
 //
 //  Which of the two canvas renderers is currently showing. `MetalRenderer`
 //  reads this every frame to decide which draw path to take in `draw(in:)`.
-//  M4 is what will expose it as a `@Published` property on
-//  `CanvasSceneModel` with an actual UI toggle in front of it — for now,
-//  setting `MetalRenderer.renderMode` directly is enough to exercise both
-//  paths.
+//  M4: exposed as a `@Published` property on `CanvasSceneModel`
+//  (`CanvasSceneModel.renderMode`), fed into `MetalRenderer.renderMode`
+//  through `MetalCanvasView`, with a segmented `Picker` over `CanvasSection`
+//  as the actual UI toggle — see `ControllerView.swift`.
 //
-enum CanvasRenderMode {
+enum CanvasRenderMode: CaseIterable, Hashable {
     /// The existing hidden-line wireframe view: toolpath rapid/cutting
     /// lines, the stock outline, the tool marker — everything driven by
     /// `RenderObject`/`RenderRole` through the two-pass technique in
@@ -30,4 +30,19 @@ enum CanvasRenderMode {
     /// wireframe and toolpath lines don't — the shaded surface stands in
     /// for both.
     case heightmap
+
+    /// Label/icon for the mode-toggle `Picker` in `CanvasSection`.
+    var label: String {
+        switch self {
+            case .wireframe: return "Wireframe"
+            case .heightmap: return "Heightmap"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+            case .wireframe: return "cube.transparent"
+            case .heightmap: return "mountain.2.fill"
+        }
+    }
 }

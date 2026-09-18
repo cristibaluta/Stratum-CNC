@@ -435,8 +435,32 @@ private struct CanvasSection: View {
         ControllerView.scrubTo(line: max(0, min(totalLines, newLine)), gCodeModel: gCodeModel, scene: scene)
     }
 
+    /// The single `ToolSpec` `scene.updateHeightmap` carves with — the first
+    /// tool number in the file (in first-appearance order, same order
+    /// `ToolsPickerView` lists them) that's actually been assigned a spec.
+    /// `nil` if the file has no tools yet, or none of them are assigned —
+    /// `updateHeightmap` treats that as "nothing to carve with" and clears
+    /// the surface. Multi-tool files only ever carve with this one tool for
+    /// now; see `HeightmapGrid.carve`'s M6 note.
+    private var activeToolSpec: ToolSpec? {
+        for toolNumber in gCodeModel.tools {
+            if let spec = gCodeModel.toolSpecAssignments[toolNumber] {
+                return spec
+            }
+        }
+        return nil
+    }
+
+    private func refreshHeightmap() {
+        scene.updateHeightmap(stock: camModel.selectedStockMaterial,
+                              segments: gCodeModel.document.toolpathSegments,
+                              tool: activeToolSpec)
+    }
+
     var body: some View {
-        MetalCanvasView(objects: $scene.renderObjects)
+        MetalCanvasView(objects: $scene.renderObjects,
+                        renderMode: scene.renderMode,
+                        heightmapMesh: scene.heightmapMesh)
             .overlay(
                 ToolPositionSync(connection: connection) { point in
                     scene.updateToolPosition(point)
@@ -473,6 +497,27 @@ private struct CanvasSection: View {
                 .padding()
                 .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
             }
+            .overlay(alignment: .topTrailing) {
+                // M4: the wireframe/heightmap switch. `scene.renderMode`
+                // alone is enough to flip `MetalRenderer.draw(in:)`'s path —
+                // see `MetalCanvasView.updateNSView` — the heightmap mesh
+                // itself is kept up to date independently, below, so there's
+                // never a wait when this toggle moves.
+                Picker("", selection: $scene.renderMode) {
+                    ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
+                        Image(systemName: mode.systemImage)
+                            .help(mode.label)
+                            .tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 90)
+                .padding(8)
+                .background(.ultraThinMaterial)
+                .cornerRadius(6)
+                .padding()
+            }
             .onAppear {
                 // Sync once up front — `renderObjects` otherwise still
                 // holds `defaultScene()`'s placeholder box, not
@@ -480,9 +525,11 @@ private struct CanvasSection: View {
                 scene.updateStock(camModel.selectedStockMaterial)
                 scene.updateToolpath(gCodeModel.document.toolpathSegments)
                 gCodeModel.scrubLine = gCodeModel.document.lines.count
+                refreshHeightmap()
             }
             .onChange(of: camModel.selectedStockMaterial) { _, newStock in
                 scene.updateStock(newStock)
+                refreshHeightmap()
             }
             .onChange(of: gCodeModel.document.toolpathSegments) { _, newSegments in
                 // A freshly (re)parsed file replaces the whole preview
@@ -490,6 +537,13 @@ private struct CanvasSection: View {
                 // always matches where the slider sits.
                 scene.updateToolpath(newSegments)
                 gCodeModel.scrubLine = gCodeModel.document.lines.count
+                refreshHeightmap()
+            }
+            .onChange(of: gCodeModel.toolSpecAssignments) { _, _ in
+                // Assigning (or reassigning) a `T` number's tool changes
+                // what the heightmap should have been carved with — e.g.
+                // picking a bigger end mill widens every cut.
+                refreshHeightmap()
             }
     }
 }
