@@ -35,9 +35,9 @@ struct MetalCanvasView: NSViewRepresentable {
         mtkView.delegate = renderer
 
         // Handle Scroll Wheel / Pinch for Zooming
-//        mtkView.onScroll = { [weak coordinator = context.coordinator] event in
-//            coordinator?.handleScroll(event)
-//        }
+        mtkView.onScroll = { [weak coordinator = context.coordinator] event in
+            coordinator?.handleScroll(event)
+        }
 
         // Mouse drag → orbit
         let panGesture = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
