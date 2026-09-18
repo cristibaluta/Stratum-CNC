@@ -1,0 +1,29 @@
+//
+//  GCodeHeader.swift
+//  Stratum CNC
+//
+//  Created by Cristian Baluta on 18.09.2026.
+//
+
+import Foundation
+
+/// Metadata a CAM package embeds in a comment block at the top of a program
+/// — everything the file says about itself that isn't motion. Only tool
+/// specs are extracted for now; add more fields here (stock, origin, ...)
+/// as the app starts using them.
+struct GCodeHeader: Sendable {
+    /// Tool specs declared by the header, keyed by tool number (the `T` in
+    /// `T4 M6`).
+    var tools: [Int: ToolSpec] = [:]
+}
+
+/// Reads one CAM package's header dialect. `GCodeParser` hands every
+/// registered parser the leading comment block of the file, in order, and
+/// uses the first one that recognises it — so adding support for another CAM
+/// is a new conforming type plus one entry in `GCodeParser.init`.
+protocol GCodeHeaderParser {
+    /// `headerLines` is the file's leading comment/blank block, without line
+    /// endings. Returns `nil` when this isn't a header this parser understands,
+    /// so the next parser gets a chance.
+    func parse(headerLines: [String]) -> GCodeHeader?
+}

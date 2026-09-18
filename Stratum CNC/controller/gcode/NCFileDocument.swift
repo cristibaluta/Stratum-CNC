@@ -29,6 +29,12 @@ final class NCFileDocument: ObservableObject {
     /// issue for its own toolpath list; same fix here.
     @Published private(set) var tools: [Int] = []
 
+    /// Header metadata (tool specs, ...) from the most recent *load*. Set
+    /// only when a file/program is loaded — not on `rebuildToolpath` — so
+    /// editing a line doesn't re-emit it and wipe tool choices the person
+    /// has made since. `nil` when the file has no recognised header.
+    @Published private(set) var loadedHeader: GCodeHeader?
+
     var isLoaded: Bool {
         fileURL != nil
     }
@@ -155,6 +161,7 @@ final class NCFileDocument: ObservableObject {
         self.toolpathSegments = parsed.toolpathSegments
         self.rebuildVertexPrefixSums()
         self.recomputeTools()
+        self.loadedHeader = parsed.header
         self.fileURL = url
         self.fileName = fileName
         self.isLoading = false
@@ -173,6 +180,7 @@ final class NCFileDocument: ObservableObject {
         self.toolpathSegments = code.toolpathSegments
         rebuildVertexPrefixSums()
         recomputeTools()
+        self.loadedHeader = code.header
         self.fileName = "From CAM"
     }
 
@@ -321,6 +329,7 @@ final class NCFileDocument: ObservableObject {
         rapidVertexPrefix = [0]
         cuttingVertexPrefix = [0]
         tools.removeAll()
+        loadedHeader = nil
 
         lastError = nil
         isLoading = false

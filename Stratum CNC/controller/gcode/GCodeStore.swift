@@ -42,6 +42,7 @@ class GCodeStore: ObservableObject {
     // the `document` *reference* itself is reassigned, not when its internal
     // @Published properties mutate. Forwarding its publisher closes that gap.
     private var documentCancellable: AnyCancellable?
+    private var headerCancellable: AnyCancellable?
 
     init() {
         bindDocument()
@@ -50,6 +51,34 @@ class GCodeStore: ObservableObject {
     private func bindDocument() {
         documentCancellable = document.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
+        }
+        // Fires once per load (not per line edit) — see
+        // `NCFileDocument.loadedHeader`.
+        headerCancellable = document.$loadedHeader.sink { [weak self] header in
+            self?.applyHeaderTools(header)
+        }
+    }
+
+    /// Tool specs the loaded file's header declares, by tool number. These
+    /// are what `toolSpecAssignments` is seeded with on load, and what
+    /// `ToolsPickerView` offers at the top of each tool's list.
+    var headerToolSpecs: [Int: ToolSpec] {
+        document.loadedHeader?.tools ?? [:]
+    }
+
+    /// Makes the header's tools the default assignments for a freshly loaded
+    /// file. A file with no header keeps the person's existing library
+    /// picks (so regenerating from CAM doesn't wipe them) but drops any
+    /// leftover header-derived specs from the previous file, which the picker
+    /// would no longer have an option for.
+    private func applyHeaderTools(_ header: GCodeHeader?) {
+        if let header, !header.tools.isEmpty {
+            toolSpecAssignments = header.tools
+        } else {
+            let kept = toolSpecAssignments.filter { ToolSpec.library.contains($0.value) }
+            if kept != toolSpecAssignments {
+                toolSpecAssignments = kept
+            }
         }
     }
 

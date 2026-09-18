@@ -479,7 +479,9 @@ private struct CanvasSection: View {
 
                 if !gCodeModel.tools.isEmpty {
                     Divider()
-                    ToolsPickerView(tools: gCodeModel.tools, assignments: $gCodeModel.toolSpecAssignments)
+                    ToolsPickerView(tools: gCodeModel.tools,
+                                    assignments: $gCodeModel.toolSpecAssignments,
+                                    fileSpecs: gCodeModel.headerToolSpecs)
                         .frame(width: 100)
                 }
                 Divider()

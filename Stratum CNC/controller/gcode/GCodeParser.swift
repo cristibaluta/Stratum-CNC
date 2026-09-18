@@ -52,6 +52,9 @@ private struct GCodeState {
 struct ParsedGCode: Sendable {
     let lines: [GCodeLine]
     let toolpathSegments: [ToolpathSegment]
+    /// Metadata from the file's leading comment block, if one of the
+    /// parser's `GCodeHeaderParser`s recognised it.
+    let header: GCodeHeader?
 }
 
 /// One line of a loaded G-code / NC program.
@@ -97,6 +100,19 @@ enum ToolpathFlags {
 
 final class GCodeParser {
 
+    /// Tried in order against the file's leading comment block; the first
+    /// one that recognises it wins. Add support for another CAM's header by
+    /// writing a `GCodeHeaderParser` and listing it here.
+    private let headerParsers: [any GCodeHeaderParser]
+
+    /// Safety cap on how much of the top of a file is treated as "header",
+    /// so a file that's nothing but comments isn't scanned end to end.
+    private static let maxHeaderLines = 1000
+
+    init(headerParsers: [any GCodeHeaderParser] = [MakeraHeaderParser()]) {
+        self.headerParsers = headerParsers
+    }
+
     func parse(_ contents: String) -> ParsedGCode {
 
         var lines: [GCodeLine] = []
@@ -132,7 +148,38 @@ final class GCodeParser {
             )
         }
 
-        return ParsedGCode(lines: lines, toolpathSegments: toolpathSegments)
+        return ParsedGCode(lines: lines,
+                           toolpathSegments: toolpathSegments,
+                           header: parseHeader(from: lines))
+    }
+
+    // MARK: Header
+
+    /// Collects the leading run of comment/blank lines (up to the first line
+    /// of actual code) and offers it to each header parser in turn.
+    private func parseHeader(from lines: [GCodeLine]) -> GCodeHeader? {
+        guard !headerParsers.isEmpty else {
+            return nil
+        }
+
+        var headerLines: [String] = []
+        for line in lines.prefix(Self.maxHeaderLines) {
+            let trimmed = line.text.trimmingCharacters(in: .whitespaces)
+            guard trimmed.isEmpty || trimmed.hasPrefix(";") || trimmed.hasPrefix("(") else {
+                break
+            }
+            headerLines.append(line.text)
+        }
+        guard !headerLines.isEmpty else {
+            return nil
+        }
+
+        for parser in headerParsers {
+            if let header = parser.parse(headerLines: headerLines) {
+                return header
+            }
+        }
+        return nil
     }
 
     // MARK: Parse line

@@ -14,6 +14,9 @@ import SwiftUI
 struct ToolsPickerView: View {
     let tools: [Int]
     @Binding var assignments: [Int: ToolSpec]
+    /// Specs the loaded file's own header declares, by tool number. Offered
+    /// first in that tool's list, since it's what the CAM actually used.
+    var fileSpecs: [Int: ToolSpec] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -26,6 +29,10 @@ struct ToolsPickerView: View {
 
                     Picker("", selection: binding(for: tool)) {
                         Text("Unassigned").tag(ToolSpec?.none)
+                        if let fileSpec = fileSpecs[tool] {
+                            Text(fileSpec.name).tag(ToolSpec?.some(fileSpec))
+                            Divider()
+                        }
                         ForEach(ToolSpec.library) { spec in
                             Text(spec.name).tag(ToolSpec?.some(spec))
                         }
