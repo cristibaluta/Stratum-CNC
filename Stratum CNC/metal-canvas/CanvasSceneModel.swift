@@ -72,8 +72,9 @@ class CanvasSceneModel: ObservableObject {
     /// lets the user nudge the job's origin on the canvas without touching
     /// the underlying G-code. Same "just state" pattern as
     /// `heightmapCellSize`: setting this alone doesn't move anything on
-    /// screen. The GPU line draws (`.toolpathRapid`/`.toolpathCutting`) pick
-    /// it up every frame via `MetalRenderer`'s offset uniform; the heightmap
+    /// screen. The GPU line draws (`.toolpathRapid`/`.toolpathCutting`) and
+    /// the tool marker (`.tool`) pick it up every frame via `MetalRenderer`'s
+    /// offset uniform; the heightmap
     /// surface needs an actual recarve to reflect a new value, same as
     /// `heightmapCellSize` does, and `CanvasSection` triggers that the same
     /// way (`onChange` + `forceHeightmapRefresh()`).
