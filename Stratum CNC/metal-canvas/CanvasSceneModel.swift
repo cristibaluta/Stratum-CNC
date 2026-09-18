@@ -68,6 +68,17 @@ class CanvasSceneModel: ObservableObject {
     /// one on change, same as it does for a reassigned tool.
     @Published var heightmapCellSize: Float = 0.1
 
+    /// XY offset applied to the stock/toolpath/heightmap, in millimeters —
+    /// lets the user nudge the job's origin on the canvas without touching
+    /// the underlying G-code. Same "just state" pattern as
+    /// `heightmapCellSize`: setting this alone doesn't move anything on
+    /// screen. The GPU line draws (`.toolpathRapid`/`.toolpathCutting`) pick
+    /// it up every frame via `MetalRenderer`'s offset uniform; the heightmap
+    /// surface needs an actual recarve to reflect a new value, same as
+    /// `heightmapCellSize` does, and `CanvasSection` triggers that the same
+    /// way (`onChange` + `forceHeightmapRefresh()`).
+    @Published var xyOffset: SIMD2<Float> = .zero
+
     /// M5: how many `scrubHeightmap` calls to skip between actual recarves.
     /// Dragging the scrub slider (or scrubbing with the scroll wheel) fires
     /// many calls per second; recarving the whole grid on every single one

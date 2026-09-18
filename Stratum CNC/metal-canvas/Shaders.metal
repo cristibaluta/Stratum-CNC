@@ -11,6 +11,11 @@ using namespace metal;
 struct Uniforms {
     float4x4 modelViewProjectionMatrix;
     float dashLength; // > 0 enables dashing (e.g., 5.0), 0 = solid line
+    // XY offset added to position in model space, before the MVP transform.
+    // Zero for every batch except the toolpath rapid/cutting draws - see
+    // MetalRenderer.drawBatch - so the stock box, tool marker, and axes
+    // never move while the toolpath preview does.
+    float2 offset;
 };
 
 struct VertexInput {
@@ -27,7 +32,8 @@ struct VertexOutput {
 
 vertex VertexOutput vertex_main(VertexInput in [[stage_in]], constant Uniforms& uniforms [[buffer(1)]]) {
     VertexOutput out;
-    out.position = uniforms.modelViewProjectionMatrix * float4(in.position, 1.0);
+    float3 offsetPosition = in.position + float3(uniforms.offset, 0.0);
+    out.position = uniforms.modelViewProjectionMatrix * float4(offsetPosition, 1.0);
     out.color = in.color;
     out.dist = in.dist;
     return out;

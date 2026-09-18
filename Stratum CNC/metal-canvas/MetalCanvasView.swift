@@ -42,6 +42,12 @@ struct MetalCanvasView: NSViewRepresentable {
     /// only ever flows from `CanvasSceneModel.renderMode`.
     var renderMode: CanvasRenderMode = .wireframe
 
+    /// XY offset for the toolpath preview draws, forwarded straight through
+    /// in `updateNSView` — same "plain `let`, flows one-way from
+    /// `CanvasSceneModel`" treatment as `renderMode` above. See
+    /// `MetalRenderer.xyOffset`.
+    var xyOffset: SIMD2<Float> = .zero
+
     /// M4: the heightmap surface to draw when `renderMode == .heightmap`.
     /// `nil` until `CanvasSceneModel.updateHeightmap` has run at least once
     /// (or if it ran with no assigned tool). Re-uploaded to the GPU only
@@ -104,6 +110,7 @@ struct MetalCanvasView: NSViewRepresentable {
     func updateNSView(_ nsView: MTKView, context: Context) {
         context.coordinator.renderer?.updateGeometry(objects: objects)
         context.coordinator.renderer?.renderMode = renderMode
+        context.coordinator.renderer?.xyOffset = xyOffset
 
         // `HeightmapMesh.id` is fresh per `init`, so this tells "a new carve
         // landed" apart from "this view's body just re-ran for an unrelated

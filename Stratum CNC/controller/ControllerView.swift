@@ -475,6 +475,7 @@ private struct CanvasSection: View {
     var body: some View {
         MetalCanvasView(objects: $scene.renderObjects,
                         renderMode: scene.renderMode,
+                        xyOffset: scene.xyOffset,
                         heightmapMesh: scene.heightmapMesh)
             .overlay(
                 ToolPositionSync(connection: connection) { point in

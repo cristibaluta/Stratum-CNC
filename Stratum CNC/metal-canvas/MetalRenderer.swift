@@ -131,6 +131,16 @@ class MetalRenderer: NSObject {
     /// toggle; for now it's set directly.
     var renderMode: CanvasRenderMode = .wireframe
 
+    /// Forwarded straight from `CanvasSceneModel.xyOffset` (see
+    /// `MetalCanvasView.updateNSView`). Applied only to `.toolpathRapid`/
+    /// `.toolpathCutting` batches in `drawBatch` — every other batch always
+    /// gets `Uniforms.offset == .zero`, so the stock box, tool marker, and
+    /// axes stay put while the toolpath preview shifts. The heightmap
+    /// surface doesn't read this at all; it gets its offset baked into the
+    /// carved vertices instead (see `HeightmapGrid.carve`), which is why
+    /// this alone is never enough to move the heightmap mode's rendering.
+    var xyOffset: SIMD2<Float> = .zero
+
     /// The heightmap surface's current GPU buffers, if a mesh has been
     /// uploaded. `nil` — the default, and also what a mesh with no
     /// triangles collapses to in `updateHeightmapMesh` — means heightmap
@@ -509,7 +519,12 @@ private extension MetalRenderer {
     /// both the visible and hidden passes in `draw(in:)` — they differ only
     /// in which depth state is bound and what dash length they pass in.
     func drawBatch(_ batch: RenderBatch, mvp: matrix_float4x4, dashLength: Float, encoder: MTLRenderCommandEncoder) {
-        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: dashLength)
+        // Only the toolpath draws move with `xyOffset` — the stock box, tool
+        // marker, and axes (`role == .stock`/`.tool`/`nil`) are drawn at
+        // their true position regardless, same as the doc comment on
+        // `xyOffset` above explains.
+        let offset: SIMD2<Float> = (batch.role == .toolpathRapid || batch.role == .toolpathCutting) ? xyOffset : .zero
+        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: dashLength, offset: offset)
 
         // Bind uniforms to Vertex Shader (buffer index 1)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
