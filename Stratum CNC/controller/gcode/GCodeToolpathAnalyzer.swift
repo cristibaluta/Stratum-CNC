@@ -8,8 +8,12 @@
 import Foundation
 
 struct GCodeToolpathAnalyzer {
-    private static let codeRegex = try! NSRegularExpression(pattern: #"(?i)(?:^|\s)([GMT])\s*([0-9]+(?:\.[0-9]+)?)"#)
-    private static let toolRegex = try! NSRegularExpression(pattern: #"(?i)(?:^|\s)T\s*([0-9]+)"#)
+    // Note: G-code words don't require a separator between them (Fusion 360,
+    // among others, emits "T1M6" rather than "T1 M6"). A word boundary here
+    // is "not preceded by another letter", not "preceded by whitespace" —
+    // the previous word's digits end exactly where this letter begins.
+    private static let codeRegex = try! NSRegularExpression(pattern: #"(?i)(?<![A-Za-z])([GMT])\s*([0-9]+(?:\.[0-9]+)?)"#)
+    private static let toolRegex = try! NSRegularExpression(pattern: #"(?i)(?<![A-Za-z])T\s*([0-9]+)"#)
 
     static func analyze(_ lines: [(id: Int, text: String)]) -> [GCodeToolpath] {
         var result: [GCodeToolpath] = []
