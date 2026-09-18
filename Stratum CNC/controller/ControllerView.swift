@@ -579,5 +579,26 @@ private struct CanvasSection: View {
                 // cell size and doesn't just resample in place.
                 forceHeightmapRefresh()
             }
+            .onChange(of: scene.xyOffset) { _, _ in
+                // Same "just state until something recarves" story as
+                // `heightmapCellSize` above — the GPU toolpath draw already
+                // moves every frame off `MetalRenderer.xyOffset` regardless
+                // (see `MetalCanvasView.updateNSView`), but the heightmap
+                // surface has the offset baked into its carved vertices
+                // (see `HeightmapGrid.carve`), so it only catches up once a
+                // recarve actually runs.
+                //
+                // `forceHeightmapRefresh()` recarves immediately and
+                // unthrottled, which is fine for a control that changes
+                // value discretely (e.g. typed numeric fields). If the
+                // eventual UI (M7) is a live-drag control instead, this call
+                // should be swapped for the same throttle-while-dragging,
+                // exact-on-release pattern `scrubBinding`/the scrub
+                // `Slider`'s `onEditingChanged` use above — recarving the
+                // whole grid on every drag tick would make the drag itself
+                // feel laggy on a large file, same reasoning as M5's
+                // `heightmapScrubTickInterval` throttle.
+                forceHeightmapRefresh()
+            }
     }
 }
