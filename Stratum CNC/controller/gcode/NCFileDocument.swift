@@ -31,6 +31,45 @@ final class NCFileDocument: ObservableObject {
         toolpathSegments.count
     }
 
+    /// Running vertex counts per toolpath role, indexed by segment index:
+    /// `rapidVertexPrefix[i]` / `cuttingVertexPrefix[i]` is how many
+    /// vertices `RenderObject.toolpath(from:)` would put in the rapid /
+    /// cutting buffer for the first `i` entries of `toolpathSegments` (each
+    /// segment becomes 2 vertices — start, end — in whichever bucket its
+    /// `ToolpathFlags` puts it in). Both arrays have `toolpathSegments.count
+    /// + 1` entries, one prefix sum per possible slice boundary, index 0
+    /// always `0`.
+    ///
+    /// Rebuilt once alongside `toolpathSegments` — not on every scrub tick —
+    /// so `toolpathVertexCounts(upTo:)` is an O(1) lookup instead of a
+    /// linear rescan of everything scrubbed past so far.
+    private var rapidVertexPrefix: [Int] = [0]
+    private var cuttingVertexPrefix: [Int] = [0]
+
+    private func rebuildVertexPrefixSums() {
+        var rapid = [0]
+        var cutting = [0]
+        rapid.reserveCapacity(toolpathSegments.count + 1)
+        cutting.reserveCapacity(toolpathSegments.count + 1)
+
+        var rapidTotal = 0
+        var cuttingTotal = 0
+        for segment in toolpathSegments {
+            // Same rapid/cutting split `RenderObject.toolpath(from:)` uses —
+            // keep these in sync if that classification ever changes.
+            if segment.flags & ToolpathFlags.rapid != 0 {
+                rapidTotal += 2
+            } else {
+                cuttingTotal += 2
+            }
+            rapid.append(rapidTotal)
+            cutting.append(cuttingTotal)
+        }
+
+        rapidVertexPrefix = rapid
+        cuttingVertexPrefix = cutting
+    }
+
     // MARK: Load
 
     private var loadTask: Task<Void, Never>?
@@ -57,6 +96,7 @@ final class NCFileDocument: ObservableObject {
 
                 self.lines = parsed.lines
                 self.toolpathSegments = parsed.toolpathSegments
+                self.rebuildVertexPrefixSums()
                 self.fileURL = url
                 self.fileName = fileName
                 self.isLoading = false
@@ -82,6 +122,7 @@ final class NCFileDocument: ObservableObject {
 
         self.lines = code.lines
         self.toolpathSegments = code.toolpathSegments
+        rebuildVertexPrefixSums()
         self.fileName = "From CAM"
     }
 
@@ -124,6 +165,7 @@ final class NCFileDocument: ObservableObject {
 
         lines = parsed.lines
         toolpathSegments = parsed.toolpathSegments
+        rebuildVertexPrefixSums()
     }
 
     // MARK: Geometry lookup
@@ -174,6 +216,28 @@ final class NCFileDocument: ObservableObject {
         return toolpathSegments[0..<end]
     }
 
+    /// O(1) counterpart to `toolpathSegments(upTo:)` for callers that only
+    /// need to know *how much* of the rapid/cutting toolpath is visible at
+    /// `line`, not which segments — the scrub slider, which wants to narrow
+    /// an already-uploaded GPU buffer rather than re-tessellate a prefix on
+    /// every tick. Same line→segment-index bookkeeping as
+    /// `toolpathSegments(upTo:)`, just a prefix-sum lookup instead of a slice.
+    func toolpathVertexCounts(upTo line: Int) -> (rapid: Int, cutting: Int) {
+
+        guard line >= 1, !lines.isEmpty else {
+            return (0, 0)
+        }
+
+        let index = min(line, lines.count) - 1
+        let end = lines[index].geometryStart + lines[index].geometryCount
+
+        guard end >= 0, end < rapidVertexPrefix.count else {
+            return (0, 0)
+        }
+
+        return (rapidVertexPrefix[end], cuttingVertexPrefix[end])
+    }
+
     // MARK: Machine line lookup
 
     /// Returns the table row corresponding to a machine P: line number.
@@ -203,6 +267,8 @@ final class NCFileDocument: ObservableObject {
 
         lines.removeAll()
         toolpathSegments.removeAll()
+        rapidVertexPrefix = [0]
+        cuttingVertexPrefix = [0]
 
         lastError = nil
         isLoading = false

@@ -13,9 +13,17 @@ struct GCodeViewer: View {
     @ObservedObject var model: GCodeStore
     var highlightedLine: Int? = nil
 
-    private var toolpaths: [GCodeToolpath] {
-        GCodeToolpathAnalyzer.analyze(model.document.lines.map { (id: $0.id, text: $0.text) })
-    }
+    /// Cached result of `GCodeToolpathAnalyzer.analyze`. This used to be a
+    /// computed property, which ran the analyzer — two `NSRegularExpression`
+    /// passes over every line in the file — from scratch on every read, and
+    /// it's read 3 times in `body` below. Worse, `body` re-evaluates on
+    /// *any* `GCodeStore` publish, which includes `scrubLine`/`requestedLine`
+    /// changing on every single scrub-slider tick. So dragging the scrubber
+    /// was re-running a full-file regex scan, up to 3x, per tick — on a
+    /// large file that's almost certainly the dominant cost, well above
+    /// anything happening on the Metal side. Recomputed only when the
+    /// file's lines actually change (`refreshToolpaths`), not on scrub.
+    @State private var toolpaths: [GCodeToolpath] = []
 
     var body: some View {
         VStack(spacing: 4) {
@@ -26,12 +34,26 @@ struct GCodeViewer: View {
             commandBar
                 .frame(height: 36)
         }
+        .onAppear {
+            refreshToolpaths()
+        }
         .onChange(of: model.document.lines.count) { _, newCount in
             if model.analyzedLineCount != newCount {
                 model.analyzedLineCount = newCount
                 model.selectedToolpathID = nil
             }
+            refreshToolpaths()
         }
+        .onChange(of: model.document.toolpathSegments.count) { _, _ in
+            // Catches in-place line edits that regenerate `toolpathSegments`
+            // without changing `lines.count` (e.g. editing one line's G-code
+            // text) — those wouldn't otherwise trigger a refresh above.
+            refreshToolpaths()
+        }
+    }
+
+    private func refreshToolpaths() {
+        toolpaths = GCodeToolpathAnalyzer.analyze(model.document.lines.map { (id: $0.id, text: $0.text) })
     }
 
     // MARK: - Toolpaths

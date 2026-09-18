@@ -20,7 +20,13 @@ struct RenderVertex {
 /// The model layer never sees this type; it only ever hands over `RenderObject`.
 private struct RenderBatch {
     var vertexBuffer: MTLBuffer
+    /// Total vertices actually in `vertexBuffer`.
     var vertexCount: Int
+    /// How many of those vertices to draw this frame — `<= vertexCount`.
+    /// Separate from `vertexCount` so the scrubber can shrink/grow what's
+    /// drawn (`RenderObject.visibleVertexCount`) without touching the
+    /// buffer: see `updateGeometry`.
+    var drawVertexCount: Int
     var primitiveType: MTLPrimitiveType
     var role: RenderRole? = nil
     var isDashed: Bool = false
@@ -97,6 +103,16 @@ class MetalRenderer: NSObject {
     private var lastObjects: [RenderObject] = []
     private var hasFittedInitialContent = false
 
+    /// Last built batch per `RenderObject.id`, so `updateGeometry` can tell
+    /// "this is the same object, just with a different `visibleVertexCount`"
+    /// (reuse the buffer) apart from "this is genuinely new geometry"
+    /// (rebuild it). Safe to key on `id` alone: `RenderObject` vends a fresh
+    /// UUID every time one is constructed, so the id can only stay the same
+    /// across two `updateGeometry` calls if the same struct instance —
+    /// mutated in place, e.g. via `settingVisibleVertexCount` — was reused,
+    /// never if the geometry was rebuilt from scratch.
+    private var batchesByID: [UUID: RenderBatch] = [:]
+
     init?(metalView: MTKView) {
         super.init()
         guard let defaultDevice = MTLCreateSystemDefaultDevice() else {
@@ -142,6 +158,7 @@ class MetalRenderer: NSObject {
 
         return RenderBatch(vertexBuffer: buffer,
                            vertexCount: vertices.count,
+                           drawVertexCount: object.visibleVertexCount.map { min($0, vertices.count) } ?? vertices.count,
                            primitiveType: object.primitive.mtlPrimitiveType,
                            role: object.role,
                            isDashed: object.isDashed,
@@ -238,12 +255,45 @@ class MetalRenderer: NSObject {
         depthStateHidden = device.makeDepthStencilState(descriptor: hiddenDescriptor)
     }
 
-    /// Rebuild GPU buffers from the model's plain-data description of what to draw.
-    /// This is the seam: everything upstream of here (model, views) only ever
-    /// deals with `RenderObject`; only this call touches `device.makeBuffer`.
+    /// Sync GPU state from the model's plain-data description of what to
+    /// draw. This is the seam: everything upstream of here (model, views)
+    /// only ever deals with `RenderObject`; only this call touches
+    /// `device.makeBuffer`. It only *rebuilds* a buffer for genuinely new
+    /// geometry, though — see `batchesByID` — so calling this on every
+    /// scrub tick is fine.
     func updateGeometry(objects: [RenderObject]) {
         lastObjects = objects
-        renderBatches = objects.compactMap { buildRenderBatch(from: $0) }
+
+        var updated: [RenderBatch] = []
+        updated.reserveCapacity(objects.count)
+        var keepIDs = Set<UUID>()
+        keepIDs.reserveCapacity(objects.count)
+
+        for object in objects {
+            keepIDs.insert(object.id)
+
+            if var batch = batchesByID[object.id] {
+                // Same identity as last time this ran — the geometry that
+                // produced `batch.vertexBuffer` hasn't changed (see the
+                // `batchesByID` doc comment), so reuse the buffer as-is and
+                // only update how much of it gets drawn. This is the path
+                // the scrubber hits on every tick: no `device.makeBuffer`,
+                // no re-tessellation, just an integer.
+                batch.drawVertexCount = object.visibleVertexCount.map { min($0, batch.vertexCount) } ?? batch.vertexCount
+                batchesByID[object.id] = batch
+                updated.append(batch)
+            } else if let batch = buildRenderBatch(from: object) {
+                batchesByID[object.id] = batch
+                updated.append(batch)
+            }
+        }
+
+        // Drop cached buffers for objects no longer in the scene.
+        for id in batchesByID.keys where !keepIDs.contains(id) {
+            batchesByID.removeValue(forKey: id)
+        }
+
+        renderBatches = updated
     }
 
     /// Centers and zooms the camera to frame everything currently in
@@ -329,8 +379,9 @@ private extension MetalRenderer {
         // Bind vertex geometry buffer (buffer index 0)
         encoder.setVertexBuffer(batch.vertexBuffer, offset: 0, index: 0)
 
-        // Draw primitives
-        encoder.drawPrimitives(type: batch.primitiveType, vertexStart: 0, vertexCount: batch.vertexCount)
+        // Draw primitives — `drawVertexCount`, not `vertexCount`: the buffer
+        // may hold more than we want visible right now (see `RenderBatch`).
+        encoder.drawPrimitives(type: batch.primitiveType, vertexStart: 0, vertexCount: batch.drawVertexCount)
     }
 
     /// Same binding dance as `drawBatch`, for occluder-face geometry: always

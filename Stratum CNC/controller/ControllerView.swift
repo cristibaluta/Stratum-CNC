@@ -55,9 +55,19 @@ struct ControllerView: View {
     /// nearest line on every drag tick. Setting `gCodeModel.requestedLine`
     /// is what makes `GCodeTableView` select and scroll to that row (it's
     /// edge-triggered on the value changing, which fits a slider that fires
-    /// on every tick); re-rendering the canvas reuses `ControllerModel`'s
-    /// existing role-based replace (`updateToolpath`) with just the segments
-    /// up to that line, instead of the full file.
+    /// on every tick).
+    ///
+    /// Deliberately does *not* call `ControllerModel.updateToolpath` here —
+    /// that re-tessellates its segments into a brand-new `RenderObject`
+    /// (new `id`), which forces `MetalRenderer` to rebuild the GPU buffer
+    /// from scratch. On a large file, doing that on every tick of a drag
+    /// scaled with however far into the file you'd scrubbed, so dragging
+    /// further in got progressively slower. The full-length toolpath is
+    /// already uploaded once (`onAppear`/`onChange` below call
+    /// `updateToolpath` with the *whole* file); scrubbing only needs to
+    /// change how much of that existing buffer is visible, via
+    /// `setToolpathVisibleVertexCounts` — an O(1) lookup plus an in-place
+    /// field mutation, no matter how far into the file the slider sits.
     private var scrubBinding: Binding<Double> {
         Binding(
             get: { Double(gCodeModel.scrubLine) },
@@ -68,8 +78,8 @@ struct ControllerView: View {
                 gCodeModel.scrubLine = line
                 gCodeModel.requestedLine = line
 
-                let prefix = gCodeModel.document.toolpathSegments(upTo: line)
-                model.updateToolpath(Array(prefix))
+                let counts = gCodeModel.document.toolpathVertexCounts(upTo: line)
+                model.setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
 
                 // Move the cutter marker to wherever the scrubbed path ends,
                 // so the canvas reads as "the tool is here" rather than just
@@ -77,7 +87,9 @@ struct ControllerView: View {
                 // `ToolPositionSync` will overwrite this on the next status
                 // update — scrubbing is meant for reviewing an offline file,
                 // not for tracking a job that's actually running.
-                if let last = prefix.last {
+                // `.last` on the slice is O(1); this doesn't materialize the
+                // prefix into an `Array` the way the old code did.
+                if let last = gCodeModel.document.toolpathSegments(upTo: line).last {
                     model.updateToolPosition(last.end)
                 }
             }

@@ -50,6 +50,20 @@ class ControllerModel: ObservableObject {
                                 with: RenderObject.toolpath(from: segments))
     }
 
+    /// Narrows how much of the *already-loaded* rapid/cutting toolpath is
+    /// drawn — the scrubber's fast path. Unlike `updateToolpath`, this never
+    /// re-tessellates: it mutates `visibleVertexCount` in place on the
+    /// existing `.toolpathRapid`/`.toolpathCutting` objects, which keeps
+    /// their `id`s stable, which is what lets `MetalRenderer.updateGeometry`
+    /// reuse their GPU buffers instead of rebuilding them. Cheap enough to
+    /// call on every slider tick. Pass the counts from
+    /// `NCFileDocument.toolpathVertexCounts(upTo:)`, which is the O(1)
+    /// counterpart to the segment slice `updateToolpath` expects.
+    func setToolpathVisibleVertexCounts(rapid: Int, cutting: Int) {
+        renderObjects.settingVisibleVertexCount(rapid, forRole: .toolpathRapid)
+        renderObjects.settingVisibleVertexCount(cutting, forRole: .toolpathCutting)
+    }
+
     /// Real diameter/length of the tool currently drawn on the canvas, in
     /// millimeters. Defaults to a common 1/8" end mill; set these from the
     /// active `Tool` (`ToolLibrary`/`ToolsStore`) once tool selection is

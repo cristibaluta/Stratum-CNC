@@ -41,6 +41,16 @@ struct RenderObject: Identifiable {
     var primitive: RenderPrimitive = .lineStrip
     var isDashed: Bool = false
     var dashLength: Float = 5.0
+    /// Caps how many of `points` the renderer should actually draw, without
+    /// touching `points` itself. `nil` draws everything.
+    ///
+    /// This exists for the G-code scrubber: it lets `points` hold the *full*
+    /// toolpath (built once, when a file loads) while the visible portion is
+    /// narrowed on every scrub tick just by changing this number — no
+    /// re-tessellation, and (see `MetalRenderer.updateGeometry`) no GPU
+    /// buffer rebuild, since the object's `id` stays the same as long as
+    /// only this field changes on an existing array element.
+    var visibleVertexCount: Int? = nil
     /// Invisible triangle geometry (3 points per triangle) for a solid this
     /// object represents. Never drawn on screen — `MetalRenderer` only uses
     /// it to populate the depth buffer, so that `points` edges genuinely
@@ -79,6 +89,21 @@ extension Array where Element == RenderObject {
     mutating func replacing(roles: Set<RenderRole>, with objects: [RenderObject]) {
         removeAll { element in element.role.map(roles.contains) ?? false }
         append(contentsOf: objects)
+    }
+
+    /// Narrows how much of the existing element with role `role` gets drawn,
+    /// in place — the element's `id` (and therefore its GPU buffer, see
+    /// `MetalRenderer.updateGeometry`) is left untouched. Does nothing if no
+    /// element has that role. Deliberately the *only* mutation the scrubber
+    /// performs on the scene: `updating(_:)` and `replacing(roles:with:)`
+    /// both swap in freshly-built objects (new `id`s), which is exactly what
+    /// forces a GPU buffer rebuild — fine for an occasional stock/toolpath
+    /// reload, too slow to do on every scrub tick.
+    mutating func settingVisibleVertexCount(_ count: Int?, forRole role: RenderRole) {
+        guard let index = firstIndex(where: { $0.role == role }) else {
+            return
+        }
+        self[index].visibleVertexCount = count
     }
 }
 
