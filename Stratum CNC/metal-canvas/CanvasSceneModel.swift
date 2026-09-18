@@ -63,6 +63,21 @@ class CanvasSceneModel: ObservableObject {
     /// hitch.
     private let heightmapCellSize: Float = 1.0
 
+    /// M5: how many `scrubHeightmap` calls to skip between actual recarves.
+    /// Dragging the scrub slider (or scrubbing with the scroll wheel) fires
+    /// many calls per second; recarving the whole grid on every single one
+    /// would make the drag itself feel laggy on anything but a tiny file.
+    /// This is the "start simple" throttle the roadmap calls for — M6's
+    /// incremental/snapshot carve is the real fix if this interval still
+    /// isn't enough on a large program.
+    private let heightmapScrubTickInterval = 6
+
+    /// M5: calls to `scrubHeightmap` since the last actual recarve. Reset
+    /// whenever a carve happens (`updateHeightmap`) or the surface is
+    /// cleared, so a fresh drag always starts counting from zero rather than
+    /// picking up wherever the last one left off.
+    private var heightmapScrubTickCount = 0
+
     /// Rebuilds just the stock wireframe from `stock`'s shape and dimensions,
     /// leaving the rest of the scene (axes, toolpath preview, position
     /// marker) untouched. `ControllerView` calls this whenever
@@ -106,12 +121,13 @@ class CanvasSceneModel: ObservableObject {
     }
 
     /// Recarves the heightmap grid from scratch and rebuilds `heightmapMesh`
-    /// from it — the M4 counterpart to `updateStock`/`updateToolpath`, called
-    /// alongside them (see `CanvasSection`) whenever the stock, the loaded
-    /// toolpath, or the tool doing the cutting changes. Not called on every
-    /// scrub tick: a full-grid carve is real work (see `HeightmapGrid.carve`),
-    /// so the scrubber gets its own throttled path later (M5) rather than
-    /// riding this one.
+    /// from it — called with the *whole* file's segments for a structural
+    /// change (a new stock, a freshly parsed file, a reassigned tool — see
+    /// `CanvasSection`), and with just a prefix for a scrub position (see
+    /// `scrubHeightmap`, M5's throttled wrapper around this). `segments` is
+    /// `some Sequence` rather than `[ToolpathSegment]` so a scrub's
+    /// `ArraySlice` (`NCFileDocument.toolpathSegments(upTo:)`) can be handed
+    /// straight through — no need to copy it into a fresh `Array` first.
     ///
     /// `tool` is `nil` when the file's `T` number hasn't been assigned a
     /// `ToolSpec` yet (see `GCodeStore.toolSpecAssignments`/`ToolsPickerView`)
@@ -119,7 +135,9 @@ class CanvasSceneModel: ObservableObject {
     /// rather than guessing a tool size. Only ever carves with one tool for
     /// the whole file; per-segment tool switching for multi-tool programs is
     /// the M6 follow-up `HeightmapGrid.carve(segments:tool:)` already flags.
-    func updateHeightmap(stock: StockMaterial, segments: [ToolpathSegment], tool: ToolSpec?) {
+    func updateHeightmap(stock: StockMaterial, segments: some Sequence<ToolpathSegment>, tool: ToolSpec?) {
+        heightmapScrubTickCount = 0
+
         guard let tool else {
             heightmapMesh = nil
             return
@@ -128,5 +146,30 @@ class CanvasSceneModel: ObservableObject {
         var grid = HeightmapGrid(stock: stock, cellSize: heightmapCellSize)
         grid.carve(segments: segments, tool: tool)
         heightmapMesh = HeightmapMesh(grid: grid)
+    }
+
+    /// M5: the scrub slider's path into `updateHeightmap` — recarves from
+    /// the stock up to `line` (via `document.toolpathSegments(upTo:)`)
+    /// instead of the whole file, and, unlike `updateHeightmap`, is meant to
+    /// be called on *every* scrub tick: it only actually recarves every
+    /// `heightmapScrubTickInterval`th call, or whenever `force` is true
+    /// (e.g. on slider release, or a structural change that isn't itself a
+    /// scrub — see `CanvasSection.forceHeightmapRefresh`). A call that gets
+    /// throttled away simply leaves `heightmapMesh` as whatever the last
+    /// actual carve produced, same as the wireframe path briefly lags a
+    /// fast drag by a few ticks before catching up.
+    func scrubHeightmap(stock: StockMaterial, document: NCFileDocument, line: Int, tool: ToolSpec?, force: Bool = false) {
+        guard let tool else {
+            heightmapMesh = nil
+            heightmapScrubTickCount = 0
+            return
+        }
+
+        heightmapScrubTickCount += 1
+        guard force || heightmapScrubTickCount >= heightmapScrubTickInterval else {
+            return
+        }
+
+        updateHeightmap(stock: stock, segments: document.toolpathSegments(upTo: line), tool: tool)
     }
 }

@@ -70,6 +70,23 @@ class GCodeStore: ObservableObject {
         document.tools
     }
 
+    /// The single `ToolSpec` the heightmap preview carves with (see
+    /// `CanvasSceneModel.updateHeightmap`/`scrubHeightmap`) — the first tool
+    /// number in the file, in first-appearance order (same order
+    /// `ToolsPickerView` lists them), that's actually been assigned a spec.
+    /// `nil` if the file has no tools yet, or none of them are assigned —
+    /// callers treat that as "nothing to carve with" and clear the surface.
+    /// Multi-tool files only ever carve with this one tool for now; see
+    /// `HeightmapGrid.carve`'s M6 note on per-segment tool switching.
+    var activeToolSpec: ToolSpec? {
+        for toolNumber in tools {
+            if let spec = toolSpecAssignments[toolNumber] {
+                return spec
+            }
+        }
+        return nil
+    }
+
     func generateGCode(for toolpath: ToolpathData, canvasState: D2_CanvasState) {
         do {
             let gcode = try ToolpathGCodeBuilder.generate(for: toolpath, canvasState: canvasState)

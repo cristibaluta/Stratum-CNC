@@ -75,10 +75,15 @@ struct ControllerView: View {
     /// `setToolpathVisibleVertexCounts` — an O(1) lookup plus an in-place
     /// field mutation, no matter how far into the file the slider sits.
     private func scrubTo(line: Int) {
-        Self.scrubTo(line: line, gCodeModel: gCodeModel, scene: model.scene)
+        // A table-row click is a single discrete jump, not a tick in a
+        // drag — `forceHeightmap: true` so the surface always matches
+        // exactly where the click landed rather than possibly sitting a few
+        // `heightmapScrubTickInterval` ticks stale (see
+        // `CanvasSceneModel.scrubHeightmap`).
+        Self.scrubTo(line: line, gCodeModel: gCodeModel, camModel: camModel, scene: model.scene, forceHeightmap: true)
     }
 
-    fileprivate static func scrubTo(line: Int, gCodeModel: GCodeStore, scene: CanvasSceneModel) {
+    fileprivate static func scrubTo(line: Int, gCodeModel: GCodeStore, camModel: CAMModel, scene: CanvasSceneModel, forceHeightmap: Bool) {
         guard line != gCodeModel.scrubLine else { return }
 
         gCodeModel.scrubLine = line
@@ -98,6 +103,15 @@ struct ControllerView: View {
         if let last = gCodeModel.document.toolpathSegments(upTo: line).last {
             scene.updateToolPosition(last.end)
         }
+
+        // M5: the heightmap's own scrub path — throttled internally (see
+        // `CanvasSceneModel.scrubHeightmap`), so it's fine to call this on
+        // every tick the same way `setToolpathVisibleVertexCounts` above is.
+        scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
+                             document: gCodeModel.document,
+                             line: line,
+                             tool: gCodeModel.activeToolSpec,
+                             force: forceHeightmap)
     }
 
     var body: some View {
@@ -395,9 +409,29 @@ private struct CanvasSection: View {
         Binding(
             get: { Double(gCodeModel.scrubLine) },
             set: { newValue in
-                ControllerView.scrubTo(line: Int(newValue.rounded()), gCodeModel: gCodeModel, scene: scene)
+                // A slider drag fires many ticks a second — `forceHeightmap:
+                // false` lets `CanvasSceneModel.scrubHeightmap` throttle the
+                // actual recarves. `onEditingChanged` below forces one final
+                // exact recarve once the drag ends.
+                ControllerView.scrubTo(line: Int(newValue.rounded()), gCodeModel: gCodeModel, camModel: camModel, scene: scene, forceHeightmap: false)
             }
         )
+    }
+
+    /// M5: forces one exact heightmap recarve at wherever the scrubber
+    /// currently sits — bypasses `scrubTo`'s own throttling and its
+    /// "only if `line` actually changed" guard, both of which are meant for
+    /// the *stream* of ticks during a drag, not this "the drag/scroll just
+    /// stopped" moment. Wired to the slider's `onEditingChanged` below, and
+    /// also called directly from `onAppear`/`onChange` below for the
+    /// non-scrub structural changes (new stock, new file, reassigned tool)
+    /// that should also always be exact.
+    private func forceHeightmapRefresh() {
+        scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
+                             document: gCodeModel.document,
+                             line: gCodeModel.scrubLine,
+                             tool: gCodeModel.activeToolSpec,
+                             force: true)
     }
 
     /// Scroll-to-scrub over the g-code slider — a trackpad swipe (or mouse
@@ -432,29 +466,10 @@ private struct CanvasSection: View {
         }
 
         let newLine = Int((Double(gCodeModel.scrubLine) + step).rounded())
-        ControllerView.scrubTo(line: max(0, min(totalLines, newLine)), gCodeModel: gCodeModel, scene: scene)
-    }
-
-    /// The single `ToolSpec` `scene.updateHeightmap` carves with — the first
-    /// tool number in the file (in first-appearance order, same order
-    /// `ToolsPickerView` lists them) that's actually been assigned a spec.
-    /// `nil` if the file has no tools yet, or none of them are assigned —
-    /// `updateHeightmap` treats that as "nothing to carve with" and clears
-    /// the surface. Multi-tool files only ever carve with this one tool for
-    /// now; see `HeightmapGrid.carve`'s M6 note.
-    private var activeToolSpec: ToolSpec? {
-        for toolNumber in gCodeModel.tools {
-            if let spec = gCodeModel.toolSpecAssignments[toolNumber] {
-                return spec
-            }
-        }
-        return nil
-    }
-
-    private func refreshHeightmap() {
-        scene.updateHeightmap(stock: camModel.selectedStockMaterial,
-                              segments: gCodeModel.document.toolpathSegments,
-                              tool: activeToolSpec)
+        // Like the drag binding above: a two-finger swipe can fire a burst
+        // of these in quick succession, so this rides the same throttle
+        // rather than forcing an exact recarve on every notch.
+        ControllerView.scrubTo(line: max(0, min(totalLines, newLine)), gCodeModel: gCodeModel, camModel: camModel, scene: scene, forceHeightmap: false)
     }
 
     var body: some View {
@@ -484,7 +499,16 @@ private struct CanvasSection: View {
             }
             .overlay(alignment: .bottomLeading) {
                 HStack(spacing: 8) {
-                    Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count))
+                    Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count)) { editing in
+                        // M5: the drag ticks themselves are throttled (see
+                        // `scrubBinding`) — this is what guarantees the
+                        // surface still ends up exactly right once the
+                        // person lets go, rather than possibly sitting a
+                        // few ticks stale.
+                        if !editing {
+                            forceHeightmapRefresh()
+                        }
+                    }
                         .frame(minWidth: 160)
                     Text("Line \(gCodeModel.scrubLine) / \(gCodeModel.document.lines.count)")
                         .font(.caption.monospacedDigit())
@@ -525,11 +549,11 @@ private struct CanvasSection: View {
                 scene.updateStock(camModel.selectedStockMaterial)
                 scene.updateToolpath(gCodeModel.document.toolpathSegments)
                 gCodeModel.scrubLine = gCodeModel.document.lines.count
-                refreshHeightmap()
+                forceHeightmapRefresh()
             }
             .onChange(of: camModel.selectedStockMaterial) { _, newStock in
                 scene.updateStock(newStock)
-                refreshHeightmap()
+                forceHeightmapRefresh()
             }
             .onChange(of: gCodeModel.document.toolpathSegments) { _, newSegments in
                 // A freshly (re)parsed file replaces the whole preview
@@ -537,13 +561,13 @@ private struct CanvasSection: View {
                 // always matches where the slider sits.
                 scene.updateToolpath(newSegments)
                 gCodeModel.scrubLine = gCodeModel.document.lines.count
-                refreshHeightmap()
+                forceHeightmapRefresh()
             }
             .onChange(of: gCodeModel.toolSpecAssignments) { _, _ in
                 // Assigning (or reassigning) a `T` number's tool changes
                 // what the heightmap should have been carved with — e.g.
                 // picking a bigger end mill widens every cut.
-                refreshHeightmap()
+                forceHeightmapRefresh()
             }
     }
 }
