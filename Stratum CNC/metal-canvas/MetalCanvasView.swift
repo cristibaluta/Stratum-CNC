@@ -153,6 +153,8 @@ struct MetalCanvasView: NSViewRepresentable {
                 performPan(translation: translation)
             case .zoom:
                 performDragZoom(translation: translation)
+            case .zoomToCursor:
+                performDragZoomToCursor(gesture: gesture, translation: translation)
             case .none:
                 break
             }
@@ -199,28 +201,32 @@ struct MetalCanvasView: NSViewRepresentable {
             clampZoomDistance(camera)
         }
 
+        /// Same idea as `performDragZoom`, but keeps the world point under
+        /// the cursor fixed on screen (like pinch) instead of zooming
+        /// toward `target`. Finer than `performDragZoom` to match — the
+        /// point is more careful, cursor-anchored control.
+        private func performDragZoomToCursor(gesture: NSPanGestureRecognizer, translation: CGPoint) {
+            guard let camera = renderer?.camera, let view = gesture.view else {
+                return
+            }
+            let sensitivity: Float = 0.006
+            let newDistance = camera.distance - Float(translation.y) * (camera.distance * sensitivity)
+            applyZoom(to: newDistance, towards: gesture.location(in: view), in: view)
+        }
+
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
             // Optional: Handle selection / Raycasting targeting
         }
 
         @objc func handleMagnification( _ gesture: NSMagnificationGestureRecognizer) {
-            guard let camera = renderer?.camera, let view = gesture.view else {
+            guard let view = gesture.view else {
                 return
             }
             if gesture.state == .changed {
                 let amount = Float(gesture.magnification)
                 let newZoom = max(minZoom, min(maxZoom, zoom * (1 - amount)))
 
-                // Convert the cursor position to normalized device coords (-1...1,
-                // origin at screen center) so the camera can keep that point fixed.
-                let location = gesture.location(in: view)
-                let size = view.bounds.size
-                let ndc = SIMD2<Float>(
-                    Float(location.x / size.width) * 2 - 1,
-                    Float(location.y / size.height) * 2 - 1
-                )
-
-                camera.zoom(to: newZoom, towards: ndc)
+                applyZoom(to: newZoom, towards: gesture.location(in: view), in: view)
                 zoom = newZoom
                 gesture.magnification = 0
                 metalView?.draw()
@@ -240,6 +246,8 @@ struct MetalCanvasView: NSViewRepresentable {
                     // Standard mouse wheel: one notch at a time, stepped zoom.
                     performSteppedZoom(deltaY: Float(event.scrollingDeltaY))
                 }
+            case .zoomToCursor:
+                performCursorZoom(event: event)
             case .orbit:
                 performOrbit(translation: scrollTranslation(event))
             case .pan:
@@ -287,9 +295,60 @@ struct MetalCanvasView: NSViewRepresentable {
             clampZoomDistance(camera)
         }
 
+        /// Finer, slower zoom that keeps the world point under the cursor
+        /// fixed on screen, the same way pinch-to-zoom does (see
+        /// `applyZoom`). The scroll default, since a careful, cursor-
+        /// anchored zoom is generally what you want from the main zoom
+        /// input. The percentages here are well under `performSmoothZoom`'s
+        /// 0.02 and `performSteppedZoom`'s 0.08 on purpose — this is meant
+        /// to read as noticeably more controlled than either.
+        private func performCursorZoom(event: NSEvent) {
+            guard let camera = renderer?.camera, let view = metalView else {
+                return
+            }
+            let newDistance: Float
+            if event.hasPreciseScrollingDeltas {
+                newDistance = camera.distance - Float(event.scrollingDeltaY) * (camera.distance * 0.004)
+            } else {
+                guard event.scrollingDeltaY != 0 else {
+                    return
+                }
+                let notch: Float = event.scrollingDeltaY > 0 ? 1 : -1
+                newDistance = camera.distance - notch * max(1.0, camera.distance * 0.02)
+            }
+            let location = view.convert(event.locationInWindow, from: nil)
+            applyZoom(to: newDistance, towards: location, in: view)
+        }
+
+        /// Shared by every cursor-anchored zoom (pinch, `.zoomToCursor` on
+        /// scroll or drag): clamps `newDistance`, converts `location` (in
+        /// `view`'s own coordinate space) to normalized device coords, and
+        /// hands both to `Camera.zoom(to:towards:)`, which keeps whatever
+        /// world point sits under that point fixed on screen.
+        private func applyZoom(to newDistance: Float, towards location: CGPoint, in view: NSView) {
+            guard let camera = renderer?.camera else {
+                return
+            }
+            let clamped = clampedDistance(newDistance)
+            let size = view.bounds.size
+            guard size.width > 0, size.height > 0 else {
+                camera.distance = clamped
+                return
+            }
+            let ndc = SIMD2<Float>(
+                Float(location.x / size.width) * 2 - 1,
+                Float(location.y / size.height) * 2 - 1
+            )
+            camera.zoom(to: clamped, towards: ndc)
+        }
+
         /// Clamp distance to prevent clipping into target or zooming out into infinity.
+        private func clampedDistance(_ distance: Float) -> Float {
+            max(2.0, min(2000.0, distance))
+        }
+
         private func clampZoomDistance(_ camera: Camera) {
-            camera.distance = max(2.0, min(2000.0, camera.distance))
+            camera.distance = clampedDistance(camera.distance)
         }
     }
 }

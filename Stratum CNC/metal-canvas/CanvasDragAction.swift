@@ -1,5 +1,5 @@
 //
-//  CanvasControlAction.swift
+//  CanvasInputSettings.swift
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 18.09.2026.
@@ -11,7 +11,14 @@ import Foundation
 enum CanvasControlAction: String, CaseIterable, Identifiable {
     case orbit
     case pan
+    /// Fast, coarse zoom centered on the current orbit target — the
+    /// original scroll/drag zoom.
     case zoom
+    /// Finer, slower zoom that keeps the world point under the cursor
+    /// fixed on screen, the same way pinch-to-zoom does. The default for
+    /// `.scroll` since scroll is usually the primary zoom input and this
+    /// reads as more controlled than `.zoom`.
+    case zoomToCursor
     case none
 
     var id: String { rawValue }
@@ -21,6 +28,7 @@ enum CanvasControlAction: String, CaseIterable, Identifiable {
         case .orbit: return "Orbit"
         case .pan: return "Pan"
         case .zoom: return "Zoom"
+        case .zoomToCursor: return "Zoom to Cursor"
         case .none: return "Do Nothing"
         }
     }
@@ -66,7 +74,7 @@ final class CanvasInputSettings: ObservableObject {
     static let defaultPrimary: CanvasControlAction = .orbit
     static let defaultModified: CanvasControlAction = .pan
     static let defaultMiddleButton: CanvasControlAction = .pan
-    static let defaultScroll: CanvasControlAction = .zoom
+    static let defaultScroll: CanvasControlAction = .zoomToCursor
 
     @Published var primaryAction: CanvasControlAction {
         didSet { defaults.set(primaryAction.rawValue, forKey: Keys.primary) }
