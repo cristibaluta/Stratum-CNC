@@ -17,6 +17,21 @@ struct MetalCanvasView: NSViewRepresentable {
         override func scrollWheel(with event: NSEvent) {
             onScroll?(event)
         }
+
+        // With `isPaused = true` / `enableSetNeedsDisplay = false` the view
+        // never renders on its own — every frame has to be requested
+        // explicitly (see the gesture handlers and `drawableSizeWillChange`
+        // below). `updateNSView`'s `draw()` call fires too early to show
+        // anything: at that point AppKit hasn't given this view its real
+        // frame yet, so the drawable is still 0×0 and the call is a no-op.
+        // `layout()` is AppKit's own signal that a real size is now in
+        // place, so drawing there is what actually gets the first frame
+        // (and any later resize) on screen without needing a scrub/pan/zoom
+        // to kick it.
+        override func layout() {
+            super.layout()
+            draw()
+        }
     }
 
     @Binding var objects: [RenderObject]
