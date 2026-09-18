@@ -273,10 +273,15 @@ struct MetalCanvasView: NSViewRepresentable {
         }
 
         func handleScroll(_ event: NSEvent) {
-            // Reassigning Scroll in CanvasControlsSettingsView takes effect
-            // immediately since this looks the mapping up fresh on every
-            // scroll event rather than caching it.
-            switch CanvasInputSettings.shared.action(for: .scroll) {
+            // Reassigning Scroll / Shift + Scroll in CanvasControlsSettingsView
+            // takes effect immediately since this looks the mapping up fresh
+            // on every scroll event rather than caching it. Shift is read
+            // from the event itself (not `NSEvent.modifierFlags`) so it
+            // reflects the state at the moment this scroll was generated.
+            let trigger: CanvasInputTrigger = event.modifierFlags.contains(.shift)
+                ? .modifiedScroll
+                : .scroll
+            switch CanvasInputSettings.shared.action(for: trigger) {
             case .zoom:
                 if event.hasPreciseScrollingDeltas {
                     // Trackpad two-finger swipe: fine deltas, smooth continuous zoom.
@@ -304,7 +309,7 @@ struct MetalCanvasView: NSViewRepresentable {
         /// need to travel to produce the same-feeling amount of rotation/pan.
         private func scrollTranslation(_ event: NSEvent) -> CGPoint {
             let scale: CGFloat = event.hasPreciseScrollingDeltas ? 1.0 : 4.0
-            return CGPoint(x: event.scrollingDeltaX * scale, y: event.scrollingDeltaY * scale)
+            return CGPoint(x: -event.scrollingDeltaX * scale, y: event.scrollingDeltaY * scale)
         }
 
         /// Continuous, exponential-feeling zoom for trackpad/precise scroll.

@@ -9,7 +9,7 @@ import SwiftUI
 
 /// Lets the user reassign what each mouse input does on the 3D canvas —
 /// orbit, pan, zoom, or nothing — one row per input (plain drag,
-/// Shift+drag, middle-click drag, scroll). Reads and writes
+/// Shift+drag, middle-click drag, scroll, Shift+scroll). Reads and writes
 /// `CanvasInputSettings.shared` directly, so a change here reaches the
 /// canvas immediately; there's no separate "Apply" step.
 ///
@@ -48,7 +48,7 @@ struct CanvasControlsSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: showsCloseButton ? 320 : 280)
+        .frame(width: 420, height: showsCloseButton ? 360 : 320)
         .navigationTitle("Canvas Controls")
         .toolbar {
             if showsCloseButton {

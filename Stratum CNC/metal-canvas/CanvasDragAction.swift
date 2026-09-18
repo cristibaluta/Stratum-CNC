@@ -49,6 +49,7 @@ enum CanvasInputTrigger: String, CaseIterable, Identifiable {
     case modified      // Shift + left-button drag
     case middleButton  // Middle-button drag
     case scroll        // Scroll wheel / two-finger trackpad swipe
+    case modifiedScroll // Shift + scroll wheel / two-finger trackpad swipe
 
     var id: String { rawValue }
 
@@ -58,6 +59,7 @@ enum CanvasInputTrigger: String, CaseIterable, Identifiable {
         case .modified: return "Shift + Drag"
         case .middleButton: return "Middle-Click Drag"
         case .scroll: return "Scroll"
+        case .modifiedScroll: return "Shift + Scroll"
         }
     }
 }
@@ -75,6 +77,7 @@ final class CanvasInputSettings: ObservableObject {
     static let defaultModified: CanvasControlAction = .pan
     static let defaultMiddleButton: CanvasControlAction = .pan
     static let defaultScroll: CanvasControlAction = .zoomToCursor
+    static let defaultModifiedScroll: CanvasControlAction = .orbit
 
     @Published var primaryAction: CanvasControlAction {
         didSet { defaults.set(primaryAction.rawValue, forKey: Keys.primary) }
@@ -89,12 +92,17 @@ final class CanvasInputSettings: ObservableObject {
         didSet { defaults.set(scrollAction.rawValue, forKey: Keys.scroll) }
     }
 
+    @Published var modifiedScrollAction: CanvasControlAction {
+        didSet { defaults.set(modifiedScrollAction.rawValue, forKey: Keys.modifiedScroll) }
+    }
+
     private let defaults: UserDefaults
     private enum Keys {
         static let primary = "canvas.input.primary"
         static let modified = "canvas.input.modified"
         static let middleButton = "canvas.input.middleButton"
         static let scroll = "canvas.input.scroll"
+        static let modifiedScroll = "canvas.input.modifiedScroll"
     }
 
     /// `defaults` is injectable (rather than always `.standard`) so a test
@@ -110,6 +118,8 @@ final class CanvasInputSettings: ObservableObject {
             ?? Self.defaultMiddleButton
         scrollAction = CanvasControlAction(rawValue: defaults.string(forKey: Keys.scroll) ?? "")
             ?? Self.defaultScroll
+        modifiedScrollAction = CanvasControlAction(rawValue: defaults.string(forKey: Keys.modifiedScroll) ?? "")
+            ?? Self.defaultModifiedScroll
     }
 
     func action(for trigger: CanvasInputTrigger) -> CanvasControlAction {
@@ -118,6 +128,7 @@ final class CanvasInputSettings: ObservableObject {
         case .modified: return modifiedAction
         case .middleButton: return middleButtonAction
         case .scroll: return scrollAction
+        case .modifiedScroll: return modifiedScrollAction
         }
     }
 
@@ -127,6 +138,7 @@ final class CanvasInputSettings: ObservableObject {
         case .modified: modifiedAction = action
         case .middleButton: middleButtonAction = action
         case .scroll: scrollAction = action
+        case .modifiedScroll: modifiedScrollAction = action
         }
     }
 
@@ -135,5 +147,6 @@ final class CanvasInputSettings: ObservableObject {
         modifiedAction = Self.defaultModified
         middleButtonAction = Self.defaultMiddleButton
         scrollAction = Self.defaultScroll
+        modifiedScrollAction = Self.defaultModifiedScroll
     }
 }
