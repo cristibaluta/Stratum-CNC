@@ -20,6 +20,15 @@ struct GCodeTableView: NSViewRepresentable {
     @ObservedObject var document: NCFileDocument
     var highlightedLine: Int?
     var requestedLine: Int?
+    /// Called with a 1-based G-code line number whenever the table's
+    /// selection changes — including a person clicking a row directly, not
+    /// just the programmatic jumps `requestedLine` drives. The coordinator
+    /// can't tell those two cases apart (`NSTableView` fires the same
+    /// selection notification either way), but that's fine here: a
+    /// programmatic jump only ever selects the row `requestedLine` already
+    /// points at, so the closure's own line-hasn't-changed guard on the
+    /// caller's side absorbs it as a no-op rather than a feedback loop.
+    var onLineSelected: ((Int) -> Void)? = nil
 
     func makeNSView(context: Context) -> NSScrollView {
         let tableView = NSTableView()
@@ -59,6 +68,7 @@ struct GCodeTableView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let coordinator = context.coordinator
         coordinator.document = document
+        coordinator.onLineSelected = onLineSelected
 
         if coordinator.lastRowCount != document.lines.count {
             coordinator.lastRowCount = document.lines.count
@@ -108,6 +118,7 @@ struct GCodeTableView: NSViewRepresentable {
         var lastRowCount = -1
         var lastHighlightedLine: Int?
         var lastRequestedLine: Int?
+        var onLineSelected: ((Int) -> Void)?
 
         init(document: NCFileDocument) {
             self.document = document
@@ -175,6 +186,22 @@ struct GCodeTableView: NSViewRepresentable {
                 return
             }
             tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+
+        /// Fires for *any* selection change — a direct click, arrow-key
+        /// navigation, or our own `selectRow(_:)` from the `requestedLine`
+        /// handling above. `document.lines[row].id` is the 1-based G-code
+        /// line number (see `GCodeParser`), the same unit `onLineSelected`'s
+        /// caller keys everything else off of.
+        func tableViewSelectionDidChange(_ notification: Notification) {
+            guard let tableView = notification.object as? NSTableView else {
+                return
+            }
+            let row = tableView.selectedRow
+            guard row >= 0, row < document.lines.count else {
+                return
+            }
+            onLineSelected?(document.lines[row].id)
         }
     }
 }

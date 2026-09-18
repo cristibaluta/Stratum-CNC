@@ -12,6 +12,10 @@ struct GCodeViewer: View {
 
     @ObservedObject var model: GCodeStore
     var highlightedLine: Int? = nil
+    /// Forwarded straight to `GCodeTableView`'s `onLineSelected` — see there
+    /// for what "selected" covers. `ControllerView` supplies the closure
+    /// that actually syncs the scrubber and the Metal canvas.
+    var onLineSelected: ((Int) -> Void)? = nil
 
     /// Cached result of `GCodeToolpathAnalyzer.analyze`. This used to be a
     /// computed property, which ran the analyzer — two `NSRegularExpression`
@@ -30,7 +34,7 @@ struct GCodeViewer: View {
             toolpathsView
                 .background(Color(.white))
                 .frame(height: 200)
-            GCodeTableView(document: model.document, highlightedLine: highlightedLine, requestedLine: model.requestedLine)
+            GCodeTableView(document: model.document, highlightedLine: highlightedLine, requestedLine: model.requestedLine, onLineSelected: onLineSelected)
             commandBar
                 .frame(height: 36)
         }

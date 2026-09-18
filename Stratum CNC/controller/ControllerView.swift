@@ -52,10 +52,22 @@ struct ControllerView: View {
 
     /// Drives the scrub slider. `Slider` needs a `Double`, but the scrub
     /// position is really a 1-based G-code line, so this rounds to the
-    /// nearest line on every drag tick. Setting `gCodeModel.requestedLine`
-    /// is what makes `GCodeTableView` select and scroll to that row (it's
-    /// edge-triggered on the value changing, which fits a slider that fires
-    /// on every tick).
+    /// nearest line on every drag tick.
+    private var scrubBinding: Binding<Double> {
+        Binding(
+            get: { Double(gCodeModel.scrubLine) },
+            set: { newValue in
+                scrubTo(line: Int(newValue.rounded()))
+            }
+        )
+    }
+
+    /// Parks the scrubber — and everything that follows it, the G-code
+    /// table's selection and the Metal canvas — on `line`. Shared by the
+    /// slider (`scrubBinding`, above) and by manually selecting a row in
+    /// `GCodeTableView` (wired up as `onLineSelected` where `GCodeViewer` is
+    /// built, below), so the two stay interchangeable: dragging the slider
+    /// moves the table's selection, and clicking a row moves the slider.
     ///
     /// Deliberately does *not* call `ControllerModel.updateToolpath` here —
     /// that re-tessellates its segments into a brand-new `RenderObject`
@@ -68,32 +80,26 @@ struct ControllerView: View {
     /// change how much of that existing buffer is visible, via
     /// `setToolpathVisibleVertexCounts` — an O(1) lookup plus an in-place
     /// field mutation, no matter how far into the file the slider sits.
-    private var scrubBinding: Binding<Double> {
-        Binding(
-            get: { Double(gCodeModel.scrubLine) },
-            set: { newValue in
-                let line = Int(newValue.rounded())
-                guard line != gCodeModel.scrubLine else { return }
+    private func scrubTo(line: Int) {
+        guard line != gCodeModel.scrubLine else { return }
 
-                gCodeModel.scrubLine = line
-                gCodeModel.requestedLine = line
+        gCodeModel.scrubLine = line
+        gCodeModel.requestedLine = line
 
-                let counts = gCodeModel.document.toolpathVertexCounts(upTo: line)
-                model.setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
+        let counts = gCodeModel.document.toolpathVertexCounts(upTo: line)
+        model.setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
 
-                // Move the cutter marker to wherever the scrubbed path ends,
-                // so the canvas reads as "the tool is here" rather than just
-                // a partially-drawn line. If a machine is connected,
-                // `ToolPositionSync` will overwrite this on the next status
-                // update — scrubbing is meant for reviewing an offline file,
-                // not for tracking a job that's actually running.
-                // `.last` on the slice is O(1); this doesn't materialize the
-                // prefix into an `Array` the way the old code did.
-                if let last = gCodeModel.document.toolpathSegments(upTo: line).last {
-                    model.updateToolPosition(last.end)
-                }
-            }
-        )
+        // Move the cutter marker to wherever the scrubbed path ends, so the
+        // canvas reads as "the tool is here" rather than just a partially-
+        // drawn line. If a machine is connected, `ToolPositionSync` will
+        // overwrite this on the next status update — scrubbing is meant for
+        // reviewing an offline file, not for tracking a job that's actually
+        // running.
+        // `.last` on the slice is O(1); this doesn't materialize the prefix
+        // into an `Array` the way the old code did.
+        if let last = gCodeModel.document.toolpathSegments(upTo: line).last {
+            model.updateToolPosition(last.end)
+        }
     }
 
     var body: some View {
@@ -179,7 +185,7 @@ struct ControllerView: View {
                     }
                     .padding(.top, 4)
                 ) {
-                    GCodeViewer(model: gCodeModel, highlightedLine: gCodeModel.scrubLine)
+                    GCodeViewer(model: gCodeModel, highlightedLine: gCodeModel.scrubLine, onLineSelected: scrubTo)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
