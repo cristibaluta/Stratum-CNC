@@ -103,17 +103,110 @@ struct HeightmapMesh {
 
                     // Counter-clockwise as seen looking down -Z (standard
                     // math convention, matching the +Z-up normals above).
-                    // TODO(M3): confirm this against whatever front-facing
-                    // winding the heightmap's pipeline state actually
-                    // configures before turning on back-face culling — flip
-                    // both triangles here if the mesh renders inside-out.
+                    // Confirmed correct against `MetalRenderer`'s
+                    // `.counterClockwise`/`.back` culling setup — the
+                    // skirt/cap below reuse this exact convention rather
+                    // than re-deriving it.
                     indices.append(v00); indices.append(v10); indices.append(v11)
                     indices.append(v00); indices.append(v11); indices.append(v01)
                 }
             }
         }
 
+        // Close the top surface into a solid-looking block: a vertical
+        // skirt around the four sides (following the actual carved height
+        // along each border row/column, so it meets the top surface with
+        // no gap) down to `grid.bottomZ`, plus a flat bottom cap. Without
+        // this the heightmap was just a floating sheet — correct depth-wise,
+        // but with no visible thickness, which read as "wrong"/unfinished
+        // even though the carve itself was fine.
+        Self.appendSkirtAndBottomCap(grid: grid, vertices: &vertices, indices: &indices)
+
         self.vertices = vertices
         self.indices = indices
+    }
+
+    /// Appends the four vertical border walls and the bottom cap to
+    /// `vertices`/`indices`, in place. Each wall vertex gets its own
+    /// (duplicated) position rather than reusing a top-surface vertex,
+    /// since its normal — horizontal, pointing away from the grid — is
+    /// unrelated to the top surface's mostly-upward normal at that point.
+    ///
+    /// Winding: every triangle here is built as `(a, b, c)` where
+    /// `cross(b - a, c - a)` points in the face's intended outward
+    /// direction — the same right-hand-rule convention the top surface's
+    /// `(v00, v10, v11)` ordering already follows (confirmed correct once
+    /// the M4 tool-assignment gate was the actual reason nothing was
+    /// drawing — see chat). No separate wind-order check needed here.
+    private static func appendSkirtAndBottomCap(grid: HeightmapGrid, vertices: inout [Vertex], indices: inout [UInt32]) {
+        let columns = grid.columns
+        let rows = grid.rows
+        let bottomZ = grid.bottomZ
+
+        /// One border edge: `positions` walks it in the direction that
+        /// keeps the grid's interior on the left (i.e. counter-clockwise
+        /// around the perimeter, viewed from above) — south→east→north→west
+        /// — and `outward` is that edge's constant horizontal outward
+        /// normal.
+        struct Edge {
+            let positions: [(col: Int, row: Int)]
+            let outward: SIMD3<Float>
+        }
+        let edges: [Edge] = [
+            Edge(positions: (0..<columns).map { (col: $0, row: 0) }, outward: SIMD3<Float>(0, -1, 0)),                 // south, west→east
+            Edge(positions: (0..<rows).map { (col: columns - 1, row: $0) }, outward: SIMD3<Float>(1, 0, 0)),           // east, south→north
+            Edge(positions: (0..<columns).reversed().map { (col: $0, row: rows - 1) }, outward: SIMD3<Float>(0, 1, 0)), // north, east→west
+            Edge(positions: (0..<rows).reversed().map { (col: 0, row: $0) }, outward: SIMD3<Float>(-1, 0, 0)),         // west, north→south
+        ]
+
+        for edge in edges {
+            guard edge.positions.count >= 2 else { continue }
+            for i in 0..<(edge.positions.count - 1) {
+                let (col0, row0) = edge.positions[i]
+                let (col1, row1) = edge.positions[i + 1]
+                let p0 = grid.center(col: col0, row: row0)
+                let p1 = grid.center(col: col1, row: row1)
+                let h0 = grid.heights[row0 * columns + col0]
+                let h1 = grid.heights[row1 * columns + col1]
+
+                let top0 = SIMD3<Float>(p0.x, p0.y, h0)
+                let top1 = SIMD3<Float>(p1.x, p1.y, h1)
+                let bot0 = SIMD3<Float>(p0.x, p0.y, bottomZ)
+                let bot1 = SIMD3<Float>(p1.x, p1.y, bottomZ)
+
+                let base = UInt32(vertices.count)
+                vertices.append(Vertex(position: top0, normal: edge.outward))
+                vertices.append(Vertex(position: top1, normal: edge.outward))
+                vertices.append(Vertex(position: bot0, normal: edge.outward))
+                vertices.append(Vertex(position: bot1, normal: edge.outward))
+                // (top0, bot0, top1) then (top1, bot0, bot1) — see winding note above.
+                indices.append(base); indices.append(base + 2); indices.append(base + 1)
+                indices.append(base + 1); indices.append(base + 2); indices.append(base + 3)
+            }
+        }
+
+        // Bottom cap: a single flat rectangle spanning the grid's XY bounding
+        // box, facing straight down. The grid itself is always an axis-
+        // aligned rectangle (see `HeightmapGrid.init(stock:cellSize:)`'s note
+        // on circular stock), so this always matches the carve's true extent.
+        let minX = grid.originX
+        let minY = grid.originY
+        let maxX = grid.originX + Float(columns) * grid.cellSize
+        let maxY = grid.originY + Float(rows) * grid.cellSize
+        let down = SIMD3<Float>(0, 0, -1)
+
+        let c00 = SIMD3<Float>(minX, minY, bottomZ)
+        let c10 = SIMD3<Float>(maxX, minY, bottomZ)
+        let c01 = SIMD3<Float>(minX, maxY, bottomZ)
+        let c11 = SIMD3<Float>(maxX, maxY, bottomZ)
+
+        let base = UInt32(vertices.count)
+        vertices.append(Vertex(position: c00, normal: down))
+        vertices.append(Vertex(position: c10, normal: down))
+        vertices.append(Vertex(position: c01, normal: down))
+        vertices.append(Vertex(position: c11, normal: down))
+        // (c00, c01, c10) then (c10, c01, c11) — both outward/downward, see winding note above.
+        indices.append(base); indices.append(base + 2); indices.append(base + 1)
+        indices.append(base + 1); indices.append(base + 2); indices.append(base + 3)
     }
 }

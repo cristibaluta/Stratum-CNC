@@ -34,6 +34,12 @@ struct HeightmapGrid {
     let columns: Int
     let rows: Int
 
+    /// The stock's fixed bottom face Z — never changes during a carve
+    /// (only `heights`, the top face, does). `HeightmapMesh` uses this to
+    /// close the surface into a solid-looking block (side walls + a bottom
+    /// cap) instead of a floating sheet with no thickness.
+    let bottomZ: Float
+
     /// Row-major, `columns * rows` entries. `heights[row * columns + col]`
     /// is that column's current top-Z, starting at the stock's own top face
     /// and only ever decreasing as `carve` runs.
@@ -42,14 +48,18 @@ struct HeightmapGrid {
     /// Builds an empty grid (every cell at `topZ`) covering `width` × `height`
     /// starting at `(originX, originY)`. `cellSize` is clamped away from
     /// zero/negative so a bad value can't produce an unusably huge (or
-    /// infinite) grid.
-    init(originX: Float, originY: Float, width: Float, height: Float, cellSize: Float, topZ: Float) {
+    /// infinite) grid. `bottomZ` defaults to 10mm below `topZ` for the
+    /// handful of call sites (tests, previews) that don't care about a real
+    /// stock thickness; `init(stock:cellSize:)` below always passes the
+    /// material's actual depth.
+    init(originX: Float, originY: Float, width: Float, height: Float, cellSize: Float, topZ: Float, bottomZ: Float? = nil) {
         self.originX = originX
         self.originY = originY
         self.cellSize = max(cellSize, 0.01)
         self.columns = max(1, Int((width / self.cellSize).rounded(.up)))
         self.rows = max(1, Int((height / self.cellSize).rounded(.up)))
         self.heights = [Float](repeating: topZ, count: columns * rows)
+        self.bottomZ = bottomZ ?? (topZ - 10)
     }
 
     /// Builds a grid sized to a `StockMaterial`'s own bounding box, mirroring
@@ -64,18 +74,20 @@ struct HeightmapGrid {
     /// round with nothing carved yet (e.g. a bare, unmachined disk preview).
     init(stock: StockMaterial, cellSize: Float) {
         switch stock.geometry {
-            case let .rectangular(width, height, _):
+            case let .rectangular(width, height, depth):
                 self.init(originX: 0, originY: 0,
                           width: Float(width), height: Float(height),
-                          cellSize: cellSize, topZ: 0)
+                          cellSize: cellSize, topZ: 0, bottomZ: -Float(depth))
 
-            case let .cylindrical(diameter, _):
+            case let .cylindrical(diameter, length):
                 let d = Float(diameter)
-                self.init(originX: 0, originY: 0, width: d, height: d, cellSize: cellSize, topZ: 0)
+                self.init(originX: 0, originY: 0, width: d, height: d,
+                          cellSize: cellSize, topZ: 0, bottomZ: -Float(length))
 
-            case let .disk(outerDiameter, _, _):
+            case let .disk(outerDiameter, _, depth):
                 let d = Float(outerDiameter)
-                self.init(originX: 0, originY: 0, width: d, height: d, cellSize: cellSize, topZ: 0)
+                self.init(originX: 0, originY: 0, width: d, height: d,
+                          cellSize: cellSize, topZ: 0, bottomZ: -Float(depth))
         }
     }
 

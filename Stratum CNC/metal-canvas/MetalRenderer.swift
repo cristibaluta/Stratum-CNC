@@ -178,6 +178,14 @@ class MetalRenderer: NSObject {
         metalView.device = defaultDevice
         metalView.clearColor = MTLClearColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)
         metalView.depthStencilPixelFormat = .depth32Float
+        // 4x MSAA — everything drawn here (hairline wireframe edges,
+        // and now the heightmap surface's silhouette/skirt edges) is at
+        // its most visible right along an edge, so unresolved aliasing
+        // there is the single biggest hit to how "finished" this looks.
+        // Every pipeline built below must set a matching `rasterSampleCount`
+        // (see `setupPipeline`/`setupHeightmapPipeline`) since they all draw
+        // into the same multisampled render pass MTKView sets up from this.
+        metalView.sampleCount = 4
 
         self.commandQueue = device.makeCommandQueue()
 
@@ -271,6 +279,7 @@ class MetalRenderer: NSObject {
         pipelineDescriptor.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
         pipelineDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
+        pipelineDescriptor.rasterSampleCount = metalView.sampleCount
 
         pipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
 
@@ -285,6 +294,7 @@ class MetalRenderer: NSObject {
         depthOnlyDescriptor.colorAttachments[0].writeMask = []
         depthOnlyDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat
         depthOnlyDescriptor.vertexDescriptor = vertexDescriptor
+        depthOnlyDescriptor.rasterSampleCount = metalView.sampleCount
 
         depthOnlyPipelineState = try? device.makeRenderPipelineState(descriptor: depthOnlyDescriptor)
     }
@@ -323,6 +333,7 @@ class MetalRenderer: NSObject {
         pipelineDescriptor.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
         pipelineDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat
         pipelineDescriptor.vertexDescriptor = vertexDescriptor
+        pipelineDescriptor.rasterSampleCount = metalView.sampleCount
 
         heightmapPipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
     }
