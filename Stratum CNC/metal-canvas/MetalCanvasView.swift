@@ -115,9 +115,6 @@ struct MetalCanvasView: NSViewRepresentable {
         /// left-button one — both call the same handler.
         weak var middleDragGesture: NSPanGestureRecognizer?
         private var lastMousePosition: CGPoint = .zero
-        private var zoom: Float = 100
-        private let minZoom: Float = 0.1
-        private let maxZoom: Float = 100_000
 
         init(_ parent: MetalCanvasView) {
             self.parent = parent
@@ -219,15 +216,22 @@ struct MetalCanvasView: NSViewRepresentable {
         }
 
         @objc func handleMagnification( _ gesture: NSMagnificationGestureRecognizer) {
-            guard let view = gesture.view else {
+            guard let camera = renderer?.camera, let view = gesture.view else {
                 return
             }
             if gesture.state == .changed {
+                // Reads camera.distance itself — the same value every other
+                // zoom path reads and writes — rather than a separately
+                // tracked "current zoom" float. That old separate variable
+                // is what let pinch and scroll drift apart: whichever one
+                // you used last silently moved `camera.distance` out from
+                // under the other's own private zoom level, so switching
+                // between them produced a jump instead of continuing
+                // smoothly from wherever the last zoom left off.
                 let amount = Float(gesture.magnification)
-                let newZoom = max(minZoom, min(maxZoom, zoom * (1 - amount)))
+                let newDistance = camera.distance * (1 - amount)
 
-                applyZoom(to: newZoom, towards: gesture.location(in: view), in: view)
-                zoom = newZoom
+                applyZoom(to: newDistance, towards: gesture.location(in: view), in: view)
                 gesture.magnification = 0
                 metalView?.draw()
             }

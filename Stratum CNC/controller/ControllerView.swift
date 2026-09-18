@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 import simd
 
 /// Invisible helper that keeps the tool cylinder in sync with the machine's
@@ -399,6 +400,41 @@ private struct CanvasSection: View {
         )
     }
 
+    /// Scroll-to-scrub over the g-code slider — a trackpad swipe (or mouse
+    /// wheel) anywhere over it moves the scrubber, without needing to grab
+    /// the thumb. Wired up via `ScrollWheelCapture`, which claims only
+    /// scroll-wheel events so dragging the actual `Slider` still works
+    /// exactly as before.
+    private func handleScrubScroll(_ event: NSEvent) {
+        let totalLines = gCodeModel.document.lines.count
+        guard totalLines > 0 else {
+            return
+        }
+
+        // A two-finger trackpad swipe reports both axes; whichever is
+        // larger is almost always the one intended — preferring that over
+        // always reading deltaY lets a horizontal swipe drive the scrubber
+        // too, which reads naturally for a left-to-right timeline.
+        let delta = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+            ? event.scrollingDeltaX
+            : event.scrollingDeltaY
+
+        let step: Double
+        if event.hasPreciseScrollingDeltas {
+            // Trackpad: proportional to how far you swiped rather than a
+            // fixed amount, so a longer swipe moves further through the file.
+            step = Double(delta) * Double(totalLines) * 0.002
+        } else {
+            // Mouse wheel: one deliberate chunk of the file per notch — this
+            // should feel like paging through, not like a fine nudge.
+            let notch: Double = delta > 0 ? 1 : (delta < 0 ? -1 : 0)
+            step = notch * max(1, Double(totalLines) / 200)
+        }
+
+        let newLine = Int((Double(gCodeModel.scrubLine) + step).rounded())
+        ControllerView.scrubTo(line: max(0, min(totalLines, newLine)), gCodeModel: gCodeModel, scene: scene)
+    }
+
     var body: some View {
         MetalCanvasView(objects: $scene.renderObjects)
             .overlay(
@@ -435,6 +471,7 @@ private struct CanvasSection: View {
                 .background(.ultraThinMaterial)
                 .cornerRadius(6)
                 .padding()
+                .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
             }
             .onAppear {
                 // Sync once up front — `renderObjects` otherwise still
