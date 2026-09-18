@@ -8,6 +8,8 @@
 import Foundation
 import simd
 
+// Reference https://howtomechatronics.com/tutorials/g-code-explained-list-of-most-important-g-code-commands/
+
 private enum GCodeMotion {
     case rapid
     case linear
