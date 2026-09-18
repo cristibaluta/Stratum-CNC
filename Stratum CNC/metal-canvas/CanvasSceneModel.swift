@@ -151,6 +151,13 @@ class CanvasSceneModel: ObservableObject {
     /// rather than guessing a tool size. Only ever carves with one tool for
     /// the whole file; per-segment tool switching for multi-tool programs is
     /// the M6 follow-up `HeightmapGrid.carve(segments:tool:)` already flags.
+    ///
+    /// Always carves with the current `xyOffset` — same value the GPU line
+    /// draws are shifted by (see `MetalRenderer.xyOffset`), so the shaded
+    /// heightmap surface and the wireframe toolpath preview never disagree
+    /// about where the job sits, even though they get there by different
+    /// means (this bakes the offset into the carved vertices once per carve;
+    /// the GPU path re-applies its uniform every frame).
     func updateHeightmap(stock: StockMaterial, segments: some Sequence<ToolpathSegment>, tool: ToolSpec?) {
         heightmapScrubTickCount = 0
 
@@ -160,7 +167,7 @@ class CanvasSceneModel: ObservableObject {
         }
 
         var grid = HeightmapGrid(stock: stock, cellSize: heightmapCellSize)
-        grid.carve(segments: segments, tool: tool)
+        grid.carve(segments: segments, tool: tool, offsetX: xyOffset.x, offsetY: xyOffset.y)
         heightmapMesh = HeightmapMesh(grid: grid)
     }
 

@@ -124,15 +124,23 @@ struct HeightmapGrid {
     /// pass leaves it at, so a grid can equally well be carved fresh up to
     /// any prefix of a file — that's how the scrubber will drive this once
     /// it's wired in (see the roadmap's M5 note).
-    mutating func carve(segment: ToolpathSegment, tool: ToolSpec) {
+    mutating func carve(segment: ToolpathSegment, tool: ToolSpec, offsetX: Float = 0, offsetY: Float = 0) {
         // Rapids don't cut. Every tessellated arc segment carries only the
         // `.arc` flag (see `GCodeParser.appendArc`), not `.cutting`, so both
         // need checking here.
         let cuts = segment.flags & ToolpathFlags.cutting != 0 || segment.flags & ToolpathFlags.arc != 0
         guard cuts else { return }
 
-        let start2D = SIMD2<Float>(segment.start.x, segment.start.y)
-        let end2D = SIMD2<Float>(segment.end.x, segment.end.y)
+        // `xyOffset`, applied once here rather than per-cell-sample below:
+        // translating the segment's own endpoints before the bbox/loop is
+        // exactly equivalent to shifting every sampled `cellCenter` by the
+        // same amount (it's a rigid translation), but cheaper — one add
+        // instead of one per cell — and it keeps the bounding-box math
+        // below correct for free, instead of needing its own separate
+        // widening by the offset.
+        let offset2D = SIMD2<Float>(offsetX, offsetY)
+        let start2D = SIMD2<Float>(segment.start.x, segment.start.y) + offset2D
+        let end2D = SIMD2<Float>(segment.end.x, segment.end.y) + offset2D
         let travel = end2D - start2D
         let travelLengthSquared = simd_length_squared(travel)
 
@@ -195,9 +203,9 @@ struct HeightmapGrid {
     /// callable from here (today it's only wired up as far as
     /// `CanvasSceneModel.toolDiameter`/`toolLength`, which assumes a single
     /// active tool, same as this method does).
-    mutating func carve(segments: some Sequence<ToolpathSegment>, tool: ToolSpec) {
+    mutating func carve(segments: some Sequence<ToolpathSegment>, tool: ToolSpec, offsetX: Float = 0, offsetY: Float = 0) {
         for segment in segments {
-            carve(segment: segment, tool: tool)
+            carve(segment: segment, tool: tool, offsetX: offsetX, offsetY: offsetY)
         }
     }
 }
