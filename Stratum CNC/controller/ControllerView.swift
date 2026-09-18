@@ -473,62 +473,38 @@ private struct CanvasSection: View {
     }
 
     var body: some View {
-        MetalCanvasView(objects: $scene.renderObjects,
-                        renderMode: scene.renderMode,
-                        xyOffset: scene.xyOffset,
-                        heightmapMesh: scene.heightmapMesh)
+        VStack {
+            HStack(alignment: .top, spacing: 12) {
+                MaterialPanelView(stock: $camModel.selectedStockMaterial, isStockVisible: isStockVisible)
+
+                if !gCodeModel.tools.isEmpty {
+                    Divider()
+                    ToolsPickerView(tools: gCodeModel.tools, assignments: $gCodeModel.toolSpecAssignments)
+                        .frame(width: 100)
+                }
+                Divider()
+                VStack {
+                    HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
+                        .frame(minWidth: 100)
+                    XYOffsetControlView(xyOffset: $scene.xyOffset)
+                }
+            }
+            .padding(8)
+            .frame(height: 100)
+            .background(.regularMaterial)
+            .cornerRadius(8)
+            .padding()
+
+            MetalCanvasView(objects: $scene.renderObjects,
+                            renderMode: scene.renderMode,
+                            xyOffset: scene.xyOffset,
+                            heightmapMesh: scene.heightmapMesh)
+            .cornerRadius(8)
             .overlay(
                 ToolPositionSync(connection: connection) { point in
                     scene.updateToolPosition(point)
                 }
             )
-            .overlay(alignment: .top) {
-                HStack(alignment: .top, spacing: 12) {
-                    MaterialPanelView(stock: $camModel.selectedStockMaterial,
-                                      isStockVisible: isStockVisible)
-
-                    if !gCodeModel.tools.isEmpty {
-                        Divider().frame(height: 28)
-                        ToolsPickerView(tools: gCodeModel.tools,
-                                        assignments: $gCodeModel.toolSpecAssignments)
-                        .frame(minWidth: 100)
-                    }
-                    Divider().frame(height: 28)
-                    VStack {
-                        HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
-                            .frame(minWidth: 100)
-                        XYOffsetControlView(xyOffset: $scene.xyOffset)
-                    }
-                }
-                .padding(8)
-                .background(.ultraThinMaterial)
-                .cornerRadius(6)
-                .padding()
-            }
-            .overlay(alignment: .bottomLeading) {
-                HStack(spacing: 8) {
-                    Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count)) { editing in
-                        // M5: the drag ticks themselves are throttled (see
-                        // `scrubBinding`) — this is what guarantees the
-                        // surface still ends up exactly right once the
-                        // person lets go, rather than possibly sitting a
-                        // few ticks stale.
-                        if !editing {
-                            forceHeightmapRefresh()
-                        }
-                    }
-                        .frame(minWidth: 160)
-                    Text("Line \(gCodeModel.scrubLine) / \(gCodeModel.document.lines.count)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 90, alignment: .trailing)
-                }
-                .padding(8)
-                .background(.ultraThinMaterial)
-                .cornerRadius(6)
-                .padding()
-                .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
-            }
             .overlay(alignment: .topTrailing) {
                 // M4: the wireframe/heightmap switch. `scene.renderMode`
                 // alone is enough to flip `MetalRenderer.draw(in:)`'s path —
@@ -542,14 +518,21 @@ private struct CanvasSection: View {
                             .tag(mode)
                     }
                 }
+                .frame(width: 100)
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 90)
                 .padding(8)
-                .background(.ultraThinMaterial)
-                .cornerRadius(6)
-                .padding()
             }
+
+            Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count)) { editing in
+                if !editing {
+                    forceHeightmapRefresh()
+                }
+            }
+            .background(.ultraThinMaterial)
+            .cornerRadius(8)
+            .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
+        }
             .onAppear {
                 // Sync once up front — `renderObjects` otherwise still
                 // holds `defaultScene()`'s placeholder box, not
@@ -584,24 +567,6 @@ private struct CanvasSection: View {
                 forceHeightmapRefresh()
             }
             .onChange(of: scene.xyOffset) { _, _ in
-                // Same "just state until something recarves" story as
-                // `heightmapCellSize` above — the GPU toolpath draw already
-                // moves every frame off `MetalRenderer.xyOffset` regardless
-                // (see `MetalCanvasView.updateNSView`), but the heightmap
-                // surface has the offset baked into its carved vertices
-                // (see `HeightmapGrid.carve`), so it only catches up once a
-                // recarve actually runs.
-                //
-                // `forceHeightmapRefresh()` recarves immediately and
-                // unthrottled, which is fine for a control that changes
-                // value discretely (e.g. typed numeric fields). If the
-                // eventual UI (M7) is a live-drag control instead, this call
-                // should be swapped for the same throttle-while-dragging,
-                // exact-on-release pattern `scrubBinding`/the scrub
-                // `Slider`'s `onEditingChanged` use above — recarving the
-                // whole grid on every drag tick would make the drag itself
-                // feel laggy on a large file, same reasoning as M5's
-                // `heightmapScrubTickInterval` throttle.
                 forceHeightmapRefresh()
             }
     }

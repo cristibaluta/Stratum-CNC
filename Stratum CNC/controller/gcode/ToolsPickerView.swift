@@ -16,12 +16,14 @@ struct ToolsPickerView: View {
     @Binding var assignments: [Int: ToolSpec]
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(tools, id: \.self) { tool in
-                VStack(alignment: .leading, spacing: 2) {
+
+                HStack(alignment: .center, spacing: 2) {
                     Text("T\(tool)")
                         .font(.caption2.bold())
                         .foregroundStyle(.secondary)
+
                     Picker("", selection: binding(for: tool)) {
                         Text("Unassigned").tag(ToolSpec?.none)
                         ForEach(ToolSpec.library) { spec in
