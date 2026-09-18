@@ -19,6 +19,16 @@ final class NCFileDocument: ObservableObject {
     @Published private(set) var isLoading: Bool = false
     @Published var lastError: String?
 
+    /// Distinct tool numbers referenced by `T…`/`M6` tool-change pairs in
+    /// the loaded program, in the order each first appears. Cached and
+    /// recomputed only when `lines` actually changes (see `recomputeTools`
+    /// below) rather than being a computed property — `GCodeToolpathAnalyzer`
+    /// is two `NSRegularExpression` passes over every line, and this is read
+    /// from the canvas overlay, whose containing view re-evaluates on every
+    /// `GCodeStore` publish, `scrubLine` included. `GCodeViewer` hit the same
+    /// issue for its own toolpath list; same fix here.
+    @Published private(set) var tools: [Int] = []
+
     var isLoaded: Bool {
         fileURL != nil
     }
@@ -70,6 +80,20 @@ final class NCFileDocument: ObservableObject {
         cuttingVertexPrefix = cutting
     }
 
+    /// Rebuilds `tools` from the current `lines`. Called alongside
+    /// `rebuildVertexPrefixSums` — everywhere `lines` is (re)assigned — never
+    /// on scrub.
+    private func recomputeTools() {
+        var seen = Set<Int>()
+        var ordered: [Int] = []
+        let toolpaths = GCodeToolpathAnalyzer.analyze(lines.map { (id: $0.id, text: $0.text) })
+        for toolpath in toolpaths {
+            guard let tool = toolpath.toolNumber, seen.insert(tool).inserted else { continue }
+            ordered.append(tool)
+        }
+        tools = ordered
+    }
+
     // MARK: Load
 
     private var loadTask: Task<Void, Never>?
@@ -97,6 +121,7 @@ final class NCFileDocument: ObservableObject {
                 self.lines = parsed.lines
                 self.toolpathSegments = parsed.toolpathSegments
                 self.rebuildVertexPrefixSums()
+                self.recomputeTools()
                 self.fileURL = url
                 self.fileName = fileName
                 self.isLoading = false
@@ -123,6 +148,7 @@ final class NCFileDocument: ObservableObject {
         self.lines = code.lines
         self.toolpathSegments = code.toolpathSegments
         rebuildVertexPrefixSums()
+        recomputeTools()
         self.fileName = "From CAM"
     }
 
@@ -166,6 +192,7 @@ final class NCFileDocument: ObservableObject {
         lines = parsed.lines
         toolpathSegments = parsed.toolpathSegments
         rebuildVertexPrefixSums()
+        recomputeTools()
     }
 
     // MARK: Geometry lookup
@@ -269,6 +296,7 @@ final class NCFileDocument: ObservableObject {
         toolpathSegments.removeAll()
         rapidVertexPrefix = [0]
         cuttingVertexPrefix = [0]
+        tools.removeAll()
 
         lastError = nil
         isLoading = false

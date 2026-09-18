@@ -372,12 +372,20 @@ private struct CanvasSection: View {
                 }
             )
             .overlay(alignment: .top) {
-                MaterialPanelView(stock: $camModel.selectedStockMaterial,
-                                  isStockVisible: isStockVisible)
-                    .padding(8)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(6)
-                    .padding()
+                HStack(alignment: .top, spacing: 12) {
+                    MaterialPanelView(stock: $camModel.selectedStockMaterial,
+                                      isStockVisible: isStockVisible)
+
+                    if !gCodeModel.tools.isEmpty {
+                        Divider().frame(height: 28)
+                        ToolsPickerView(tools: gCodeModel.tools,
+                                        assignments: $gCodeModel.toolSpecAssignments)
+                    }
+                }
+                .padding(8)
+                .background(.ultraThinMaterial)
+                .cornerRadius(6)
+                .padding()
             }
             .overlay(alignment: .bottomLeading) {
                 HStack(spacing: 8) {

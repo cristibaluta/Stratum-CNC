@@ -23,6 +23,12 @@ class GCodeStore: ObservableObject {
     @Published var requestedLine: Int?
     @Published var analyzedLineCount = -1
 
+    /// Spec chosen for each tool number in the current program, keyed by the
+    /// tool number itself (the `T` in `T1 M6`). Populated lazily as the
+    /// person makes a choice in `ToolsPickerView` — a tool with no entry
+    /// here just hasn't been assigned one yet.
+    @Published var toolSpecAssignments: [Int: ToolSpec] = [:]
+
     /// 1-based G-code line the scrub slider is currently parked on. `0` means
     /// nothing has run yet (empty canvas); `document.lines.count` means the
     /// whole program, which is also where this resets to whenever a file
@@ -55,6 +61,13 @@ class GCodeStore: ObservableObject {
             }
         }
         return types
+    }
+
+    /// Distinct tool numbers referenced by the loaded program's `T…`/`M6`
+    /// tool changes. Just forwards `document.tools` — that's the cached
+    /// value; see `NCFileDocument.recomputeTools`.
+    var tools: [Int] {
+        document.tools
     }
 
     func generateGCode(for toolpath: ToolpathData, canvasState: D2_CanvasState) {
