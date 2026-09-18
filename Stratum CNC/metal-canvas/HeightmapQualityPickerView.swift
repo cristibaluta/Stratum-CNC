@@ -39,7 +39,6 @@ struct HeightmapQualityPickerView: View {
                 }
             }
             .labelsHidden()
-            .frame(minWidth: 150)
         }
     }
 

@@ -29,7 +29,6 @@ struct ToolsPickerView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(minWidth: 150)
                 }
             }
         }

@@ -491,10 +491,14 @@ private struct CanvasSection: View {
                         Divider().frame(height: 28)
                         ToolsPickerView(tools: gCodeModel.tools,
                                         assignments: $gCodeModel.toolSpecAssignments)
+                        .frame(minWidth: 100)
                     }
-
                     Divider().frame(height: 28)
-                    HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
+                    VStack {
+                        HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
+                            .frame(minWidth: 100)
+                        XYOffsetControlView(xyOffset: $scene.xyOffset)
+                    }
                 }
                 .padding(8)
                 .background(.ultraThinMaterial)
