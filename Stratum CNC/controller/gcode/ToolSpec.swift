@@ -19,6 +19,11 @@ struct ToolSpec: Identifiable, Hashable {
     let diameterMM: Double
     let flutes: Int
     let kind: Kind
+    /// Included (full) tip angle in degrees, for tools whose cutting profile
+    /// is a cone rather than a flat or spherical bottom (`.vBit`, some
+    /// `.engraver` bits). `nil` for tools where this doesn't apply, or where
+    /// it hasn't been specified yet.
+    var tipAngleDegrees: Double? = nil
 
     enum Kind: String {
         case endMill = "End Mill"
@@ -43,9 +48,9 @@ extension ToolSpec {
         ToolSpec(name: "3/8\" Flat End Mill", diameterMM: 9.525, flutes: 2, kind: .endMill),
         ToolSpec(name: "1/8\" Ball Nose", diameterMM: 3.175, flutes: 2, kind: .ballNose),
         ToolSpec(name: "1/4\" Ball Nose", diameterMM: 6.35, flutes: 2, kind: .ballNose),
-        ToolSpec(name: "60° V-Bit", diameterMM: 6.35, flutes: 1, kind: .vBit),
-        ToolSpec(name: "90° V-Bit", diameterMM: 6.35, flutes: 1, kind: .vBit),
-        ToolSpec(name: "0.8mm Engraving Bit", diameterMM: 0.8, flutes: 1, kind: .engraver),
+        ToolSpec(name: "60° V-Bit", diameterMM: 6.35, flutes: 1, kind: .vBit, tipAngleDegrees: 60),
+        ToolSpec(name: "90° V-Bit", diameterMM: 6.35, flutes: 1, kind: .vBit, tipAngleDegrees: 90),
+        ToolSpec(name: "0.8mm Engraving Bit", diameterMM: 0.8, flutes: 1, kind: .engraver, tipAngleDegrees: 30),
         ToolSpec(name: "1/8\" Drill Bit", diameterMM: 3.175, flutes: 2, kind: .drill),
         ToolSpec(name: "1/4\" Drill Bit", diameterMM: 6.35, flutes: 2, kind: .drill),
     ]
