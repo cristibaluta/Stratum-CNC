@@ -120,7 +120,7 @@ class MetalRenderer: NSObject {
         }
         self.device = defaultDevice
         metalView.device = defaultDevice
-        metalView.clearColor = MTLClearColor(red: 0.1, green: 0.11, blue: 0.13, alpha: 1.0)
+        metalView.clearColor = MTLClearColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 1.0)
         metalView.depthStencilPixelFormat = .depth32Float
 
         self.commandQueue = device.makeCommandQueue()

@@ -107,7 +107,7 @@ class ProjectModel: ObservableObject {
         let defaultStock = StockMaterial(
             name: "Workpiece",
             material: .aluminum,
-            geometry: .rectangular(width: 100, height: 50, depth: 10)
+            geometry: .rectangular(width: 100, height: 100, depth: 10)
         )
 
         camModel = CAMModel(selectedStockMaterial: projectData.stock ?? defaultStock,

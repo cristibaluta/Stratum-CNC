@@ -96,7 +96,7 @@ final class ProjectsStore: ObservableObject {
             throw ProjectError.projectNotFound
         }
 
-        let lastUsedGeometry = StockGeometry.rectangular(width: 150, height: 25, depth: 5)
+        let lastUsedGeometry = StockGeometry.rectangular(width: 100, height: 100, depth: 10)
         let lastStockVisibility = true
         let lastStockUsed = StockMaterial(name: "Aluminum",
                                           material: .aluminum,
