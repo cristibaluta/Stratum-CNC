@@ -100,8 +100,14 @@ class CanvasSceneModel: ObservableObject {
     /// marker) untouched. `ControllerView` calls this whenever
     /// `CAMModel.selectedStockMaterial` changes, so the box drawn here always
     /// matches whatever was last set in `MaterialPanelView`.
+    ///
+    /// The static workbed and anchor are rebuilt here too: they're flat, and
+    /// sit at the stock's bottom face, so a change in stock depth moves them.
     func updateStock(_ stock: StockMaterial) {
         renderObjects.updating(.stockBox(for: stock))
+        for fixture in RenderObject.fixtures(for: stock) {
+            renderObjects.updating(fixture)
+        }
     }
 
     /// Rebuilds the toolpath preview from a freshly (re)parsed G-code file,

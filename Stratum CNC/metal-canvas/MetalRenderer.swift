@@ -133,10 +133,10 @@ class MetalRenderer: NSObject {
 
     /// Forwarded straight from `CanvasSceneModel.xyOffset` (see
     /// `MetalCanvasView.updateNSView`). Applied to `.toolpathRapid`/
-    /// `.toolpathCutting`/`.tool` batches in `drawBatch` — the stock box and
-    /// axes (`role == .stock`/`nil`) always get `Uniforms.offset == .zero`
-    /// and stay put, while the toolpath preview and the tool marker
-    /// following it shift together. The heightmap surface doesn't read
+    /// `.toolpathCutting`/`.tool` batches in `drawBatch` — the stock box,
+    /// axes, workbed, and anchor (`role == .stock`/`nil`/`.workbed`/`.anchor`)
+    /// always get `Uniforms.offset == .zero` and stay put, while the toolpath
+    /// preview and the tool marker following it shift together. The heightmap surface doesn't read
     /// this at all; it gets its offset baked into the carved vertices
     /// instead (see `HeightmapGrid.carve`), which is why this alone is
     /// never enough to move the heightmap mode's rendering.
@@ -152,8 +152,8 @@ class MetalRenderer: NSObject {
     /// Roles from the wireframe scene that heightmap mode leaves out —
     /// the shaded surface stands in for both the stock outline and the
     /// toolpath preview. Everything else in `renderBatches` (axes, the tool
-    /// marker — both have `role == nil` or `.tool`) still draws normally,
-    /// so there's still spatial context while looking at the carved shape.
+    /// marker, and the workbed/anchor fixtures) still draws normally, so
+    /// there's still spatial context while looking at the carved shape.
     private let heightmapWireframeHiddenRoles: Set<RenderRole> = [.stock, .toolpathRapid, .toolpathCutting]
 
     // Fixed appearance for the heightmap surface. Simple constants for now —
@@ -524,7 +524,7 @@ private extension MetalRenderer {
         // marker sits at a machine-reported/scrubbed position that's only
         // meaningful relative to the (possibly offset) job, so it needs to
         // track the same shift as the toolpath it's following. The stock
-        // box and axes (`role == .stock`/`nil`) are drawn at their true
+        // box, axes, and the workbed/anchor fixtures are drawn at their true
         // position regardless, same as the doc comment on `xyOffset` above
         // explains.
         let offset: SIMD2<Float> = (batch.role == .toolpathRapid || batch.role == .toolpathCutting || batch.role == .tool) ? xyOffset : .zero

@@ -28,6 +28,13 @@ enum RenderRole: Hashable {
     case toolpathCutting
     /// The cutter itself, drawn at true size at the machine's current position.
     case tool
+    /// Static machine fixture: the flat outline of the work bed the stock
+    /// sits on. Lives at the stock's bottom Z, so it's rebuilt whenever the
+    /// stock changes (see `CanvasSceneModel.updateStock`).
+    case workbed
+    /// Static machine fixture: the L-shaped anchor (fence) the stock is
+    /// pushed against. Same Z/rebuild rules as `.workbed`.
+    case anchor
 }
 
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
@@ -309,6 +316,103 @@ extension RenderObject {
         return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
     }
 
+    // MARK: Machine fixtures (static, flat)
+
+    /// The two static fixtures — work bed and anchor — at height `z`.
+    static func fixtures(bottomZ z: Float) -> [RenderObject] {
+        [workbed(z: z), anchor(z: z)]
+    }
+
+    /// The fixtures placed at `stock`'s bottom face, which is where they sit
+    /// physically. Their Z follows the stock's depth, so `CanvasSceneModel`
+    /// rebuilds them alongside the stock box whenever the stock changes.
+    static func fixtures(for stock: StockMaterial) -> [RenderObject] {
+        fixtures(bottomZ: bottomZ(of: stock))
+    }
+
+    /// Z of `stock`'s bottom face — the same value each case of
+    /// `stockBox(for:)` uses for its own `bottomZ`.
+    private static func bottomZ(of stock: StockMaterial) -> Float {
+        switch stock.geometry {
+            case let .rectangular(_, _, depth):  return -Float(depth)
+            case let .cylindrical(_, length):    return -Float(length)
+            case let .disk(_, _, depth):         return -Float(depth)
+        }
+    }
+
+    /// The work bed: a flat, closed rectangular outline in the XY plane at
+    /// `z` — no thickness, no faces. Defaults to 200×200mm starting at
+    /// (-15, -15).
+    ///
+    /// Static: no `xyOffset` is applied to `.workbed` (see
+    /// `MetalRenderer.drawBatch`), so it stays where the machine physically is
+    /// while the job is nudged around on top of it.
+    static func workbed(z: Float,
+                        origin: SIMD2<Float> = SIMD2<Float>(-15, -15),
+                        width: Float = 200,
+                        height: Float = 200,
+                        color: SIMD4<Float> = SIMD4<Float>(0.55, 0.6, 0.65, 1.0)) -> RenderObject {
+
+        let corners = [
+            origin,
+            SIMD2<Float>(origin.x + width, origin.y),
+            SIMD2<Float>(origin.x + width, origin.y + height),
+            SIMD2<Float>(origin.x,         origin.y + height)
+        ]
+        return flatOutline(corners, z: z, role: .workbed, color: color)
+    }
+
+    /// The anchor: a flat, closed L-shaped outline in the XY plane at `z`.
+    ///
+    /// Positioned by its *inside* corner (default: the work origin, 0,0), so
+    /// the L wraps around the origin's lower-left: one arm runs along +X below
+    /// it, the other along +Y to its left. `legLength` is each arm's full
+    /// outer length, measured from the outer corner; `thickness` is the arm
+    /// width. With the defaults the outer corner lands on (-15, -15) —
+    /// exactly the work bed's origin corner.
+    ///
+    ///   (not to scale; default coordinates shown)
+    ///
+    ///   (-15,65) ┌──┐ (0,65)
+    ///            │  │
+    ///            │  └──────┐ (65,0)     ← inner elbow is `insideCorner` (0,0)
+    ///            └─────────┘ (65,-15)
+    ///         (-15,-15) = outer corner
+    ///
+    /// Static, like `workbed` — no `xyOffset`.
+    static func anchor(z: Float,
+                       insideCorner: SIMD2<Float> = .zero,
+                       legLength: Float = 80,
+                       thickness: Float = 15,
+                       color: SIMD4<Float> = SIMD4<Float>(0.95, 0.55, 0.15, 1.0)) -> RenderObject {
+
+        let outer = insideCorner - SIMD2<Float>(repeating: thickness)
+
+        let corners = [
+            outer,                                                       // outer corner
+            SIMD2<Float>(outer.x + legLength, outer.y),                  // X arm, far end, outer edge
+            SIMD2<Float>(outer.x + legLength, insideCorner.y),           // X arm, far end, inner edge
+            insideCorner,                                                // inside corner
+            SIMD2<Float>(insideCorner.x,      outer.y + legLength),      // Y arm, far end, inner edge
+            SIMD2<Float>(outer.x,             outer.y + legLength)       // Y arm, far end, outer edge
+        ]
+        return flatOutline(corners, z: z, role: .anchor, color: color)
+    }
+
+    /// Closed polygon outline at constant `z`. One `.lineStrip` that returns
+    /// to its first point. No `occluderFaces` on purpose: these are 2D, so
+    /// there's no solid for anything to hide behind.
+    private static func flatOutline(_ corners: [SIMD2<Float>],
+                                    z: Float,
+                                    role: RenderRole,
+                                    color: SIMD4<Float>) -> RenderObject {
+        var points = corners.map { SIMD3<Float>($0.x, $0.y, z) }
+        if let first = points.first {
+            points.append(first)
+        }
+        return RenderObject(role: role, points: points, color: color, primitive: .lineStrip)
+    }
+
     static func toolpath(from segments: [ToolpathSegment],
                          rapidColor: SIMD4<Float> = SIMD4<Float>(1.0, 0.85, 0.2, 1.0),
                          cuttingColor: SIMD4<Float> = SIMD4<Float>(0.2, 0.8, 1.0, 1.0)) -> [RenderObject] {
@@ -544,6 +648,12 @@ extension RenderObject {
 //    }
 
     static func defaultScene() -> [RenderObject] {
-        axes() + [.stockBox()]
+        // `stockBox()`'s default bottomZ — the real stock's bottom takes over
+        // once `CanvasSceneModel.updateStock` runs.
+        let stockBottomZ: Float = -10
+        var scene = axes()
+        scene.append(.stockBox())
+        scene.append(contentsOf: fixtures(bottomZ: stockBottomZ))
+        return scene
     }
 }
