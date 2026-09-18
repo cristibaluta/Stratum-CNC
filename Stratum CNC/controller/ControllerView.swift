@@ -100,7 +100,14 @@ struct ControllerView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Left panel with G-code preview, slider and start buttons
-            if gCodeModel.document.lines.isEmpty {
+            if gCodeModel.document.isLoading {
+                VStack {
+                    Spacer()
+                    loadingState
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if gCodeModel.document.lines.isEmpty {
                 VStack {
                     Spacer()
                     emptyState
@@ -268,6 +275,18 @@ struct ControllerView: View {
         }
     }
 
+    // MARK: - Loading state
+
+    private var loadingState: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Loading G-code file…")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     // MARK: - Empty state
 
     private var emptyState: some View {
@@ -306,6 +325,7 @@ struct ControllerView: View {
                         Label("Load G-code File…", systemImage: "folder")
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(gCodeModel.document.isLoading)
                 }
             }
         }

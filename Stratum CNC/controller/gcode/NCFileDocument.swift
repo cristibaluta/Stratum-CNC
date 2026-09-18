@@ -107,7 +107,19 @@ final class NCFileDocument: ObservableObject {
 
         let fileName = url.lastPathComponent
 
-        loadTask = Task { [weak self] in
+        // `Task.detached`, not `Task { }`: `Task { }` inherits the actor
+        // context of the code that creates it, and this method is
+        // `@MainActor`-isolated — so the old `Task { }` here started life on
+        // the main actor. `loadAndParseFile` below being `nonisolated`
+        // doesn't change that: a `nonisolated` function has no actor of its
+        // own, so it just keeps running on whatever executor its caller was
+        // already on. Net effect: the file read and the parse (both
+        // synchronous, blocking work) were quietly running on the main
+        // thread the whole time, freezing the UI on anything but a small
+        // file. `Task.detached` isn't bound to any actor, so this now
+        // genuinely runs on the background concurrent pool; only the final
+        // state update below hops back to the main actor.
+        loadTask = Task.detached { [weak self] in
             do {
                 let parsed = try await Self.loadAndParseFile(url: url)
 
@@ -118,13 +130,7 @@ final class NCFileDocument: ObservableObject {
                     return
                 }
 
-                self.lines = parsed.lines
-                self.toolpathSegments = parsed.toolpathSegments
-                self.rebuildVertexPrefixSums()
-                self.recomputeTools()
-                self.fileURL = url
-                self.fileName = fileName
-                self.isLoading = false
+                await self.finishLoad(parsed: parsed, url: url, fileName: fileName)
 
             } catch {
 
@@ -135,10 +141,28 @@ final class NCFileDocument: ObservableObject {
                     return
                 }
 
-                self.isLoading = false
-                self.lastError = "Couldn't read file: \(error.localizedDescription)"
+                await self.failLoad(error)
             }
         }
+    }
+
+    /// Applies a successful parse. Runs on the main actor (implicit — this
+    /// is a member of `NCFileDocument`, which is `@MainActor`) so it's safe
+    /// to touch every `@Published` property directly; called with `await`
+    /// from the background `Task.detached` in `load(from:)`.
+    private func finishLoad(parsed: ParsedGCode, url: URL, fileName: String) {
+        self.lines = parsed.lines
+        self.toolpathSegments = parsed.toolpathSegments
+        self.rebuildVertexPrefixSums()
+        self.recomputeTools()
+        self.fileURL = url
+        self.fileName = fileName
+        self.isLoading = false
+    }
+
+    private func failLoad(_ error: Error) {
+        self.isLoading = false
+        self.lastError = "Couldn't read file: \(error.localizedDescription)"
     }
 
     func load(from string: String) {
