@@ -43,3 +43,55 @@ fragment float4 fragment_main(VertexOutput in [[stage_in]], constant Uniforms& u
     }
     return in.color;
 }
+
+// MARK: - Heightmap (2.5D stock preview)
+//
+// A separate, much simpler pipeline from the line pass above: solid shaded
+// triangles instead of dashable lines, so there's no `dist`/discard logic
+// here at all. Mirrors `HeightmapUniforms` / `HeightmapMesh.Vertex` in
+// MetalRenderer.swift and HeightmapMesh.swift byte-for-byte.
+
+struct HeightmapUniforms {
+    float4x4 modelViewProjectionMatrix;
+    // Direction FROM a lit point on the surface TOWARD the light - i.e.
+    // already the vector `dot()` below wants, not the light's direction of
+    // travel. Doesn't need to arrive pre-normalized; the fragment shader
+    // normalizes it.
+    float3 lightDirection;
+    float4 baseColor;
+    // Fraction of `baseColor` that shows even where the surface faces
+    // fully away from the light (0 = unlit side is pure black, 1 = no
+    // shading at all). Keeps the carved shape legible without needing a
+    // second light or real ambient occlusion yet.
+    float ambient;
+};
+
+struct HeightmapVertexInput {
+    float3 position [[attribute(0)]];
+    float3 normal   [[attribute(1)]];
+};
+
+struct HeightmapVertexOutput {
+    float4 position [[position]];
+    float3 worldNormal;
+};
+
+vertex HeightmapVertexOutput vertex_heightmap(HeightmapVertexInput in [[stage_in]],
+                                              constant HeightmapUniforms& uniforms [[buffer(1)]]) {
+    HeightmapVertexOutput out;
+    out.position = uniforms.modelViewProjectionMatrix * float4(in.position, 1.0);
+    // `in.position` is already in world/machine space - this renderer has
+    // no per-object model matrix (see Camera.swift: the MVP is view *
+    // projection only) - so the normal needs no transform beyond carrying
+    // it through for per-fragment interpolation.
+    out.worldNormal = in.normal;
+    return out;
+}
+
+fragment float4 fragment_heightmap(HeightmapVertexOutput in [[stage_in]],
+                                   constant HeightmapUniforms& uniforms [[buffer(1)]]) {
+    float3 n = normalize(in.worldNormal);
+    float diffuse = max(dot(n, normalize(uniforms.lightDirection)), 0.0);
+    float lit = uniforms.ambient + (1.0 - uniforms.ambient) * diffuse;
+    return float4(uniforms.baseColor.rgb * lit, uniforms.baseColor.a);
+}

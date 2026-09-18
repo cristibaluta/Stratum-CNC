@@ -38,6 +38,29 @@ private struct RenderBatch {
     var occluderVertexCount: Int = 0
 }
 
+/// GPU-backed draw call for the heightmap surface — separate from
+/// `RenderBatch` because it's an indexed triangle list carrying normals for
+/// shading, not a line list/strip carrying a dash distance. The two have
+/// nothing in common at the vertex level, so they get their own pipeline,
+/// their own uniforms, and their own tiny batch type rather than being
+/// squeezed into the line-drawing path.
+private struct HeightmapBatch {
+    var vertexBuffer: MTLBuffer
+    var indexBuffer: MTLBuffer
+    var indexCount: Int
+}
+
+/// Mirrors `HeightmapUniforms` in Shaders.metal byte-for-byte. Same
+/// direct-copy approach as `Uniforms` (see `Camera.swift`) —
+/// `encoder.setVertexBytes(&uniforms, ...)` relies on Swift's simd types
+/// sharing their memory layout with Metal's shader-side vector/matrix types.
+struct HeightmapUniforms {
+    var modelViewProjectionMatrix: matrix_float4x4
+    var lightDirection: SIMD3<Float>
+    var baseColor: SIMD4<Float>
+    var ambient: Float
+}
+
 private extension RenderPrimitive {
     var mtlPrimitiveType: MTLPrimitiveType {
         switch self {
@@ -71,6 +94,11 @@ class MetalRenderer: NSObject {
     /// Used for the occluder-face pre-pass — it needs to affect the depth
     /// buffer only, never what's actually on screen.
     private var depthOnlyPipelineState: MTLRenderPipelineState!
+    /// Solid-shaded triangle pipeline for the heightmap surface — entirely
+    /// separate from `pipelineState`/`depthOnlyPipelineState` above, which
+    /// only ever draw lines (or, for the occluder pre-pass, invisible
+    /// depth-only faces). See `setupHeightmapPipeline`.
+    private var heightmapPipelineState: MTLRenderPipelineState!
 
     // Depth states for the two-pass hidden-line render (see `draw(in:)`):
     // `depthStateVisible` is the normal pass, `depthStateHidden` is the
@@ -96,6 +124,34 @@ class MetalRenderer: NSObject {
 
     var camera = Camera()
     private var renderBatches: [RenderBatch] = []
+
+    /// Which draw path `draw(in:)` takes this frame. Flipping this alone is
+    /// enough to switch renderers — see `CanvasRenderMode`. M4 is what wires
+    /// this to a `CanvasSceneModel` published property and an actual UI
+    /// toggle; for now it's set directly.
+    var renderMode: CanvasRenderMode = .wireframe
+
+    /// The heightmap surface's current GPU buffers, if a mesh has been
+    /// uploaded. `nil` — the default, and also what a mesh with no
+    /// triangles collapses to in `updateHeightmapMesh` — means heightmap
+    /// mode simply draws no surface (still draws axes/tool; see
+    /// `drawHeightmapScene`) rather than crashing or drawing stale geometry.
+    private var heightmapBatch: HeightmapBatch?
+
+    /// Roles from the wireframe scene that heightmap mode leaves out —
+    /// the shaded surface stands in for both the stock outline and the
+    /// toolpath preview. Everything else in `renderBatches` (axes, the tool
+    /// marker — both have `role == nil` or `.tool`) still draws normally,
+    /// so there's still spatial context while looking at the carved shape.
+    private let heightmapWireframeHiddenRoles: Set<RenderRole> = [.stock, .toolpathRapid, .toolpathCutting]
+
+    // Fixed appearance for the heightmap surface. Simple constants for now —
+    // worth revisiting once there's a reason to color-code the surface (e.g.
+    // remaining depth-of-cut, per the roadmap's stretch goal) rather than a
+    // single flat tint.
+    private let heightmapLightDirection = simd_normalize(SIMD3<Float>(0.4, -0.6, 0.8))
+    private let heightmapBaseColor = SIMD4<Float>(0.75, 0.72, 0.68, 1.0) // neutral "machined aluminum" gray
+    private let heightmapAmbient: Float = 0.35
 
     // Kept around only so we can compute a bounding sphere for the initial
     // "fit to screen" — the GPU buffers built into `renderBatches` don't carry
@@ -126,6 +182,7 @@ class MetalRenderer: NSObject {
         self.commandQueue = device.makeCommandQueue()
 
         setupPipeline(metalView: metalView)
+        setupHeightmapPipeline(metalView: metalView)
         setupDepthStates()
 
         renderBatches = [buildRenderBatch(from: .stockBox())].compactMap { $0 }
@@ -232,6 +289,44 @@ class MetalRenderer: NSObject {
         depthOnlyPipelineState = try? device.makeRenderPipelineState(descriptor: depthOnlyDescriptor)
     }
 
+    /// Pipeline for the heightmap surface: color writes on (unlike
+    /// `depthOnlyPipelineState`), standard triangle fill, its own vertex
+    /// layout (position + normal, no color/dist — see `HeightmapMesh.Vertex`)
+    /// and its own shader pair. Reuses `depthStateVisible` at draw time
+    /// (see `drawHeightmapScene`) rather than needing a third depth-stencil
+    /// state — a filled surface just wants an ordinary `.less` test, the
+    /// same as pass 1 of the wireframe render.
+    private func setupHeightmapPipeline(metalView: MTKView) {
+
+        guard let library = device.makeDefaultLibrary(),
+              let vertexFunction = library.makeFunction(name: "vertex_heightmap"),
+              let fragmentFunction = library.makeFunction(name: "fragment_heightmap") else {
+            print("❌ Error: Could not find heightmap shader functions.")
+            return
+        }
+
+        let vertexDescriptor = MTLVertexDescriptor()
+        // Position
+        vertexDescriptor.attributes[0].format = .float3
+        vertexDescriptor.attributes[0].offset = 0
+        vertexDescriptor.attributes[0].bufferIndex = 0
+        // Normal
+        vertexDescriptor.attributes[1].format = .float3
+        vertexDescriptor.attributes[1].offset = MemoryLayout<SIMD3<Float>>.stride
+        vertexDescriptor.attributes[1].bufferIndex = 0
+
+        vertexDescriptor.layouts[0].stride = MemoryLayout<HeightmapMesh.Vertex>.stride
+
+        let pipelineDescriptor = MTLRenderPipelineDescriptor()
+        pipelineDescriptor.vertexFunction = vertexFunction
+        pipelineDescriptor.fragmentFunction = fragmentFunction
+        pipelineDescriptor.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
+        pipelineDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat
+        pipelineDescriptor.vertexDescriptor = vertexDescriptor
+
+        heightmapPipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+    }
+
     /// Two depth-stencil states, one per pass of the hidden-line render:
     /// - `depthStateVisible`: ordinary depth test (`.less`), writes depth.
     ///   Whatever's actually in front ends up in the depth buffer.
@@ -294,6 +389,41 @@ class MetalRenderer: NSObject {
         }
 
         renderBatches = updated
+    }
+
+    /// Rebuilds the heightmap's GPU buffers from a freshly-built
+    /// `HeightmapMesh`. Unlike `updateGeometry`'s per-object buffer reuse,
+    /// this always re-uploads everything — a `HeightmapMesh` has no
+    /// `RenderObject`-style stable identity to diff against yet, and
+    /// vertex/index counts change shape on every carve anyway (this isn't
+    /// the scrubber's "same buffer, narrower draw count" case). Fine for
+    /// now: this is meant to be called once after a full carve, or on a
+    /// throttled scrub tick — not every frame. Revisit if that stops being
+    /// true (see the roadmap's M5 note on incremental updates).
+    ///
+    /// `nil`, or a mesh with no triangles, clears the surface rather than
+    /// leaving stale geometry on screen.
+    func updateHeightmapMesh(_ mesh: HeightmapMesh?) {
+        guard let mesh, !mesh.vertices.isEmpty, !mesh.indices.isEmpty else {
+            heightmapBatch = nil
+            return
+        }
+
+        guard let vertexBuffer = device.makeBuffer(
+                bytes: mesh.vertices,
+                length: mesh.vertices.count * MemoryLayout<HeightmapMesh.Vertex>.stride,
+                options: .storageModeShared),
+              let indexBuffer = device.makeBuffer(
+                bytes: mesh.indices,
+                length: mesh.indices.count * MemoryLayout<UInt32>.stride,
+                options: .storageModeShared) else {
+            heightmapBatch = nil
+            return
+        }
+
+        heightmapBatch = HeightmapBatch(vertexBuffer: vertexBuffer,
+                                        indexBuffer: indexBuffer,
+                                        indexCount: mesh.indices.count)
     }
 
     /// Centers and zooms the camera to frame everything currently in
@@ -420,29 +550,51 @@ extension MetalRenderer: MTKViewDelegate {
 
         let mvp = camera.updateMatrix() // same for every batch/pass this frame
 
+        switch renderMode {
+            case .wireframe:
+                drawWireframe(mvp: mvp, encoder: renderEncoder)
+            case .heightmap:
+                drawHeightmapScene(mvp: mvp, encoder: renderEncoder)
+        }
+
+        renderEncoder.endEncoding()
+        if let drawable = view.currentDrawable {
+            commandBuffer.present(drawable)
+        }
+        commandBuffer.commit()
+    }
+}
+
+private extension MetalRenderer {
+
+    /// The original three-pass hidden-line render, unchanged from before
+    /// heightmap mode existed: every batch in `renderBatches` — stock,
+    /// toolpath, tool, axes.
+    func drawWireframe(mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+
         // Pass 0 — occluder faces. Depth-only, color writes off, drawn
         // before any edges so their surfaces are already in the depth
         // buffer when the edge passes run. A small depth bias pushes these
         // faces a hair farther away than they really are, so an edge lying
         // exactly on its own solid's surface reliably wins pass 1 instead
         // of z-fighting with the face it's coincident with.
-        renderEncoder.setRenderPipelineState(depthOnlyPipelineState)
-        renderEncoder.setDepthStencilState(depthStateVisible)
-        renderEncoder.setDepthBias(occluderDepthBias, slopeScale: occluderDepthBiasSlope, clamp: 0)
+        encoder.setRenderPipelineState(depthOnlyPipelineState)
+        encoder.setDepthStencilState(depthStateVisible)
+        encoder.setDepthBias(occluderDepthBias, slopeScale: occluderDepthBiasSlope, clamp: 0)
         for batch in renderBatches {
             guard let occluderBuffer = batch.occluderBuffer, batch.occluderVertexCount > 0 else {
                 continue
             }
-            drawOccluder(occluderBuffer, vertexCount: batch.occluderVertexCount, mvp: mvp, encoder: renderEncoder)
+            drawOccluder(occluderBuffer, vertexCount: batch.occluderVertexCount, mvp: mvp, encoder: encoder)
         }
-        renderEncoder.setDepthBias(0, slopeScale: 0, clamp: 0)
-        renderEncoder.setRenderPipelineState(pipelineState)
+        encoder.setDepthBias(0, slopeScale: 0, clamp: 0)
+        encoder.setRenderPipelineState(pipelineState)
 
         // Pass 1 — visible geometry. Normal depth test, writes depth, drawn
         // however each object specifies (solid, or its own dash pattern).
-        renderEncoder.setDepthStencilState(depthStateVisible)
+        encoder.setDepthStencilState(depthStateVisible)
         for batch in renderBatches {
-            drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0.0, encoder: renderEncoder)
+            drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0.0, encoder: encoder)
         }
 
         // Pass 2 — hidden geometry. Re-draws every batch with the depth
@@ -452,7 +604,7 @@ extension MetalRenderer: MTKViewDelegate {
         // so it stays fully visible — just not dashed — wherever it's
         // behind the stock.
         if showHiddenLines {
-            renderEncoder.setDepthStencilState(depthStateHidden)
+            encoder.setDepthStencilState(depthStateHidden)
             for batch in renderBatches {
                 let dash: Float
                 if batch.role == .stock {
@@ -460,14 +612,48 @@ extension MetalRenderer: MTKViewDelegate {
                 } else {
                     dash = batch.isDashed ? batch.dashLength : 0.0
                 }
-                drawBatch(batch, mvp: mvp, dashLength: dash, encoder: renderEncoder)
+                drawBatch(batch, mvp: mvp, dashLength: dash, encoder: encoder)
             }
         }
+    }
 
-        renderEncoder.endEncoding()
-        if let drawable = view.currentDrawable {
-            commandBuffer.present(drawable)
+    /// Heightmap mode: axes and the tool marker still draw as ordinary
+    /// wireframe (a single normal-depth pass, no occluder pre-pass and no
+    /// hidden-dashed pass 2 — the shaded surface below already gives the
+    /// scene a real "inside" the way the wireframe-only scene never could,
+    /// so there's nothing left for the hidden-line trick to do), then the
+    /// heightmap surface itself as solid shaded triangles.
+    func drawHeightmapScene(mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+        encoder.setRenderPipelineState(pipelineState)
+        encoder.setDepthStencilState(depthStateVisible)
+        for batch in renderBatches where batch.role.map({ !heightmapWireframeHiddenRoles.contains($0) }) ?? true {
+            drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0.0, encoder: encoder)
         }
-        commandBuffer.commit()
+
+        guard let heightmapBatch, let heightmapPipelineState else {
+            return
+        }
+
+        encoder.setRenderPipelineState(heightmapPipelineState)
+        encoder.setDepthStencilState(depthStateVisible)
+        // Winding/culling only matter for this pass — every other batch in
+        // this file draws lines, which culling doesn't affect. A fresh
+        // `MTLRenderCommandEncoder` is created every frame (see `draw(in:)`
+        // above), so this never leaks into the next frame's wireframe pass.
+        encoder.setFrontFacing(.counterClockwise) // matches HeightmapMesh's winding — see its TODO(M3) note
+        encoder.setCullMode(.back)
+
+        var uniforms = HeightmapUniforms(modelViewProjectionMatrix: mvp,
+                                         lightDirection: heightmapLightDirection,
+                                         baseColor: heightmapBaseColor,
+                                         ambient: heightmapAmbient)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
+        encoder.setVertexBuffer(heightmapBatch.vertexBuffer, offset: 0, index: 0)
+        encoder.drawIndexedPrimitives(type: .triangle,
+                                      indexCount: heightmapBatch.indexCount,
+                                      indexType: .uint32,
+                                      indexBuffer: heightmapBatch.indexBuffer,
+                                      indexBufferOffset: 0)
     }
 }
