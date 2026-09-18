@@ -50,44 +50,39 @@ struct ControllerView: View {
         )
     }
 
-    /// Drives the scrub slider. `Slider` needs a `Double`, but the scrub
-    /// position is really a 1-based G-code line, so this rounds to the
-    /// nearest line on every drag tick.
-    private var scrubBinding: Binding<Double> {
-        Binding(
-            get: { Double(gCodeModel.scrubLine) },
-            set: { newValue in
-                scrubTo(line: Int(newValue.rounded()))
-            }
-        )
-    }
-
     /// Parks the scrubber — and everything that follows it, the G-code
     /// table's selection and the Metal canvas — on `line`. Shared by the
-    /// slider (`scrubBinding`, above) and by manually selecting a row in
+    /// canvas section's slider and by manually selecting a row in
     /// `GCodeTableView` (wired up as `onLineSelected` where `GCodeViewer` is
     /// built, below), so the two stay interchangeable: dragging the slider
     /// moves the table's selection, and clicking a row moves the slider.
+    /// Also called from `CanvasSection`'s own slider — kept as one free
+    /// function (rather than duplicated in both places) since both need the
+    /// exact same guard/update sequence.
     ///
-    /// Deliberately does *not* call `ControllerModel.updateToolpath` here —
+    /// Deliberately does *not* call `CanvasSceneModel.updateToolpath` here —
     /// that re-tessellates its segments into a brand-new `RenderObject`
     /// (new `id`), which forces `MetalRenderer` to rebuild the GPU buffer
     /// from scratch. On a large file, doing that on every tick of a drag
     /// scaled with however far into the file you'd scrubbed, so dragging
     /// further in got progressively slower. The full-length toolpath is
-    /// already uploaded once (`onAppear`/`onChange` below call
+    /// already uploaded once (`onAppear`/`onChange` in `CanvasSection` call
     /// `updateToolpath` with the *whole* file); scrubbing only needs to
     /// change how much of that existing buffer is visible, via
     /// `setToolpathVisibleVertexCounts` — an O(1) lookup plus an in-place
     /// field mutation, no matter how far into the file the slider sits.
     private func scrubTo(line: Int) {
+        Self.scrubTo(line: line, gCodeModel: gCodeModel, scene: model.scene)
+    }
+
+    fileprivate static func scrubTo(line: Int, gCodeModel: GCodeStore, scene: CanvasSceneModel) {
         guard line != gCodeModel.scrubLine else { return }
 
         gCodeModel.scrubLine = line
         gCodeModel.requestedLine = line
 
         let counts = gCodeModel.document.toolpathVertexCounts(upTo: line)
-        model.setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
+        scene.setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
 
         // Move the cutter marker to wherever the scrubbed path ends, so the
         // canvas reads as "the tool is here" rather than just a partially-
@@ -98,7 +93,7 @@ struct ControllerView: View {
         // `.last` on the slice is O(1); this doesn't materialize the prefix
         // into an `Array` the way the old code did.
         if let last = gCodeModel.document.toolpathSegments(upTo: line).last {
-            model.updateToolPosition(last.end)
+            scene.updateToolPosition(last.end)
         }
     }
 
@@ -113,47 +108,11 @@ struct ControllerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                MetalCanvasView(objects: $model.renderObjects)
+                CanvasSection(scene: model.scene, gCodeModel: gCodeModel,
+                              camModel: camModel, connection: model.connection)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .padding(.trailing, -16)
-                    .overlay(
-                        ToolPositionSync(connection: model.connection) { point in
-                            model.updateToolPosition(point)
-                        }
-                    )
-                    .overlay(alignment: .bottomLeading) {
-                        HStack(spacing: 8) {
-                            Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count))
-                                .frame(minWidth: 160)
-                            Text("Line \(gCodeModel.scrubLine) / \(gCodeModel.document.lines.count)")
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .frame(minWidth: 90, alignment: .trailing)
-                        }
-                        .padding(8)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(6)
-                        .padding()
-                    }
-                    .onAppear {
-                        // Sync once up front — `renderObjects` otherwise still
-                        // holds `defaultScene()`'s placeholder box, not
-                        // whatever material the project actually has selected.
-                        model.updateStock(camModel.selectedStockMaterial)
-                        model.updateToolpath(gCodeModel.document.toolpathSegments)
-                        gCodeModel.scrubLine = gCodeModel.document.lines.count
-                    }
-                    .onChange(of: camModel.selectedStockMaterial) { _, newStock in
-                        model.updateStock(newStock)
-                    }
-                    .onChange(of: gCodeModel.document.toolpathSegments) { _, newSegments in
-                        // A freshly (re)parsed file replaces the whole preview
-                        // and parks the scrubber at the end, so what's drawn
-                        // always matches where the slider sits.
-                        model.updateToolpath(newSegments)
-                        gCodeModel.scrubLine = gCodeModel.document.lines.count
-                    }
             }
 
             // Right panels with g-
@@ -381,5 +340,68 @@ struct ControllerView: View {
                 .font(.caption2.monospaced())
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+/// Everything scrub-related, in one view that owns its own `@ObservedObject`
+/// subscriptions to `CanvasSceneModel` and `GCodeStore`. Splitting this out of
+/// `ControllerView` means a scrub tick only re-runs *this* view's `body` —
+/// not `ControllerView`'s, which would otherwise reconstruct every sibling
+/// panel (material/coordinate/probe on the left, position/spindle/machine/
+/// jog/terminal on the right) on every slider tick for no reason.
+private struct CanvasSection: View {
+    @ObservedObject var scene: CanvasSceneModel
+    @ObservedObject var gCodeModel: GCodeStore
+    @ObservedObject var camModel: CAMModel
+    let connection: MachineConnection
+
+    private var scrubBinding: Binding<Double> {
+        Binding(
+            get: { Double(gCodeModel.scrubLine) },
+            set: { newValue in
+                ControllerView.scrubTo(line: Int(newValue.rounded()), gCodeModel: gCodeModel, scene: scene)
+            }
+        )
+    }
+
+    var body: some View {
+        MetalCanvasView(objects: $scene.renderObjects)
+            .overlay(
+                ToolPositionSync(connection: connection) { point in
+                    scene.updateToolPosition(point)
+                }
+            )
+            .overlay(alignment: .bottomLeading) {
+                HStack(spacing: 8) {
+                    Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count))
+                        .frame(minWidth: 160)
+                    Text("Line \(gCodeModel.scrubLine) / \(gCodeModel.document.lines.count)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 90, alignment: .trailing)
+                }
+                .padding(8)
+                .background(.ultraThinMaterial)
+                .cornerRadius(6)
+                .padding()
+            }
+            .onAppear {
+                // Sync once up front — `renderObjects` otherwise still
+                // holds `defaultScene()`'s placeholder box, not
+                // whatever material the project actually has selected.
+                scene.updateStock(camModel.selectedStockMaterial)
+                scene.updateToolpath(gCodeModel.document.toolpathSegments)
+                gCodeModel.scrubLine = gCodeModel.document.lines.count
+            }
+            .onChange(of: camModel.selectedStockMaterial) { _, newStock in
+                scene.updateStock(newStock)
+            }
+            .onChange(of: gCodeModel.document.toolpathSegments) { _, newSegments in
+                // A freshly (re)parsed file replaces the whole preview
+                // and parks the scrubber at the end, so what's drawn
+                // always matches where the slider sits.
+                scene.updateToolpath(newSegments)
+                gCodeModel.scrubLine = gCodeModel.document.lines.count
+            }
     }
 }
