@@ -40,6 +40,8 @@ struct ControllerView: View {
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
 
+    @State private var isShowingCanvasControlsSettings = false
+
     private var stockVisibleBinding: Binding<Bool> {
         Binding(
             get: { projectModel.projectData.isStockVisible ?? true },
@@ -256,6 +258,19 @@ struct ControllerView: View {
                 }
                 .help(model.isLightOn ? "Turn light off" : "Turn light on")
                 .disabled(!model.connection.isConnected)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    isShowingCanvasControlsSettings = true
+                } label: {
+                    Image(systemName: "computermouse")
+                }
+                .help("Canvas Mouse Controls")
+            }
+        }
+        .sheet(isPresented: $isShowingCanvasControlsSettings) {
+            NavigationStack {
+                CanvasControlsSettingsView()
             }
         }
         .fileImporter(isPresented: $model.isGCodeImporterPresented,
