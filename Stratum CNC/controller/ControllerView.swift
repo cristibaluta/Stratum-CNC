@@ -109,7 +109,8 @@ struct ControllerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 CanvasSection(scene: model.scene, gCodeModel: gCodeModel,
-                              camModel: camModel, connection: model.connection)
+                              camModel: camModel, connection: model.connection,
+                              isStockVisible: stockVisibleBinding)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .padding(.trailing, -16)
@@ -118,8 +119,6 @@ struct ControllerView: View {
             // Right panels with g-
             VStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 12) {
-                    MaterialPanelView(stock: $camModel.selectedStockMaterial,
-                                      isStockVisible: stockVisibleBinding)
                     PanelCoordinate(model: model)
                     PanelProbe(model: model)
                 }
@@ -354,6 +353,7 @@ private struct CanvasSection: View {
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var camModel: CAMModel
     let connection: MachineConnection
+    let isStockVisible: Binding<Bool>
 
     private var scrubBinding: Binding<Double> {
         Binding(
@@ -371,6 +371,14 @@ private struct CanvasSection: View {
                     scene.updateToolPosition(point)
                 }
             )
+            .overlay(alignment: .top) {
+                MaterialPanelView(stock: $camModel.selectedStockMaterial,
+                                  isStockVisible: isStockVisible)
+                    .padding(8)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(6)
+                    .padding()
+            }
             .overlay(alignment: .bottomLeading) {
                 HStack(spacing: 8) {
                     Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count))
