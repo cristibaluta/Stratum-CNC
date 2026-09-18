@@ -52,6 +52,14 @@ struct MetalCanvasView: NSViewRepresentable {
 
     func updateNSView(_ nsView: MTKView, context: Context) {
         context.coordinator.renderer?.updateGeometry(objects: objects)
+        // Force an immediate frame rather than waiting for the view's own
+        // continuous-mode redraw timer. That timer runs independently of
+        // AppKit's main-thread event handling, and during an NSSlider's
+        // mouse-tracking loop (dragging the scrub slider) it can lag well
+        // behind — geometry updates (see `updateGeometry` above) land
+        // instantly, same as the G-code table's row highlight, but without
+        // this the pixels on screen don't catch up until the drag ends.
+        nsView.draw()
     }
 
     @MainActor
