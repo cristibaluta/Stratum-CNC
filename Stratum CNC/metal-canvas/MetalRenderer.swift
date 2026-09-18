@@ -401,6 +401,11 @@ extension MetalRenderer: MTKViewDelegate {
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         camera.aspectRatio = Float(size.width / size.height)
+        // The view is manually driven (see `MetalCanvasView.makeNSView`), so
+        // without this a resize wouldn't redraw until the next scrub/pan/
+        // zoom — leaving a stretched or stale frame on screen in the
+        // meantime.
+        view.draw()
     }
 
     func draw(in view: MTKView) {

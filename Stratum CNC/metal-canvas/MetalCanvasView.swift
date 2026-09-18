@@ -34,6 +34,20 @@ struct MetalCanvasView: NSViewRepresentable {
         context.coordinator.renderer = renderer
         mtkView.delegate = renderer
 
+        // Render on demand rather than continuously. The scene is static
+        // almost all the time — nothing to redraw between a scrub tick, a
+        // pan, or a zoom — so a 60fps timer here was burning GPU (and
+        // fighting the main thread during slider drags) for no benefit.
+        // `enableSetNeedsDisplay = false` alongside `isPaused = true` puts
+        // the view in fully-manual mode: it draws only when something
+        // explicitly calls `draw()` — which `updateNSView` below already
+        // does on every geometry change, and which the gesture handlers and
+        // `drawableSizeWillChange` (see `MetalRenderer`) now do too.
+        mtkView.isPaused = true
+        mtkView.enableSetNeedsDisplay = false
+
+        context.coordinator.metalView = mtkView
+
         // Handle Scroll Wheel / Pinch for Zooming
         mtkView.onScroll = { [weak coordinator = context.coordinator] event in
             coordinator?.handleScroll(event)
@@ -66,6 +80,10 @@ struct MetalCanvasView: NSViewRepresentable {
     class Coordinator: NSObject {
         var parent: MetalCanvasView
         var renderer: MetalRenderer?
+        /// Weak: so the view — which owns the coordinator via AppKit's
+        /// retain graph, not the other way around — can be requested to
+        /// draw() from the gesture handlers below without creating a cycle.
+        weak var metalView: MTKView?
         private var lastMousePosition: CGPoint = .zero
         private var zoom: Float = 100
         private let minZoom: Float = 0.1
@@ -98,6 +116,7 @@ struct MetalCanvasView: NSViewRepresentable {
                 camera.target.y -= Float(translation.y) * scale
             }
             gesture.setTranslation(.zero, in: gesture.view)
+            metalView?.draw()
         }
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
@@ -124,6 +143,7 @@ struct MetalCanvasView: NSViewRepresentable {
                 camera.zoom(to: newZoom, towards: ndc)
                 zoom = newZoom
                 gesture.magnification = 0
+                metalView?.draw()
             }
         }
 
@@ -144,6 +164,7 @@ struct MetalCanvasView: NSViewRepresentable {
 
             // Clamp distance to prevent clipping into target or zooming out into infinity
             camera.distance = max(2.0, min(2000.0, camera.distance))
+            metalView?.draw()
         }
     }
 }
