@@ -56,14 +56,17 @@ class CanvasSceneModel: ObservableObject {
     /// `update*` methods below rather than being poked at directly.
     @Published private(set) var heightmapMesh: HeightmapMesh?
 
-    /// Grid resolution for the heightmap carve. Fixed for now — M6's
-    /// roadmap item is turning this into a user-facing quality/speed
-    /// tradeoff; until then, 0.5mm cells (4x the samples of the original
-    /// 1mm default) trade a bit of full-file carve time for far less
-    /// visible stair-stepping on the carved surface. Worth revisiting
-    /// downward further once M6 lands and a person can choose the
-    /// tradeoff themselves rather than eating whatever's hardcoded here.
-    private let heightmapCellSize: Float = 0.1
+    /// Grid resolution for the heightmap carve, in millimeters — M6's
+    /// user-facing quality/speed tradeoff. Smaller cells mean more samples
+    /// (finer, slower carve, less visible stair-stepping); larger cells
+    /// mean fewer samples (coarser, faster carve). Exposed via
+    /// `HeightmapQualityPickerView` in the canvas overlay, ranging from
+    /// 0.1mm (best quality) to 0.5mm (fastest).
+    ///
+    /// Changing this alone doesn't recarve — same as `renderMode`, it just
+    /// needs to be in place before the *next* carve. `CanvasSection` forces
+    /// one on change, same as it does for a reassigned tool.
+    @Published var heightmapCellSize: Float = 0.1
 
     /// M5: how many `scrubHeightmap` calls to skip between actual recarves.
     /// Dragging the scrub slider (or scrubbing with the scroll wheel) fires

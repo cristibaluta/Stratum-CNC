@@ -491,6 +491,9 @@ private struct CanvasSection: View {
                         ToolsPickerView(tools: gCodeModel.tools,
                                         assignments: $gCodeModel.toolSpecAssignments)
                     }
+
+                    Divider().frame(height: 28)
+                    HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
                 }
                 .padding(8)
                 .background(.ultraThinMaterial)
@@ -567,6 +570,12 @@ private struct CanvasSection: View {
                 // Assigning (or reassigning) a `T` number's tool changes
                 // what the heightmap should have been carved with — e.g.
                 // picking a bigger end mill widens every cut.
+                forceHeightmapRefresh()
+            }
+            .onChange(of: scene.heightmapCellSize) { _, _ in
+                // A new grid resolution needs a full recarve, same as a
+                // reassigned tool — the existing mesh was built at the old
+                // cell size and doesn't just resample in place.
                 forceHeightmapRefresh()
             }
     }
