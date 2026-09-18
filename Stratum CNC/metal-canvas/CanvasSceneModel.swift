@@ -63,7 +63,7 @@ class CanvasSceneModel: ObservableObject {
     /// visible stair-stepping on the carved surface. Worth revisiting
     /// downward further once M6 lands and a person can choose the
     /// tradeoff themselves rather than eating whatever's hardcoded here.
-    private let heightmapCellSize: Float = 0.5
+    private let heightmapCellSize: Float = 0.1
 
     /// M5: how many `scrubHeightmap` calls to skip between actual recarves.
     /// Dragging the scrub slider (or scrubbing with the scroll wheel) fires
