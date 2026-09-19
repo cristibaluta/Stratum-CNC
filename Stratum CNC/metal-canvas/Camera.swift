@@ -104,6 +104,16 @@ class Camera {
         turntableAxis = view.up
     }
 
+    /// Whether the camera is currently squared up on one of the six
+    /// axis-aligned standard views, as opposed to some free-orbited angle
+    /// in between. `snapToFace(forSwipe:_:)` only takes a 90° step when
+    /// this is true — a 90° step from an arbitrary angle wouldn't land on
+    /// a face at all, so that's the signal to snap to Top first instead.
+    private var isOnAFace: Bool {
+        let threshold: Float = 0.999
+        return abs(back.x) > threshold || abs(back.y) > threshold || abs(back.z) > threshold
+    }
+
     /// "Snap to Face": rotates exactly 90° toward the face an Option+swipe
     /// points to (see `MetalCanvasView.Coordinator.performViewSnap`) —
     /// composed onto whatever the orientation already is, not reset to a
@@ -116,6 +126,12 @@ class Camera {
     /// to an exact quarter turn instead of following the pointer, so a
     /// swipe feels like the same motion as Shift+scroll, only discrete.
     ///
+    /// A 90° step only makes sense starting from a face — from a free
+    /// orbit, the swipe direction is discarded and this snaps straight to
+    /// Top instead, exactly like `snap(to:)`; that's also what makes Top
+    /// "the main view" the whole scheme is anchored to. The very next
+    /// swipe, now starting from a face, gets the real 90° step.
+    ///
     /// Refuses a swipe that would land on the excluded bottom face,
     /// leaving the view unchanged.
     ///
@@ -123,6 +139,11 @@ class Camera {
     ///   - dx: horizontal scroll delta, positive = fingers moving right.
     ///   - dy: vertical scroll delta, positive = fingers moving down.
     func snapToFace(forSwipe dx: Float, _ dy: Float) {
+        guard isOnAFace else {
+            snap(to: .top)
+            return
+        }
+
         var q = orientation
         if abs(dx) > abs(dy) {
             let yaw: Float = dx > 0 ? .pi / 2 : -.pi / 2
