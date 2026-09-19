@@ -357,7 +357,7 @@ enum CNCCommand {
 
 // MARK: - ATC Status
 
-enum ATCStatus: Int {
+enum ATCStatus: Int, CaseIterable {
     case none = 0
     case dropTool = 1
     case pickTool = 2

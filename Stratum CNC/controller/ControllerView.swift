@@ -110,6 +110,7 @@ struct ControllerView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     PanelCoordinate(model: model)
                     PanelProbe(model: model)
+                    PanelATC(model: model)
                 }
                 .frame(maxWidth: .infinity)
 
@@ -167,6 +168,9 @@ struct ControllerView: View {
                     PanelMachine(model: model)
                 }
                 .frame(maxWidth: .infinity)
+
+                PanelAccessories(model: model)
+                    .frame(maxWidth: .infinity)
 
                 PanelJog(joystick: joystickStore,
                          holdFeed: $model.holdJogFeed,

@@ -29,7 +29,7 @@ struct PanelProbe: View {
                 }
 
                 Button {
-                    model.sendCommand(CNC.probe.with(z: -10, feed: 50))
+                    model.autoZeroProbe()
                 } label: {
                     Label("Auto Z", systemImage: "wand.and.stars")
                 }

@@ -24,6 +24,20 @@ class ControllerModel: ObservableObject {
 
     @Published var selectedFeedOverride: Int = 100
     @Published var spindleRPM = "12000"
+    /// Tool number for the ATC panel's M6 button (Roadmap 2.1). String, not
+    /// Int, for the same reason as `spindleRPM` — it's a `TextField`
+    /// binding, and `Int(_:)` on the way out handles the empty/partial-entry
+    /// case rather than a formatter. Per `CNCCommand.toolChange`'s doc
+    /// comment: T0 is the wireless probe, T-1 is "none".
+    @Published var atcToolNumber = "1"
+    /// Power percentages for the internal vacuum (M801 S<n>), spindle
+    /// cooling fan (M811 S<n>) and extended port (M851 S<n>) — Roadmap 2.2.
+    /// String-backed `TextField` bindings, same reasoning as `spindleRPM`;
+    /// `PercentageBuilder.with(percent:)` clamps to 0...100 on the way out,
+    /// so an out-of-range or unparseable entry can't reach the machine.
+    @Published var vacuumPercent = "100"
+    @Published var coolingFanPercent = "100"
+    @Published var extendedPortPercent = "100"
 
     /// Owns streaming individual lines to the machine (MDI, jogging, small
     /// macros) — see its doc comment for why this isn't used for whole jobs
@@ -395,6 +409,41 @@ class ControllerModel: ObservableObject {
         if y { command += "Y0" }
         if z { command += "Z0" }
         return command
+    }
+
+    /// Probes down at the current XY, then zeroes the work Z coordinate at
+    /// the trigger point (Roadmap 4.1). A plain "Probe Z" (see `PanelProbe`)
+    /// only does the first half, which is what this used to be wired to as
+    /// well — a copy-paste bug, not a deliberate duplicate. Makera's own
+    /// wiki describes "Auto Z Probe" as exactly this combined action: "Z-axis
+    /// tool setting is required after changing the workpiece or the zero
+    /// points of the work coordinate" (wiki.makera.com/en/carvera/manual/software).
+    ///
+    /// The two lines have to be sequenced, not fired together — the zero
+    /// has to land *after* the tool has actually stopped at the trigger
+    /// point, not wherever it started. Routed through `jobRunner` (a
+    /// 2-line "macro", exactly what it's documented for) rather than two
+    /// back-to-back `sendCommand` calls, since `jobRunner` only advances on
+    /// the machine's "ok" for the *previous* line. That in turn assumes the
+    /// probe's "ok" is withheld until the probe cycle itself finishes
+    /// (documented grbl/Smoothieware-family behavior — unlike an ordinary
+    /// buffered move, the trigger position isn't known, and so the line
+    /// isn't acked, until the probe actually stops) — not confirmed against
+    /// Carvera's firmware specifically, so worth checking against a real
+    /// machine before trusting it blindly.
+    ///
+    /// Zeroes with a flat `Z0` at the trigger point (`zeroCommand`, `G10
+    /// L20 P0 Z0`) — there's no probe-plate-thickness setting modeled in
+    /// this app yet to offset by, unlike the community "touch plate off"
+    /// macros this pattern is otherwise borrowed from. Correct for probing
+    /// straight onto the stock/table surface; wrong if probing against a
+    /// plate of known thickness instead.
+    func autoZeroProbe() {
+        guard connection.isConnected, !jobRunner.isActive else { return }
+        jobRunner.start(lines: [
+            CNC.probe.with(z: -10, feed: 50).command,
+            zeroCommand(z: true)
+        ])
     }
 
     // MARK: - Sending Commands

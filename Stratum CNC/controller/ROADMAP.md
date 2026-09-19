@@ -130,9 +130,22 @@ The app can't actually run a G-code file on the machine yet. This is the core mi
 ~55 of the ~65 modeled `CNCCommand` cases have zero UI. Low-risk, high-value: the string
 building is already correct, this is just adding buttons/panels.
 
-- [ ] 2.1 Tool change: M6 in an ATC panel (tighten/loosen collet M490.1/.2, home M490,
+- [x] 2.1 Tool change: M6 in an ATC panel (tighten/loosen collet M490.1/.2, home M490,
       calibrate M491, status M497)
-- [ ] 2.2 Spindle/vacuum/cooling: M801/802, M811/812, M331/332, extended port M851/852
+      Landed as `PanelATC`, added to the WORK COORDINATES/PROBE column in `ControllerView`.
+      M6 (tool number + Change), M490/.1/.2 (Home/Tighten/Loosen) and M491 (Calibrate Tool) are
+      plain buttons; M497.1–.7 (`ATCStatus`) — a manual override of which ATC step the firmware
+      thinks it's on, not part of normal tool-change use — sits behind a "Manual ATC State"
+      disclosure so it doesn't crowd the buttons meant for everyday use. No new command-building
+      logic: every command was already correctly modeled in `CNCCommand`/`CNC+Shortcuts`, this
+      is only the missing UI. Added `ATCStatus: CaseIterable` to drive the disclosure's grid.
+- [x] 2.2 Spindle/vacuum/cooling: M801/802, M811/812, M331/332, extended port M851/852
+      Landed as `PanelAccessories` ("VACUUM & COOLING"), added below the Spindle/Machine row in
+      `ControllerView`. Internal vacuum (M801/802), cooling fan (M811/812) and extended port
+      (M851/852) share one `PowerRow` (percent field + On/Off), since all three are
+      `M8xx S<percent>` / `M8xx+1` in the same shape; auto-vacuum (M331/332) is a plain On/Off
+      toggle since it's a mode, not a momentary action. No new command-building logic — all six
+      commands were already modeled correctly in `CNCCommand`/`CNC+Shortcuts`.
 - [ ] 2.3 Laser mode: M321–M325 as a dedicated mode toggle with power override
 - [ ] 2.4 Overrides: feed (M220) and spindle (M223) sliders, likely near `PanelSpindle`
 - [ ] 2.5 Coordinate/plane setup: G17–G21 plane & units, G54 workspace select, G10/G92/G92.1/
@@ -153,7 +166,16 @@ The bottom half of the wiki page (non-G/M console commands) isn't modeled at all
 
 `PanelProbe` exists but is minimal — 4 buttons with mostly duplicate/hardcoded values.
 
-- [ ] 4.1 Fix "Auto Z" button, which currently sends the exact same command as "Probe Z"
+- [x] 4.1 Fix "Auto Z" button, which currently sends the exact same command as "Probe Z"
+      Landed as `ControllerModel.autoZeroProbe()`. "Probe Z" is unchanged (probe only, `G38.2
+      Z-10 F50`); "Auto Z" now probes *and* zeros the work Z coordinate at the trigger point
+      (`zeroCommand(z: true)`, `G10 L20 P0 Z0`) — matching Makera's own description of "Auto Z
+      Probe" as the combined action. The two lines are sequenced through `jobRunner` (a 2-line
+      macro) rather than sent back-to-back, since the zero has to land after the probe actually
+      stops, not wherever it started — this relies on the probe's "ok" being withheld until the
+      probe cycle finishes, which is documented grbl/Smoothieware-family behavior but not
+      confirmed against Carvera's firmware specifically. Zeros flat to 0 at the trigger point;
+      there's no probe-plate-thickness setting to offset by yet (see 4.2/4.3).
 - [ ] 4.2 Make probe distances/feeds configurable instead of hardcoded (-10, 10, 50)
 - [ ] 4.3 Build a real tool-length-offset workflow around M491/`calibrateTool`
 - [ ] 4.4 Surface probe results (trigger position) back into the work coordinate panel
