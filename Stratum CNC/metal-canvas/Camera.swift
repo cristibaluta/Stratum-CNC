@@ -75,6 +75,23 @@ class Camera {
         distance = newDistance
     }
 
+    /// Slides `target` in the view plane so the scene follows the pointer
+    /// 1:1 on screen, at any zoom level.
+    /// - Parameters:
+    ///   - translation: pointer/scroll movement in view points (x right, y
+    ///     in the same sign convention the caller already uses).
+    ///   - viewportHeight: height of the view in the same points.
+    func pan(by translation: SIMD2<Float>, viewportHeight: Float) {
+        // The view spans `2 * distance * tan(fov/2)` world units vertically
+        // (orthographic — see `updateMatrix`), so one point on screen is
+        // that divided by the viewport height. Scaling by this rather than
+        // a constant is what keeps the pan speed independent of zoom.
+        let worldPerPoint = 2 * distance * tan(fov * 0.5) / viewportHeight
+        let (right, camUp) = basisVectors()
+        target -= right * (translation.x * worldPerPoint)
+                + camUp * (translation.y * worldPerPoint)
+    }
+
     func updateMatrix() -> matrix_float4x4 {
         let pitch = simd_quaternion(rotation.x, SIMD3<Float>(1, 0, 0))
         let yaw = simd_quaternion(rotation.y, SIMD3<Float>(0, 1, 0))

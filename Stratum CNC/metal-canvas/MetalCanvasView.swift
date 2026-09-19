@@ -210,14 +210,18 @@ struct MetalCanvasView: NSViewRepresentable {
 //            print(String(format: "🎥 Pitch (X): %.2f rad (%.1f°) | Yaw (Y): %.2f rad (%.1f°)", camera.rotation.x, pitchDeg, camera.rotation.y, yawDeg))
         }
 
-        /// Slides `target` sideways, keeping the camera's facing unchanged.
+        /// Slides `target` in the view plane, keeping the camera's facing
+        /// unchanged. The distance moved per point of pointer travel is
+        /// derived from the current zoom (see `Camera.pan`), so the scene
+        /// tracks the pointer by the same on-screen amount at any zoom.
         private func performPan(translation: CGPoint) {
-            guard let camera = renderer?.camera else {
+            guard let camera = renderer?.camera,
+                  let viewportHeight = metalView?.bounds.height,
+                  viewportHeight > 0 else {
                 return
             }
-            let scale: Float = 0.05
-            camera.target.x -= Float(translation.x) * scale
-            camera.target.y -= Float(translation.y) * scale
+            camera.pan(by: SIMD2<Float>(Float(translation.x), Float(translation.y)),
+                       viewportHeight: Float(viewportHeight))
         }
 
         /// Zooms by vertical drag distance, for when a trigger is assigned
