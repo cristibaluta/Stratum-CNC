@@ -10,17 +10,17 @@ import SwiftUI
 struct MaterialPanelView: View {
 
     @Binding var stock: StockMaterial
-    /// The single "should stock render on canvas" flag. CAMView is responsible
-    /// for keeping this and ProjectData.isStockVisible (the persisted value)
-    /// equal — this view no longer needs to know ProjectData exists at all.
     @Binding var isStockVisible: Bool
+    let isCompact: Bool
 
     @State private var selectedShapeID = "rectangular"
 
     var body: some View {
         GroupBox("MATERIAL") {
             HStack(spacing: 8) {
-                visibilityButton
+                if !isCompact {
+                    visibilityButton
+                }
 
                 Picker("Material", selection: $stock.material) {
                     ForEach(StockMaterialType.allCases, id: \.self) { material in
@@ -78,43 +78,43 @@ struct MaterialPanelView: View {
     @ViewBuilder
     private var dimensionsRow: some View {
         switch stock.geometry {
-        case .rectangular(let length, let width, let height):
-            dimensionField(label: "L", value: Binding(
-                get: { length },
-                set: { stock.geometry = .rectangular(width: $0, height: width, depth: height) }
-            ))
-            dimensionField(label: "l", value: Binding(
-                get: { width },
-                set: { stock.geometry = .rectangular(width: length, height: $0, depth: height) }
-            ))
-            dimensionField(label: "h", showUnits: true, value: Binding(
-                get: { height },
-                set: { stock.geometry = .rectangular(width: length, height: width, depth: $0) }
-            ))
+            case .rectangular(let length, let width, let height):
+                dimensionField(label: "L", value: Binding(
+                    get: { length },
+                    set: { stock.geometry = .rectangular(width: $0, height: width, depth: height) }
+                ))
+                dimensionField(label: "l", value: Binding(
+                    get: { width },
+                    set: { stock.geometry = .rectangular(width: length, height: $0, depth: height) }
+                ))
+                dimensionField(label: "h", showUnits: true, value: Binding(
+                    get: { height },
+                    set: { stock.geometry = .rectangular(width: length, height: width, depth: $0) }
+                ))
 
-        case .cylindrical(let diameter, let length):
-            dimensionField(label: "D", value: Binding(
-                get: { diameter },
-                set: { stock.geometry = .cylindrical(diameter: $0, length: length) }
-            ))
-            dimensionField(label: "h", showUnits: true, value: Binding(
-                get: { length },
-                set: { stock.geometry = .cylindrical(diameter: diameter, length: $0) }
-            ))
+            case .cylindrical(let diameter, let length):
+                dimensionField(label: "D", value: Binding(
+                    get: { diameter },
+                    set: { stock.geometry = .cylindrical(diameter: $0, length: length) }
+                ))
+                dimensionField(label: "h", showUnits: true, value: Binding(
+                    get: { length },
+                    set: { stock.geometry = .cylindrical(diameter: diameter, length: $0) }
+                ))
 
-        case .disk(let outerDiameter, let innerDiameter, let height):
-            dimensionField(label: "D ext", value: Binding(
-                get: { outerDiameter },
-                set: { stock.geometry = .disk(outerDiameter: $0, innerDiameter: innerDiameter, depth: height) }
-            ))
-            dimensionField(label: "D int", value: Binding(
-                get: { innerDiameter },
-                set: { stock.geometry = .disk(outerDiameter: outerDiameter, innerDiameter: $0, depth: height) }
-            ))
-            dimensionField(label: "h", showUnits: true, value: Binding(
-                get: { height },
-                set: { stock.geometry = .disk(outerDiameter: outerDiameter, innerDiameter: innerDiameter, depth: $0) }
-            ))
+            case .disk(let outerDiameter, let innerDiameter, let height):
+                dimensionField(label: "D ext", value: Binding(
+                    get: { outerDiameter },
+                    set: { stock.geometry = .disk(outerDiameter: $0, innerDiameter: innerDiameter, depth: height) }
+                ))
+                dimensionField(label: "D int", value: Binding(
+                    get: { innerDiameter },
+                    set: { stock.geometry = .disk(outerDiameter: outerDiameter, innerDiameter: $0, depth: height) }
+                ))
+                dimensionField(label: "h", showUnits: true, value: Binding(
+                    get: { height },
+                    set: { stock.geometry = .disk(outerDiameter: outerDiameter, innerDiameter: innerDiameter, depth: $0) }
+                ))
         }
     }
 
@@ -130,21 +130,43 @@ struct MaterialPanelView: View {
     }
 
     private func dimensionField(label: String, showUnits: Bool = false, value: Binding<Double>) -> some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        Group {
+            if isCompact {
+                VStack(alignment: .center) {
+                    Text(label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
-            TextField(label, value: value, format: .number.precision(.fractionLength(0...3)))
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 40)
+                    HStack {
+                        TextField(label, value: value, format: .number.precision(.fractionLength(0...3)))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 50)
 
-            if showUnits {
-                Text("mm")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                        if showUnits {
+                            Text("mm")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } else {
+                HStack(spacing: 4) {
+                    Text(label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    TextField(label, value: value, format: .number.precision(.fractionLength(0...3)))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 50)
+
+                    if showUnits {
+                        Text("mm")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .fixedSize(horizontal: true, vertical: false)
             }
         }
-        .fixedSize(horizontal: true, vertical: false)
     }
 }

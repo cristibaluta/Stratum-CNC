@@ -62,7 +62,8 @@ struct CAMView: View {
                     Spacer()
                     VStack(spacing: 16) {
                         MaterialPanelView(stock: $camModel.selectedStockMaterial,
-                                          isStockVisible: stockVisibleBinding)
+                                          isStockVisible: stockVisibleBinding,
+                                          isCompact: false)
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
                         toolpathsPanel
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
