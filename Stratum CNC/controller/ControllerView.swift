@@ -196,7 +196,7 @@ struct ControllerView: View {
                 .frame(height: 235)
 
                 GroupBox(label: Text("MDI CONSOLE")) {
-                    TerminalView(model: model)
+                    TerminalView(model: model, connection: model.connection)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -536,63 +536,62 @@ private struct CanvasSection: View {
                     forceHeightmapRefresh()
                 }
             }
-            .background(.ultraThinMaterial)
-            .cornerRadius(8)
+            .frame(height: 45)
             .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
         }
-            .onAppear {
-                // Sync once up front — `renderObjects` otherwise still
-                // holds `defaultScene()`'s placeholder box, not
-                // whatever material the project actually has selected.
-                scene.updateStock(camModel.selectedStockMaterial)
-                scene.updateToolpath(gCodeModel.document.toolpathSegments)
-                gCodeModel.scrubLine = gCodeModel.document.lines.count
+        .onAppear {
+            // Sync once up front — `renderObjects` otherwise still
+            // holds `defaultScene()`'s placeholder box, not
+            // whatever material the project actually has selected.
+            scene.updateStock(camModel.selectedStockMaterial)
+            scene.updateToolpath(gCodeModel.document.toolpathSegments)
+            gCodeModel.scrubLine = gCodeModel.document.lines.count
+            forceHeightmapRefresh()
+        }
+        .onChange(of: camModel.selectedStockMaterial) { _, newStock in
+            scene.updateStock(newStock)
+            forceHeightmapRefresh()
+        }
+        .onChange(of: gCodeModel.document.toolpathSegments) { _, newSegments in
+            // A freshly (re)parsed file replaces the whole preview
+            // and parks the scrubber at the end, so what's drawn
+            // always matches where the slider sits.
+            scene.updateToolpath(newSegments)
+            gCodeModel.scrubLine = gCodeModel.document.lines.count
+            forceHeightmapRefresh()
+        }
+        .onChange(of: gCodeModel.toolSpecAssignments) { _, _ in
+            // Assigning (or reassigning) a `T` number's tool changes
+            // what the heightmap should have been carved with — e.g.
+            // picking a bigger end mill widens every cut.
+            forceHeightmapRefresh()
+        }
+        .onChange(of: scene.renderMode) { _, mode in
+            // The heightmap is only carved while it's the visible mode
+            // (see `CanvasSceneModel.updateHeightmap`), so switching to
+            // it needs one exact carve at the current scrub position.
+            if mode == .heightmap {
                 forceHeightmapRefresh()
             }
-            .onChange(of: camModel.selectedStockMaterial) { _, newStock in
-                scene.updateStock(newStock)
-                forceHeightmapRefresh()
+        }
+        .onChange(of: scene.heightmapCellSize) { _, _ in
+            // A new grid resolution needs a full recarve, same as a
+            // reassigned tool — the existing mesh was built at the old
+            // cell size and doesn't just resample in place.
+            forceHeightmapRefresh()
+        }
+        .onChange(of: gCodeModel.document.loadedHeader) { _, header in
+            // A file that declares its own XY offset (Fusion's
+            // "X Offset / Y Offset") sets the canvas offset on load,
+            // replacing whatever was nudged for the previous file.
+            // Files whose header says nothing about it leave the
+            // current value alone.
+            if let offset = header?.xyOffset {
+                scene.xyOffset = offset
             }
-            .onChange(of: gCodeModel.document.toolpathSegments) { _, newSegments in
-                // A freshly (re)parsed file replaces the whole preview
-                // and parks the scrubber at the end, so what's drawn
-                // always matches where the slider sits.
-                scene.updateToolpath(newSegments)
-                gCodeModel.scrubLine = gCodeModel.document.lines.count
-                forceHeightmapRefresh()
-            }
-            .onChange(of: gCodeModel.toolSpecAssignments) { _, _ in
-                // Assigning (or reassigning) a `T` number's tool changes
-                // what the heightmap should have been carved with — e.g.
-                // picking a bigger end mill widens every cut.
-                forceHeightmapRefresh()
-            }
-            .onChange(of: scene.renderMode) { _, mode in
-                // The heightmap is only carved while it's the visible mode
-                // (see `CanvasSceneModel.updateHeightmap`), so switching to
-                // it needs one exact carve at the current scrub position.
-                if mode == .heightmap {
-                    forceHeightmapRefresh()
-                }
-            }
-            .onChange(of: scene.heightmapCellSize) { _, _ in
-                // A new grid resolution needs a full recarve, same as a
-                // reassigned tool — the existing mesh was built at the old
-                // cell size and doesn't just resample in place.
-                forceHeightmapRefresh()
-            }
-            .onChange(of: gCodeModel.document.loadedHeader) { _, header in
-                // A file that declares its own XY offset (Fusion's
-                // "X Offset / Y Offset") sets the canvas offset on load,
-                // replacing whatever was nudged for the previous file.
-                // Files whose header says nothing about it leave the
-                // current value alone.
-                if let offset = header?.xyOffset {
-                    scene.xyOffset = offset
-                }
-            }
-            .onChange(of: scene.xyOffset) { _, _ in
-                forceHeightmapRefresh()
-            }
+        }
+        .onChange(of: scene.xyOffset) { _, _ in
+            forceHeightmapRefresh()
+        }
     }
 }

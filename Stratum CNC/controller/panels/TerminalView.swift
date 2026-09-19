@@ -10,6 +10,14 @@ import SwiftUI
 struct TerminalView: View {
 
     @ObservedObject var model: ControllerModel
+    /// Observed separately on purpose. `model.connection` is itself an
+    /// `ObservableObject` nested inside `ControllerModel`, and SwiftUI
+    /// doesn't forward a nested object's changes to the parent — so a view
+    /// that only observes `model` never redraws when `rawLog` or
+    /// `isConnected` change, and new lines (a machine reply, a "jog
+    /// ignored" note) only showed up once something unrelated, like focusing
+    /// the text field, forced a redraw.
+    @ObservedObject var connection: MachineConnection
     @FocusState private var commandFieldFocused: Bool
 
     var body: some View {
@@ -41,7 +49,7 @@ struct TerminalView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(model.connection.rawLog.enumerated()), id: \.offset) { index, line in
+                    ForEach(Array(connection.rawLog.enumerated()), id: \.offset) { index, line in
                         terminalLine(line)
                             .id(index)
                     }
@@ -53,7 +61,10 @@ struct TerminalView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
             }
-            .onChange(of: model.connection.rawLog.count) {
+            // Compares the log itself rather than its count: `rawLog` is
+            // capped at 200 lines, so once it's full the count never changes
+            // again and a count-based trigger would stop auto-scrolling.
+            .onChange(of: connection.rawLog) {
                 guard model.terminalAutoScroll else {
                     return
                 }
@@ -138,7 +149,7 @@ struct TerminalView: View {
                 Text("Send")
             }
             .keyboardShortcut(.return, modifiers: [])
-            .disabled(!model.connection.isConnected || model.mdiInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(!connection.isConnected || model.mdiInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
             Button {
                 model.isShowingCommandPalette = true
