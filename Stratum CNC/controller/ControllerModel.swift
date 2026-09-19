@@ -60,6 +60,14 @@ class ControllerModel: ObservableObject {
     /// "last thing we sent it", same caveat as `lastJob` on the status side.
     @Published private(set) var lastUploadedRemotePath: String?
 
+    /// The canvas XY offset (mm, measured from the canvas origin — the
+    /// anchor's inside corner) that was on screen when the current upload
+    /// was started. Captured then, not read when the upload finishes, so
+    /// nudging the offset while the file is still transferring can't change
+    /// where the job that was just sent ends up. Consumed by
+    /// `applyJobOrigin()` right before `play`.
+    private var pendingJobOffset: SIMD2<Float> = .zero
+
     @Published var isGCodeImporterPresented = false
     @Published var isShowingCommandPalette = false
     @Published var isLightOn = false
@@ -114,8 +122,12 @@ class ControllerModel: ObservableObject {
         // `upload` only writes the file — Smoothieware's own `play <path>`
         // console command is what actually starts the job running from it.
         uploader.onCompleted = { [weak self] remotePath in
-            self?.lastUploadedRemotePath = remotePath
-            self?.sendRawCommand("play \(remotePath)", recordInHistory: false)
+            guard let self else { return }
+            self.lastUploadedRemotePath = remotePath
+            // Position the job before it runs: the canvas offset is only a
+            // preview until it's sent as the G54 work origin.
+            self.applyJobOrigin()
+            self.sendRawCommand("play \(remotePath)", recordInHistory: false)
         }
         connection.onLine = { [weak self] line in
             self?.jobRunner.handleMachineLine(line)
@@ -226,8 +238,44 @@ class ControllerModel: ObservableObject {
     /// doc comment for why. No-op while disconnected or while an upload is
     /// already in flight.
     func uploadJob(fileName: String, contents: String) {
-        guard connection.isConnected else { return }
+        guard connection.isConnected, !uploader.isActive else { return }
+        pendingJobOffset = scene.xyOffset
         uploader.upload(fileName: fileName, contents: Data(contents.utf8))
+    }
+
+    // MARK: - Job origin (anchor positioning)
+
+    /// The lines that put the job where the canvas shows it: millimeters,
+    /// G54 selected, and G54's XY origin set to the job offset with
+    /// `G10 L2 P1`. Z is deliberately left out so it keeps whatever the Z
+    /// probe / Auto Z step established.
+    ///
+    /// The offset is used as-is, i.e. it's taken to be the machine XY
+    /// position of the work origin — which is only true while the canvas
+    /// origin (the anchor's inside corner) coincides with the machine's XY
+    /// origin. If the anchor turns out to sit elsewhere in machine
+    /// coordinates, this is the one place to add that base position (and any
+    /// axis sign flip).
+    func jobOriginCommands(for offset: SIMD2<Float>) -> [String] {
+        [
+            CNC.millimeterMode.command,
+            CNC.workspaceG54.command,
+            CNC.setWorkspaceCoordinates
+                .with(workspace: 1, x: Double(offset.x), y: Double(offset.y))
+                .command
+        ]
+    }
+
+    /// Sends `jobOriginCommands` for the offset captured by `uploadJob`.
+    /// These are non-motion, order-preserving lines, so they don't need the
+    /// `jobRunner` ack sequencing `autoZeroProbe()` does — the machine
+    /// handles them in the order they arrive, before `play`.
+    private func applyJobOrigin() {
+        let offset = pendingJobOffset
+        connection.appendLog("Setting G54 work origin to X\(offset.x) Y\(offset.y) (job offset).")
+        for line in jobOriginCommands(for: offset) {
+            sendRawCommand(line, recordInHistory: false)
+        }
     }
 
     /// Cancels an in-flight upload only. `stopJob()` is the general "stop"
