@@ -89,18 +89,30 @@ struct HeightmapMesh {
             indices.append(base); indices.append(base + 2); indices.append(base + 3)
         }
 
+        // nil for rectangular stock (every cell is solid); see
+        // `HeightmapGrid.mask`.
+        let mask = grid.mask
+
         /// Height of the neighbor one cell over in `(dCol, dRow)`, or
-        /// `bottomZ` if that neighbor is off the grid — an out-of-bounds
-        /// neighbor reads as "open air all the way down," so the border of
-        /// the grid always gets a full-height wall, same as the old skirt.
+        /// `bottomZ` if that neighbor is off the grid or not part of the
+        /// stock (outside a round stock's circle, or in a disk's bore) — an
+        /// out-of-bounds or empty neighbor reads as "open air all the way
+        /// down," so the outline of the stock always gets a full-height
+        /// wall, same as the old skirt.
         func neighborTop(col: Int, row: Int, dCol: Int, dRow: Int) -> Float {
             let nc = col + dCol, nr = row + dRow
             guard nc >= 0, nc < columns, nr >= 0, nr < rows else { return bottomZ }
-            return grid.heights[nr * columns + nc]
+            let neighborIndex = nr * columns + nc
+            if let mask, !mask[neighborIndex] { return bottomZ }
+            return grid.heights[neighborIndex]
         }
 
         for row in 0..<rows {
             for col in 0..<columns {
+                // Cells with no stock draw nothing — no top face, and the
+                // solid neighbors next to them already own the walls.
+                if let mask, !mask[row * columns + col] { continue }
+
                 let h = grid.heights[row * columns + col]
                 let x0 = grid.originX + Float(col) * cellSize
                 let x1 = x0 + cellSize
@@ -153,18 +165,41 @@ struct HeightmapMesh {
             }
         }
 
-        // Bottom cap: a single flat rectangle spanning the grid's XY
-        // bounding box, facing straight down. The grid itself is always an
-        // axis-aligned rectangle (see `HeightmapGrid.init(stock:cellSize:)`'s
-        // note on circular stock), so this always matches the carve's true
-        // extent, independent of the per-cell walls above.
-        let minX = grid.originX
-        let minY = grid.originY
-        let maxX = grid.originX + Float(columns) * cellSize
-        let maxY = grid.originY + Float(rows) * cellSize
-        appendQuad(SIMD3<Float>(minX, minY, bottomZ), SIMD3<Float>(minX, maxY, bottomZ),
-                  SIMD3<Float>(maxX, maxY, bottomZ), SIMD3<Float>(maxX, minY, bottomZ),
-                  normal: SIMD3<Float>(0, 0, -1))
+        // Bottom cap, facing straight down. Rectangular stock is a single
+        // quad spanning the grid's whole XY bounding box. Round stock
+        // follows its mask instead: one quad per horizontal run of solid
+        // cells in each row, which traces the circle (and a disk's bore)
+        // without a quad per cell.
+        if let mask {
+            for row in 0..<rows {
+                let y0 = grid.originY + Float(row) * cellSize
+                let y1 = y0 + cellSize
+                var col = 0
+                while col < columns {
+                    guard mask[row * columns + col] else {
+                        col += 1
+                        continue
+                    }
+                    let runStart = col
+                    while col < columns && mask[row * columns + col] {
+                        col += 1
+                    }
+                    let x0 = grid.originX + Float(runStart) * cellSize
+                    let x1 = grid.originX + Float(col) * cellSize
+                    appendQuad(SIMD3<Float>(x0, y0, bottomZ), SIMD3<Float>(x0, y1, bottomZ),
+                              SIMD3<Float>(x1, y1, bottomZ), SIMD3<Float>(x1, y0, bottomZ),
+                              normal: SIMD3<Float>(0, 0, -1))
+                }
+            }
+        } else {
+            let minX = grid.originX
+            let minY = grid.originY
+            let maxX = grid.originX + Float(columns) * cellSize
+            let maxY = grid.originY + Float(rows) * cellSize
+            appendQuad(SIMD3<Float>(minX, minY, bottomZ), SIMD3<Float>(minX, maxY, bottomZ),
+                      SIMD3<Float>(maxX, maxY, bottomZ), SIMD3<Float>(maxX, minY, bottomZ),
+                      normal: SIMD3<Float>(0, 0, -1))
+        }
 
         self.vertices = vertices
         self.indices = indices

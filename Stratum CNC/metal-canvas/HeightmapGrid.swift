@@ -50,6 +50,15 @@ struct HeightmapGrid {
     /// and only ever decreasing as `carve` runs.
     private(set) var heights: [Float]
 
+    /// Which cells actually contain stock, same row-major layout as
+    /// `heights`. `nil` means every cell is solid — the case for
+    /// rectangular stock, so it pays no memory or per-cell cost for this.
+    /// Circular stock (`.cylindrical`/`.disk`) gets a mask: cells outside
+    /// the outer circle (and inside a disk's bore) are empty, so they're
+    /// never carved (see `carve`) and `HeightmapMesh` draws nothing for
+    /// them, leaving the mesh round instead of the grid's bounding square.
+    private(set) var mask: [Bool]?
+
     /// Builds an empty grid (every cell at `topZ`) covering `width` × `height`
     /// starting at `(originX, originY)`. `cellSize` is clamped away from
     /// zero/negative so a bad value can't produce an unusably huge (or
@@ -72,12 +81,12 @@ struct HeightmapGrid {
     /// the coordinate convention `RenderObject.stockBox(for:)` already uses
     /// (stock's XY extent starts at the origin).
     ///
-    /// Circular stock (`.cylindrical`/`.disk`) is bounded by its enclosing
-    /// square for now rather than masked to the true circle — cells outside
-    /// the circle simply never get carved into by a sane toolpath, so this
-    /// is a memory/iteration-bounds simplification, not a rendering
-    /// correctness gap. Worth revisiting only if a mesh needs to *look*
-    /// round with nothing carved yet (e.g. a bare, unmachined disk preview).
+    /// Circular stock (`.cylindrical`/`.disk`) still gets the enclosing
+    /// square as its grid, but with a mask (see `mask`) that marks only the
+    /// cells inside the circle — and outside a disk's bore — as stock. The
+    /// circle is centered at `(radius, radius)`, same as the wireframe
+    /// stock (`RenderObject.stockCylinder`/`stockDisk`) and the 2D
+    /// `StockLayer`.
     init(stock: StockMaterial, cellSize: Float) {
         switch stock.geometry {
             case let .rectangular(width, height, depth):
@@ -89,12 +98,39 @@ struct HeightmapGrid {
                 let d = Float(diameter)
                 self.init(originX: 0, originY: 0, width: d, height: d,
                           cellSize: cellSize, topZ: 0, bottomZ: -Float(length))
+                applyRingMask(outerRadius: d / 2, innerRadius: 0)
 
-            case let .disk(outerDiameter, _, depth):
+            case let .disk(outerDiameter, innerDiameter, depth):
                 let d = Float(outerDiameter)
                 self.init(originX: 0, originY: 0, width: d, height: d,
                           cellSize: cellSize, topZ: 0, bottomZ: -Float(depth))
+                // Same clamp `RenderObject.stockDisk` applies to the bore.
+                applyRingMask(outerRadius: d / 2,
+                              innerRadius: max(0, min(Float(innerDiameter), d)) / 2)
         }
+    }
+
+    /// Marks a cell as stock only if its center lies within `outerRadius`
+    /// of the grid's circle center and at least `innerRadius` away from it.
+    /// `innerRadius == 0` is a plain solid circle.
+    private mutating func applyRingMask(outerRadius: Float, innerRadius: Float) {
+        let centerX = originX + outerRadius
+        let centerY = originY + outerRadius
+        let outerSquared = outerRadius * outerRadius
+        let innerSquared = innerRadius * innerRadius
+
+        var mask = [Bool](repeating: false, count: columns * rows)
+        for row in 0..<rows {
+            for col in 0..<columns {
+                let cellCenter = center(col: col, row: row)
+                let dx = cellCenter.x - centerX
+                let dy = cellCenter.y - centerY
+                let distanceSquared = dx * dx + dy * dy
+                mask[row * columns + col] = distanceSquared <= outerSquared
+                    && (innerRadius <= 0 || distanceSquared >= innerSquared)
+            }
+        }
+        self.mask = mask
     }
 
     // MARK: Indexing
@@ -171,6 +207,10 @@ struct HeightmapGrid {
 
         for row in firstRow...lastRow {
             for col in firstCol...lastCol {
+                // Empty cells (outside a round stock, or in a disk's bore)
+                // have nothing to cut.
+                if let mask, !mask[row * columns + col] { continue }
+
                 let cellCenter = center(col: col, row: row)
 
                 // Closest point on the segment to this cell's center — the
