@@ -29,6 +29,13 @@ class Camera {
     var nearZ: Float = 0.1
     var farZ: Float = 2000.0
 
+    /// Fixed eye-to-target distance used for the view/clip volume (see
+    /// `updateMatrix`). Visible depth is `target ± viewStandoff` along the
+    /// view direction — comfortably more than any job on the machine.
+    /// Depth is linear in an orthographic projection, so a longer range
+    /// costs no precision to speak of.
+    private static let viewStandoff: Float = 1000.0
+
     // Default 3D View Angle
     // Pitch (X-axis): -0.6 radians (~-35° looking down)
     // Yaw (Y-axis): 0.8 radians (~45° angled horizontally)
@@ -73,7 +80,17 @@ class Camera {
         let yaw = simd_quaternion(rotation.y, SIMD3<Float>(0, 1, 0))
         let rotDict = simd_mul(yaw, pitch)
 
-        let eye = target + simd_act(rotDict, SIMD3<Float>(0, 0, distance))
+        // The projection is orthographic, so `distance` only sets the zoom
+        // (via the half extents below) — it has no effect on how big things
+        // look. The eye's real distance from `target` only decides which
+        // slice of depth survives clipping, and tying it to the zoom level
+        // was the bug: zoomed in to a few mm, everything more than that far
+        // toward the camera from `target` — the near side of the scene once
+        // it's tilted, i.e. center-of-screen to bottom — fell behind the
+        // near plane and vanished. So the eye sits at a fixed standoff and
+        // the clip range is centered on `target`: `viewStandoff` of depth
+        // either side of it.
+        let eye = target + simd_act(rotDict, SIMD3<Float>(0, 0, Self.viewStandoff))
         let view = matrix_look_at(eye: eye, target: target, up: up)
 
         let halfHeight = distance * tan(fov * 0.5)
@@ -81,7 +98,7 @@ class Camera {
 
         let proj = matrix_orthographic(left: -halfWidth, right: halfWidth,
                                        bottom: -halfHeight, top: halfHeight,
-                                       nearZ: nearZ, farZ: farZ)
+                                       nearZ: nearZ, farZ: Self.viewStandoff * 2)
 
         return simd_mul(proj, view)
     }
