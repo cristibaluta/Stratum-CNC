@@ -21,10 +21,6 @@ struct MakeraHeaderParser: GCodeHeaderParser {
 
     private static let linePrefix = ";@MKR|"
 
-    /// The header doesn't say how many flutes a tool has, and `ToolSpec`
-    /// requires a number. Nothing in the heightmap carve reads it today.
-    private static let assumedFlutes = 2
-
     func parse(headerLines: [String]) -> GCodeHeader? {
         var sawBegin = false
         var tools: [Int: ToolSpec] = [:]
@@ -96,7 +92,7 @@ struct MakeraHeaderParser: GCodeHeaderParser {
 
         return (number, ToolSpec(name: name,
                                  diameterMM: diameter,
-                                 flutes: assumedFlutes,
+                                 flutes: ToolSpec.assumedFlutes,
                                  kind: kind,
                                  tipAngleDegrees: tipAngle))
     }

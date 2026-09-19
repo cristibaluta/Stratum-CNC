@@ -17,6 +17,12 @@ struct GCodeHeader: Sendable {
     var tools: [Int: ToolSpec] = [:]
 }
 
+extension ToolSpec {
+    /// Most CAM headers don't say how many flutes a tool has, but `ToolSpec`
+    /// requires a number. Nothing in the heightmap carve reads it today.
+    static let assumedFlutes = 2
+}
+
 /// Reads one CAM package's header dialect. `GCodeParser` hands every
 /// registered parser the leading comment block of the file, in order, and
 /// uses the first one that recognises it — so adding support for another CAM

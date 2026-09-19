@@ -109,7 +109,7 @@ final class GCodeParser {
     /// so a file that's nothing but comments isn't scanned end to end.
     private static let maxHeaderLines = 1000
 
-    init(headerParsers: [any GCodeHeaderParser] = [MakeraHeaderParser()]) {
+    init(headerParsers: [any GCodeHeaderParser] = [MakeraHeaderParser(), FusionHeaderParser()]) {
         self.headerParsers = headerParsers
     }
 
