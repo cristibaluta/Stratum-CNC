@@ -75,6 +75,12 @@ final class MachineConnection: ObservableObject {
     @Published private(set) var rawLog: [String] = []
     @Published var lastError: String?
 
+    /// Fires for every non-status line the machine sends back (e.g. "ok",
+    /// error replies) — not fired for status reports, which update `status`
+    /// instead. `GCodeJobRunner` listens here to know when it's safe to
+    /// send the next queued line.
+    var onLine: ((String) -> Void)?
+
     private var connection: NWConnection?
     private var pollTimer: Timer?
 
@@ -313,5 +319,6 @@ final class MachineConnection: ObservableObject {
         if rawLog.count > 200 {
             rawLog.removeFirst(rawLog.count - 200)
         }
+        onLine?(line)
     }
 }

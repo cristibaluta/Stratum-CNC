@@ -11,11 +11,27 @@ import AppKit
 struct GCodeViewer: View {
 
     @ObservedObject var model: GCodeStore
+    /// Owns the play/pause/stop state for the loaded program. Observed
+    /// directly (rather than reached through `model`) so this view updates
+    /// live as the job progresses — same reasoning as `PanelPosition`
+    /// observing `MachineConnection` directly instead of through
+    /// `ControllerModel`.
+    @ObservedObject var jobRunner: GCodeJobRunner
+    /// Observed directly for the same reason as `jobRunner` above — used to
+    /// disable "play" while there's nothing to send to.
+    @ObservedObject var connection: MachineConnection
     var highlightedLine: Int? = nil
     /// Forwarded straight to `GCodeTableView`'s `onLineSelected` — see there
     /// for what "selected" covers. `ControllerView` supplies the closure
     /// that actually syncs the scrubber and the Metal canvas.
     var onLineSelected: ((Int) -> Void)? = nil
+    /// Starts streaming the loaded program. `ControllerView` supplies this
+    /// as a closure into `ControllerModel.startJob(lines:)` since this view
+    /// only holds the `GCodeStore`, not the machine connection.
+    var onPlay: (() -> Void)? = nil
+    var onPause: (() -> Void)? = nil
+    var onResume: (() -> Void)? = nil
+    var onStop: (() -> Void)? = nil
 
     /// Cached result of `GCodeToolpathAnalyzer.analyze`. This used to be a
     /// computed property, which ran the analyzer — two `NSRegularExpression`
@@ -113,38 +129,67 @@ struct GCodeViewer: View {
         }
     }
 
+    /// A job can be started when there's something to send and nothing
+    /// already running. Doesn't require a live connection by itself —
+    /// `onPlay` (wired to `ControllerModel.startJob`) is the source of
+    /// truth for that and simply no-ops while disconnected — but a visibly
+    /// disabled button while disconnected is a clearer signal than a play
+    /// tap that silently does nothing.
+    private var canStartJob: Bool {
+        connection.isConnected && !jobRunner.isActive && !model.document.lines.isEmpty
+    }
+
     private var commandBar: some View {
         HStack(spacing: 8) {
             Button {
-
+                switch jobRunner.state {
+                case .paused:
+                    onResume?()
+                default:
+                    onPause?()
+                }
             } label: {
-                Image(systemName: "pause.fill")
+                Image(systemName: jobRunner.state == .paused ? "play.fill" : "pause.fill")
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            Button {
+            .disabled(!jobRunner.isActive)
+            .help(jobRunner.state == .paused ? "Resume the job" : "Pause the job")
 
+            Button {
+                onStop?()
             } label: {
                 Image(systemName: "stop.fill")
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            Button {
+            .disabled(!jobRunner.isActive)
+            .help("Stop the job")
 
+            Button {
+                onPlay?()
             } label: {
                 Image(systemName: "play.fill")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(canStartJob ? Color.accentColor : .secondary)
             }
             .buttonStyle(.borderless)
+            .disabled(!canStartJob)
+            .help("Send the loaded program to the machine")
 
             Spacer()
 
-            Button {
+            if jobRunner.totalLines > 0 {
+                Text("\(jobRunner.linesSent)/\(jobRunner.totalLines)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
 
+            Button {
+                onPlay?()
             } label: {
                 Text("Send to Machine")
             }
-//            .disabled(!model.connection.isConnected)
+            .disabled(!canStartJob)
         }
         .frame(maxWidth: .infinity)
     }

@@ -25,6 +25,10 @@ class ControllerModel: ObservableObject {
     @Published var selectedFeedOverride: Int = 100
     @Published var spindleRPM = "12000"
 
+    /// Owns streaming a loaded G-code program to the machine — see its doc
+    /// comment for what's interim about it pending Roadmap 1.2/1.3.
+    @Published var jobRunner = GCodeJobRunner()
+
     @Published var isGCodeImporterPresented = false
     @Published var isShowingCommandPalette = false
     @Published var isLightOn = false
@@ -59,6 +63,13 @@ class ControllerModel: ObservableObject {
     )
 
     init() {
+        jobRunner.configure { [weak self] line in
+            self?.sendRawCommand(line, recordInHistory: false)
+        }
+        connection.onLine = { [weak self] line in
+            self?.jobRunner.handleMachineLine(line)
+        }
+
         #if os(macOS)
         // A held button's release is never delivered once the app is in the
         // background, so switching away mid-jog must stop the jog itself.
@@ -149,6 +160,27 @@ class ControllerModel: ObservableObject {
 
     func stopHoldJog() {
         jogController.stopAll()
+    }
+
+    // MARK: - Job execution
+
+    /// Starts streaming `lines` to the machine. No-op while disconnected or
+    /// while a job is already running/paused.
+    func startJob(lines: [String]) {
+        guard connection.isConnected else { return }
+        jobRunner.start(lines: lines)
+    }
+
+    func pauseJob() {
+        jobRunner.pause()
+    }
+
+    func resumeJob() {
+        jobRunner.resume()
+    }
+
+    func stopJob() {
+        jobRunner.stop()
     }
 
     // MARK: - Raw commands not modeled by CNCCommand

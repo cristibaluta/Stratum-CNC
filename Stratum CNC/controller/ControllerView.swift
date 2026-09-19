@@ -132,7 +132,15 @@ struct ControllerView: View {
                     }
                     .padding(.top, 4)
                 ) {
-                    GCodeViewer(model: gCodeModel, highlightedLine: gCodeModel.scrubLine, onLineSelected: scrubTo)
+                    GCodeViewer(model: gCodeModel,
+                                jobRunner: model.jobRunner,
+                                connection: model.connection,
+                                highlightedLine: gCodeModel.scrubLine,
+                                onLineSelected: scrubTo,
+                                onPlay: { model.startJob(lines: gCodeModel.document.lines.map { $0.text }) },
+                                onPause: model.pauseJob,
+                                onResume: model.resumeJob,
+                                onStop: model.stopJob)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
