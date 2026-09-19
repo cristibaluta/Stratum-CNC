@@ -372,21 +372,22 @@ extension RenderObject {
     /// the L wraps around the origin's lower-left: one arm runs along +X below
     /// it, the other along +Y to its left. `legLength` is each arm's full
     /// outer length, measured from the outer corner; `thickness` is the arm
-    /// width. With the defaults the outer corner lands on (-15, -15) —
-    /// exactly the work bed's origin corner.
+    /// width. Each arm's *inside* edge is therefore `legLength - thickness`
+    /// long — 85 mm with the defaults. With the defaults the outer corner
+    /// lands on (-15, -15) — exactly the work bed's origin corner.
     ///
     ///   (not to scale; default coordinates shown)
     ///
-    ///   (-15,65) ┌──┐ (0,65)
+    ///   (-15,85) ┌──┐ (0,85)
     ///            │  │
-    ///            │  └──────┐ (65,0)     ← inner elbow is `insideCorner` (0,0)
-    ///            └─────────┘ (65,-15)
+    ///            │  └──────┐ (85,0)     ← inner elbow is `insideCorner` (0,0)
+    ///            └─────────┘ (85,-15)
     ///         (-15,-15) = outer corner
     ///
     /// Static, like `workbed` — no `xyOffset`.
     static func anchor(z: Float,
                        insideCorner: SIMD2<Float> = .zero,
-                       legLength: Float = 80,
+                       legLength: Float = 100,
                        thickness: Float = 15,
                        color: SIMD4<Float> = SIMD4<Float>(0.95, 0.55, 0.15, 1.0)) -> RenderObject {
 
@@ -412,9 +413,10 @@ extension RenderObject {
     /// Tick sizes: 1 mm (short), 5 mm (medium), 10 mm (long). There's no
     /// text rendering in this renderer, so the 10 mm marks are the numbering.
     ///
-    /// Static, like the anchor — no `xyOffset`. The default 80 mm runs
-    /// past the end of the default anchor's arms (65 mm of inside edge), so
-    /// the last ~15 mm of ticks stand on the bed, not the fence.
+    /// Static, like the anchor — no `xyOffset`. The default anchor's arms
+    /// have 85 mm of inside edge, so the whole 80 mm ruler sits on the
+    /// fence. If `length` is ever raised past the arms' inside edge, the
+    /// extra ticks stand on the bed instead.
     static func ruler(z: Float,
                       insideCorner: SIMD2<Float> = .zero,
                       length: Float = 80,
