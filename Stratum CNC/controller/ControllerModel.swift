@@ -35,6 +35,17 @@ class ControllerModel: ObservableObject {
     /// of `jobRunner` (Roadmap 1.2).
     @Published var uploader = GCodeUploader()
 
+    /// SD-card path of the most recently completed upload, set once by
+    /// `uploader.onCompleted` below. `resumeJob(fromLine:)` (Roadmap 1.5)
+    /// needs this: `goto <line>` repositions the file the firmware already
+    /// has loaded, but doesn't itself say which file, so a resume-from-line
+    /// only makes sense while this still points at what's on the SD card.
+    /// Left stale (not re-verified) after a *different* local file is
+    /// loaded/scrubbed without being re-uploaded — there's no way to ask the
+    /// firmware what it currently has loaded, so this is a best-effort
+    /// "last thing we sent it", same caveat as `lastJob` on the status side.
+    @Published private(set) var lastUploadedRemotePath: String?
+
     @Published var isGCodeImporterPresented = false
     @Published var isShowingCommandPalette = false
     @Published var isLightOn = false
@@ -89,6 +100,7 @@ class ControllerModel: ObservableObject {
         // `upload` only writes the file — Smoothieware's own `play <path>`
         // console command is what actually starts the job running from it.
         uploader.onCompleted = { [weak self] remotePath in
+            self?.lastUploadedRemotePath = remotePath
             self?.sendRawCommand("play \(remotePath)", recordInHistory: false)
         }
         connection.onLine = { [weak self] line in
@@ -241,13 +253,43 @@ class ControllerModel: ObservableObject {
         connection.requestStatus()
     }
 
-    /// Resumes whichever kind of pause the machine is in. They're resumed
-    /// differently: a feed-hold (`Hold`) takes the realtime `~`, but a job
-    /// paused by the console `suspend` command (`Pause` — e.g. started from
-    /// the machine's own controls) only responds to the console `resume`
-    /// command. Sending `~` to a suspended machine does nothing.
+    /// Resumes whichever kind of pause the machine is in, from wherever it
+    /// actually paused. See `resumeJob(fromLine:)` to resume from a chosen
+    /// line instead (Roadmap 1.5).
     func resumeJob() {
+        resumeJob(fromLine: nil)
+    }
+
+    /// Resumes a held job the same way `resumeJob()` does, but first
+    /// repositions the SD-card file's read pointer with the console
+    /// `goto <line>` command (Roadmap 1.5) — so the job can restart earlier
+    /// or later than wherever the hold actually happened, e.g. to redo a
+    /// cut that came out wrong or skip past a broken tool change. Passing
+    /// `nil` is exactly `resumeJob()`.
+    ///
+    /// `goto` only seeks; it isn't a play command by itself, so it's sent
+    /// *before*, never instead of, the same feed-hold/`suspend` resume
+    /// below — matches Player.cpp's other file-position console commands
+    /// (`play <path>`, `progress`), which are all separate from the
+    /// realtime `~`/console `resume` that actually restarts motion. Only
+    /// meaningful for a job that came from `uploader` (an SD-card file, not
+    /// `jobRunner`'s streamed queue, which has no file to seek in), so
+    /// `line` is silently ignored unless `lastUploadedRemotePath` is set.
+    ///
+    /// Not confirmed against real hardware or against Player.cpp's console
+    /// command source directly (wasn't accessible while writing this) —
+    /// this follows the roadmap's own `goto <line>` phrasing and the shape
+    /// of Player.cpp's other console commands, but it's worth checking
+    /// against a real machine, or ideally the firmware source, before
+    /// relying on it for anything valuable. If `goto` turns out to need the
+    /// path repeated (e.g. `goto <path> <line>`) rather than a bare line
+    /// number, this is the one place to fix it.
+    func resumeJob(fromLine line: Int?) {
         guard connection.isConnected else { return }
+
+        if let line, lastUploadedRemotePath != nil {
+            sendRawCommand("goto \(line)", recordInHistory: false)
+        }
 
         // Resume the machine first so it's already moving again by the
         // time the runner queues its next line.

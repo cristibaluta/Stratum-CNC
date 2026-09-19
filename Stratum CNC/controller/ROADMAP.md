@@ -110,7 +110,20 @@ The app can't actually run a G-code file on the machine yet. This is the core mi
       - Known limitation: the report has no filename, so the table highlight assumes the loaded
         document is the one playing (out-of-range lines are ignored). A job started from the
         machine's own controls will highlight whatever row shares that number.
-- [ ] 1.5 Wire up `goto <line>` to resume from a specific line after a pause
+- [x] 1.5 Wire up `goto <line>` to resume from a specific line after a pause
+      Landed as `ControllerModel.resumeJob(fromLine:)` (the old no-arg `resumeJob()` now just
+      calls it with `nil`) plus a "Resume from Line N" button in `GCodeViewer`'s command bar,
+      shown only while held and only once `ControllerModel.lastUploadedRemotePath` (new, set
+      from `uploader.onCompleted`) says a file's actually on the SD card to seek in. The target
+      line is whatever row was last tapped in the G-code table (`GCodeStore.requestedLine`),
+      falling back to the scrub position.
+      `goto <line>` is sent before, not instead of, the same feed-hold/`suspend` resume 1.3
+      already sends — it only repositions Player.cpp's read pointer for whatever resumes next.
+      Not confirmed against Player.cpp's console-command source or real hardware (wasn't
+      accessible while writing this) — matches the roadmap's own phrasing and the shape of the
+      other file-position console commands (`play <path>`), but worth checking against a real
+      machine before relying on it, especially whether `goto` needs the path repeated
+      (`goto <path> <line>`) rather than a bare line number.
 
 ## Phase 2 — Wire up already-modeled commands
 

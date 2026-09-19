@@ -37,6 +37,16 @@ struct GCodeViewer: View {
     var onPause: (() -> Void)? = nil
     /// Cycle-resume (`~`) after a feed-hold. Supplied as `resumeJob`.
     var onResume: (() -> Void)? = nil
+    /// Resume, but seek to a chosen line first (`goto <line>`, Roadmap 1.5)
+    /// instead of continuing from wherever the hold happened. Supplied as
+    /// `ControllerModel.resumeJob(fromLine:)`. Only offered once there's a
+    /// known SD-card path to seek in — see `canResumeFromLine`.
+    var onResumeFromLine: ((Int) -> Void)? = nil
+    /// Whether `onResumeFromLine` has anything to seek in — mirrors
+    /// `ControllerModel.lastUploadedRemotePath != nil`. `GCodeViewer` has no
+    /// other way to know this, since the remote path lives on `uploader`
+    /// only transiently (its `.completed` case), not as a standing property.
+    var canResumeFromLine: Bool = false
     /// Cancels an in-progress upload, or aborts a job running on the
     /// machine (soft-reset). Supplied as `ControllerModel.stopJob`, which
     /// works out which of the two applies.
@@ -217,6 +227,14 @@ struct GCodeViewer: View {
         uploader.isActive || (connection.isConnected && connection.status?.isBusy == true)
     }
 
+    /// The line `onResumeFromLine` would seek to if tapped right now —
+    /// whichever row was last tapped in the table (`model.requestedLine`),
+    /// falling back to the scrub position passed in as `highlightedLine` so
+    /// there's still a sensible target before the user has picked one.
+    private var resumeLineTarget: Int? {
+        model.requestedLine ?? highlightedLine
+    }
+
     private var progressText: String? {
         if isHeld {
             return "Paused"
@@ -284,6 +302,20 @@ struct GCodeViewer: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+            }
+
+            // Only while held, and only once there's a known SD-card file
+            // to seek in — see `canResumeFromLine`. Tap a row in the table
+            // above first to change `resumeLineTarget`; this always shows
+            // *some* line so there's no dead click, but it's the same line
+            // plain "resume" would use until a row is tapped.
+            if isHeld, canResumeFromLine, let target = resumeLineTarget {
+                Button {
+                    onResumeFromLine?(target)
+                } label: {
+                    Text("Resume from Line \(target)")
+                }
+                .help("Seek to line \(target) (console \"goto \(target)\"), then resume — instead of continuing from where it paused")
             }
 
             Button {
