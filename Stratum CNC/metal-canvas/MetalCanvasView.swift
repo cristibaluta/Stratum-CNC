@@ -193,8 +193,8 @@ struct MetalCanvasView: NSViewRepresentable {
                 performDragZoom(translation: translation)
             case .zoomToCursor:
                 performDragZoomToCursor(gesture: gesture, translation: translation)
-            case .snapToView, .none:
-                // Snap to View only exists for scroll inputs (see
+            case .snapToFace, .none:
+                // Snap to Face only exists for scroll inputs (see
                 // `CanvasControlAction.isAvailable(for:)`).
                 break
             }
@@ -309,7 +309,7 @@ struct MetalCanvasView: NSViewRepresentable {
                 performOrbit(translation: scrollTranslation(event))
             case .pan:
                 performPan(translation: scrollTranslation(event))
-            case .snapToView:
+            case .snapToFace:
                 performViewSnap(event)
             case .none:
                 break

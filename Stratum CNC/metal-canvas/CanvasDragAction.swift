@@ -19,18 +19,19 @@ enum CanvasControlAction: String, CaseIterable, Identifiable {
     /// `.scroll` since scroll is usually the primary zoom input and this
     /// reads as more controlled than `.zoom`.
     case zoomToCursor
-    /// Jumps between the six standard views (top, bottom, front, back, left,
-    /// right) — one jump per swipe, toward the side the swipe points to. Only
-    /// meaningful for scroll inputs; see `isAvailable(for:)`.
-    case snapToView
+    /// Jumps between the five reachable standard views (top, front, back,
+    /// left, right — bottom is excluded) — one jump per swipe, toward the
+    /// side the swipe points to. Only meaningful for scroll inputs; see
+    /// `isAvailable(for:)`.
+    case snapToFace
     case none
 
     var id: String { rawValue }
 
-    /// Snapping to a view needs a discrete swipe, which a drag or a mouse
+    /// Snapping to a face needs a discrete swipe, which a drag or a mouse
     /// button doesn't provide, so it's only offered for the scroll triggers.
     func isAvailable(for trigger: CanvasInputTrigger) -> Bool {
-        self != .snapToView || trigger.isScroll
+        self != .snapToFace || trigger.isScroll
     }
 
     var label: String {
@@ -39,7 +40,7 @@ enum CanvasControlAction: String, CaseIterable, Identifiable {
         case .pan: return "Pan"
         case .zoom: return "Zoom"
         case .zoomToCursor: return "Zoom to Cursor"
-        case .snapToView: return "Snap to View"
+        case .snapToFace: return "Snap to Face"
         case .none: return "Do Nothing"
         }
     }
@@ -98,7 +99,7 @@ final class CanvasInputSettings: ObservableObject {
     static let defaultMiddleButton: CanvasControlAction = .pan
     static let defaultScroll: CanvasControlAction = .zoomToCursor
     static let defaultModifiedScroll: CanvasControlAction = .orbit
-    static let defaultOptionScroll: CanvasControlAction = .snapToView
+    static let defaultOptionScroll: CanvasControlAction = .snapToFace
 
     @Published var primaryAction: CanvasControlAction {
         didSet { defaults.set(primaryAction.rawValue, forKey: Keys.primary) }

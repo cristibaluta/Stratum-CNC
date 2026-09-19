@@ -39,7 +39,7 @@ struct CanvasControlsSettingsView: View {
             } header: {
                 Text("Mouse Controls")
             } footer: {
-                Text("Pinch to zoom always zooms and can't be reassigned. Snap to View jumps between the six standard views, one per swipe, and is only available for scroll inputs.")
+                Text("Pinch to zoom always zooms and can't be reassigned. Snap to Face jumps between the five standard views (bottom excluded), one per swipe, and is only available for scroll inputs.")
             }
 
             Section {
