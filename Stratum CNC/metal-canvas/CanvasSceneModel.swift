@@ -166,6 +166,15 @@ class CanvasSceneModel: ObservableObject {
     /// means (this bakes the offset into the carved vertices once per carve;
     /// the GPU path re-applies its uniform every frame).
     func updateHeightmap(stock: StockMaterial, segments: some Sequence<ToolpathSegment>, tool: ToolSpec?) {
+        // Nothing draws the surface outside `.heightmap` mode (see
+        // `MetalRenderer.draw`), so carving and meshing here would be pure
+        // wasted work — on the main thread, on every scrub. `CanvasSection`
+        // forces a recarve when the mode is switched *to* `.heightmap`, so
+        // the surface is current the moment it's needed.
+        guard renderMode == .heightmap else {
+            return
+        }
+
         heightmapScrubTickCount = 0
 
         guard let tool else {
@@ -189,6 +198,12 @@ class CanvasSceneModel: ObservableObject {
     /// actual carve produced, same as the wireframe path briefly lags a
     /// fast drag by a few ticks before catching up.
     func scrubHeightmap(stock: StockMaterial, document: NCFileDocument, line: Int, tool: ToolSpec?, force: Bool = false) {
+        // See `updateHeightmap`: no surface is drawn in wireframe mode, so a
+        // scrub there shouldn't touch the heightmap at all.
+        guard renderMode == .heightmap else {
+            return
+        }
+
         guard let tool else {
             heightmapMesh = nil
             heightmapScrubTickCount = 0

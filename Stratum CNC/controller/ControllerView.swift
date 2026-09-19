@@ -562,6 +562,14 @@ private struct CanvasSection: View {
                 // picking a bigger end mill widens every cut.
                 forceHeightmapRefresh()
             }
+            .onChange(of: scene.renderMode) { _, mode in
+                // The heightmap is only carved while it's the visible mode
+                // (see `CanvasSceneModel.updateHeightmap`), so switching to
+                // it needs one exact carve at the current scrub position.
+                if mode == .heightmap {
+                    forceHeightmapRefresh()
+                }
+            }
             .onChange(of: scene.heightmapCellSize) { _, _ in
                 // A new grid resolution needs a full recarve, same as a
                 // reassigned tool — the existing mesh was built at the old
