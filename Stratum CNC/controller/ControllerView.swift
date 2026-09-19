@@ -53,33 +53,7 @@ struct ControllerView: View {
         )
     }
 
-    /// Parks the scrubber — and everything that follows it, the G-code
-    /// table's selection and the Metal canvas — on `line`. Shared by the
-    /// canvas section's slider and by manually selecting a row in
-    /// `GCodeTableView` (wired up as `onLineSelected` where `GCodeViewer` is
-    /// built, below), so the two stay interchangeable: dragging the slider
-    /// moves the table's selection, and clicking a row moves the slider.
-    /// Also called from `CanvasSection`'s own slider — kept as one free
-    /// function (rather than duplicated in both places) since both need the
-    /// exact same guard/update sequence.
-    ///
-    /// Deliberately does *not* call `CanvasSceneModel.updateToolpath` here —
-    /// that re-tessellates its segments into a brand-new `RenderObject`
-    /// (new `id`), which forces `MetalRenderer` to rebuild the GPU buffer
-    /// from scratch. On a large file, doing that on every tick of a drag
-    /// scaled with however far into the file you'd scrubbed, so dragging
-    /// further in got progressively slower. The full-length toolpath is
-    /// already uploaded once (`onAppear`/`onChange` in `CanvasSection` call
-    /// `updateToolpath` with the *whole* file); scrubbing only needs to
-    /// change how much of that existing buffer is visible, via
-    /// `setToolpathVisibleVertexCounts` — an O(1) lookup plus an in-place
-    /// field mutation, no matter how far into the file the slider sits.
     private func scrubTo(line: Int) {
-        // A table-row click is a single discrete jump, not a tick in a
-        // drag — `forceHeightmap: true` so the surface always matches
-        // exactly where the click landed rather than possibly sitting a few
-        // `heightmapScrubTickInterval` ticks stale (see
-        // `CanvasSceneModel.scrubHeightmap`).
         Self.scrubTo(line: line, gCodeModel: gCodeModel, camModel: camModel, scene: model.scene, forceHeightmap: true)
     }
 
@@ -92,21 +66,11 @@ struct ControllerView: View {
         let counts = gCodeModel.document.toolpathVertexCounts(upTo: line)
         scene.setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
 
-        // Move the cutter marker to wherever the scrubbed path ends, so the
-        // canvas reads as "the tool is here" rather than just a partially-
-        // drawn line. If a machine is connected, `ToolPositionSync` will
-        // overwrite this on the next status update — scrubbing is meant for
-        // reviewing an offline file, not for tracking a job that's actually
-        // running.
-        // `.last` on the slice is O(1); this doesn't materialize the prefix
-        // into an `Array` the way the old code did.
+        // Move the cutter marker to wherever the scrubbed path ends
         if let last = gCodeModel.document.toolpathSegments(upTo: line).last {
             scene.updateToolPosition(last.end)
         }
 
-        // M5: the heightmap's own scrub path — throttled internally (see
-        // `CanvasSceneModel.scrubHeightmap`), so it's fine to call this on
-        // every tick the same way `setToolpathVisibleVertexCounts` above is.
         scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
                              document: gCodeModel.document,
                              line: line,
@@ -134,7 +98,8 @@ struct ControllerView: View {
             } else {
                 CanvasSection(scene: model.scene, gCodeModel: gCodeModel,
                               camModel: camModel, connection: model.connection,
-                              isStockVisible: stockVisibleBinding)
+                              isStockVisible: stockVisibleBinding,
+                              isShowingCanvasControlsSettings: $isShowingCanvasControlsSettings)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(16)
                     .padding(.trailing, -16)
@@ -278,14 +243,6 @@ struct ControllerView: View {
                 .help(model.isLightOn ? "Turn light off" : "Turn light on")
                 .disabled(!model.connection.isConnected)
             }
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    isShowingCanvasControlsSettings = true
-                } label: {
-                    Image(systemName: "computermouse")
-                }
-                .help("Canvas Mouse Controls")
-            }
         }
         .sheet(isPresented: $isShowingCanvasControlsSettings) {
             NavigationStack {
@@ -396,18 +353,13 @@ struct ControllerView: View {
     }
 }
 
-/// Everything scrub-related, in one view that owns its own `@ObservedObject`
-/// subscriptions to `CanvasSceneModel` and `GCodeStore`. Splitting this out of
-/// `ControllerView` means a scrub tick only re-runs *this* view's `body` —
-/// not `ControllerView`'s, which would otherwise reconstruct every sibling
-/// panel (material/coordinate/probe on the left, position/spindle/machine/
-/// jog/terminal on the right) on every slider tick for no reason.
 private struct CanvasSection: View {
     @ObservedObject var scene: CanvasSceneModel
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var camModel: CAMModel
     let connection: MachineConnection
     let isStockVisible: Binding<Bool>
+    @Binding var isShowingCanvasControlsSettings: Bool
 
     private var scrubBinding: Binding<Double> {
         Binding(
@@ -422,14 +374,6 @@ private struct CanvasSection: View {
         )
     }
 
-    /// M5: forces one exact heightmap recarve at wherever the scrubber
-    /// currently sits — bypasses `scrubTo`'s own throttling and its
-    /// "only if `line` actually changed" guard, both of which are meant for
-    /// the *stream* of ticks during a drag, not this "the drag/scroll just
-    /// stopped" moment. Wired to the slider's `onEditingChanged` below, and
-    /// also called directly from `onAppear`/`onChange` below for the
-    /// non-scrub structural changes (new stock, new file, reassigned tool)
-    /// that should also always be exact.
     private func forceHeightmapRefresh() {
         scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
                              document: gCodeModel.document,
@@ -438,11 +382,6 @@ private struct CanvasSection: View {
                              force: true)
     }
 
-    /// Scroll-to-scrub over the g-code slider — a trackpad swipe (or mouse
-    /// wheel) anywhere over it moves the scrubber, without needing to grab
-    /// the thumb. Wired up via `ScrollWheelCapture`, which claims only
-    /// scroll-wheel events so dragging the actual `Slider` still works
-    /// exactly as before.
     private func handleScrubScroll(_ event: NSEvent) {
         let totalLines = gCodeModel.document.lines.count
         guard totalLines > 0 else {
@@ -513,21 +452,30 @@ private struct CanvasSection: View {
                 }
             )
             .overlay(alignment: .topTrailing) {
-                // M4: the wireframe/heightmap switch. `scene.renderMode`
-                // alone is enough to flip `MetalRenderer.draw(in:)`'s path —
-                // see `MetalCanvasView.updateNSView` — the heightmap mesh
-                // itself is kept up to date independently, below, so there's
-                // never a wait when this toggle moves.
-                Picker("", selection: $scene.renderMode) {
-                    ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
-                        Image(systemName: mode.systemImage)
-                            .help(mode.label)
-                            .tag(mode)
+                HStack {
+                    Picker("", selection: $scene.renderMode) {
+                        ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
+                            Image(systemName: mode.systemImage)
+                                .tint(.white)
+                                .help(mode.label)
+                                .tag(mode)
+                        }
                     }
+                    .frame(width: 80)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Button {
+                        isShowingCanvasControlsSettings = true
+                    } label: {
+                        Image(systemName: "computermouse")
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 8)
                 }
-                .frame(width: 100)
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                .padding(2)
+                .background(.white)
+                .cornerRadius(8)
                 .padding(8)
             }
 

@@ -143,10 +143,10 @@ class Camera {
     /// "Snap to Face": rotates exactly 90° toward the face an Option+swipe
     /// points to (see `MetalCanvasView.Coordinator.performViewSnap`) —
     /// composed onto whatever the orientation already is, not reset to a
-    /// fixed canonical one. Like tumbling a real object: the roll a path
-    /// took to get here carries forward instead of being corrected away,
-    /// so returning to a face by a different route than you left it can
-    /// land upside down. Same axes `orbit(yaw:pitch:)` uses for continuous
+    /// fixed canonical one. Like tumbling a real object, the twist a path
+    /// took to get here carries forward — e.g. Back → Top leaves the top
+    /// view turned 180° — but a side face never lands upside-down (see the
+    /// roll correction below). Same axes `orbit(yaw:pitch:)` uses for continuous
     /// rotation — world `turntableAxis` for a left/right swipe, the
     /// camera's own current right axis for an up/down one — just snapped
     /// to an exact quarter turn instead of following the pointer, so a
@@ -177,6 +177,13 @@ class Camera {
         } else {
             let pitch: Float = dy > 0 ? .pi / 2 : -.pi / 2
             q = simd_mul(q, simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0)))
+            // A quarter turn over the pole (e.g. Top → Back) comes out
+            // upside-down: same face, Z pointing down the screen. Roll it
+            // half a turn about the view axis so it lands the right way up,
+            // like the standard Back view.
+            if simd_dot(q.act(SIMD3<Float>(0, 1, 0)), Camera.machineUp) < -1e-4 {
+                q = simd_mul(q, simd_quatf(angle: .pi, axis: SIMD3<Float>(0, 0, 1)))
+            }
         }
         q = simd_normalize(q)
 
