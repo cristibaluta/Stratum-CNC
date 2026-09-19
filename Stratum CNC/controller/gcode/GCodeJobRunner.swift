@@ -7,18 +7,22 @@
 
 import Foundation
 
-/// Streams a loaded G-code program to the machine, one line at a time,
-/// only advancing once the previous line has been acknowledged.
+/// Streams a sequence of lines to the machine, one at a time, only
+/// advancing once the previous line has been acknowledged.
 ///
 /// This rides the same line-based command channel as manual/MDI sends
-/// (`ControllerModel.sendRawCommand` → `MachineConnection.send`). There is
-/// no binary file-transfer to the machine's SD card yet (Roadmap 1.2), and
-/// no realtime feed-hold/abort byte yet (Roadmap 1.3) — so:
+/// (`ControllerModel.sendRawCommand` → `MachineConnection.send`), and that's
+/// exactly its limit: real Makera hardware doesn't support running a whole
+/// job this way, only small bursts like MDI or macros — see
+/// `GCodeUploader`'s doc comment for why, and use that instead for a full
+/// program (Roadmap 1.2).
+///
+/// There's still no realtime feed-hold/abort byte yet (Roadmap 1.3), so:
 /// - `pause()` only stops *queuing new* lines; whatever line is already in
 ///   flight keeps running until the machine finishes it.
 /// - `stop()` clears the remaining queue but can't cancel motion already
 ///   commanded to the machine.
-/// Both will get sharper once those phases land.
+/// Both will get sharper once that phase lands.
 @MainActor
 final class GCodeJobRunner: ObservableObject {
 

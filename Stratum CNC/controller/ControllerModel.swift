@@ -25,9 +25,15 @@ class ControllerModel: ObservableObject {
     @Published var selectedFeedOverride: Int = 100
     @Published var spindleRPM = "12000"
 
-    /// Owns streaming a loaded G-code program to the machine — see its doc
-    /// comment for what's interim about it pending Roadmap 1.2/1.3.
+    /// Owns streaming individual lines to the machine (MDI, jogging, small
+    /// macros) — see its doc comment for why this isn't used for whole jobs
+    /// anymore now that `uploader` (Roadmap 1.2) exists.
     @Published var jobRunner = GCodeJobRunner()
+
+    /// Owns uploading a whole loaded G-code program to the machine's SD
+    /// card — see its doc comment for why real jobs go through here instead
+    /// of `jobRunner` (Roadmap 1.2).
+    @Published var uploader = GCodeUploader()
 
     @Published var isGCodeImporterPresented = false
     @Published var isShowingCommandPalette = false
@@ -66,8 +72,28 @@ class ControllerModel: ObservableObject {
         jobRunner.configure { [weak self] line in
             self?.sendRawCommand(line, recordInHistory: false)
         }
+        uploader.configure(
+            sendLine: { [weak self] line in
+                self?.sendRawCommand(line, recordInHistory: false)
+            },
+            sendRawBytes: { [weak self] bytes, completion in
+                self?.connection.sendRawBytes(bytes, completion: completion)
+            },
+            sendFrame: { [weak self] ptype, payload, completion in
+                self?.connection.sendFileFrame(ptype: ptype, payload: payload, completion: completion)
+            },
+            wireProtocol: { [weak self] in
+                self?.connection.wireProtocol
+            }
+        )
+        // `upload` only writes the file — Smoothieware's own `play <path>`
+        // console command is what actually starts the job running from it.
+        uploader.onCompleted = { [weak self] remotePath in
+            self?.sendRawCommand("play \(remotePath)", recordInHistory: false)
+        }
         connection.onLine = { [weak self] line in
             self?.jobRunner.handleMachineLine(line)
+            self?.uploader.handleMachineLine(line)
         }
 
         #if os(macOS)
@@ -164,8 +190,21 @@ class ControllerModel: ObservableObject {
 
     // MARK: - Job execution
 
-    /// Starts streaming `lines` to the machine. No-op while disconnected or
-    /// while a job is already running/paused.
+    /// Uploads `contents` to the machine's SD card as `fileName`, replacing
+    /// the old line-by-line `startJob` for real jobs — see `GCodeUploader`'s
+    /// doc comment for why. No-op while disconnected or while an upload is
+    /// already in flight.
+    func uploadJob(fileName: String, contents: String) {
+        guard connection.isConnected else { return }
+        uploader.upload(fileName: fileName, contents: Data(contents.utf8))
+    }
+
+    func cancelUpload() {
+        uploader.cancel()
+    }
+
+    /// Starts streaming `lines` one at a time. Still the right call for
+    /// MDI-style manual sends; use `uploadJob` for a whole program.
     func startJob(lines: [String]) {
         guard connection.isConnected else { return }
         jobRunner.start(lines: lines)

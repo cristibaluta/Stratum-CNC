@@ -48,10 +48,22 @@ none are modeled or exposed in UI (though raw text can be sent via MDI today).
 
 The app can't actually run a G-code file on the machine yet. This is the core missing feature.
 
-- [ ] 1.1 Wire Play/Pause/Stop in `GCodeViewer`'s `commandBar` to real actions
-- [ ] 1.2 Implement file-transfer framing (`ptypeFileStart`/`MD5`/`Data`/`End`) in
+- [x] 1.1 Wire Play/Pause/Stop in `GCodeViewer`'s `commandBar` to real actions
+- [x] 1.2 Implement file-transfer framing (`ptypeFileStart`/`MD5`/`Data`/`End`) in
       `MachineConnection` to upload `.nc` files, matching `Carvera_Controller`'s
-      `WIFIStream.py`
+      `WIFIStream.py`.
+      Landed as `GCodeUploader` (+ `MachineConnection.sendFileFrame`/`sendRawBytes`,
+      `MakeraFraming.FileTransfer`). Real hardware can't stream a job line-by-line —
+      `GCodeJobRunner`/1.1 is now MDI/macro-only — so "Send to Machine" uploads the
+      whole file to the SD card and machine-side `play <path>` runs it from there,
+      confirmed against Carvera_Controller issue #811's MDI trail (`upload <path>`
+      as the trigger command, plain-text ack/error lines) and Smoothieware's
+      documented `.smoothie`-protocol `upload`/Ctrl-D flow. The framed-protocol
+      payload shapes for `ptypeFileStart`/`ptypeFileMD5` (see
+      `MakeraFraming.FileTransfer`) are a best-effort reconstruction, not read
+      from `WIFIStream.py` itself (wasn't accessible while writing this) — worth
+      checking against a real packet capture before relying on it for anything
+      valuable.
 - [ ] 1.3 Add realtime feed-hold (`!`) / resume (`~`) / soft-reset for pause/resume/abort of a
       running job
 - [ ] 1.4 Track & display job progress (current line, % complete) from status reports

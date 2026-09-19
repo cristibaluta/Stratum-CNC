@@ -11,13 +11,14 @@ import AppKit
 struct GCodeViewer: View {
 
     @ObservedObject var model: GCodeStore
-    /// Owns the play/pause/stop state for the loaded program. Observed
+    /// Owns the upload/progress state for the loaded program. Observed
     /// directly (rather than reached through `model`) so this view updates
-    /// live as the job progresses — same reasoning as `PanelPosition`
+    /// live as the transfer progresses — same reasoning as `PanelPosition`
     /// observing `MachineConnection` directly instead of through
-    /// `ControllerModel`.
-    @ObservedObject var jobRunner: GCodeJobRunner
-    /// Observed directly for the same reason as `jobRunner` above — used to
+    /// `ControllerModel`. Real jobs go through here, not `GCodeJobRunner` —
+    /// see `GCodeUploader`'s doc comment for why (Roadmap 1.2).
+    @ObservedObject var uploader: GCodeUploader
+    /// Observed directly for the same reason as `uploader` above — used to
     /// disable "play" while there's nothing to send to.
     @ObservedObject var connection: MachineConnection
     var highlightedLine: Int? = nil
@@ -25,12 +26,15 @@ struct GCodeViewer: View {
     /// for what "selected" covers. `ControllerView` supplies the closure
     /// that actually syncs the scrubber and the Metal canvas.
     var onLineSelected: ((Int) -> Void)? = nil
-    /// Starts streaming the loaded program. `ControllerView` supplies this
-    /// as a closure into `ControllerModel.startJob(lines:)` since this view
-    /// only holds the `GCodeStore`, not the machine connection.
+    /// Uploads the loaded program to the machine's SD card. `ControllerView`
+    /// supplies this as a closure into `ControllerModel.uploadJob(fileName:
+    /// contents:)` since this view only holds the `GCodeStore`, not the
+    /// machine connection.
     var onPlay: (() -> Void)? = nil
-    var onPause: (() -> Void)? = nil
-    var onResume: (() -> Void)? = nil
+    /// Cancels an in-progress upload. Pause/resume of a job already
+    /// *running* on the machine needs realtime feed-hold, which doesn't
+    /// exist yet (Roadmap 1.3) — there's nothing to wire those buttons to
+    /// until then.
     var onStop: (() -> Void)? = nil
 
     /// Cached result of `GCodeToolpathAnalyzer.analyze`. This used to be a
@@ -130,31 +134,41 @@ struct GCodeViewer: View {
     }
 
     /// A job can be started when there's something to send and nothing
-    /// already running. Doesn't require a live connection by itself —
-    /// `onPlay` (wired to `ControllerModel.startJob`) is the source of
+    /// already uploading. Doesn't require a live connection by itself —
+    /// `onPlay` (wired to `ControllerModel.uploadJob`) is the source of
     /// truth for that and simply no-ops while disconnected — but a visibly
     /// disabled button while disconnected is a clearer signal than a play
     /// tap that silently does nothing.
     private var canStartJob: Bool {
-        connection.isConnected && !jobRunner.isActive && !model.document.lines.isEmpty
+        connection.isConnected && !uploader.isActive && !model.document.lines.isEmpty
+    }
+
+    private var progressText: String? {
+        switch uploader.state {
+        case let .transferring(sent, total):
+            guard total > 0 else { return "…" }
+            let percent = Int((Double(sent) / Double(total)) * 100)
+            return "\(percent)%"
+        case .arming, .verifying:
+            return "…"
+        case .completed:
+            return "Sent"
+        case .failed(let message):
+            return "Failed: \(message)"
+        case .idle, .cancelled:
+            return nil
+        }
     }
 
     private var commandBar: some View {
         HStack(spacing: 8) {
-            Button {
-                switch jobRunner.state {
-                case .paused:
-                    onResume?()
-                default:
-                    onPause?()
-                }
-            } label: {
-                Image(systemName: jobRunner.state == .paused ? "play.fill" : "pause.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .disabled(!jobRunner.isActive)
-            .help(jobRunner.state == .paused ? "Resume the job" : "Pause the job")
+            // Pause/resume needs realtime feed-hold on a job the machine is
+            // already running, which doesn't exist yet — see `onStop`'s doc
+            // comment (Roadmap 1.3). Left in place, disabled, so the layout
+            // doesn't jump once that lands.
+            Image(systemName: "pause.fill")
+                .foregroundStyle(.secondary.opacity(0.4))
+                .help("Pause/resume isn't available yet — needs realtime feed-hold (Roadmap 1.3)")
 
             Button {
                 onStop?()
@@ -163,8 +177,8 @@ struct GCodeViewer: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .disabled(!jobRunner.isActive)
-            .help("Stop the job")
+            .disabled(!uploader.isActive)
+            .help("Cancel the upload")
 
             Button {
                 onPlay?()
@@ -174,14 +188,15 @@ struct GCodeViewer: View {
             }
             .buttonStyle(.borderless)
             .disabled(!canStartJob)
-            .help("Send the loaded program to the machine")
+            .help("Upload the loaded program to the machine's SD card and run it")
 
             Spacer()
 
-            if jobRunner.totalLines > 0 {
-                Text("\(jobRunner.linesSent)/\(jobRunner.totalLines)")
+            if let progressText {
+                Text(progressText)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             Button {

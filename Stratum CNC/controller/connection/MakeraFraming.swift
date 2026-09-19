@@ -38,6 +38,45 @@ enum MakeraFraming {
         ptypeFileData, ptypeFileEnd, ptypeFileCancel, ptypeFileRetry,
     ]
 
+    // MARK: - File-transfer payload layouts (Roadmap 1.2)
+    //
+    // The frame layout above (header/length/type/payload/crc/footer) is
+    // confirmed. The *payload* layout for each ptypeFile* below is a
+    // best-effort reconstruction, not a byte-for-byte read of
+    // Carvera_Controller's WIFIStream.py (not accessible while writing
+    // this) — reconstructed instead from the MDI trail the reference
+    // controller actually logs during an upload:
+    //   `upload /sd/gcodes/<file>` (a plain command over the normal line
+    //   channel — GCodeUploader sends this first, before any of these
+    //   frames), then later either success or a plain-text line like
+    //   "Transmission canceled by Machine." / "Uploading is canceled
+    //   manually." (see Carvera-Community/Carvera_Controller issue #811).
+    // If a real packet capture disagrees with the two functions below,
+    // they're the only things that need to change — `GCodeUploader`
+    // doesn't otherwise care about payload shape.
+    enum FileTransfer {
+        /// Sent once, before any `ptypeFileData` chunks — the total size of
+        /// the incoming file, big-endian, so firmware can allocate/verify.
+        /// The destination path isn't repeated here: it already travelled
+        /// as the `upload <path>` command.
+        static func fileStartPayload(fileSize: Int) -> Data {
+            let size = UInt32(fileSize)
+            return Data([
+                UInt8((size >> 24) & 0xFF),
+                UInt8((size >> 16) & 0xFF),
+                UInt8((size >> 8) & 0xFF),
+                UInt8(size & 0xFF),
+            ])
+        }
+
+        /// Whole-file MD5, sent once after all data chunks, as a lowercase
+        /// hex string — same shape `md5sum <file>` prints elsewhere in the
+        /// Smoothie console command set.
+        static func fileMD5Payload(hexDigest: String) -> Data {
+            Data(hexDigest.lowercased().utf8)
+        }
+    }
+
     // MARK: - CRC-16/CCITT (poly 0x1021, init 0x0000)
 
     private static let crcTable: [UInt16] = {

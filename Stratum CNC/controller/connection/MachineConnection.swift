@@ -60,6 +60,19 @@ enum MakeraWireProtocol: String {
     case makera = "Makera (framed binary)"
 }
 
+/// Errors surfaced by `MachineConnection`'s send paths that aren't just
+/// "the socket failed" (`NWError`) — e.g. calling a protocol-specific send
+/// method while the wrong wire protocol (or no protocol yet) is active.
+enum MachineConnectionError: LocalizedError {
+    case notReady
+
+    var errorDescription: String? {
+        switch self {
+        case .notReady: "Not connected, or wrong wire protocol for this send path"
+        }
+    }
+}
+
 /// Manages a live TCP connection to a Makera machine's command port (2222).
 ///
 /// On connect, probes which wire protocol the firmware speaks before sending
@@ -80,6 +93,16 @@ final class MachineConnection: ObservableObject {
     /// instead. `GCodeJobRunner` listens here to know when it's safe to
     /// send the next queued line.
     var onLine: ((String) -> Void)?
+
+    /// Fires for every inbound frame using one of the file-transfer ptypes
+    /// (`ptypeFileStart`...`ptypeFileRetry`) instead of being silently
+    /// dropped. In practice the machine's real acks/errors during an
+    /// upload arrive as ordinary text through `onLine` (see
+    /// `GCodeUploader`'s doc comment for the MDI trail that showed this),
+    /// so nothing currently drives this off `ptypeFileRetry`'s payload —
+    /// it's here so that behaviour can be added once someone can capture
+    /// what the machine actually puts in it, without touching the parser.
+    var onFileTransferFrame: ((UInt8, Data) -> Void)?
 
     private var connection: NWConnection?
     private var pollTimer: Timer?
@@ -246,6 +269,44 @@ final class MachineConnection: ObservableObject {
         connection.send(content: payload, completion: .contentProcessed { _ in })
     }
 
+    // MARK: - File transfer (Roadmap 1.2)
+    //
+    // Neither of these goes through `send(_:)`: they're lower-level than a
+    // line/command, only meaningful during an active upload, and each
+    // protocol needs a different shape (a CRC-framed binary packet vs. a
+    // completely unwrapped byte stream). `GCodeUploader` owns the sequencing
+    // and calls whichever of the two matches `wireProtocol`.
+
+    /// Sends one `ptypeFileStart`/`Data`/`MD5`/`End`/`Cancel` frame. Only
+    /// meaningful once the framed Makera protocol has been detected.
+    /// `completion` mirrors `NWConnection.send`'s own completion handler so
+    /// `GCodeUploader` can pace chunk-by-chunk sending off real socket
+    /// backpressure instead of firing every chunk at once.
+    func sendFileFrame(ptype: UInt8, payload: Data, completion: @escaping (Error?) -> Void) {
+        guard let connection, wireProtocol == .makera else {
+            completion(MachineConnectionError.notReady)
+            return
+        }
+        let frame = MakeraFraming.buildFrame(ptype: ptype, payload: payload)
+        connection.send(content: frame, completion: .contentProcessed { error in
+            Task { @MainActor in completion(error) }
+        })
+    }
+
+    /// Writes bytes straight to the socket — no line framing, no Makera CRC
+    /// wrapper. Only meaningful for the plain-text (`.smoothie`) protocol's
+    /// legacy `upload` flow: the raw file body, then a single 0x04 (Ctrl-D)
+    /// terminator byte.
+    func sendRawBytes(_ bytes: Data, completion: @escaping (Error?) -> Void) {
+        guard let connection, wireProtocol == .smoothie else {
+            completion(MachineConnectionError.notReady)
+            return
+        }
+        connection.send(content: bytes, completion: .contentProcessed { error in
+            Task { @MainActor in completion(error) }
+        })
+    }
+
     private func startPolling() {
         pollTimer?.invalidate()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -301,7 +362,10 @@ final class MachineConnection: ObservableObject {
 
     private func handleMakeraBytes(_ data: Data) {
         for frame in frameParser.feed(data) {
-            guard !MakeraFraming.fileTransferTypes.contains(frame.ptype) else { continue }
+            if MakeraFraming.fileTransferTypes.contains(frame.ptype) {
+                onFileTransferFrame?(frame.ptype, frame.payload)
+                continue
+            }
             guard let text = String(data: frame.payload, encoding: .utf8) else { continue }
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }

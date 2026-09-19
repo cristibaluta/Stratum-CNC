@@ -133,14 +133,17 @@ struct ControllerView: View {
                     .padding(.top, 4)
                 ) {
                     GCodeViewer(model: gCodeModel,
-                                jobRunner: model.jobRunner,
+                                uploader: model.uploader,
                                 connection: model.connection,
                                 highlightedLine: gCodeModel.scrubLine,
                                 onLineSelected: scrubTo,
-                                onPlay: { model.startJob(lines: gCodeModel.document.lines.map { $0.text }) },
-                                onPause: model.pauseJob,
-                                onResume: model.resumeJob,
-                                onStop: model.stopJob)
+                                onPlay: {
+                                    model.uploadJob(
+                                        fileName: gCodeModel.document.fileName,
+                                        contents: gCodeModel.document.lines.map { $0.text }.joined(separator: "\n")
+                                    )
+                                },
+                                onStop: model.cancelUpload)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
