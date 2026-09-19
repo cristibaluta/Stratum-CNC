@@ -19,9 +19,19 @@ enum CanvasControlAction: String, CaseIterable, Identifiable {
     /// `.scroll` since scroll is usually the primary zoom input and this
     /// reads as more controlled than `.zoom`.
     case zoomToCursor
+    /// Jumps between the six standard views (top, bottom, front, back, left,
+    /// right) — one jump per swipe, toward the side the swipe points to. Only
+    /// meaningful for scroll inputs; see `isAvailable(for:)`.
+    case snapToView
     case none
 
     var id: String { rawValue }
+
+    /// Snapping to a view needs a discrete swipe, which a drag or a mouse
+    /// button doesn't provide, so it's only offered for the scroll triggers.
+    func isAvailable(for trigger: CanvasInputTrigger) -> Bool {
+        self != .snapToView || trigger.isScroll
+    }
 
     var label: String {
         switch self {
@@ -29,6 +39,7 @@ enum CanvasControlAction: String, CaseIterable, Identifiable {
         case .pan: return "Pan"
         case .zoom: return "Zoom"
         case .zoomToCursor: return "Zoom to Cursor"
+        case .snapToView: return "Snap to View"
         case .none: return "Do Nothing"
         }
     }
@@ -50,8 +61,16 @@ enum CanvasInputTrigger: String, CaseIterable, Identifiable {
     case middleButton  // Middle-button drag
     case scroll        // Scroll wheel / two-finger trackpad swipe
     case modifiedScroll // Shift + scroll wheel / two-finger trackpad swipe
+    case optionScroll   // Option + scroll wheel / two-finger trackpad swipe
 
     var id: String { rawValue }
+
+    var isScroll: Bool {
+        switch self {
+        case .scroll, .modifiedScroll, .optionScroll: return true
+        case .primary, .modified, .middleButton: return false
+        }
+    }
 
     var label: String {
         switch self {
@@ -60,6 +79,7 @@ enum CanvasInputTrigger: String, CaseIterable, Identifiable {
         case .middleButton: return "Middle-Click Drag"
         case .scroll: return "Scroll"
         case .modifiedScroll: return "Shift + Scroll"
+        case .optionScroll: return "Option + Scroll"
         }
     }
 }
@@ -78,6 +98,7 @@ final class CanvasInputSettings: ObservableObject {
     static let defaultMiddleButton: CanvasControlAction = .pan
     static let defaultScroll: CanvasControlAction = .zoomToCursor
     static let defaultModifiedScroll: CanvasControlAction = .orbit
+    static let defaultOptionScroll: CanvasControlAction = .snapToView
 
     @Published var primaryAction: CanvasControlAction {
         didSet { defaults.set(primaryAction.rawValue, forKey: Keys.primary) }
@@ -96,6 +117,10 @@ final class CanvasInputSettings: ObservableObject {
         didSet { defaults.set(modifiedScrollAction.rawValue, forKey: Keys.modifiedScroll) }
     }
 
+    @Published var optionScrollAction: CanvasControlAction {
+        didSet { defaults.set(optionScrollAction.rawValue, forKey: Keys.optionScroll) }
+    }
+
     private let defaults: UserDefaults
     private enum Keys {
         static let primary = "canvas.input.primary"
@@ -103,6 +128,7 @@ final class CanvasInputSettings: ObservableObject {
         static let middleButton = "canvas.input.middleButton"
         static let scroll = "canvas.input.scroll"
         static let modifiedScroll = "canvas.input.modifiedScroll"
+        static let optionScroll = "canvas.input.optionScroll"
     }
 
     /// `defaults` is injectable (rather than always `.standard`) so a test
@@ -120,6 +146,8 @@ final class CanvasInputSettings: ObservableObject {
             ?? Self.defaultScroll
         modifiedScrollAction = CanvasControlAction(rawValue: defaults.string(forKey: Keys.modifiedScroll) ?? "")
             ?? Self.defaultModifiedScroll
+        optionScrollAction = CanvasControlAction(rawValue: defaults.string(forKey: Keys.optionScroll) ?? "")
+            ?? Self.defaultOptionScroll
     }
 
     func action(for trigger: CanvasInputTrigger) -> CanvasControlAction {
@@ -129,6 +157,7 @@ final class CanvasInputSettings: ObservableObject {
         case .middleButton: return middleButtonAction
         case .scroll: return scrollAction
         case .modifiedScroll: return modifiedScrollAction
+        case .optionScroll: return optionScrollAction
         }
     }
 
@@ -139,6 +168,7 @@ final class CanvasInputSettings: ObservableObject {
         case .middleButton: middleButtonAction = action
         case .scroll: scrollAction = action
         case .modifiedScroll: modifiedScrollAction = action
+        case .optionScroll: optionScrollAction = action
         }
     }
 
@@ -148,5 +178,6 @@ final class CanvasInputSettings: ObservableObject {
         middleButtonAction = Self.defaultMiddleButton
         scrollAction = Self.defaultScroll
         modifiedScrollAction = Self.defaultModifiedScroll
+        optionScrollAction = Self.defaultOptionScroll
     }
 }

@@ -22,7 +22,6 @@ struct Uniforms {
 class Camera {
     var position: SIMD3<Float> = [0, 0, 150]
     var target: SIMD3<Float> = [0, 0, 0]
-    var up: SIMD3<Float> = [0, 1, 0]
 
     var fov: Float = 90.0 * (.pi / 180.0)
     var aspectRatio: Float = 1.0
@@ -36,25 +35,73 @@ class Camera {
     /// costs no precision to speak of.
     private static let viewStandoff: Float = 1000.0
 
-    // Default 3D View Angle
-    // Pitch (X-axis): -0.6 radians (~-35° looking down)
-    // Yaw (Y-axis): 0.8 radians (~45° angled horizontally)
-    var rotation: SIMD2<Float> = [0.0, 0.0]
+    /// Which way the camera faces, as a rotation of world space: its
+    /// columns are the camera's right, up and back (target → eye) directions
+    /// in world coordinates. Identity is the default view — straight down
+    /// the Z axis onto the XY plane, X to the right, Y up the screen.
+    ///
+    /// A quaternion rather than yaw/pitch angles because yaw/pitch around a
+    /// fixed up axis can only produce views with world Y up on screen: no
+    /// side view could ever have Z (the machine's vertical) pointing up.
+    var orientation = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+
+    /// The world axis `orbit` spins around for horizontal movement — the
+    /// screen's "up" at the moment the view was last set (world Y for the
+    /// default top view, Z after snapping to a side view; see `snap(to:)`).
+    /// Vertical movement tilts around the camera's own X axis and stops when
+    /// the camera would tip past this axis, so the view never rolls upside
+    /// down.
+    var turntableAxis = SIMD3<Float>(0, 1, 0)
 
     var distance: Float = 20.0
 
-    /// The camera's right/up basis vectors in world space, for the current rotation.
+    /// The camera's right / up / back (target → eye) directions in world space.
+    var right: SIMD3<Float> { orientation.act(SIMD3<Float>(1, 0, 0)) }
+    var up: SIMD3<Float> { orientation.act(SIMD3<Float>(0, 1, 0)) }
+    var back: SIMD3<Float> { orientation.act(SIMD3<Float>(0, 0, 1)) }
+
+    /// The camera's right/up basis vectors in world space, for the current orientation.
     /// These match the view-space x/y axes computed in `matrix_look_at`.
     private func basisVectors() -> (right: SIMD3<Float>, up: SIMD3<Float>) {
-        let pitch = simd_quaternion(rotation.x, SIMD3<Float>(1, 0, 0))
-        let yaw = simd_quaternion(rotation.y, SIMD3<Float>(0, 1, 0))
-        let rotDict = simd_mul(yaw, pitch)
+        (right, up)
+    }
 
-        let eye = target + simd_act(rotDict, SIMD3<Float>(0, 0, distance))
-        let z = simd_normalize(eye - target)
-        let x = simd_normalize(simd_cross(up, z))
-        let y = simd_cross(z, x)
-        return (x, y)
+    /// Turntable orbit: `yaw` spins the scene around `turntableAxis`,
+    /// `pitch` tilts it around the camera's own X axis (both in radians).
+    ///
+    /// With the default orientation and axis this is exactly the old
+    /// yaw/pitch orbit, including its stop at straight-up/straight-down.
+    func orbit(yaw: Float, pitch: Float) {
+        var q = orientation
+        if yaw != 0 {
+            q = simd_mul(simd_quatf(angle: yaw, axis: turntableAxis), q)
+        }
+        if pitch != 0 {
+            // Tilting by φ moves the camera's up vector to
+            //   cos φ · up + sin φ · back,
+            // so its height along the turntable axis is A·cos φ + B·sin φ.
+            // That stays ≥ 0 (camera not upside down) for φ within ±90° of
+            // φ0 = atan2(B, A) — clamp to that range, which lands exactly on
+            // the straight-up/down pose instead of stopping short of it.
+            let a = simd_dot(q.act(SIMD3<Float>(0, 1, 0)), turntableAxis)
+            let b = simd_dot(q.act(SIMD3<Float>(0, 0, 1)), turntableAxis)
+            var tilt = pitch
+            if (a * a + b * b).squareRoot() > 1e-6 {
+                let centre = atan2(b, a)
+                tilt = min(max(tilt, centre - .pi / 2), centre + .pi / 2)
+            }
+            q = simd_mul(q, simd_quatf(angle: tilt, axis: SIMD3<Float>(1, 0, 0)))
+        }
+        // Re-normalize so rounding error from thousands of small rotations
+        // can't accumulate into a skewed view.
+        orientation = simd_normalize(q)
+    }
+
+    /// Jumps to one of the six standard views, keeping the current target
+    /// and zoom.
+    func snap(to view: StandardView) {
+        orientation = view.orientation
+        turntableAxis = view.up
     }
 
     /// Changes `distance` (zoom level) while keeping the world point currently under
@@ -93,10 +140,6 @@ class Camera {
     }
 
     func updateMatrix() -> matrix_float4x4 {
-        let pitch = simd_quaternion(rotation.x, SIMD3<Float>(1, 0, 0))
-        let yaw = simd_quaternion(rotation.y, SIMD3<Float>(0, 1, 0))
-        let rotDict = simd_mul(yaw, pitch)
-
         // The projection is orthographic, so `distance` only sets the zoom
         // (via the half extents below) — it has no effect on how big things
         // look. The eye's real distance from `target` only decides which
@@ -107,7 +150,7 @@ class Camera {
         // near plane and vanished. So the eye sits at a fixed standoff and
         // the clip range is centered on `target`: `viewStandoff` of depth
         // either side of it.
-        let eye = target + simd_act(rotDict, SIMD3<Float>(0, 0, Self.viewStandoff))
+        let eye = target + back * Self.viewStandoff
         let view = matrix_look_at(eye: eye, target: target, up: up)
 
         let halfHeight = distance * tan(fov * 0.5)

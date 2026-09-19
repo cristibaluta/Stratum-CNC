@@ -193,7 +193,9 @@ struct MetalCanvasView: NSViewRepresentable {
                 performDragZoom(translation: translation)
             case .zoomToCursor:
                 performDragZoomToCursor(gesture: gesture, translation: translation)
-            case .none:
+            case .snapToView, .none:
+                // Snap to View only exists for scroll inputs (see
+                // `CanvasControlAction.isAvailable(for:)`).
                 break
             }
 
@@ -207,13 +209,8 @@ struct MetalCanvasView: NSViewRepresentable {
                 return
             }
             let sensitivity: Float = 0.005
-            camera.rotation.y -= Float(translation.x) * sensitivity
-            camera.rotation.x = max(-.pi/2 + 0.0, min(.pi/2 - 0.0, camera.rotation.x + Float(translation.y) * sensitivity))
-
-            // --- PRINT ROTATION VALUES ---
-//            let pitchDeg = camera.rotation.x * 180 / .pi
-//            let yawDeg = camera.rotation.y * 180 / .pi
-//            print(String(format: "🎥 Pitch (X): %.2f rad (%.1f°) | Yaw (Y): %.2f rad (%.1f°)", camera.rotation.x, pitchDeg, camera.rotation.y, yawDeg))
+            camera.orbit(yaw: -Float(translation.x) * sensitivity,
+                         pitch: Float(translation.y) * sensitivity)
         }
 
         /// Slides `target` in the view plane, keeping the camera's facing
@@ -283,14 +280,20 @@ struct MetalCanvasView: NSViewRepresentable {
         }
 
         func handleScroll(_ event: NSEvent) {
-            // Reassigning Scroll / Shift + Scroll in CanvasControlsSettingsView
-            // takes effect immediately since this looks the mapping up fresh
-            // on every scroll event rather than caching it. Shift is read
-            // from the event itself (not `NSEvent.modifierFlags`) so it
-            // reflects the state at the moment this scroll was generated.
-            let trigger: CanvasInputTrigger = event.modifierFlags.contains(.shift)
-                ? .modifiedScroll
-                : .scroll
+            // Reassigning Scroll / Shift + Scroll / Option + Scroll in
+            // CanvasControlsSettingsView takes effect immediately since this
+            // looks the mapping up fresh on every scroll event rather than
+            // caching it. Modifiers are read from the event itself (not
+            // `NSEvent.modifierFlags`) so they reflect the state at the
+            // moment this scroll was generated.
+            let trigger: CanvasInputTrigger
+            if event.modifierFlags.contains(.option) {
+                trigger = .optionScroll
+            } else if event.modifierFlags.contains(.shift) {
+                trigger = .modifiedScroll
+            } else {
+                trigger = .scroll
+            }
             switch CanvasInputSettings.shared.action(for: trigger) {
             case .zoom:
                 if event.hasPreciseScrollingDeltas {
@@ -306,10 +309,89 @@ struct MetalCanvasView: NSViewRepresentable {
                 performOrbit(translation: scrollTranslation(event))
             case .pan:
                 performPan(translation: scrollTranslation(event))
+            case .snapToView:
+                performViewSnap(event)
             case .none:
                 break
             }
             metalView?.draw()
+        }
+
+        // MARK: - Snap to standard view
+
+        /// Scroll travel (trackpad points) a swipe has to add up to before
+        /// it snaps. High enough that resting fingers or a slight drift
+        /// don't trigger it, low enough that a short flick does.
+        private let snapSwipeThreshold: CGFloat = 40
+        /// Minimum time between two snaps from a mouse wheel, which has no
+        /// begin/end to tell one flick from the next.
+        private let snapWheelCooldown: TimeInterval = 0.25
+
+        private var snapAccumulated = CGPoint.zero
+        /// This swipe has already snapped; ignore the rest of it.
+        private var snapSwipeConsumed = false
+        private var lastWheelSnapTime: TimeInterval = 0
+
+        /// Snaps to the standard view the swipe points toward — see
+        /// `Camera.standardView(forSwipe:_:)`.
+        ///
+        /// A trackpad swipe arrives as dozens of scroll events, then a
+        /// momentum tail after the fingers lift. This adds up the deltas of
+        /// one swipe and snaps once when they pass `snapSwipeThreshold`,
+        /// ignores the rest of that swipe and its momentum, and re-arms when
+        /// the next one begins. A mouse wheel has no phases, so there each
+        /// notch snaps, rate-limited by `snapWheelCooldown`.
+        private func performViewSnap(_ event: NSEvent) {
+            guard let camera = renderer?.camera else {
+                return
+            }
+
+            // Momentum is the coast after the fingers lift — part of a
+            // swipe that's already been dealt with.
+            guard event.momentumPhase.isEmpty else {
+                return
+            }
+
+            let isTrackpadSwipe = !event.phase.isEmpty
+            if event.phase.contains(.began) || event.phase.contains(.mayBegin) {
+                snapAccumulated = .zero
+                snapSwipeConsumed = false
+            }
+            defer {
+                if event.phase.contains(.ended) || event.phase.contains(.cancelled) {
+                    snapAccumulated = .zero
+                    snapSwipeConsumed = false
+                }
+            }
+
+            if isTrackpadSwipe {
+                guard !snapSwipeConsumed else {
+                    return
+                }
+            } else {
+                guard event.timestamp - lastWheelSnapTime >= snapWheelCooldown else {
+                    return
+                }
+            }
+
+            snapAccumulated.x += event.scrollingDeltaX
+            snapAccumulated.y += event.scrollingDeltaY
+
+            // A wheel notch is one or two "lines", not trackpad points.
+            let threshold = event.hasPreciseScrollingDeltas ? snapSwipeThreshold : 1
+            guard hypot(snapAccumulated.x, snapAccumulated.y) >= threshold else {
+                return
+            }
+
+            camera.snap(to: camera.standardView(forSwipe: Float(snapAccumulated.x),
+                                                Float(snapAccumulated.y)))
+
+            snapAccumulated = .zero
+            if isTrackpadSwipe {
+                snapSwipeConsumed = true
+            } else {
+                lastWheelSnapTime = event.timestamp
+            }
         }
 
         /// Scroll events carry deltas, not a running translation like a

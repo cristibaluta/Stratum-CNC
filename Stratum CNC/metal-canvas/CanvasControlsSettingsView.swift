@@ -8,8 +8,9 @@
 import SwiftUI
 
 /// Lets the user reassign what each mouse input does on the 3D canvas —
-/// orbit, pan, zoom, or nothing — one row per input (plain drag,
-/// Shift+drag, middle-click drag, scroll, Shift+scroll). Reads and writes
+/// orbit, pan, zoom, snap to a standard view, or nothing — one row per input
+/// (plain drag, Shift+drag, middle-click drag, scroll, Shift+scroll,
+/// Option+scroll). Reads and writes
 /// `CanvasInputSettings.shared` directly, so a change here reaches the
 /// canvas immediately; there's no separate "Apply" step.
 ///
@@ -30,7 +31,7 @@ struct CanvasControlsSettingsView: View {
             Section {
                 ForEach(CanvasInputTrigger.allCases) { trigger in
                     Picker(trigger.label, selection: binding(for: trigger)) {
-                        ForEach(CanvasControlAction.allCases) { action in
+                        ForEach(CanvasControlAction.allCases.filter { $0.isAvailable(for: trigger) }) { action in
                             Text(action.label).tag(action)
                         }
                     }
@@ -38,7 +39,7 @@ struct CanvasControlsSettingsView: View {
             } header: {
                 Text("Mouse Controls")
             } footer: {
-                Text("Pinch to zoom always zooms and can't be reassigned.")
+                Text("Pinch to zoom always zooms and can't be reassigned. Snap to View jumps between the six standard views, one per swipe, and is only available for scroll inputs.")
             }
 
             Section {
@@ -48,7 +49,7 @@ struct CanvasControlsSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: showsCloseButton ? 360 : 320)
+        .frame(width: 420, height: showsCloseButton ? 430 : 390)
         .navigationTitle("Canvas Controls")
         .toolbar {
             if showsCloseButton {
