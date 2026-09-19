@@ -142,6 +142,15 @@ final class MachineConnection: ObservableObject {
         rawLog.removeAll()
     }
 
+    /// Adds a line to the terminal log that didn't come from the machine
+    /// (e.g. why a jog was ignored).
+    func appendLog(_ message: String) {
+        rawLog.append(message)
+        if rawLog.count > 200 {
+            rawLog.removeFirst(rawLog.count - 200)
+        }
+    }
+
     // MARK: - Protocol detection
 
     /// Sends a raw plain-text probe ("echo echo\n") up to 3 times. If any

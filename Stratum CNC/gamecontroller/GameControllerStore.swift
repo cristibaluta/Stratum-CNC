@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import Observation
 import GameController
 import CoreHaptics
@@ -20,9 +21,11 @@ final class GameControllerStore: ObservableObject {
         let id = UUID()
         let controllerID: ObjectIdentifier
         let button: Button
+        /// `true` when the button went down, `false` when it came back up.
+        let isPressed: Bool
         let timestamp = Date()
 
-        enum Button: String {
+        enum Button: String, CaseIterable {
             case a
             case b
             case x
@@ -43,10 +46,12 @@ final class GameControllerStore: ObservableObject {
 
     // MARK: - Public state
 
-    private(set) var controllers: [GCController] = []
+    @Published private(set) var controllers: [GCController] = []
     private(set) var lastButtonPress: ButtonPress?
 
-    /// All button presses, useful for consumers that want an event stream.
+    /// Every button going down *and* coming back up (`ButtonPress.isPressed`),
+    /// useful for consumers that want an event stream. Releases matter to
+    /// anything that acts while a button is held.
     let buttonPresses: AsyncStream<ButtonPress>
 
     // MARK: - Private
@@ -122,6 +127,13 @@ final class GameControllerStore: ObservableObject {
         controllers.removeAll {
             $0 === controller
         }
+
+        // A controller that disappears mid-press (unplugged, battery died,
+        // out of range) never reports its buttons coming back up, and
+        // whatever was acting on "held" would run on. Release everything.
+        for button in ButtonPress.Button.allCases {
+            emit(button, pressed: false, controller: controller)
+        }
     }
 
     // MARK: - Input
@@ -143,74 +155,74 @@ final class GameControllerStore: ObservableObject {
         configureThumbsticks(gamepad)
 
         gamepad.buttonA.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.a, controller: controller)
+            guard let controller else { return }
+            self?.emit(.a, pressed: pressed, controller: controller)
         }
 
         gamepad.buttonB.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.b, controller: controller)
+            guard let controller else { return }
+            self?.emit(.b, pressed: pressed, controller: controller)
         }
 
         gamepad.buttonX.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.x, controller: controller)
+            guard let controller else { return }
+            self?.emit(.x, pressed: pressed, controller: controller)
         }
 
         gamepad.buttonY.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.y, controller: controller)
+            guard let controller else { return }
+            self?.emit(.y, pressed: pressed, controller: controller)
         }
 
         gamepad.dpad.up.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.dpadUp, controller: controller)
+            guard let controller else { return }
+            self?.emit(.dpadUp, pressed: pressed, controller: controller)
         }
 
         gamepad.dpad.down.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.dpadDown, controller: controller)
+            guard let controller else { return }
+            self?.emit(.dpadDown, pressed: pressed, controller: controller)
         }
 
         gamepad.dpad.left.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.dpadLeft, controller: controller)
+            guard let controller else { return }
+            self?.emit(.dpadLeft, pressed: pressed, controller: controller)
         }
 
         gamepad.dpad.right.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.dpadRight, controller: controller)
+            guard let controller else { return }
+            self?.emit(.dpadRight, pressed: pressed, controller: controller)
         }
 
         gamepad.leftShoulder.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.leftShoulder, controller: controller)
+            guard let controller else { return }
+            self?.emit(.leftShoulder, pressed: pressed, controller: controller)
         }
 
         gamepad.rightShoulder.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.rightShoulder, controller: controller)
+            guard let controller else { return }
+            self?.emit(.rightShoulder, pressed: pressed, controller: controller)
         }
 
         gamepad.leftTrigger.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.leftTrigger, controller: controller)
+            guard let controller else { return }
+            self?.emit(.leftTrigger, pressed: pressed, controller: controller)
         }
 
         gamepad.rightTrigger.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-            guard pressed, let controller else { return }
-            self?.emit(.rightTrigger, controller: controller)
+            guard let controller else { return }
+            self?.emit(.rightTrigger, pressed: pressed, controller: controller)
         }
 
         if #available(iOS 14.0, macOS 11.0, tvOS 14.0, *) {
             gamepad.buttonMenu.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-                guard pressed, let controller else { return }
-                self?.emit(.menu, controller: controller)
+                guard let controller else { return }
+                self?.emit(.menu, pressed: pressed, controller: controller)
             }
 
             gamepad.buttonOptions?.pressedChangedHandler = { [weak self, weak controller] _, _, pressed in
-                guard pressed, let controller else { return }
-                self?.emit(.options, controller: controller)
+                guard let controller else { return }
+                self?.emit(.options, pressed: pressed, controller: controller)
             }
         }
     }
@@ -259,8 +271,8 @@ final class GameControllerStore: ObservableObject {
     }
 
 
-    private func emit(_ button: ButtonPress.Button, controller: GCController) {
-        let press = ButtonPress(controllerID: ObjectIdentifier(controller), button: button)
+    private func emit(_ button: ButtonPress.Button, pressed: Bool, controller: GCController) {
+        let press = ButtonPress(controllerID: ObjectIdentifier(controller), button: button, isPressed: pressed)
 //        print(">>>>> joystick button pressed: \(press)")
 
         lastButtonPress = press

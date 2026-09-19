@@ -188,10 +188,12 @@ struct ControllerView: View {
                 }
                 .frame(maxWidth: .infinity)
 
-                PanelJog(joystick: joystickStore) { request in
-                    model.jog(request)
-                }
-                .frame(height: 200)
+                PanelJog(joystick: joystickStore,
+                         holdFeed: $model.holdJogFeed,
+                         onJog: { model.jog($0) },
+                         onHold: { direction, pressed in model.holdJog(direction, pressed: pressed) },
+                         onStopHold: { model.stopHoldJog() })
+                .frame(height: 235)
 
                 GroupBox(label: Text("MDI CONSOLE")) {
                     TerminalView(model: model)
@@ -209,9 +211,11 @@ struct ControllerView: View {
             }
         }
         .onDisappear {
+            model.stopHoldJog()
             model.connection.disconnect()
         }
         .onChange(of: model.selectedMachine) {
+            model.stopHoldJog()
             model.connection.disconnect()
             if let machine = model.selectedMachine {
                 model.connection.connect(to: machine)
@@ -475,7 +479,7 @@ private struct CanvasSection: View {
     var body: some View {
         VStack {
             HStack(alignment: .top, spacing: 12) {
-                MaterialPanelView(stock: $camModel.selectedStockMaterial, isStockVisible: isStockVisible, isCompact: false)
+                MaterialPanelView(stock: $camModel.selectedStockMaterial, isStockVisible: isStockVisible, isCompact: true)
 
                 if !gCodeModel.tools.isEmpty {
                     Divider()

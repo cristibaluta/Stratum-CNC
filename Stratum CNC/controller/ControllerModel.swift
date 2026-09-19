@@ -7,6 +7,9 @@
 
 import SwiftUI
 import simd
+#if os(macOS)
+import AppKit
+#endif
 
 @MainActor
 class ControllerModel: ObservableObject {
@@ -32,6 +35,44 @@ class ControllerModel: ObservableObject {
     /// scrub tick would otherwise re-render every panel that shares this
     /// `ControllerModel` instance.
     let scene = CanvasSceneModel()
+
+    /// Speed of a held jog in mm/min (see `JogController`). Published so the
+    /// jog panel's picker can bind to it.
+    @Published var holdJogFeed: Double = 750 {
+        didSet {
+            jogController.holdFeed = holdJogFeed
+        }
+    }
+
+    /// Owns everything that moves the machine by hand — step jogs and the
+    /// timer behind hold-to-jog.
+    lazy var jogController = JogController(
+        send: { [weak self] line in
+            self?.sendRawCommand(line, recordInHistory: false)
+        },
+        state: { [weak self] in
+            self?.connection.status?.state
+        },
+        log: { [weak self] message in
+            self?.connection.appendLog(message)
+        }
+    )
+
+    init() {
+        #if os(macOS)
+        // A held button's release is never delivered once the app is in the
+        // background, so switching away mid-jog must stop the jog itself.
+        _ = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.jogController.stopAll()
+            }
+        }
+        #endif
+    }
 
     func sendCommand(_ command: CNCCommand) {
         sendRawCommand(command.command)
@@ -90,24 +131,24 @@ class ControllerModel: ObservableObject {
     func jog(_ request: JogRequest) {
         switch request {
         case let .relative(x, y, z, a):
-            guard x != nil || y != nil || z != nil || a != nil else {
-                return
-            }
-            // Relative mode is switched on and back off within the same
-            // line, so a jog can never leave the machine in G91 for
-            // whatever gets sent next (an absolute move, a job line…), even
-            // if the connection drops right after.
-            let move = CNC.rapidMove.with(x: x, y: y, z: z, a: a).command
-            sendRawCommand("\(CNC.relativeMode.command) \(move) \(CNC.absoluteMode.command)",
-                           recordInHistory: false)
-
+            jogController.step(x: x, y: y, z: z, a: a)
         case let .absolute(x, y, z, a):
-            guard x != nil || y != nil || z != nil || a != nil else {
-                return
-            }
-            sendRawCommand(CNC.rapidMove.with(x: x, y: y, z: z, a: a).command,
-                           recordInHistory: false)
+            jogController.goTo(x: x, y: y, z: z, a: a)
         }
+    }
+
+    /// Hold-to-jog: moves in `direction` from `pressed == true` until
+    /// `pressed == false`. See `JogController` for how, and its limits.
+    func holdJog(_ direction: JogDirection, pressed: Bool) {
+        if pressed {
+            jogController.press(direction)
+        } else {
+            jogController.release(direction)
+        }
+    }
+
+    func stopHoldJog() {
+        jogController.stopAll()
     }
 
     // MARK: - Raw commands not modeled by CNCCommand
