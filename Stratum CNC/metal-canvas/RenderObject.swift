@@ -35,6 +35,9 @@ enum RenderRole: Hashable {
     /// Static machine fixture: the L-shaped anchor (fence) the stock is
     /// pushed against. Same Z/rebuild rules as `.workbed`.
     case anchor
+    /// Static machine fixture: the graduated ruler along the anchor's
+    /// inside edges. Same Z/rebuild rules as `.workbed` and `.anchor`.
+    case ruler
 }
 
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
@@ -318,9 +321,10 @@ extension RenderObject {
 
     // MARK: Machine fixtures (static, flat)
 
-    /// The two static fixtures — work bed and anchor — at height `z`.
+    /// The static fixtures — work bed, anchor, and the anchor's ruler — at
+    /// height `z`.
     static func fixtures(bottomZ z: Float) -> [RenderObject] {
-        [workbed(z: z), anchor(z: z)]
+        [workbed(z: z), anchor(z: z), ruler(z: z)]
     }
 
     /// The fixtures placed at `stock`'s bottom face, which is where they sit
@@ -397,6 +401,49 @@ extension RenderObject {
             SIMD2<Float>(outer.x,             outer.y + legLength)       // Y arm, far end, outer edge
         ]
         return flatOutline(corners, z: z, role: .anchor, color: color)
+    }
+
+    /// A ruler along the anchor's two *inside* edges, measured from the
+    /// inside corner: one running along +X, one along +Y, `length` mm each
+    /// (default 80 = 8 cm). Ticks point into the anchor's arms — away from
+    /// the work area — so the graduations sit on the fence itself and are
+    /// never hidden under the stock.
+    ///
+    /// Tick sizes: 1 mm (short), 5 mm (medium), 10 mm (long). There's no
+    /// text rendering in this renderer, so the 10 mm marks are the numbering.
+    ///
+    /// Static, like the anchor — no `xyOffset`. The default 80 mm runs
+    /// past the end of the default anchor's arms (65 mm of inside edge), so
+    /// the last ~15 mm of ticks stand on the bed, not the fence.
+    static func ruler(z: Float,
+                      insideCorner: SIMD2<Float> = .zero,
+                      length: Float = 80,
+                      color: SIMD4<Float> = SIMD4<Float>(0.95, 0.55, 0.15, 1.0)) -> RenderObject {
+
+        var points: [SIMD3<Float>] = []
+        let x0 = insideCorner.x
+        let y0 = insideCorner.y
+
+        // The two baselines the ticks hang off.
+        points.append(SIMD3<Float>(x0, y0, z))
+        points.append(SIMD3<Float>(x0 + length, y0, z))
+        points.append(SIMD3<Float>(x0, y0, z))
+        points.append(SIMD3<Float>(x0, y0 + length, z))
+
+        for mm in 0...Int(length.rounded(.down)) {
+            let tick: Float = mm % 10 == 0 ? 6 : (mm % 5 == 0 ? 4 : 2)
+            let d = Float(mm)
+
+            // X ruler: along y = insideCorner.y, ticks toward -Y.
+            points.append(SIMD3<Float>(x0 + d, y0, z))
+            points.append(SIMD3<Float>(x0 + d, y0 - tick, z))
+
+            // Y ruler: along x = insideCorner.x, ticks toward -X.
+            points.append(SIMD3<Float>(x0, y0 + d, z))
+            points.append(SIMD3<Float>(x0 - tick, y0 + d, z))
+        }
+
+        return RenderObject(role: .ruler, points: points, color: color, primitive: .lineList)
     }
 
     /// Closed polygon outline at constant `z`. One `.lineStrip` that returns
