@@ -500,6 +500,7 @@ private struct CanvasSection: View {
             MetalCanvasView(objects: $scene.renderObjects,
                             renderMode: scene.renderMode,
                             xyOffset: scene.xyOffset,
+                            stockColor: scene.stockColor,
                             heightmapMesh: scene.heightmapMesh)
             .cornerRadius(8)
             .overlay(

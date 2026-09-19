@@ -164,12 +164,13 @@ class MetalRenderer: NSObject {
     /// there's still spatial context while looking at the carved shape.
     private let heightmapWireframeHiddenRoles: Set<RenderRole> = [.stock, .toolpathRapid, .toolpathCutting]
 
-    // Fixed appearance for the heightmap surface. Simple constants for now —
-    // worth revisiting once there's a reason to color-code the surface (e.g.
-    // remaining depth-of-cut, per the roadmap's stretch goal) rather than a
-    // single flat tint.
+    // Appearance for the heightmap surface. The light, ambient, and depth
+    // shading are simple constants; the base color follows the selected
+    // stock's material (see `CanvasSceneModel.stockColor`), forwarded in
+    // `MetalCanvasView.updateNSView`. It's only a shader uniform, so
+    // changing it needs a redraw but never a recarve or mesh re-upload.
     private let heightmapLightDirection = simd_normalize(SIMD3<Float>(0.4, -0.6, 0.8))
-    private let heightmapBaseColor = SIMD4<Float>(0.75, 0.72, 0.68, 1.0) // neutral "machined aluminum" gray
+    var heightmapBaseColor = SIMD4<Float>(0.75, 0.72, 0.68, 1.0)
     private let heightmapAmbient: Float = 0.35
     /// How much darker the deepest possible point (the stock's bottom face)
     /// is than the uncut top, 0 = no depth shading, 1 = black. Shading

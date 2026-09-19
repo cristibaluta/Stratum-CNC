@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import simd
 
 // MARK: - Texture kind
 
@@ -47,53 +48,89 @@ extension StockMaterialType {
     }
 }
 
+/// The single source of truth for what each texture kind looks like in RGB.
+/// Both `StockPreviewView` (below, via `StockTexture`) and the Metal canvas's
+/// heightmap surface (via `StockMaterialType.surfaceColor`) read from here,
+/// so a material picked in `MaterialPanelView` looks the same in both.
+struct StockPalette {
+    let light: SIMD3<Float>
+    let mid: SIMD3<Float>
+    let dark: SIMD3<Float>
+}
+
+extension StockTextureKind {
+
+    var palette: StockPalette {
+        switch self {
+        case .aluminum:
+            return StockPalette(light: SIMD3(0.86, 0.87, 0.89),
+                                mid: SIMD3(0.72, 0.73, 0.76),
+                                dark: SIMD3(0.46, 0.47, 0.50))
+        case .steel:
+            return StockPalette(light: SIMD3(0.72, 0.74, 0.77),
+                                mid: SIMD3(0.52, 0.54, 0.57),
+                                dark: SIMD3(0.27, 0.29, 0.32))
+        case .brass:
+            return StockPalette(light: SIMD3(0.95, 0.85, 0.55),
+                                mid: SIMD3(0.80, 0.65, 0.30),
+                                dark: SIMD3(0.52, 0.40, 0.14))
+        case .wood:
+            return StockPalette(light: SIMD3(0.85, 0.68, 0.46),
+                                mid: SIMD3(0.74, 0.56, 0.35),
+                                dark: SIMD3(0.50, 0.35, 0.20))
+        case .plastic:
+            return StockPalette(light: SIMD3(0.75, 0.72, 0.68),
+                                mid: SIMD3(0.65, 0.62, 0.58),
+                                dark: SIMD3(0.55, 0.52, 0.48))
+        }
+    }
+}
+
+extension StockMaterialType {
+
+    /// Opaque base color for shading this material as a solid surface in 3D
+    /// (`MetalRenderer`'s heightmap pass). It's the palette's `mid` tone —
+    /// the same one `StockPreviewView` fills its front faces with — since
+    /// the heightmap shader darkens/lightens it further with its own
+    /// lighting and depth shading.
+    var surfaceColor: SIMD4<Float> {
+        let mid = stockTextureKind.palette.mid
+        return SIMD4(mid.x, mid.y, mid.z, 1)
+    }
+}
+
+private extension SIMD3 where Scalar == Float {
+    var swiftUIColor: Color {
+        Color(red: Double(x), green: Double(y), blue: Double(z))
+    }
+}
+
 private struct StockTexture {
     let light: Color
     let mid: Color
     let dark: Color
     let isMetallic: Bool
     let isWood: Bool
+
+    init(palette: StockPalette, isMetallic: Bool, isWood: Bool) {
+        self.light = palette.light.swiftUIColor
+        self.mid = palette.mid.swiftUIColor
+        self.dark = palette.dark.swiftUIColor
+        self.isMetallic = isMetallic
+        self.isWood = isWood
+    }
 }
 
 private extension StockTextureKind {
 
     var texture: StockTexture {
         switch self {
-        case .aluminum:
-            return StockTexture(
-                light: Color(red: 0.86, green: 0.87, blue: 0.89),
-                mid: Color(red: 0.72, green: 0.73, blue: 0.76),
-                dark: Color(red: 0.46, green: 0.47, blue: 0.50),
-                isMetallic: true, isWood: false
-            )
-        case .steel:
-            return StockTexture(
-                light: Color(red: 0.72, green: 0.74, blue: 0.77),
-                mid: Color(red: 0.52, green: 0.54, blue: 0.57),
-                dark: Color(red: 0.27, green: 0.29, blue: 0.32),
-                isMetallic: true, isWood: false
-            )
-        case .brass:
-            return StockTexture(
-                light: Color(red: 0.95, green: 0.85, blue: 0.55),
-                mid: Color(red: 0.80, green: 0.65, blue: 0.30),
-                dark: Color(red: 0.52, green: 0.40, blue: 0.14),
-                isMetallic: true, isWood: false
-            )
+        case .aluminum, .steel, .brass:
+            return StockTexture(palette: palette, isMetallic: true, isWood: false)
         case .wood:
-            return StockTexture(
-                light: Color(red: 0.85, green: 0.68, blue: 0.46),
-                mid: Color(red: 0.74, green: 0.56, blue: 0.35),
-                dark: Color(red: 0.50, green: 0.35, blue: 0.20),
-                isMetallic: false, isWood: true
-            )
+            return StockTexture(palette: palette, isMetallic: false, isWood: true)
         case .plastic:
-            return StockTexture(
-                light: Color(red: 0.93, green: 0.93, blue: 0.95),
-                mid: Color(red: 0.82, green: 0.82, blue: 0.85),
-                dark: Color(red: 0.62, green: 0.62, blue: 0.66),
-                isMetallic: false, isWood: false
-            )
+            return StockTexture(palette: palette, isMetallic: false, isWood: false)
         }
     }
 }

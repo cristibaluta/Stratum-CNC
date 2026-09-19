@@ -80,6 +80,13 @@ class CanvasSceneModel: ObservableObject {
     /// way (`onChange` + `forceHeightmapRefresh()`).
     @Published var xyOffset: SIMD2<Float> = .zero
 
+    /// Base color the heightmap surface is shaded with — the selected
+    /// stock's material color (`StockMaterialType.surfaceColor`), so the 3D
+    /// preview matches whatever was picked in `MaterialPanelView`. Set by
+    /// `updateStock`. The default is the old fixed "machined aluminum" gray,
+    /// only visible until the first `updateStock` runs.
+    @Published var stockColor: SIMD4<Float> = SIMD4<Float>(0.75, 0.72, 0.68, 1.0)
+
     /// M5: how many `scrubHeightmap` calls to skip between actual recarves.
     /// Dragging the scrub slider (or scrubbing with the scroll wheel) fires
     /// many calls per second; recarving the whole grid on every single one
@@ -104,6 +111,7 @@ class CanvasSceneModel: ObservableObject {
     /// The static workbed and anchor are rebuilt here too: they're flat, and
     /// sit at the stock's bottom face, so a change in stock depth moves them.
     func updateStock(_ stock: StockMaterial) {
+        stockColor = stock.material.surfaceColor
         renderObjects.updating(.stockBox(for: stock))
         for fixture in RenderObject.fixtures(for: stock) {
             renderObjects.updating(fixture)

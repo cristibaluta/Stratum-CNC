@@ -48,6 +48,11 @@ struct MetalCanvasView: NSViewRepresentable {
     /// `MetalRenderer.xyOffset`.
     var xyOffset: SIMD2<Float> = .zero
 
+    /// Base color for the heightmap surface, forwarded straight through in
+    /// `updateNSView` — same one-way flow from `CanvasSceneModel` as
+    /// `renderMode`/`xyOffset`. See `MetalRenderer.heightmapBaseColor`.
+    var stockColor: SIMD4<Float> = SIMD4<Float>(0.75, 0.72, 0.68, 1.0)
+
     /// M4: the heightmap surface to draw when `renderMode == .heightmap`.
     /// `nil` until `CanvasSceneModel.updateHeightmap` has run at least once
     /// (or if it ran with no assigned tool). Re-uploaded to the GPU only
@@ -111,6 +116,7 @@ struct MetalCanvasView: NSViewRepresentable {
         context.coordinator.renderer?.updateGeometry(objects: objects)
         context.coordinator.renderer?.renderMode = renderMode
         context.coordinator.renderer?.xyOffset = xyOffset
+        context.coordinator.renderer?.heightmapBaseColor = stockColor
 
         // `HeightmapMesh.id` is fresh per `init`, so this tells "a new carve
         // landed" apart from "this view's body just re-ran for an unrelated
