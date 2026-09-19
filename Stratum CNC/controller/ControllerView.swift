@@ -471,7 +471,6 @@ private struct CanvasSection: View {
                     Picker("", selection: $scene.renderMode) {
                         ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
                             Image(systemName: mode.systemImage)
-                                .tint(.white)
                                 .help(mode.label)
                                 .tag(mode)
                         }
@@ -489,7 +488,7 @@ private struct CanvasSection: View {
                     .padding(.horizontal, 8)
                 }
                 .padding(2)
-                .background(.white)
+                .background(.gray)
                 .cornerRadius(8)
                 .padding(8)
             }
