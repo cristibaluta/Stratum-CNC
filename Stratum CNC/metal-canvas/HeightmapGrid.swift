@@ -40,6 +40,11 @@ struct HeightmapGrid {
     /// cap) instead of a floating sheet with no thickness.
     let bottomZ: Float
 
+    /// The stock's original top face Z — where every cell starts. Together
+    /// with `bottomZ` this is the full depth range `HeightmapMesh` hands to
+    /// the shader, so it can shade a cell by how far down it was carved.
+    let topZ: Float
+
     /// Row-major, `columns * rows` entries. `heights[row * columns + col]`
     /// is that column's current top-Z, starting at the stock's own top face
     /// and only ever decreasing as `carve` runs.
@@ -60,6 +65,7 @@ struct HeightmapGrid {
         self.rows = max(1, Int((height / self.cellSize).rounded(.up)))
         self.heights = [Float](repeating: topZ, count: columns * rows)
         self.bottomZ = bottomZ ?? (topZ - 10)
+        self.topZ = topZ
     }
 
     /// Builds a grid sized to a `StockMaterial`'s own bounding box, mirroring

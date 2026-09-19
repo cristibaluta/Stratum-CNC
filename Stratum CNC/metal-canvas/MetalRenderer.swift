@@ -48,6 +48,8 @@ private struct HeightmapBatch {
     var vertexBuffer: MTLBuffer
     var indexBuffer: MTLBuffer
     var indexCount: Int
+    var topZ: Float
+    var bottomZ: Float
 }
 
 /// Mirrors `HeightmapUniforms` in Shaders.metal byte-for-byte. Same
@@ -59,6 +61,12 @@ struct HeightmapUniforms {
     var lightDirection: SIMD3<Float>
     var baseColor: SIMD4<Float>
     var ambient: Float
+    /// The stock's original top/bottom Z, and how much darker (0...1) a
+    /// point at the bottom is than one at the top — see
+    /// `fragment_heightmap`.
+    var topZ: Float
+    var bottomZ: Float
+    var depthDarkening: Float
 }
 
 private extension RenderPrimitive {
@@ -163,6 +171,11 @@ class MetalRenderer: NSObject {
     private let heightmapLightDirection = simd_normalize(SIMD3<Float>(0.4, -0.6, 0.8))
     private let heightmapBaseColor = SIMD4<Float>(0.75, 0.72, 0.68, 1.0) // neutral "machined aluminum" gray
     private let heightmapAmbient: Float = 0.35
+    /// How much darker the deepest possible point (the stock's bottom face)
+    /// is than the uncut top, 0 = no depth shading, 1 = black. Shading
+    /// follows the square root of depth, so even a shallow pocket floor
+    /// separates clearly from the top face.
+    private let heightmapDepthDarkening: Float = 0.5
 
     // Kept around only so we can compute a bounding sphere for the initial
     // "fit to screen" — the GPU buffers built into `renderBatches` don't carry
@@ -445,7 +458,9 @@ class MetalRenderer: NSObject {
 
         heightmapBatch = HeightmapBatch(vertexBuffer: vertexBuffer,
                                         indexBuffer: indexBuffer,
-                                        indexCount: mesh.indices.count)
+                                        indexCount: mesh.indices.count,
+                                        topZ: mesh.topZ,
+                                        bottomZ: mesh.bottomZ)
     }
 
     /// Centers and zooms the camera to frame everything currently in
@@ -676,7 +691,10 @@ private extension MetalRenderer {
         var uniforms = HeightmapUniforms(modelViewProjectionMatrix: mvp,
                                          lightDirection: heightmapLightDirection,
                                          baseColor: heightmapBaseColor,
-                                         ambient: heightmapAmbient)
+                                         ambient: heightmapAmbient,
+                                         topZ: heightmapBatch.topZ,
+                                         bottomZ: heightmapBatch.bottomZ,
+                                         depthDarkening: heightmapDepthDarkening)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
         encoder.setVertexBuffer(heightmapBatch.vertexBuffer, offset: 0, index: 0)

@@ -70,6 +70,14 @@ struct HeightmapUniforms {
     // shading at all). Keeps the carved shape legible without needing a
     // second light or real ambient occlusion yet.
     float ambient;
+    // The stock's original top and bottom Z, and how much darker a point at
+    // the bottom is than one at the top (0 = no depth shading). Lets the
+    // fragment shader shade by depth of cut, so a carved floor reads as a
+    // different shade than the uncut top even when looked at from straight
+    // above, where the walls between them are edge-on and invisible.
+    float topZ;
+    float bottomZ;
+    float depthDarkening;
 };
 
 struct HeightmapVertexInput {
@@ -80,6 +88,7 @@ struct HeightmapVertexInput {
 struct HeightmapVertexOutput {
     float4 position [[position]];
     float3 worldNormal;
+    float worldZ;
 };
 
 vertex HeightmapVertexOutput vertex_heightmap(HeightmapVertexInput in [[stage_in]],
@@ -91,6 +100,7 @@ vertex HeightmapVertexOutput vertex_heightmap(HeightmapVertexInput in [[stage_in
     // projection only) - so the normal needs no transform beyond carrying
     // it through for per-fragment interpolation.
     out.worldNormal = in.normal;
+    out.worldZ = in.position.z;
     return out;
 }
 
@@ -99,5 +109,14 @@ fragment float4 fragment_heightmap(HeightmapVertexOutput in [[stage_in]],
     float3 n = normalize(in.worldNormal);
     float diffuse = max(dot(n, normalize(uniforms.lightDirection)), 0.0);
     float lit = uniforms.ambient + (1.0 - uniforms.ambient) * diffuse;
-    return float4(uniforms.baseColor.rgb * lit, uniforms.baseColor.a);
+
+    // Depth below the original top face, 0...1 of the stock's thickness.
+    // Square root so the first millimeters of depth (where most pockets
+    // live) darken noticeably instead of barely registering on thick
+    // stock. Interpolates smoothly down a wall, which also grades it.
+    float range = max(uniforms.topZ - uniforms.bottomZ, 0.001);
+    float depth = clamp((uniforms.topZ - in.worldZ) / range, 0.0, 1.0);
+    float depthShade = 1.0 - uniforms.depthDarkening * sqrt(depth);
+
+    return float4(uniforms.baseColor.rgb * lit * depthShade, uniforms.baseColor.a);
 }

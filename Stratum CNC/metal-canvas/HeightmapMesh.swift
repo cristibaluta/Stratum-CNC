@@ -52,6 +52,12 @@ struct HeightmapMesh {
     /// Triangle list (3 indices per triangle), into `vertices`.
     let indices: [UInt32]
 
+    /// The stock's original top and bottom faces. The shader shades by how
+    /// far below `topZ` a point sits, as a fraction of this range, so a
+    /// carved floor reads as a different shade than the uncut top.
+    let topZ: Float
+    let bottomZ: Float
+
     /// Builds the mesh for a grid's *current* state — call again whenever
     /// the grid changes (a fresh carve, a scrub tick).
     init(grid: HeightmapGrid) {
@@ -162,5 +168,7 @@ struct HeightmapMesh {
 
         self.vertices = vertices
         self.indices = indices
+        self.topZ = grid.topZ
+        self.bottomZ = grid.bottomZ
     }
 }
