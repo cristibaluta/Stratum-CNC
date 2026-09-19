@@ -45,7 +45,10 @@ class ControllerModel: ObservableObject {
         }
     }
 
-    func sendRawCommand(_ command: String) {
+    /// `recordInHistory: false` keeps high-frequency, machine-generated lines
+    /// (jog steps) from pushing the commands the user actually typed out of
+    /// the 10-entry MDI history. They still show up in the terminal log.
+    func sendRawCommand(_ command: String, recordInHistory: Bool = true) {
         let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !command.isEmpty else {
@@ -64,8 +67,47 @@ class ControllerModel: ObservableObject {
             return
         }
 
-        addToHistory(command)
+        if recordInHistory {
+            addToHistory(command)
+        }
         connection.send(command)
+    }
+
+    // MARK: - Jogging
+
+    /// A move requested from `PanelJog`. Kept as an explicit choice between
+    /// relative and absolute because `G0` alone is always interpreted in
+    /// whatever distance mode the machine happens to be in (G90 by default),
+    /// so "move X by +0.1" and "go to X 0.1" can't share one command.
+    enum JogRequest {
+        /// Move each given axis by this distance from where it is now
+        /// (mm for X/Y/Z, degrees for A).
+        case relative(x: Double?, y: Double?, z: Double?, a: Double?)
+        /// Move each given axis to this work coordinate.
+        case absolute(x: Double?, y: Double?, z: Double?, a: Double?)
+    }
+
+    func jog(_ request: JogRequest) {
+        switch request {
+        case let .relative(x, y, z, a):
+            guard x != nil || y != nil || z != nil || a != nil else {
+                return
+            }
+            // Relative mode is switched on and back off within the same
+            // line, so a jog can never leave the machine in G91 for
+            // whatever gets sent next (an absolute move, a job line…), even
+            // if the connection drops right after.
+            let move = CNC.rapidMove.with(x: x, y: y, z: z, a: a).command
+            sendRawCommand("\(CNC.relativeMode.command) \(move) \(CNC.absoluteMode.command)",
+                           recordInHistory: false)
+
+        case let .absolute(x, y, z, a):
+            guard x != nil || y != nil || z != nil || a != nil else {
+                return
+            }
+            sendRawCommand(CNC.rapidMove.with(x: x, y: y, z: z, a: a).command,
+                           recordInHistory: false)
+        }
     }
 
     // MARK: - Raw commands not modeled by CNCCommand

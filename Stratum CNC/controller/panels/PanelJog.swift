@@ -23,7 +23,7 @@ struct PanelJog: View {
     @State private var joystickActive = false
 
     @State private var selectedJogStep: Double = 0.1
-    var onJog: ((Double?, Double?, Double?, Double?) -> Void)?
+    var onJog: ((ControllerModel.JogRequest) -> Void)?
 
     var body: some View {
         GroupBox("JOG") {
@@ -127,7 +127,9 @@ struct PanelJog: View {
                 }
 
                 Button {
-                    jog(x: 0, y: 0)
+                    // Absolute, unlike the arrow buttons: go to work zero,
+                    // don't step by 0.
+                    onJog?(.absolute(x: 0, y: 0, z: nil, a: nil))
                 } label: {
                     Image(systemName: "scope")
                         .frame(width: 36, height: 30)
@@ -168,13 +170,13 @@ struct PanelJog: View {
     private var aAxisView: some View {
         HStack(spacing: 0) {
             jogButton("arrow.trianglehead.clockwise.rotate.90", help: "A+", w: 16, h: 24, isHighlighted: $aRightHighlighted) {
-                jog(z: selectedJogStep)
+                jog(a: selectedJogStep)
             }
             Text("A")
                 .font(.caption)
                 .frame(maxWidth: .infinity)
             jogButton("arrow.trianglehead.counterclockwise.rotate.90", help: "A-", w: 16, h: 24, isHighlighted: $aLeftHighlighted) {
-                jog(z: -selectedJogStep)
+                jog(a: -selectedJogStep)
             }
         }
     }
@@ -193,8 +195,10 @@ struct PanelJog: View {
         .help(help)
     }
 
+    /// A relative step from the current position — see
+    /// `ControllerModel.JogRequest`.
     private func jog(x: Double? = nil, y: Double? = nil, z: Double? = nil, a: Double? = nil) {
-        onJog?(x, y, z, nil)
+        onJog?(.relative(x: x, y: y, z: z, a: a))
     }
 }
 
