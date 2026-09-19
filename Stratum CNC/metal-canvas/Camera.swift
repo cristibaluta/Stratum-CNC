@@ -104,6 +104,45 @@ class Camera {
         turntableAxis = view.up
     }
 
+    /// "Snap to Face": rotates exactly 90° toward the face an Option+swipe
+    /// points to (see `MetalCanvasView.Coordinator.performViewSnap`) —
+    /// composed onto whatever the orientation already is, not reset to a
+    /// fixed canonical one. Like tumbling a real object: the roll a path
+    /// took to get here carries forward instead of being corrected away,
+    /// so returning to a face by a different route than you left it can
+    /// land upside down. Same axes `orbit(yaw:pitch:)` uses for continuous
+    /// rotation — world `turntableAxis` for a left/right swipe, the
+    /// camera's own current right axis for an up/down one — just snapped
+    /// to an exact quarter turn instead of following the pointer, so a
+    /// swipe feels like the same motion as Shift+scroll, only discrete.
+    ///
+    /// Refuses a swipe that would land on the excluded bottom face,
+    /// leaving the view unchanged.
+    ///
+    /// - Parameters:
+    ///   - dx: horizontal scroll delta, positive = fingers moving right.
+    ///   - dy: vertical scroll delta, positive = fingers moving down.
+    func snapToFace(forSwipe dx: Float, _ dy: Float) {
+        var q = orientation
+        if abs(dx) > abs(dy) {
+            let yaw: Float = dx > 0 ? .pi / 2 : -.pi / 2
+            q = simd_mul(simd_quatf(angle: yaw, axis: turntableAxis), q)
+        } else {
+            let pitch: Float = dy > 0 ? .pi / 2 : -.pi / 2
+            q = simd_mul(q, simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0)))
+        }
+        q = simd_normalize(q)
+
+        // Refuse to land on the excluded bottom face.
+        let newBack = q.act(SIMD3<Float>(0, 0, 1))
+        guard simd_dot(newBack, SIMD3<Float>(0, 0, -1)) < 0.99 else {
+            return
+        }
+
+        orientation = q
+        turntableAxis = q.act(SIMD3<Float>(0, 1, 0))
+    }
+
     /// Changes `distance` (zoom level) while keeping the world point currently under
     /// `ndc` fixed on screen, instead of zooming around `target`.
     /// - Parameter ndc: screen position in normalized device coords, -1...1,

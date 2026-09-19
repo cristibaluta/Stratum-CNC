@@ -332,8 +332,8 @@ struct MetalCanvasView: NSViewRepresentable {
         private var snapSwipeConsumed = false
         private var lastWheelSnapTime: TimeInterval = 0
 
-        /// Snaps to the standard view the swipe points toward — see
-        /// `Camera.standardView(forSwipe:_:)`.
+        /// Snaps to the face the swipe points toward — see
+        /// `Camera.snapToFace(forSwipe:_:)`.
         ///
         /// A trackpad swipe arrives as dozens of scroll events, then a
         /// momentum tail after the fingers lift. This adds up the deltas of
@@ -383,8 +383,7 @@ struct MetalCanvasView: NSViewRepresentable {
                 return
             }
 
-            camera.snap(to: camera.standardView(forSwipe: Float(snapAccumulated.x),
-                                                Float(snapAccumulated.y)))
+            camera.snapToFace(forSwipe: Float(snapAccumulated.x), Float(snapAccumulated.y))
 
             snapAccumulated = .zero
             if isTrackpadSwipe {

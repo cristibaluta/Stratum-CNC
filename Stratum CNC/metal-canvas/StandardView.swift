@@ -10,11 +10,11 @@
 //  StandardView.swift
 //  Stratum CNC
 //
-//  The six axis-aligned views. Option + swipe ("Snap to Face" — see
-//  `MetalCanvasView.Coordinator.performViewSnap`) only ever lands on five of
-//  them — top, front, back, left, right — deliberately leaving `.bottom` out
-//  of reach; see `Camera.standardView(forSwipe:_:)` for which one a swipe
-//  leads to.
+//  The six axis-aligned views, e.g. for `Camera.snap(to:)`. Option + swipe
+//  ("Snap to Face" — see `Camera.snapToFace(forSwipe:_:)` and
+//  `MetalCanvasView.Coordinator.performViewSnap`) is a separate, composed
+//  rotation that only ever reaches five of these — top, front, back, left,
+//  right — deliberately leaving `.bottom` out of reach.
 //
 
 import Foundation
@@ -60,37 +60,5 @@ enum StandardView: CaseIterable {
         let right = simd_normalize(simd_cross(up, back))
         let screenUp = simd_cross(back, right)
         return simd_quatf(simd_float3x3(columns: (right, screenUp, back)))
-    }
-}
-
-extension Camera {
-
-    /// The standard view a swipe leads to: the face of the model on the side
-    /// of the screen the swipe points toward. Fingers moving right bring up
-    /// the view from the screen's right, up bring up the view from the top,
-    /// and so on — starting from Top, swiping right/left rotates 90° toward
-    /// the right/left face and swiping up/down rotates 90° toward the far
-    /// side, i.e. front/back. `.bottom` is excluded, so only those five
-    /// faces (top, front, back, left, right) are ever reachable this way.
-    ///
-    /// That's the same direction Shift + scroll (orbit) already moves the
-    /// camera for the same swipe, so the two feel alike; and because it's
-    /// worked out from the camera's current right/up, it stays consistent
-    /// from every view — from any of the five, exactly a 90° turn — and from
-    /// a tilted one it picks the closest of the five.
-    ///
-    /// - Parameters:
-    ///   - dx: horizontal scroll delta, positive = fingers moving right.
-    ///   - dy: vertical scroll delta, positive = fingers moving down.
-    func standardView(forSwipe dx: Float, _ dy: Float) -> StandardView {
-        let direction: SIMD3<Float>
-        if abs(dx) > abs(dy) {
-            direction = dx > 0 ? right : -right
-        } else {
-            direction = dy > 0 ? -up : up
-        }
-        return StandardView.allCases.filter { $0 != .bottom }.max {
-            simd_dot($0.eye, direction) < simd_dot($1.eye, direction)
-        } ?? .top
     }
 }
