@@ -50,6 +50,9 @@ struct PaletteCommandView: View {
                                 PaletteCommand(title: "Home", rawCommand: model.homeCommand),
                                 PaletteCommand(title: "Unlock", rawCommand: model.unlockCommand),
                                 PaletteCommand(title: "Get status", rawCommand: model.statusCommand),
+                                PaletteCommand(title: "Feed hold", rawCommand: model.feedHoldCommand),
+                                PaletteCommand(title: "Resume", rawCommand: model.resumeCommand),
+                                PaletteCommand(title: "Soft reset", rawCommand: model.softResetCommand),
                                 PaletteCommand(title: "Turn light on", command: CNC.lightOn),
                                 PaletteCommand(title: "Turn light off",command: CNC.lightOff)
                             ]

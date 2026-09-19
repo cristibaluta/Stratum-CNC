@@ -34,8 +34,7 @@ packet types the firmware expects for receiving a job (`ptypeFileStart/MD5/View/
 Cancel/Retry`, 0xB0–0xB6), but `MachineConnection.send()` never builds them, and incoming
 frames of those types are explicitly skipped in `handleMakeraBytes()`. Today the app can
 visualize a file, jog manually, and send one MDI line at a time — it cannot run a loaded
-job on the machine. There's also no realtime feed-hold (`!`) / resume (`~`) / soft-reset,
-and no `goto <line>` wiring to resume from a specific line.
+job on the machine. There's also no `goto <line>` wiring to resume from a specific line.
 
 ### Console commands (bottom of the wiki page)
 
@@ -64,8 +63,23 @@ The app can't actually run a G-code file on the machine yet. This is the core mi
       from `WIFIStream.py` itself (wasn't accessible while writing this) — worth
       checking against a real packet capture before relying on it for anything
       valuable.
-- [ ] 1.3 Add realtime feed-hold (`!`) / resume (`~`) / soft-reset for pause/resume/abort of a
-      running job
+- [x] 1.3 Add realtime feed-hold (`!`) / resume (`~`) / soft-reset for pause/resume/abort of a
+      running job.
+      Landed as `MachineRealtimeCommand` + `MachineConnection.sendRealtime(_:)` (single bytes,
+      wrapped in a `ptypeCtrlSingle` frame under the Makera protocol, same as `?`), with
+      `ControllerModel.pauseJob`/`resumeJob`/`stopJob` on top and the viewer's pause/stop
+      buttons wired to them. Enablement follows the machine's reported state
+      (`MakeraMachineStatus.isRunning`/`isHeld`/`isBusy`), so it also works for a job that was
+      started or held from the machine itself. `!`, `~` and `^X` also work from the MDI box and
+      the command palette. Also fixed a `GCodeJobRunner` race this made likely: resuming while
+      the held line's `ok` was still outstanding sent a second line.
+      Caveats — none verified against real hardware:
+      - Byte values follow the Smoothie/grbl convention; it's unconfirmed the Makera firmware
+        honours `!`/`~` mid-job when it's running from the SD card (it may want the console
+        `suspend`/`resume`/`abort` commands there instead — worth trying if `!` does nothing).
+      - "Stop" is a `^X` soft-reset, which is not resumable and typically leaves the machine in
+        ALARM until Unlock (`$X`). That's left manual on purpose.
+      - `isHeld` also accepts a `Pause` state name defensively; the real string is unconfirmed.
 - [ ] 1.4 Track & display job progress (current line, % complete) from status reports
 - [ ] 1.5 Wire up `goto <line>` to resume from a specific line after a pause
 

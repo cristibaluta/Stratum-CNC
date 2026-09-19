@@ -25,6 +25,31 @@ struct MakeraMachineStatus: Equatable {
             && lhs.workPosition == rhs.workPosition
     }
 
+    // MARK: - State helpers (Roadmap 1.3)
+    //
+    // Prefix matches rather than equality because grbl-style firmware
+    // appends a sub-state after a colon (e.g. "Hold:0").
+
+    /// Executing motion — the only state where a feed-hold (`!`) has
+    /// anything to hold.
+    var isRunning: Bool {
+        state.hasPrefix("Run")
+    }
+
+    /// Feed-held, waiting for a resume (`~`). Smoothie/grbl report `Hold`;
+    /// `Pause` is accepted defensively in case a Makera build reports its
+    /// own pause under that name — not confirmed against real firmware.
+    var isHeld: Bool {
+        state.hasPrefix("Hold") || state.hasPrefix("Pause")
+    }
+
+    /// Anything that's neither at rest nor already halted — i.e. the states
+    /// where a soft-reset means "abort what's happening" rather than "reset
+    /// a machine that was doing nothing".
+    var isBusy: Bool {
+        !(state.hasPrefix("Idle") || state.hasPrefix("Alarm"))
+    }
+
     static func parse(_ raw: String) -> MakeraMachineStatus? {
         guard raw.hasPrefix("<"), raw.hasSuffix(">") else { return nil }
 
@@ -58,6 +83,32 @@ struct MakeraMachineStatus: Equatable {
 enum MakeraWireProtocol: String {
     case smoothie = "Smoothie (plain text)"
     case makera = "Makera (framed binary)"
+}
+
+/// Single-byte realtime controls. Unlike a G-code/console line these aren't
+/// queued behind whatever the machine is doing — the firmware acts on them
+/// the moment the byte arrives, which is the whole point for holding or
+/// aborting a running job (Roadmap 1.3).
+///
+/// Byte values follow the Smoothieware/grbl convention the rest of this app
+/// already assumes (`?` status polling, `$X`/`$H`, and `GCodeUploader`'s
+/// Ctrl-X on cancel). Under the framed Makera protocol they travel as
+/// `ptypeCtrlSingle` frames, same as `?` always has.
+enum MachineRealtimeCommand: UInt8 {
+    case statusQuery = 0x3F  // "?"
+    case feedHold = 0x21     // "!"
+    case cycleResume = 0x7E  // "~"
+    case softReset = 0x18    // Ctrl-X
+
+    /// How the command appears in the terminal log.
+    var logText: String {
+        switch self {
+        case .statusQuery: "?"
+        case .feedHold: "! (feed hold)"
+        case .cycleResume: "~ (resume)"
+        case .softReset: "^X (soft reset)"
+        }
+    }
 }
 
 /// Errors surfaced by `MachineConnection`'s send paths that aren't just
@@ -254,19 +305,43 @@ final class MachineConnection: ObservableObject {
         }
     }
 
-    /// Request a status report — a single realtime control byte ("?"),
-    /// not a text line. Framing (or lack of it) depends on wireProtocol.
-    func requestStatus() {
-        guard let connection, wireProtocol != nil else { return }
+    /// Sends a single realtime control byte — not a text line. Framing (or
+    /// lack of it) depends on `wireProtocol`, so this is a no-op (returns
+    /// `false`) until protocol detection has finished: before that we don't
+    /// know which shape the machine would understand.
+    ///
+    /// Everything except the 1 Hz status poll is echoed to the terminal log
+    /// so a hold/resume/reset is visible in the console history.
+    @discardableResult
+    func sendRealtime(_ command: MachineRealtimeCommand) -> Bool {
+        guard let connection, wireProtocol != nil else { return false }
 
+        if command != .statusQuery {
+            appendLog("> \(command.logText)")
+        }
+
+        let byte = Data([command.rawValue])
         let payload: Data
         switch wireProtocol {
         case .makera:
-            payload = MakeraFraming.buildFrame(ptype: MakeraFraming.ptypeCtrlSingle, payload: Data([0x3F]))
+            payload = MakeraFraming.buildFrame(ptype: MakeraFraming.ptypeCtrlSingle, payload: byte)
         default:
-            payload = Data([0x3F])
+            payload = byte
         }
-        connection.send(content: payload, completion: .contentProcessed { _ in })
+
+        connection.send(content: payload, completion: .contentProcessed { [weak self] error in
+            // A dropped status poll is noise; a dropped hold/reset is not.
+            guard let error, command != .statusQuery else { return }
+            Task { @MainActor in
+                self?.lastError = "Send failed: \(error.localizedDescription)"
+            }
+        })
+        return true
+    }
+
+    /// Request a status report — a single realtime control byte ("?").
+    func requestStatus() {
+        sendRealtime(.statusQuery)
     }
 
     // MARK: - File transfer (Roadmap 1.2)

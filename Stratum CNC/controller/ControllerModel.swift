@@ -137,11 +137,16 @@ class ControllerModel: ObservableObject {
             return
         }
 
-        // "?" is a realtime status-query byte, not a queued line/frame —
-        // route it through the protocol-aware realtime path so it works
-        // correctly under both the plain-text and framed wire protocols.
-        if command == statusCommand {
-            connection.requestStatus()
+        // "?", "!", "~" and "^X" are realtime control bytes, not queued
+        // lines/frames — route them through the protocol-aware realtime
+        // path so they work under both the plain-text and framed wire
+        // protocols (typed into the MDI box or picked from the palette).
+        if let realtime = realtimeCommand(for: command) {
+            if realtime == .softReset {
+                softReset()
+            } else {
+                connection.sendRealtime(realtime)
+            }
             return
         }
 
@@ -199,6 +204,8 @@ class ControllerModel: ObservableObject {
         uploader.upload(fileName: fileName, contents: Data(contents.utf8))
     }
 
+    /// Cancels an in-flight upload only. `stopJob()` is the general "stop"
+    /// (it calls this when an upload is what's active).
     func cancelUpload() {
         uploader.cancel()
     }
@@ -210,16 +217,82 @@ class ControllerModel: ObservableObject {
         jobRunner.start(lines: lines)
     }
 
+    // MARK: - Pause / resume / abort (Roadmap 1.3)
+    //
+    // These work on whatever the *machine* is doing, whether that's a
+    // program running from the SD card after `GCodeUploader` finished, or a
+    // burst streamed by `GCodeJobRunner` — the realtime bytes act on the
+    // machine, not on either queue. Enablement is therefore driven by the
+    // machine's reported state (`MakeraMachineStatus`), which also covers a
+    // job that was started or paused from the machine's own controls.
+
+    /// Feed-hold: decelerates to a stop, keeping the job resumable.
     func pauseJob() {
+        guard connection.isConnected else { return }
+
+        // Stop the streamed queue regardless of machine state.
         jobRunner.pause()
+
+        // A feed-hold only means something while there's motion to hold.
+        // Sent to an idle machine it could leave a stale hold pending for
+        // whatever runs next, so it's gated on the machine's own report.
+        guard connection.status?.isRunning == true else { return }
+        connection.sendRealtime(.feedHold)
+        connection.requestStatus()
     }
 
+    /// Cycle-resume after a feed-hold.
     func resumeJob() {
+        guard connection.isConnected else { return }
+
+        // Resume the machine first so it's already moving again by the
+        // time the runner queues its next line.
+        if connection.status?.isHeld == true {
+            connection.sendRealtime(.cycleResume)
+            connection.requestStatus()
+        }
         jobRunner.resume()
     }
 
+    /// Stops the job outright.
+    /// - Mid-upload: cancels the transfer. Nothing is running on the machine
+    ///   yet, so there's nothing to reset (and in plain-text mode
+    ///   `GCodeUploader.cancel()` already sends its own Ctrl-X).
+    /// - Otherwise: a soft-reset, if the machine (or the streamed queue)
+    ///   actually has something in progress. Unlike a feed-hold this is not
+    ///   resumable — see `softReset()`.
     func stopJob() {
+        if uploader.isActive {
+            cancelUpload()
+            jobRunner.stop()
+            return
+        }
+
+        guard connection.isConnected else {
+            jobRunner.stop()
+            return
+        }
+
+        // Read before `softReset()` clears the runner.
+        let somethingToAbort = jobRunner.isActive || connection.status?.isBusy == true
+        guard somethingToAbort else { return }
+        softReset()
+    }
+
+    /// Ctrl-X. Halts motion immediately and discards the machine's planned
+    /// moves, so unlike `pauseJob()` there is no resuming from where it
+    /// stopped. Grbl/Smoothie-style firmware usually comes back in ALARM and
+    /// needs an Unlock (`$X`) before it accepts motion again — deliberately
+    /// left as a manual step rather than auto-unlocking after an abort.
+    private func softReset() {
+        // Order matters: empty the queue first so an "ok" that's still on
+        // its way can't trigger another line after the reset.
         jobRunner.stop()
+        jogController.stopAll()
+
+        guard connection.sendRealtime(.softReset) else { return }
+        connection.appendLog("Soft reset sent. If the machine reports ALARM, use Unlock to clear it.")
+        connection.requestStatus()
     }
 
     // MARK: - Raw commands not modeled by CNCCommand
@@ -235,6 +308,25 @@ class ControllerModel: ObservableObject {
     /// Realtime status query byte — handled specially in sendRawCommand(),
     /// since it needs the protocol-aware realtime path, not a queued line.
     let statusCommand = "?"
+
+    /// Realtime feed-hold and cycle-resume bytes (Roadmap 1.3). Same
+    /// treatment as `statusCommand`.
+    let feedHoldCommand = "!"
+    let resumeCommand = "~"
+
+    /// Printable stand-in for Ctrl-X (0x18), which can't be shown in the
+    /// palette or typed into the MDI box. Sends the soft-reset byte.
+    let softResetCommand = "^X"
+
+    private func realtimeCommand(for command: String) -> MachineRealtimeCommand? {
+        switch command {
+        case statusCommand: return .statusQuery
+        case feedHoldCommand: return .feedHold
+        case resumeCommand: return .cycleResume
+        case softResetCommand: return .softReset
+        default: return nil
+        }
+    }
 
     /// Builds a "set current axis position as zero" command. Matches the
     /// reference app's wcs_set(): G10 L20 P0 sets the active work coordinate

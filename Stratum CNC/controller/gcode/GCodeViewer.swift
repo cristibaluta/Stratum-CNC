@@ -31,10 +31,15 @@ struct GCodeViewer: View {
     /// contents:)` since this view only holds the `GCodeStore`, not the
     /// machine connection.
     var onPlay: (() -> Void)? = nil
-    /// Cancels an in-progress upload. Pause/resume of a job already
-    /// *running* on the machine needs realtime feed-hold, which doesn't
-    /// exist yet (Roadmap 1.3) — there's nothing to wire those buttons to
-    /// until then.
+    /// Feed-hold (`!`) on a job running on the machine. `ControllerModel`
+    /// supplies `pauseJob`, which also gates on the machine's reported state
+    /// (Roadmap 1.3).
+    var onPause: (() -> Void)? = nil
+    /// Cycle-resume (`~`) after a feed-hold. Supplied as `resumeJob`.
+    var onResume: (() -> Void)? = nil
+    /// Cancels an in-progress upload, or aborts a job running on the
+    /// machine (soft-reset). Supplied as `ControllerModel.stopJob`, which
+    /// works out which of the two applies.
     var onStop: (() -> Void)? = nil
 
     /// Cached result of `GCodeToolpathAnalyzer.analyze`. This used to be a
@@ -143,7 +148,28 @@ struct GCodeViewer: View {
         connection.isConnected && !uploader.isActive && !model.document.lines.isEmpty
     }
 
+    /// Feed-held, per the machine's own status report — so this is also
+    /// true for a hold that was started from the machine's controls.
+    private var isHeld: Bool {
+        connection.status?.isHeld == true
+    }
+
+    /// Pause is offered while the machine is moving; resume while it's held.
+    private var canPauseOrResume: Bool {
+        guard connection.isConnected, let status = connection.status else { return false }
+        return status.isRunning || status.isHeld
+    }
+
+    /// Stop covers both an upload in flight and a job running on the
+    /// machine, so it's enabled for either.
+    private var canStop: Bool {
+        uploader.isActive || (connection.isConnected && connection.status?.isBusy == true)
+    }
+
     private var progressText: String? {
+        if isHeld {
+            return "Paused"
+        }
         switch uploader.state {
         case let .transferring(sent, total):
             guard total > 0 else { return "…" }
@@ -162,13 +188,23 @@ struct GCodeViewer: View {
 
     private var commandBar: some View {
         HStack(spacing: 8) {
-            // Pause/resume needs realtime feed-hold on a job the machine is
-            // already running, which doesn't exist yet — see `onStop`'s doc
-            // comment (Roadmap 1.3). Left in place, disabled, so the layout
-            // doesn't jump once that lands.
-            Image(systemName: "pause.fill")
-                .foregroundStyle(.secondary.opacity(0.4))
-                .help("Pause/resume isn't available yet — needs realtime feed-hold (Roadmap 1.3)")
+            // One button, two roles: feed-hold while the machine is running,
+            // resume while it's held. Driven by the machine's reported state
+            // (polled once a second), so the icon can lag a press by up to a
+            // second.
+            Button {
+                if isHeld {
+                    onResume?()
+                } else {
+                    onPause?()
+                }
+            } label: {
+                Image(systemName: isHeld ? "playpause.fill" : "pause.fill")
+                    .foregroundStyle(isHeld ? Color.orange : .secondary)
+            }
+            .buttonStyle(.borderless)
+            .disabled(!canPauseOrResume)
+            .help(isHeld ? "Resume the job (~)" : "Pause the job — feed hold (!)")
 
             Button {
                 onStop?()
@@ -177,8 +213,8 @@ struct GCodeViewer: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .disabled(!uploader.isActive)
-            .help("Cancel the upload")
+            .disabled(!canStop)
+            .help("Stop: cancels an upload, or aborts the running job with a soft reset (not resumable)")
 
             Button {
                 onPlay?()

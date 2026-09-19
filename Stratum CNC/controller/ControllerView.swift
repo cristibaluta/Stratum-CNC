@@ -143,7 +143,9 @@ struct ControllerView: View {
                                         contents: gCodeModel.document.lines.map { $0.text }.joined(separator: "\n")
                                     )
                                 },
-                                onStop: model.cancelUpload)
+                                onPause: model.pauseJob,
+                                onResume: model.resumeJob,
+                                onStop: model.stopJob)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 

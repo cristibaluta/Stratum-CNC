@@ -17,12 +17,14 @@ import Foundation
 /// `GCodeUploader`'s doc comment for why, and use that instead for a full
 /// program (Roadmap 1.2).
 ///
-/// There's still no realtime feed-hold/abort byte yet (Roadmap 1.3), so:
-/// - `pause()` only stops *queuing new* lines; whatever line is already in
-///   flight keeps running until the machine finishes it.
-/// - `stop()` clears the remaining queue but can't cancel motion already
-///   commanded to the machine.
-/// Both will get sharper once that phase lands.
+/// This type only owns the *queue*. Halting motion the machine has already
+/// been given is a realtime concern (Roadmap 1.3) and lives in
+/// `ControllerModel.pauseJob()`/`stopJob()`, which pair these calls with a
+/// feed-hold (`!`) / soft-reset (`^X`) sent via `MachineConnection`:
+/// - `pause()` stops *queuing new* lines. The line already in flight is
+///   frozen by the feed-hold, not by anything here.
+/// - `stop()` clears the remaining queue. The soft-reset is what actually
+///   cancels motion already commanded.
 @MainActor
 final class GCodeJobRunner: ObservableObject {
 
@@ -47,6 +49,14 @@ final class GCodeJobRunner: ObservableObject {
     private var send: ((String) -> Void)?
     private var queue: [String] = []
 
+    /// True from the moment a line is sent until the machine acknowledges
+    /// it. Tracked separately from `state` because a feed-hold can pause
+    /// the runner *while a line is still in flight*: on resume we must not
+    /// send the next line if the held one hasn't been acknowledged yet, or
+    /// its late "ok" would advance the queue a second time and leave two
+    /// lines in flight.
+    private var awaitingAck = false
+
     func configure(send: @escaping (String) -> Void) {
         self.send = send
     }
@@ -66,6 +76,7 @@ final class GCodeJobRunner: ObservableObject {
         queue = cleaned
         totalLines = cleaned.count
         linesSent = 0
+        awaitingAck = false
         state = .running
         sendNext()
     }
@@ -79,12 +90,17 @@ final class GCodeJobRunner: ObservableObject {
     func resume() {
         guard state == .paused else { return }
         state = .running
-        sendNext()
+        // If the line that was in flight at pause time is still
+        // unacknowledged, its "ok" will advance the queue as usual.
+        if !awaitingAck {
+            sendNext()
+        }
     }
 
     /// Clears the remaining queue and resets to idle.
     func stop() {
         queue.removeAll()
+        awaitingAck = false
         state = .idle
         linesSent = 0
         totalLines = 0
@@ -95,8 +111,12 @@ final class GCodeJobRunner: ObservableObject {
     /// acknowledgement so lines aren't sent faster than the machine can
     /// accept them.
     func handleMachineLine(_ line: String) {
-        guard state == .running else { return }
+        guard isActive else { return }
         guard line.localizedCaseInsensitiveContains("ok") else { return }
+        // Record the ack even while paused, so `resume()` knows whether
+        // there's still a line in flight to wait for.
+        awaitingAck = false
+        guard state == .running else { return }
         sendNext()
     }
 
@@ -108,6 +128,7 @@ final class GCodeJobRunner: ObservableObject {
         }
         let line = queue.removeFirst()
         linesSent += 1
+        awaitingAck = true
         send?(line)
     }
 }
