@@ -113,6 +113,16 @@ class MetalRenderer: NSObject {
     // second pass that picks up everything the first pass occluded.
     private var depthStateVisible: MTLDepthStencilState!
     private var depthStateHidden: MTLDepthStencilState!
+    /// Always passes and writes depth. Only used to reset the depth buffer
+    /// inside the orientation cube's viewport (see `drawOrientationCube`).
+    private var depthStateAlways: MTLDepthStencilState!
+
+    /// Draw the small orientation cube in a corner of the canvas (see
+    /// `OrientationCube`). Static GPU buffers, built once in `init`.
+    var showOrientationCube: Bool = true
+    private var orientationCubeBuffer: MTLBuffer?
+    private var orientationCubeVertexCount = 0
+    private var depthResetBuffer: MTLBuffer?
 
     /// Turn the second pass on/off. When off, occluded geometry simply
     /// isn't drawn (the old behavior).
@@ -217,6 +227,7 @@ class MetalRenderer: NSObject {
         setupPipeline(metalView: metalView)
         setupHeightmapPipeline(metalView: metalView)
         setupDepthStates()
+        setupOrientationCube()
 
         renderBatches = [buildRenderBatch(from: .stockBox())].compactMap { $0 }
     }
@@ -384,6 +395,26 @@ class MetalRenderer: NSObject {
         hiddenDescriptor.depthCompareFunction = .greater
         hiddenDescriptor.isDepthWriteEnabled = false
         depthStateHidden = device.makeDepthStencilState(descriptor: hiddenDescriptor)
+
+        let alwaysDescriptor = MTLDepthStencilDescriptor()
+        alwaysDescriptor.depthCompareFunction = .always
+        alwaysDescriptor.isDepthWriteEnabled = true
+        depthStateAlways = device.makeDepthStencilState(descriptor: alwaysDescriptor)
+    }
+
+    /// Uploads the orientation cube's (static) triangles and the quad used
+    /// to reset depth behind it. See `OrientationCube`.
+    private func setupOrientationCube() {
+        let cube = OrientationCube.makeCubeVertices()
+        orientationCubeVertexCount = cube.count
+        orientationCubeBuffer = device.makeBuffer(bytes: cube,
+                                                  length: cube.count * MemoryLayout<RenderVertex>.stride,
+                                                  options: .storageModeShared)
+
+        let reset = OrientationCube.makeDepthResetVertices()
+        depthResetBuffer = device.makeBuffer(bytes: reset,
+                                             length: reset.count * MemoryLayout<RenderVertex>.stride,
+                                             options: .storageModeShared)
     }
 
     /// Sync GPU state from the model's plain-data description of what to
@@ -603,6 +634,11 @@ extension MetalRenderer: MTKViewDelegate {
                 drawHeightmapScene(mvp: mvp, encoder: renderEncoder)
         }
 
+        // Last, on top of whichever scene was drawn — see `drawOrientationCube`.
+        if showOrientationCube {
+            drawOrientationCube(in: view, encoder: renderEncoder)
+        }
+
         renderEncoder.endEncoding()
         if let drawable = view.currentDrawable {
             commandBuffer.present(drawable)
@@ -661,6 +697,86 @@ private extension MetalRenderer {
                 drawBatch(batch, mvp: mvp, dashLength: dash, encoder: encoder)
             }
         }
+    }
+
+    /// The orientation cube: a small square viewport in one corner of the
+    /// canvas showing the camera's rotation (and nothing else — no pan, no
+    /// zoom), so it always says how the world is turned relative to the
+    /// screen. Runs after the scene in the same encoder, in two steps:
+    ///
+    /// 1. Reset depth inside the corner viewport with a full-viewport quad
+    ///    (depth compare `.always`, color writes off). The scene's depth
+    ///    values are meaningless to the cube — without this its faces would
+    ///    randomly lose to, or z-fight with, whatever the scene has behind
+    ///    that corner, and the hidden-line pass would leak through.
+    /// 2. Draw the cube with the ordinary depth test, so its own faces and
+    ///    letters sort correctly.
+    ///
+    /// Viewport and scissor are both in drawable pixels with the origin at
+    /// the top-left, so the size/margin (points) are scaled by the view's
+    /// backing scale first. Nothing needs restoring afterwards: this is the
+    /// last thing drawn, and the encoder is fresh every frame.
+    func drawOrientationCube(in view: MTKView, encoder: MTLRenderCommandEncoder) {
+        guard let cubeBuffer = orientationCubeBuffer, orientationCubeVertexCount > 0,
+              let resetBuffer = depthResetBuffer else {
+            return
+        }
+
+        let drawableSize = view.drawableSize
+        let pointsWide = view.bounds.width
+        let scale = pointsWide > 0 ? drawableSize.width / pointsWide : 1
+        let side = (OrientationCube.size * scale).rounded()
+        let inset = (OrientationCube.margin * scale).rounded()
+
+        // Canvas too small to hold the cube plus its margins: skip it
+        // rather than draw a clipped or overlapping one.
+        guard side + 2 * inset <= min(drawableSize.width, drawableSize.height) else {
+            return
+        }
+
+        let x: CGFloat
+        let y: CGFloat
+        switch OrientationCube.corner {
+            case .topLeft:
+                x = inset
+                y = inset
+            case .topRight:
+                x = drawableSize.width - side - inset
+                y = inset
+            case .bottomLeft:
+                x = inset
+                y = drawableSize.height - side - inset
+            case .bottomRight:
+                x = drawableSize.width - side - inset
+                y = drawableSize.height - side - inset
+        }
+
+        encoder.setViewport(MTLViewport(originX: Double(x), originY: Double(y),
+                                        width: Double(side), height: Double(side),
+                                        znear: 0, zfar: 1))
+        encoder.setScissorRect(MTLScissorRect(x: Int(x), y: Int(y), width: Int(side), height: Int(side)))
+        // Heightmap mode leaves back-face culling switched on for the rest
+        // of the encoder; the cube's quads aren't wound for it.
+        encoder.setCullMode(.none)
+
+        // 1. Reset depth in the viewport.
+        var resetUniforms = Uniforms(modelViewProjectionMatrix: matrix_identity_float4x4, dashLength: 0)
+        encoder.setRenderPipelineState(depthOnlyPipelineState)
+        encoder.setDepthStencilState(depthStateAlways)
+        encoder.setVertexBytes(&resetUniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        encoder.setFragmentBytes(&resetUniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        encoder.setVertexBuffer(resetBuffer, offset: 0, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+
+        // 2. The cube itself.
+        var uniforms = Uniforms(modelViewProjectionMatrix: camera.orientationCubeMatrix(halfExtent: OrientationCube.halfExtent),
+                                dashLength: 0)
+        encoder.setRenderPipelineState(pipelineState)
+        encoder.setDepthStencilState(depthStateVisible)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        encoder.setVertexBuffer(cubeBuffer, offset: 0, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: orientationCubeVertexCount)
     }
 
     /// Heightmap mode: axes and the tool marker still draw as ordinary

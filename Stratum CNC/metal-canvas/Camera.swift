@@ -223,6 +223,34 @@ class Camera {
         return simd_mul(proj, view)
     }
 
+    /// MVP for the orientation cube (see `OrientationCube` and
+    /// `MetalRenderer.drawOrientationCube`): only the camera's *rotation*,
+    /// none of its target/zoom, so the cube sits still in its corner and
+    /// just turns the way the world turns.
+    ///
+    /// The rotation part is the same one `matrix_look_at` builds — its rows
+    /// are the camera's right/up/back in world space, so a world direction
+    /// comes out as (right·v, up·v, back·v) — followed by a fixed push
+    /// `distance` in front of the camera and a square orthographic
+    /// projection. `halfExtent` is the half-size of the visible square in
+    /// cube units; it has to exceed the cube's corner radius (√3 ≈ 1.73 for
+    /// a cube of half-size 1) or corners get clipped at some angles.
+    func orientationCubeMatrix(halfExtent: Float, distance: Float = 5) -> matrix_float4x4 {
+        let r = right
+        let u = up
+        let b = back
+        let rotationAndPush = matrix_float4x4(
+            SIMD4<Float>(r.x, u.x, b.x, 0),
+            SIMD4<Float>(r.y, u.y, b.y, 0),
+            SIMD4<Float>(r.z, u.z, b.z, 0),
+            SIMD4<Float>(0, 0, -distance, 1)
+        )
+        let proj = matrix_orthographic(left: -halfExtent, right: halfExtent,
+                                       bottom: -halfExtent, top: halfExtent,
+                                       nearZ: distance - 2.5, farZ: distance + 2.5)
+        return simd_mul(proj, rotationAndPush)
+    }
+
     private func matrix_look_at(eye: SIMD3<Float>, target: SIMD3<Float>, up: SIMD3<Float>) -> matrix_float4x4 {
         let z = simd_normalize(eye - target)
         let x = simd_normalize(simd_cross(up, z))
