@@ -45,13 +45,38 @@ class Camera {
     /// side view could ever have Z (the machine's vertical) pointing up.
     var orientation = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
 
-    /// The world axis `orbit` spins around for horizontal movement — the
-    /// screen's "up" at the moment the view was last set (world Y for the
-    /// default top view, Z after snapping to a side view; see `snap(to:)`).
+    /// The machine's vertical. Orbiting turns the world around this axis, so
+    /// Z stays up on screen (see `preferredTurntableAxis(for:)`).
+    static let machineUp = SIMD3<Float>(0, 0, 1)
+
+    /// The world axis `orbit` spins around for horizontal movement.
     /// Vertical movement tilts around the camera's own X axis and stops when
     /// the camera would tip past this axis, so the view never rolls upside
     /// down.
-    var turntableAxis = SIMD3<Float>(0, 1, 0)
+    ///
+    /// This is the machine's Z axis, including from the top view. It used to
+    /// be the screen's "up" at the moment the view was set — world Y for the
+    /// top view — which made every orbit from the top a rotation around Y:
+    /// yaw and pitch each moved the camera, but the roll of the result was
+    /// then fixed by the two of them, so views with Z up on screen and both
+    /// X and Y sides showing (e.g. -X, -Y, +Z) simply couldn't be reached.
+    var turntableAxis = Camera.machineUp
+
+    /// Which axis to orbit around for a camera that's facing `q`: the
+    /// machine's Z, unless that would be wrong for this pose —
+    ///  - upside-down relative to Z: keep the screen's own up, so the view
+    ///    stays consistent instead of jumping upright on the first tilt;
+    ///  - camera-right parallel to Z (a view rolled onto its side): tilting
+    ///    would just spin around Z again and never leave that plane, so
+    ///    again use the screen's up.
+    /// Every standard view, and everything orbiting from one, gets Z.
+    static func preferredTurntableAxis(for q: simd_quatf) -> SIMD3<Float> {
+        let screenUp = q.act(SIMD3<Float>(0, 1, 0))
+        let screenRight = q.act(SIMD3<Float>(1, 0, 0))
+        let upright = simd_dot(screenUp, machineUp) >= -1e-4
+        let rolledSideways = abs(simd_dot(screenRight, machineUp)) > 0.999
+        return upright && !rolledSideways ? machineUp : screenUp
+    }
 
     var distance: Float = 20.0
 
@@ -69,8 +94,9 @@ class Camera {
     /// Turntable orbit: `yaw` spins the scene around `turntableAxis`,
     /// `pitch` tilts it around the camera's own X axis (both in radians).
     ///
-    /// With the default orientation and axis this is exactly the old
-    /// yaw/pitch orbit, including its stop at straight-up/straight-down.
+    /// From the top view the tilt only goes one way (toward the front) — the
+    /// same stop a turntable has at straight-up/straight-down; spin 180° first
+    /// to tilt toward the back.
     func orbit(yaw: Float, pitch: Float) {
         var q = orientation
         if yaw != 0 {
@@ -101,7 +127,7 @@ class Camera {
     /// and zoom.
     func snap(to view: StandardView) {
         orientation = view.orientation
-        turntableAxis = view.up
+        turntableAxis = Camera.preferredTurntableAxis(for: orientation)
     }
 
     /// Whether the camera is currently squared up on one of the six
@@ -161,7 +187,7 @@ class Camera {
         }
 
         orientation = q
-        turntableAxis = q.act(SIMD3<Float>(0, 1, 0))
+        turntableAxis = Camera.preferredTurntableAxis(for: q)
     }
 
     /// Changes `distance` (zoom level) while keeping the world point currently under
