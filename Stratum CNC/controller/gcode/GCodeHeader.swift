@@ -6,15 +6,21 @@
 //
 
 import Foundation
+import simd
 
 /// Metadata a CAM package embeds in a comment block at the top of a program
 /// — everything the file says about itself that isn't motion. Only tool
 /// specs are extracted for now; add more fields here (stock, origin, ...)
 /// as the app starts using them.
-struct GCodeHeader: Sendable {
+struct GCodeHeader: Sendable, Equatable {
     /// Tool specs declared by the header, keyed by tool number (the `T` in
     /// `T4 M6`).
     var tools: [Int: ToolSpec] = [:]
+
+    /// XY position of the part relative to the machine origin, in
+    /// millimeters, for CAMs that write one. `nil` when the header doesn't
+    /// say — as opposed to `(0, 0)`, which it does.
+    var xyOffset: SIMD2<Float>? = nil
 }
 
 extension ToolSpec {

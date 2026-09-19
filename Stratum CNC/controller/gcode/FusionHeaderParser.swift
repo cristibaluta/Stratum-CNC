@@ -5,14 +5,6 @@
 //  Created by Cristian Baluta on 18.09.2026.
 //
 
-
-//
-//  FusionHeaderParser.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 18.09.2026.
-//
-
 import Foundation
 
 /// Parses the tool comments Fusion's post processor writes at the top of a
@@ -22,20 +14,40 @@ import Foundation
 ///     (T1 D=6. CR=0. - ZMIN=-10. - flat end mill)
 ///
 /// Each is `(T<n> [description] D=<diameter> [CR=…] [TAPER=…deg] … - ZMIN=… - <type>)`.
-/// Everything else in Fusion's header (stock, offsets, ...) is skipped. No
-/// tool comment found → `nil`.
+/// It also reads the part position Fusion writes for aligning to the
+/// machine's anchor:
+///
+///     (   X Offset   : 0. mm )
+///     (   Y Offset   : 0. mm )
+///
+/// Everything else in Fusion's header (stock, Z info, ...) is skipped. No
+/// tool comment and no offset found → `nil`.
 struct FusionHeaderParser: GCodeHeaderParser {
 
     /// `(T<number> <rest>)`. Requires digits right after the `T`, so
     /// comments like `(Thread1)` don't match.
     private static let toolLine = try! NSRegularExpression(pattern: #"^\(\s*T(\d+)\b(.*)\)$"#)
 
+    /// `(   X Offset   : 0. mm )` — axis, value, optional unit.
+    private static let offsetLine = try! NSRegularExpression(
+        pattern: #"^\(\s*([XY])\s+Offset\s*:\s*(-?(?:[0-9]+\.?[0-9]*|\.[0-9]+))\s*(mm|in|inch)?\s*\)$"#,
+        options: [.caseInsensitive]
+    )
+
     func parse(headerLines: [String]) -> GCodeHeader? {
         var tools: [Int: ToolSpec] = [:]
+        var offsetX: Float?
+        var offsetY: Float?
 
         for rawLine in headerLines {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             let range = NSRange(line.startIndex..., in: line)
+
+            if let (axis, value) = Self.offset(in: line, range: range) {
+                if axis == "X" { offsetX = value } else { offsetY = value }
+                continue
+            }
+
             guard let match = Self.toolLine.firstMatch(in: line, range: range),
                   let numberRange = Range(match.range(at: 1), in: line),
                   let bodyRange = Range(match.range(at: 2), in: line),
@@ -47,10 +59,39 @@ struct FusionHeaderParser: GCodeHeaderParser {
             tools[number] = spec
         }
 
-        return tools.isEmpty ? nil : GCodeHeader(tools: tools)
+        let xyOffset: SIMD2<Float>? = (offsetX == nil && offsetY == nil)
+            ? nil
+            : SIMD2<Float>(offsetX ?? 0, offsetY ?? 0)
+
+        guard !tools.isEmpty || xyOffset != nil else {
+            return nil
+        }
+        return GCodeHeader(tools: tools, xyOffset: xyOffset)
     }
 
     // MARK: Helpers
+
+    /// Axis ("X"/"Y") and value in millimeters if `line` is an offset comment.
+    private static func offset(in line: String, range: NSRange) -> (String, Float)? {
+        guard let match = offsetLine.firstMatch(in: line, range: range),
+              let axisRange = Range(match.range(at: 1), in: line),
+              let valueRange = Range(match.range(at: 2), in: line) else {
+            return nil
+        }
+        var text = String(line[valueRange])
+        if text.hasSuffix(".") {
+            text.removeLast()
+        }
+        guard let value = Float(text) else {
+            return nil
+        }
+        var unit = "mm"
+        if let unitRange = Range(match.range(at: 3), in: line) {
+            unit = line[unitRange].lowercased()
+        }
+        let millimeters = unit == "mm" ? value : value * 25.4
+        return (line[axisRange].uppercased(), millimeters)
+    }
 
     private static func tool(number: Int, body: String) -> ToolSpec? {
         // `D=` is the cutting diameter. `SD=` (shank) and `TD=` don't count —

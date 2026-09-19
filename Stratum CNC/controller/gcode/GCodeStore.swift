@@ -96,7 +96,14 @@ class GCodeStore: ObservableObject {
     /// tool changes. Just forwards `document.tools` — that's the cached
     /// value; see `NCFileDocument.recomputeTools`.
     var tools: [Int] {
-        document.tools
+        // Tools the program calls, in first-appearance order, then any the
+        // header declares that no `T… M6` line calls (or that the analyzer
+        // couldn't see one for) — so a tool the file describes is always
+        // there to inspect and assign.
+        let called = document.tools
+        let declaredOnly = (document.loadedHeader?.tools.keys.sorted() ?? [])
+            .filter { !called.contains($0) }
+        return called + declaredOnly
     }
 
     /// The single `ToolSpec` the heightmap preview carves with (see

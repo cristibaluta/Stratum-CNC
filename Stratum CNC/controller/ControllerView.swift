@@ -568,6 +568,16 @@ private struct CanvasSection: View {
                 // cell size and doesn't just resample in place.
                 forceHeightmapRefresh()
             }
+            .onChange(of: gCodeModel.document.loadedHeader) { _, header in
+                // A file that declares its own XY offset (Fusion's
+                // "X Offset / Y Offset") sets the canvas offset on load,
+                // replacing whatever was nudged for the previous file.
+                // Files whose header says nothing about it leave the
+                // current value alone.
+                if let offset = header?.xyOffset {
+                    scene.xyOffset = offset
+                }
+            }
             .onChange(of: scene.xyOffset) { _, _ in
                 forceHeightmapRefresh()
             }
