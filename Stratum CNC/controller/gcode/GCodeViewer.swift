@@ -59,7 +59,8 @@ struct GCodeViewer: View {
             toolpathsView
                 .background(Color(.white))
                 .frame(height: 200)
-            GCodeTableView(document: model.document, highlightedLine: highlightedLine, requestedLine: model.requestedLine, onLineSelected: onLineSelected)
+            GCodeTableView(document: model.document, highlightedLine: machineLine ?? highlightedLine, requestedLine: model.requestedLine, onLineSelected: onLineSelected)
+            jobProgress
             commandBar
                 .frame(height: 36)
         }
@@ -135,6 +136,56 @@ struct GCodeViewer: View {
                     model.requestedLine = toolpath.startLine
                 }
             }
+        }
+    }
+
+    // MARK: - Job progress (Roadmap 1.4)
+
+    /// The line the machine is executing while a job is running or paused,
+    /// in the same 1-based numbering as the table's rows. While a job is
+    /// active this takes over the table's highlight — and its
+    /// auto-scroll — from the scrubber; when it ends, the highlight goes
+    /// back to `highlightedLine`.
+    ///
+    /// The status report doesn't say *which* file is playing, so this assumes
+    /// it's the one loaded here — true after "Send to Machine", not if a job
+    /// was started from the machine itself. A line past the end of the loaded
+    /// document is ignored rather than highlighted.
+    private var machineLine: Int? {
+        guard let job = connection.status?.activeJob,
+              job.currentLine > 0,
+              job.currentLine <= model.document.lines.count
+        else { return nil }
+        return job.currentLine
+    }
+
+    /// Live progress bar for a running/paused job; for a job that has ended,
+    /// a quiet line saying where it got to (the firmware keeps reporting it).
+    /// Nothing at all before any job has run.
+    @ViewBuilder
+    private var jobProgress: some View {
+        if let job = connection.status?.activeJob {
+            VStack(alignment: .leading, spacing: 3) {
+                ProgressView(value: job.fraction)
+                    .progressViewStyle(.linear)
+                HStack {
+                    Text(verbatim: "Line \(job.currentLine)")
+                    Spacer()
+                    Text(verbatim: "\(job.percent)% · \(job.elapsedText)")
+                }
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 4)
+        } else if let last = connection.status?.lastJob {
+            HStack {
+                Text(verbatim: "Last job: line \(last.currentLine)")
+                Spacer()
+                Text(verbatim: "\(last.percent)% · \(last.elapsedText)")
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, 4)
         }
     }
 

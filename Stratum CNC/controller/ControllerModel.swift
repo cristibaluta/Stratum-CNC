@@ -241,15 +241,24 @@ class ControllerModel: ObservableObject {
         connection.requestStatus()
     }
 
-    /// Cycle-resume after a feed-hold.
+    /// Resumes whichever kind of pause the machine is in. They're resumed
+    /// differently: a feed-hold (`Hold`) takes the realtime `~`, but a job
+    /// paused by the console `suspend` command (`Pause` — e.g. started from
+    /// the machine's own controls) only responds to the console `resume`
+    /// command. Sending `~` to a suspended machine does nothing.
     func resumeJob() {
         guard connection.isConnected else { return }
 
         // Resume the machine first so it's already moving again by the
         // time the runner queues its next line.
-        if connection.status?.isHeld == true {
-            connection.sendRealtime(.cycleResume)
-            connection.requestStatus()
+        if let status = connection.status {
+            if status.isSuspended {
+                sendRawCommand(consoleResumeCommand, recordInHistory: false)
+                connection.requestStatus()
+            } else if status.isFeedHeld {
+                connection.sendRealtime(.cycleResume)
+                connection.requestStatus()
+            }
         }
         jobRunner.resume()
     }
@@ -313,6 +322,11 @@ class ControllerModel: ObservableObject {
     /// treatment as `statusCommand`.
     let feedHoldCommand = "!"
     let resumeCommand = "~"
+
+    /// Console (line) command that resumes a job paused by `suspend` — not
+    /// to be confused with `resumeCommand` above, which is the realtime `~`
+    /// that resumes a feed-hold. See `resumeJob()`.
+    let consoleResumeCommand = "resume"
 
     /// Printable stand-in for Ctrl-X (0x18), which can't be shown in the
     /// palette or typed into the MDI box. Sends the soft-reset byte.

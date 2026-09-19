@@ -8,6 +8,75 @@
 import Foundation
 import Network
 
+/// The `P:` field of a status report — progress of the file the machine is
+/// playing from its SD card (Roadmap 1.4).
+///
+/// Community firmware emits `P:played_lines,percent,elapsed_secs,is_playing,parsed_lines`
+/// (Kernel.cpp -> get_query_string(), Player.cpp -> get_progress); older
+/// builds stop after the third value. Semantics, from Player.cpp:
+/// - `currentLine` is a **1-based physical file line** (blank lines and
+///   comments count), so it's directly the row number in a document that
+///   was uploaded verbatim. While a job runs it's the last *motion* block
+///   the step ticker started, and never goes backward; while suspended it's
+///   the read position instead.
+/// - `parsedLine` is how far the firmware has *read* into the file, which
+///   runs ahead of execution by whatever's queued in the planner.
+/// - `percent` is by **bytes read**, not lines executed, so it leads the
+///   executing line slightly and isn't linear in lines.
+/// - The block doesn't disappear when a job ends: the firmware keeps
+///   reporting the last job's frozen values (`is_playing` = 0). It's only
+///   absent before any job has run since boot.
+struct MakeraPlayback: Equatable {
+    let currentLine: Int
+    let percent: Int
+    let elapsedSeconds: Int
+    /// The firmware's own `is_playing` flag. Note it's also 0 while a job is
+    /// *suspended* — see `MakeraMachineStatus.activeJob`. Builds that don't
+    /// send the flag are treated as playing while `currentLine > 0`, which
+    /// is what the reference controller does for them.
+    let isPlaying: Bool
+    /// Only present on community firmware.
+    let parsedLine: Int?
+
+    /// `values` are the comma-separated numbers after `P:`. Returns `nil` if
+    /// fewer than three, or if any isn't a plain non-negative whole number
+    /// (a garbled report shouldn't be shown as progress — and `Int(_:)` on a
+    /// non-finite `Double` would trap, hence `Int(exactly:)`).
+    init?(values: [Double]) {
+        guard values.count >= 3,
+              let line = Self.wholeNumber(values[0]),
+              let percent = Self.wholeNumber(values[1]),
+              let seconds = Self.wholeNumber(values[2])
+        else { return nil }
+
+        self.currentLine = line
+        self.percent = min(percent, 100)
+        self.elapsedSeconds = seconds
+        self.isPlaying = values.count >= 4 ? values[3] != 0 : line > 0
+        self.parsedLine = values.count >= 5 ? Self.wholeNumber(values[4]) : nil
+    }
+
+    private static func wholeNumber(_ value: Double) -> Int? {
+        guard let number = Int(exactly: value.rounded()), number >= 0 else { return nil }
+        return number
+    }
+
+    /// 0...1, for a progress bar.
+    var fraction: Double {
+        Double(percent) / 100
+    }
+
+    /// "42:07" under an hour, "1:02:03" past it.
+    var elapsedText: String {
+        let hours = elapsedSeconds / 3600
+        let minutes = (elapsedSeconds % 3600) / 60
+        let seconds = elapsedSeconds % 60
+        return hours > 0
+            ? String(format: "%d:%02d:%02d", hours, minutes, seconds)
+            : String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
 /// Parsed contents of a Smoothieware/grbl-style status report, e.g.
 /// "<Idle|MPos:0.0000,0.0000,0.0000|WPos:0.0000,0.0000,0.0000,0.0,0.0|R:0.0|G:0|F:0.0,6000.0,100.0>"
 ///
@@ -18,11 +87,15 @@ struct MakeraMachineStatus: Equatable {
     let state: String
     let machinePosition: (x: Double, y: Double, z: Double)
     let workPosition: (x: Double, y: Double, z: Double)
+    /// The `P:` field, when the machine sent one (Roadmap 1.4). Defaulted so
+    /// existing memberwise call sites keep compiling.
+    var playback: MakeraPlayback? = nil
 
     static func == (lhs: MakeraMachineStatus, rhs: MakeraMachineStatus) -> Bool {
         lhs.state == rhs.state
             && lhs.machinePosition == rhs.machinePosition
             && lhs.workPosition == rhs.workPosition
+            && lhs.playback == rhs.playback
     }
 
     // MARK: - State helpers (Roadmap 1.3)
@@ -36,11 +109,47 @@ struct MakeraMachineStatus: Equatable {
         state.hasPrefix("Run")
     }
 
-    /// Feed-held, waiting for a resume (`~`). Smoothie/grbl report `Hold`;
-    /// `Pause` is accepted defensively in case a Makera build reports its
-    /// own pause under that name — not confirmed against real firmware.
+    /// Stopped by a realtime feed-hold (`!`); resumed with `~`.
+    var isFeedHeld: Bool {
+        state.hasPrefix("Hold")
+    }
+
+    /// Stopped by the console `suspend` command — the firmware's SUSPEND
+    /// state, reported as `Pause`. Different from a feed-hold: `suspend`
+    /// waits for the planner to drain, saves position, and stops the
+    /// spindle, and is resumed with the console `resume` command, *not* `~`
+    /// (Player.cpp -> suspend_command; Carvera_Controller uses the same
+    /// pairing). A job can be in this state without the app having asked
+    /// for it, e.g. paused from the machine's own controls.
+    var isSuspended: Bool {
+        state.hasPrefix("Pause")
+    }
+
+    /// Either kind of pause. Which command resumes it depends on which —
+    /// see `isFeedHeld` / `isSuspended`.
     var isHeld: Bool {
-        state.hasPrefix("Hold") || state.hasPrefix("Pause")
+        isFeedHeld || isSuspended
+    }
+
+    /// Progress of a job the machine is currently running or has paused.
+    ///
+    /// `is_playing` alone isn't enough to decide this: the firmware reports
+    /// it as 0 while a job is suspended even though the job is very much
+    /// alive and resumable, so a suspended machine still counts. (A
+    /// feed-hold keeps `is_playing` at 1.)
+    var activeJob: MakeraPlayback? {
+        guard let playback else { return nil }
+        return (playback.isPlaying || isSuspended) ? playback : nil
+    }
+
+    /// The frozen numbers from the last job that ended or was aborted, which
+    /// the firmware keeps reporting until the next one starts. This is where
+    /// an interrupted job stopped — what a resume-from-line (Roadmap 1.5)
+    /// needs. Nil if it never got as far as line 1 (older firmware reports
+    /// `P:0,0,0` when idle, which isn't worth showing).
+    var lastJob: MakeraPlayback? {
+        guard activeJob == nil, let playback, playback.currentLine > 0 else { return nil }
+        return playback
     }
 
     /// Anything that's neither at rest nor already halted — i.e. the states
@@ -59,6 +168,7 @@ struct MakeraMachineStatus: Equatable {
 
         var mpos = (x: 0.0, y: 0.0, z: 0.0)
         var wpos = (x: 0.0, y: 0.0, z: 0.0)
+        var playback: MakeraPlayback?
 
         for field in fields.dropFirst() {
             let parts = field.split(separator: ":", maxSplits: 1).map(String.init)
@@ -69,11 +179,12 @@ struct MakeraMachineStatus: Equatable {
             switch parts[0] {
             case "MPos": mpos = (values[0], values[1], values[2])
             case "WPos": wpos = (values[0], values[1], values[2])
+            case "P": playback = MakeraPlayback(values: values)
             default: break
             }
         }
 
-        return MakeraMachineStatus(state: state, machinePosition: mpos, workPosition: wpos)
+        return MakeraMachineStatus(state: state, machinePosition: mpos, workPosition: wpos, playback: playback)
     }
 }
 

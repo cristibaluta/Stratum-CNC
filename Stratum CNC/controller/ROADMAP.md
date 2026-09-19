@@ -73,14 +73,43 @@ The app can't actually run a G-code file on the machine yet. This is the core mi
       started or held from the machine itself. `!`, `~` and `^X` also work from the MDI box and
       the command palette. Also fixed a `GCodeJobRunner` race this made likely: resuming while
       the held line's `ok` was still outstanding sent a second line.
-      Caveats — none verified against real hardware:
-      - Byte values follow the Smoothie/grbl convention; it's unconfirmed the Makera firmware
-        honours `!`/`~` mid-job when it's running from the SD card (it may want the console
-        `suspend`/`resume`/`abort` commands there instead — worth trying if `!` does nothing).
-      - "Stop" is a `^X` soft-reset, which is not resumable and typically leaves the machine in
-        ALARM until Unlock (`$X`). That's left manual on purpose.
-      - `isHeld` also accepts a `Pause` state name defensively; the real string is unconfirmed.
-- [ ] 1.4 Track & display job progress (current line, % complete) from status reports
+      Checked against the reference sources (Carvera_Controller `Controller.py`/`makera.kv`,
+      Carvera_Community_Firmware `Kernel.cpp`/`Player.cpp`) — not against real hardware:
+      - `!` `~` `^X` match the reference's `feedholdCommand`/`cyclestartCommand`/`estopCommand`.
+      - `Pause` is a real state (the firmware's SUSPEND), not just a defensive guess. It comes
+        from the console `suspend` command, which is *not* a feed-hold: it waits for the planner
+        to drain, saves position and stops the spindle. It's resumed with the console `resume`,
+        not `~` — `resumeJob()` now picks the right one for `Hold` vs `Pause` (the first cut of
+        1.3 sent `~` for both, which does nothing to a suspended machine).
+      - Our Pause button is the immediate feed-hold, per this item. The reference also offers
+        `suspend`/`resume` ("pause at next safe opportunity, allow MDI") as a separate button.
+      - Our Stop is a `^X` soft-reset (immediate; not resumable; typically leaves ALARM until
+        Unlock, which is left manual on purpose). The reference splits this in two: a graceful
+        console `abort` ("Abort File Now": saves last progress, drains the queue, ends the file)
+        and a separate E-Stop for `^X`. Adding `abort` alongside is an open option.
+- [x] 1.4 Track & display job progress (current line, % complete) from status reports.
+      Landed as `MakeraPlayback` (the status report's `P:` field, parsed in
+      `MakeraMachineStatus.parse`) with `MakeraMachineStatus.activeJob`/`lastJob`. `GCodeViewer`
+      shows a progress bar + line + percent + elapsed above the transport bar, and the machine's
+      executing line now drives the G-code table's highlight (and auto-scroll) while a job is
+      active. Sources: Kernel.cpp `get_query_string()` / Player.cpp `get_progress`, and how
+      Carvera_Controller reads them.
+      - Field layout is `P:played_lines,percent,elapsed_secs,is_playing,parsed_lines`; older
+        firmware stops after 3 values (then "playing" = line > 0, as the reference does).
+      - The line is a 1-based *physical* file line (blanks/comments count), so it matches the
+        table row for a file uploaded verbatim. It's the executing motion block while running.
+        `parsed_lines` (how far the firmware has read ahead) is parsed but not displayed.
+      - `percent` is by bytes read, not lines executed, so it leads the executing line a little
+        and isn't linear in lines. It's still the number from the report itself; a `line ÷ total
+        lines` percent (what the reference draws) needs the file's line count and knowing which
+        file is playing, which the report doesn't say.
+      - `is_playing` is 0 while a job is *suspended* even though it's alive, so `activeJob` also
+        counts the `Pause` state. After a job ends or is aborted the firmware keeps reporting its
+        frozen values until the next job; `lastJob` surfaces them ("Last job: line N…"), which is
+        also where 1.5 will read the resume line from.
+      - Known limitation: the report has no filename, so the table highlight assumes the loaded
+        document is the one playing (out-of-range lines are ignored). A job started from the
+        machine's own controls will highlight whatever row shares that number.
 - [ ] 1.5 Wire up `goto <line>` to resume from a specific line after a pause
 
 ## Phase 2 — Wire up already-modeled commands
