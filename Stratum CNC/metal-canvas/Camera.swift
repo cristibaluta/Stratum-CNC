@@ -140,23 +140,28 @@ class Camera {
         return abs(back.x) > threshold || abs(back.y) > threshold || abs(back.z) > threshold
     }
 
-    /// "Snap to Face": rotates exactly 90° toward the face an Option+swipe
-    /// points to (see `MetalCanvasView.Coordinator.performViewSnap`) —
-    /// composed onto whatever the orientation already is, not reset to a
-    /// fixed canonical one. Like tumbling a real object, the twist a path
-    /// took to get here carries forward — e.g. Back → Top leaves the top
-    /// view turned 180° — but a side face never lands upside-down (see the
-    /// roll correction below). Same axes `orbit(yaw:pitch:)` uses for continuous
-    /// rotation — world `turntableAxis` for a left/right swipe, the
-    /// camera's own current right axis for an up/down one — just snapped
-    /// to an exact quarter turn instead of following the pointer, so a
-    /// swipe feels like the same motion as Shift+scroll, only discrete.
+    /// "Snap to Face": tumbles the model exactly 90° toward the direction of
+    /// an Option+swipe (see `MetalCanvasView.Coordinator.performViewSnap`),
+    /// composed onto whatever the orientation already is.
     ///
-    /// A 90° step only makes sense starting from a face — from a free
-    /// orbit, the swipe direction is discarded and this snaps straight to
-    /// Top instead, exactly like `snap(to:)`; that's also what makes Top
-    /// "the main view" the whole scheme is anchored to. The very next
-    /// swipe, now starting from a face, gets the real 90° step.
+    /// From a free orbit the swipe direction is discarded and this snaps
+    /// straight to Top — the view the whole scheme is anchored to. The very
+    /// next swipe, now starting from a face, takes a real quarter turn. From
+    /// Top:
+    ///  - swipe up    → the front face (-Y), Z up the screen
+    ///  - swipe down  → the back face (+Y), turned over about the screen's X
+    ///                  axis, so Z points down the screen — upside down
+    ///  - swipe right → the -X face, turned about the screen's Y axis
+    ///  - swipe left  → the +X face
+    ///
+    /// The turns are about the *screen's own* axes — the model follows the
+    /// fingers like a trackball — and never about world Z. World Z was
+    /// tried for the horizontal swipe, but from Top that just spins the
+    /// view in place instead of reaching the X faces. Nothing corrects the
+    /// roll afterwards either: the twist a path took to get to a face
+    /// carries forward, as when turning a real object over. From a view
+    /// with Z up on screen (front, back, left, right) a horizontal swipe
+    /// still lands on the next side with Z up.
     ///
     /// Refuses a swipe that would land on the excluded bottom face,
     /// leaving the view unchanged.
@@ -170,20 +175,17 @@ class Camera {
             return
         }
 
+        // Fingers dragging the surface facing you to the right bring the
+        // face on its left side round to face you, i.e. the eye moves to
+        // -X: a negative quarter turn about the screen's Y axis. Likewise
+        // fingers moving down bring the far (+Y) side round.
         var q = orientation
         if abs(dx) > abs(dy) {
-            let yaw: Float = dx > 0 ? .pi / 2 : -.pi / 2
-            q = simd_mul(simd_quatf(angle: yaw, axis: turntableAxis), q)
+            let angle: Float = dx > 0 ? .pi / 2 : -.pi / 2
+            q = simd_mul(q, simd_quatf(angle: angle, axis: SIMD3<Float>(0, 1, 0)))
         } else {
-            let pitch: Float = dy > 0 ? .pi / 2 : -.pi / 2
-            q = simd_mul(q, simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0)))
-            // A quarter turn over the pole (e.g. Top → Back) comes out
-            // upside-down: same face, Z pointing down the screen. Roll it
-            // half a turn about the view axis so it lands the right way up,
-            // like the standard Back view.
-            if simd_dot(q.act(SIMD3<Float>(0, 1, 0)), Camera.machineUp) < -1e-4 {
-                q = simd_mul(q, simd_quatf(angle: .pi, axis: SIMD3<Float>(0, 0, 1)))
-            }
+            let angle: Float = dy > 0 ? .pi / 2 : -.pi / 2
+            q = simd_mul(q, simd_quatf(angle: angle, axis: SIMD3<Float>(1, 0, 0)))
         }
         q = simd_normalize(q)
 
