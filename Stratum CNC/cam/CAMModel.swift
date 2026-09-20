@@ -37,7 +37,11 @@ class CAMModel: ObservableObject {
     @Published private(set) var pickingToolpathID: UUID?
 
     /// Result of the last "Generate" per toolpath id. Session-only.
-    @Published private(set) var generations: [UUID: ToolpathGeneration] = [:]
+    @Published private(set) var generations: [UUID: ToolpathGeneration] = [:] {
+        didSet {
+            updateToolpathPreview()
+        }
+    }
 
     // ---- CANVAS VIEWPORT STATE ----
     // Persisted between sessions. Not @Published: this is *reported* by the
@@ -147,6 +151,19 @@ class CAMModel: ObservableObject {
             outcome = .failure(error)
         }
         generations[id] = ToolpathGeneration(source: toolpath, outcome: outcome)
+    }
+
+    /// Redraws the canvas's toolpath overlay from the current results, in the
+    /// same order as the toolpath list. Also runs when results are cleared
+    /// (object edited, project cleared), which removes the overlay.
+    private func updateToolpathPreview() {
+        let outputs = toolpaths.flatMap { toolpath -> [SC.OutputToolpath] in
+            guard case .success(let outputs)? = generations[toolpath.id]?.outcome else {
+                return []
+            }
+            return outputs
+        }
+        canvasState.setToolpathsPath(ToolpathPathBuilder.path(for: outputs))
     }
 
     private func applyPickedPaths(_ paths: [PathSelection]) {

@@ -43,6 +43,12 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// one flag to read.
     @Published var isStockVisible: Bool = true
 
+    /// All generated toolpaths as one top-down path in world coordinates, or
+    /// nil when there's nothing to show. Built by CAMModel (see
+    /// ToolpathPathBuilder) whenever generation results change; the renderer
+    /// only draws it.
+    @Published private(set) var toolpathsPath: CGPath?
+
     /// Stock material/geometry to render. Mirrored here from
     /// CAMModel.selectedStockMaterial so the renderer has a single place to
     /// read it from instead of reaching back out to CAMModel.
@@ -54,7 +60,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// instead of the stale default it used to be stuck at.
     @Published var zoomScale: CGFloat = 1 {
         didSet {
-            print(zoomScale)
+            print("zoom scale : \(zoomScale)")
         }
     }
 
@@ -65,6 +71,10 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// Not invoked by `restoreTransform`, since that's the load path itself
     /// writing back values that already came from disk.
     var onObjectsChanged: (() -> Void)?
+
+    func setToolpathsPath(_ path: CGPath?) {
+        toolpathsPath = path
+    }
 
     // MARK: Objects
 

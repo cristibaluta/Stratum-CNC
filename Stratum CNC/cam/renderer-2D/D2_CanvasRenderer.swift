@@ -20,6 +20,11 @@ final class D2_CanvasRenderer {
     private let baseStrokeWidth: CGFloat = 1.0
     private let rulerLength: CGFloat = 200
 
+    /// On-screen thickness of the toolpath line, in points (kept constant across zoom levels).
+    private let toolpathLineWidth: CGFloat = 0.75
+    /// The path currently on `toolpathsLayer`, so it's only re-assigned when it actually changed.
+    private var renderedToolpathsPath: CGPath?
+
     init() {
         rulerLayer = RulerShapeLayer(rulerLength: rulerLength)
         configureLayers()
@@ -34,10 +39,30 @@ final class D2_CanvasRenderer {
         workLayer.addSublayer(objectsLayer)
         workLayer.addSublayer(toolpathsLayer)
 
+        toolpathsLayer.fillColor = nil
+        toolpathsLayer.strokeColor = STColor.systemBlue.cgColor
+        toolpathsLayer.lineJoin = .round
+        toolpathsLayer.lineCap = .round
+
         stockLayer.zPosition = -2
         rulerLayer.zPosition = -1
         objectsLayer.zPosition = 0
         toolpathsLayer.zPosition = 1
+    }
+
+    private func renderToolpaths(state canvasState: D2_CanvasState) {
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        // Re-assigning a large path makes Core Animation re-tessellate it, so only do it on change.
+        if renderedToolpathsPath !== canvasState.toolpathsPath {
+            toolpathsLayer.path = canvasState.toolpathsPath
+            renderedToolpathsPath = canvasState.toolpathsPath
+        }
+        toolpathsLayer.lineWidth = toolpathLineWidth / max(canvasState.zoomScale, 0.000001)
+
+        CATransaction.commit()
     }
 
     func removeAll() {
@@ -53,6 +78,8 @@ final class D2_CanvasRenderer {
             stockLayer.updateMaterial(with: stock)
         }
         rulerLayer.updateRulerStrokeWidth(zoomScale: canvasState.zoomScale)
+
+        renderToolpaths(state: canvasState)
 
         removeAll()
         for obj in canvasState.objects {
