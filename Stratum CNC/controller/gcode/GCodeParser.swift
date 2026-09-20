@@ -109,7 +109,9 @@ final class GCodeParser {
     /// so a file that's nothing but comments isn't scanned end to end.
     private static let maxHeaderLines = 1000
 
-    init(headerParsers: [any GCodeHeaderParser] = [MakeraHeaderParser(), FusionHeaderParser()]) {
+    init(headerParsers: [any GCodeHeaderParser] = [MakeraHeaderParser(),
+                                                   FusionHeaderParser(),
+                                                   MakeraCAMHeaderParser()]) {
         self.headerParsers = headerParsers
     }
 
@@ -156,7 +158,9 @@ final class GCodeParser {
     // MARK: Header
 
     /// Collects the leading run of comment/blank lines (up to the first line
-    /// of actual code) and offers it to each header parser in turn.
+    /// of actual code) and offers it to each header parser in turn. A bare
+    /// `%` program-start marker, which some post processors write above
+    /// their comments, counts as part of that run.
     private func parseHeader(from lines: [GCodeLine]) -> GCodeHeader? {
         guard !headerParsers.isEmpty else {
             return nil
@@ -165,7 +169,7 @@ final class GCodeParser {
         var headerLines: [String] = []
         for line in lines.prefix(Self.maxHeaderLines) {
             let trimmed = line.text.trimmingCharacters(in: .whitespaces)
-            guard trimmed.isEmpty || trimmed.hasPrefix(";") || trimmed.hasPrefix("(") else {
+            guard trimmed.isEmpty || trimmed.hasPrefix(";") || trimmed.hasPrefix("(") || trimmed == "%" else {
                 break
             }
             headerLines.append(line.text)
