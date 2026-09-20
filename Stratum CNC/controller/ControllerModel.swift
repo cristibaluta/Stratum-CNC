@@ -142,6 +142,14 @@ class ControllerModel: ObservableObject {
     /// machine's actual state, same caveat as `isLightOn`.
     @Published var autoVacuumEnabled: Bool = false
 
+    /// Presented when Play/"Send to Machine" is tapped with nothing
+    /// connected — instead of `MachiningRunSheet` opening onto a review it
+    /// can't actually start, this opens first so the person can pick a
+    /// machine. `MachineConnectSheet` hands off to `isShowingRunReview`
+    /// itself the moment `connection.isConnected` goes true, so this is a
+    /// detour off the same start flow, not a dead end.
+    @Published var isShowingMachinePicker = false
+
     /// Drives `MachiningRunSheet`, the pre-run review presented from
     /// `GCodeViewer`'s Play/"Send to Machine" button. Replaces calling
     /// `uploadJob` directly from the button: the sheet's own "Start Job"

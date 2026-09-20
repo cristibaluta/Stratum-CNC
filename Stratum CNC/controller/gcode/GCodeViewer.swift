@@ -205,13 +205,14 @@ struct GCodeViewer: View {
     }
 
     /// A job can be started when there's something to send and nothing
-    /// already uploading. Doesn't require a live connection by itself —
-    /// `onPlay` (wired to `ControllerModel.uploadJob`) is the source of
-    /// truth for that and simply no-ops while disconnected — but a visibly
-    /// disabled button while disconnected is a clearer signal than a play
-    /// tap that silently does nothing.
+    /// already uploading. Deliberately doesn't require a live connection:
+    /// `onPlay` now opens `MachineConnectSheet` when disconnected (see
+    /// `ControllerView`), so tapping Play with nothing connected is a
+    /// prompt to connect, not a dead click — gating the button itself on
+    /// `connection.isConnected` would disable it right when it's needed to
+    /// start that flow.
     private var canStartJob: Bool {
-        connection.isConnected && !uploader.isActive && !model.document.lines.isEmpty
+        !uploader.isActive && !model.document.lines.isEmpty
     }
 
     /// Feed-held, per the machine's own status report — so this is also
@@ -317,8 +318,10 @@ struct GCodeViewer: View {
                     .foregroundStyle(canStartJob ? Color.accentColor : .secondary)
             }
             .buttonStyle(.borderless)
-//            .disabled(!canStartJob)
-            .help("Upload the loaded program to the machine's SD card and run it")
+            .disabled(!canStartJob)
+            .help(connection.isConnected
+                  ? "Review and upload the loaded program to the machine's SD card"
+                  : "Connect a machine, then review and upload the loaded program")
 
             Spacer()
 

@@ -36,6 +36,11 @@ struct MachiningRunSheet: View {
     @ObservedObject var model: ControllerModel
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var camModel: CAMModel
+    /// Observed directly, not just through `model`, so the warning banner
+    /// reacts live if the connection drops while this sheet is already
+    /// open — same reasoning as `GCodeViewer`/`MachineConnectSheet` observing
+    /// it directly rather than through `ControllerModel`.
+    @ObservedObject var connection: MachineConnection
 
     @Environment(\.dismiss) private var dismiss
 
@@ -43,7 +48,7 @@ struct MachiningRunSheet: View {
     /// shared because that one is `private` to the view it disables buttons
     /// in; both read the same three properties.
     private var canStartJob: Bool {
-        model.connection.isConnected && !model.uploader.isActive && !gCodeModel.document.lines.isEmpty
+        connection.isConnected && !model.uploader.isActive && !gCodeModel.document.lines.isEmpty
     }
 
     private var offset: SIMD2<Float> { model.scene.xyOffset }
@@ -272,27 +277,46 @@ struct MachiningRunSheet: View {
 
     // MARK: - Warnings
 
-    private var blockingWarning: String? {
-        if !model.connection.isConnected {
-            return "Not connected to a machine."
+    private var blockingWarning: (message: String, offersConnect: Bool)? {
+        if !connection.isConnected {
+            return ("No machine connected.", true)
         }
         if gCodeModel.document.lines.isEmpty {
-            return "No G-code loaded."
+            return ("No G-code loaded.", false)
         }
         if model.uploader.isActive {
-            return "An upload is already in progress."
+            return ("An upload is already in progress.", false)
         }
         return nil
     }
 
-    private func warningBanner(_ text: String) -> some View {
-        Label(text, systemImage: "exclamationmark.triangle.fill")
-            .font(.caption)
-            .foregroundStyle(.orange)
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.orange.opacity(0.12))
-            .cornerRadius(6)
+    private func warningBanner(_ warning: (message: String, offersConnect: Bool)) -> some View {
+        HStack {
+            Label(warning.message, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption)
+                .foregroundStyle(.orange)
+
+            Spacer()
+
+            if warning.offersConnect {
+                // Swaps this sheet for `MachineConnectSheet` rather than
+                // stacking a second sheet on top — `dismiss()` here closes
+                // this one (it's the `isShowingRunReview` binding this
+                // sheet was presented with), then the picker takes over and
+                // hands back to a fresh review sheet once connected, same
+                // as tapping Play with nothing connected does.
+                Button("Select Machine…") {
+                    dismiss()
+                    model.isShowingMachinePicker = true
+                }
+                .font(.caption)
+                .buttonStyle(.link)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.12))
+        .cornerRadius(6)
     }
 
     // MARK: - Shared row/section helpers

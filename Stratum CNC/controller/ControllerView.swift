@@ -139,11 +139,18 @@ struct ControllerView: View {
                                 highlightedLine: gCodeModel.scrubLine,
                                 onLineSelected: scrubTo,
                                 onPlay: {
-                                    // Opens the pre-run review sheet instead
-                                    // of uploading straight away — its own
-                                    // "Start Job" button is what actually
-                                    // calls `uploadJob`.
-                                    model.isShowingRunReview = true
+                                    // Opens the pre-run review sheet — or,
+                                    // if nothing's connected yet, prompts to
+                                    // pick and connect a machine first;
+                                    // `MachineConnectSheet` hands off to the
+                                    // review sheet itself once that lands.
+                                    // Either way its own "Start Job" button
+                                    // is what actually calls `uploadJob`.
+                                    if model.connection.isConnected {
+                                        model.isShowingRunReview = true
+                                    } else {
+                                        model.isShowingMachinePicker = true
+                                    }
                                 },
                                 onPause: model.pauseJob,
                                 onSuspend: model.suspendJob,
@@ -160,7 +167,10 @@ struct ControllerView: View {
             .padding(.trailing, -16)
 //            .disabled(!model.connection.isConnected)
             .sheet(isPresented: $model.isShowingRunReview) {
-                MachiningRunSheet(model: model, gCodeModel: gCodeModel, camModel: camModel)
+                MachiningRunSheet(model: model, gCodeModel: gCodeModel, camModel: camModel, connection: model.connection)
+            }
+            .sheet(isPresented: $model.isShowingMachinePicker) {
+                MachineConnectSheet(model: model, connection: model.connection)
             }
 
             // Right panel with controller and console
