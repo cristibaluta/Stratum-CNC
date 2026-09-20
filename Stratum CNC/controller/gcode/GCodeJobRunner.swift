@@ -49,6 +49,10 @@ final class GCodeJobRunner: ObservableObject {
     private var send: ((String) -> Void)?
     private var queue: [String] = []
 
+    /// Called once the last line has been acknowledged (state becomes
+    /// `.completed`). Not called for `stop()` — an abort isn't a completion.
+    var onFinish: (() -> Void)?
+
     /// True from the moment a line is sent until the machine acknowledges
     /// it. Tracked separately from `state` because a feed-hold can pause
     /// the runner *while a line is still in flight*: on resume we must not
@@ -124,6 +128,7 @@ final class GCodeJobRunner: ObservableObject {
         guard state == .running else { return }
         guard !queue.isEmpty else {
             state = .completed
+            onFinish?()
             return
         }
         let line = queue.removeFirst()

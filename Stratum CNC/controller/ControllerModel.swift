@@ -68,6 +68,35 @@ class ControllerModel: ObservableObject {
     /// `applyJobOrigin()` right before `play`.
     private var pendingJobOffset: SIMD2<Float> = .zero
 
+    // MARK: Auto level before run
+
+    /// When on, "Send to Machine" probes a `G32` grid over the program's
+    /// cutting area — after the origin is set and before `play`. Persisted,
+    /// because it's a workflow choice, not a per-job one.
+    @Published var levelBeforeRun: Bool = UserDefaults.standard.bool(forKey: "levelBeforeRun") {
+        didSet { UserDefaults.standard.set(levelBeforeRun, forKey: "levelBeforeRun") }
+    }
+    /// Probe points per axis (`G32` I and J).
+    @Published var levelGridPoints: Int = UserDefaults.standard.object(forKey: "levelGridPoints") as? Int ?? 5 {
+        didSet { UserDefaults.standard.set(levelGridPoints, forKey: "levelGridPoints") }
+    }
+    /// Extra area probed around the program's cutting bounds, in mm.
+    @Published var levelMargin: Double = UserDefaults.standard.object(forKey: "levelMargin") as? Double ?? 3 {
+        didSet { UserDefaults.standard.set(levelMargin, forKey: "levelMargin") }
+    }
+    /// `G32`'s H: the height the probe lifts to between points (the doc
+    /// example for the command uses 2 mm).
+    private let levelProbeHeight = 2.0
+
+    /// The cutting area of the program being sent, captured with the offset
+    /// in `uploadJob` for the same reason. `nil` when leveling is off.
+    private var pendingLevelingArea: GCodeBounds?
+
+    /// SD path of a job whose `play` is being held back until the pre-run
+    /// leveling finishes. Non-nil means "a run is being prepared"; clearing
+    /// it (Stop does) cancels the `play`.
+    private var pendingPlayPath: String?
+
     @Published var isGCodeImporterPresented = false
     @Published var isShowingCommandPalette = false
     @Published var isLightOn = false
@@ -124,10 +153,10 @@ class ControllerModel: ObservableObject {
         uploader.onCompleted = { [weak self] remotePath in
             guard let self else { return }
             self.lastUploadedRemotePath = remotePath
-            // Position the job before it runs: the canvas offset is only a
-            // preview until it's sent as the G54 work origin.
-            self.applyJobOrigin()
-            self.sendRawCommand("play \(remotePath)", recordInHistory: false)
+            self.startRun(remotePath: remotePath)
+        }
+        jobRunner.onFinish = { [weak self] in
+            self?.levelingFinished()
         }
         connection.onLine = { [weak self] line in
             self?.jobRunner.handleMachineLine(line)
@@ -238,8 +267,21 @@ class ControllerModel: ObservableObject {
     /// doc comment for why. No-op while disconnected or while an upload is
     /// already in flight.
     func uploadJob(fileName: String, contents: String) {
-        guard connection.isConnected, !uploader.isActive else { return }
+        guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil else { return }
+
+        var area: GCodeBounds?
+        if levelBeforeRun {
+            // Refuse rather than silently run unleveled: the toggle is an
+            // explicit "don't cut without a height map".
+            guard let bounds = GCodeBounds.cutting(in: contents) else {
+                connection.appendLog("Auto level is on, but the program has no XY cutting moves to measure. Nothing was sent.")
+                return
+            }
+            area = bounds
+        }
+
         pendingJobOffset = scene.xyOffset
+        pendingLevelingArea = area
         uploader.upload(fileName: fileName, contents: Data(contents.utf8))
     }
 
@@ -264,6 +306,85 @@ class ControllerModel: ObservableObject {
                 .with(workspace: 1, x: Double(offset.x), y: Double(offset.y))
                 .command
         ]
+    }
+
+    // MARK: - Run sequence (origin → auto level → play)
+
+    /// Runs once the file is on the SD card. Without leveling it's the
+    /// original two steps: set the origin, then `play`. With leveling the
+    /// origin lines, `M370` and `G32` go through `jobRunner`, because each
+    /// must be acknowledged before the next (the probe cycle has to be over
+    /// before anything else moves), and `play` follows in `levelingFinished`.
+    private func startRun(remotePath: String) {
+        guard let area = pendingLevelingArea else {
+            applyJobOrigin()
+            sendRawCommand("play \(remotePath)", recordInHistory: false)
+            return
+        }
+
+        // Starting the job anyway would mean cutting unleveled, so an
+        // already-running macro (Auto Z, say) cancels the run, not the level.
+        guard !jobRunner.isActive else {
+            connection.appendLog("Auto level: another command sequence is running, so the job was uploaded but not started.")
+            return
+        }
+
+        let margin = levelMargin
+        let points = Double(levelGridPoints)
+        let probe = CNC.probeGrid.with(
+            r: 1,
+            x: area.minX - margin, y: area.minY - margin,
+            a: area.width + 2 * margin, b: area.height + 2 * margin,
+            i: points, j: points,
+            h: levelProbeHeight
+        ).command
+
+        // M370 first so a probe that fails halfway can't leave the previous
+        // job's grid active.
+        let lines = jobOriginCommands(for: pendingJobOffset) + [CNC.clearBedLeveling.command, probe]
+
+        pendingPlayPath = remotePath
+        connection.appendLog("Auto level before run: \(probe)")
+        jobRunner.start(lines: lines)
+    }
+
+    /// The pre-run lines have all been acknowledged. Also fires for any other
+    /// `jobRunner` macro finishing, hence the `pendingPlayPath` check.
+    private func levelingFinished() {
+        guard let path = pendingPlayPath else { return }
+        Task { await self.playWhenIdle(path) }
+    }
+
+    /// Starts `play` only once the machine itself reports Idle, not merely
+    /// once `G32` was acknowledged: that the probe's "ok" waits for the whole
+    /// cycle is assumed (see `autoZeroProbe`), not confirmed for this
+    /// firmware, and starting a program in the middle of probing would be
+    /// bad. Bails out on Alarm, Stop, disconnect, or after ten minutes.
+    private func playWhenIdle(_ path: String) async {
+        let deadline = Date().addingTimeInterval(600)
+
+        // Let a status report that predates the last line clear out.
+        connection.requestStatus()
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        while pendingPlayPath == path {
+            let state = connection.status?.state ?? ""
+
+            if !connection.isConnected || state.hasPrefix("Alarm") || Date() > deadline {
+                connection.appendLog("Auto level did not finish cleanly (\(state.isEmpty ? "no status" : state)); the job was not started.")
+                pendingPlayPath = nil
+                return
+            }
+            if state.hasPrefix("Idle") { break }
+
+            connection.requestStatus()
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+
+        // Stop (or a newer run) cleared/replaced it while waiting.
+        guard pendingPlayPath == path else { return }
+        pendingPlayPath = nil
+        sendRawCommand("play \(path)", recordInHistory: false)
     }
 
     /// Sends `jobOriginCommands` for the offset captured by `uploadJob`.
@@ -375,6 +496,7 @@ class ControllerModel: ObservableObject {
     ///   actually has something in progress. Unlike a feed-hold this is not
     ///   resumable — see `softReset()`.
     func stopJob() {
+        pendingPlayPath = nil   // cancels a `play` still waiting on leveling
         if uploader.isActive {
             cancelUpload()
             jobRunner.stop()
@@ -398,6 +520,7 @@ class ControllerModel: ObservableObject {
     /// needs an Unlock (`$X`) before it accepts motion again — deliberately
     /// left as a manual step rather than auto-unlocking after an abort.
     private func softReset() {
+        pendingPlayPath = nil
         // Order matters: empty the queue first so an "ok" that's still on
         // its way can't trigger another line after the reset.
         jobRunner.stop()

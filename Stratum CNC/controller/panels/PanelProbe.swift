@@ -35,6 +35,30 @@ struct PanelProbe: View {
                 }
             }
             .padding(.vertical, 4)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Auto level before run", isOn: $model.levelBeforeRun)
+
+                if model.levelBeforeRun {
+                    HStack(spacing: 12) {
+                        Stepper(
+                            "Grid \(model.levelGridPoints)×\(model.levelGridPoints)",
+                            value: $model.levelGridPoints,
+                            in: 2...10
+                        )
+                        Stepper(
+                            "Margin \(Int(model.levelMargin)) mm",
+                            value: $model.levelMargin,
+                            in: 0...20,
+                            step: 1
+                        )
+                    }
+                    .font(.caption)
+                }
+            }
+            .padding(.vertical, 4)
         }
     }
 }
