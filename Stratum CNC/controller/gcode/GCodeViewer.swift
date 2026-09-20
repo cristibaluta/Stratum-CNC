@@ -317,7 +317,7 @@ struct GCodeViewer: View {
                     .foregroundStyle(canStartJob ? Color.accentColor : .secondary)
             }
             .buttonStyle(.borderless)
-            .disabled(!canStartJob)
+//            .disabled(!canStartJob)
             .help("Upload the loaded program to the machine's SD card and run it")
 
             Spacer()

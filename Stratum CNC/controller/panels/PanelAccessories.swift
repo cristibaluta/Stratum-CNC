@@ -48,10 +48,10 @@ struct PanelAccessories: View {
                         .font(.caption)
                     Spacer()
                     Button("On") {
-                        model.sendCommand(CNC.automaticVacuumOn)
+                        model.setAutoVacuum(true)
                     }
                     Button("Off") {
-                        model.sendCommand(CNC.automaticVacuumOff)
+                        model.setAutoVacuum(false)
                     }
                 }
                 .help("Ties the vacuum to the spindle: on while the spindle runs, off when it stops")

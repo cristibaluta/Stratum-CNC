@@ -139,10 +139,11 @@ struct ControllerView: View {
                                 highlightedLine: gCodeModel.scrubLine,
                                 onLineSelected: scrubTo,
                                 onPlay: {
-                                    model.uploadJob(
-                                        fileName: gCodeModel.document.fileName,
-                                        contents: gCodeModel.document.lines.map { $0.text }.joined(separator: "\n")
-                                    )
+                                    // Opens the pre-run review sheet instead
+                                    // of uploading straight away — its own
+                                    // "Start Job" button is what actually
+                                    // calls `uploadJob`.
+                                    model.isShowingRunReview = true
                                 },
                                 onPause: model.pauseJob,
                                 onSuspend: model.suspendJob,
@@ -158,6 +159,9 @@ struct ControllerView: View {
             .padding(16)
             .padding(.trailing, -16)
 //            .disabled(!model.connection.isConnected)
+            .sheet(isPresented: $model.isShowingRunReview) {
+                MachiningRunSheet(model: model, gCodeModel: gCodeModel, camModel: camModel)
+            }
 
             // Right panel with controller and console
             VStack(spacing: 16) {

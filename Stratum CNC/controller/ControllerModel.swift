@@ -127,6 +127,28 @@ class ControllerModel: ObservableObject {
     /// it (Stop does) cancels the `play`.
     private var pendingPlayPath: String?
 
+    /// When on, the pre-run macro also probes Z and zeroes the work Z
+    /// coordinate at the trigger point (same two lines as `autoZeroProbe()`)
+    /// before `play` — so a fresh workpiece gets a correct Z zero without a
+    /// separate manual "Auto Z" tap. Persisted like `levelBeforeRun`, for the
+    /// same reason: a workflow choice, not a per-job one.
+    @Published var autoZBeforeRun: Bool = UserDefaults.standard.bool(forKey: "autoZBeforeRun") {
+        didSet { UserDefaults.standard.set(autoZBeforeRun, forKey: "autoZBeforeRun") }
+    }
+
+    /// Mirrors the M331/M332 "tie vacuum to spindle" mode (Roadmap 2.2).
+    /// There's no status field that reports this back, so this is only ever
+    /// what the app itself last commanded — not confirmed against the
+    /// machine's actual state, same caveat as `isLightOn`.
+    @Published var autoVacuumEnabled: Bool = false
+
+    /// Drives `MachiningRunSheet`, the pre-run review presented from
+    /// `GCodeViewer`'s Play/"Send to Machine" button. Replaces calling
+    /// `uploadJob` directly from the button: the sheet's own "Start Job"
+    /// button does that once the person has reviewed stock/origin/probe/
+    /// assist settings.
+    @Published var isShowingRunReview = false
+
     @Published var isGCodeImporterPresented = false
     @Published var isShowingCommandPalette = false
     @Published var isLightOn = false
@@ -442,41 +464,55 @@ class ControllerModel: ObservableObject {
 
     // MARK: - Run sequence (origin → auto level → play)
 
-    /// Runs once the file is on the SD card. Without leveling it's the
-    /// original two steps: set the origin, then `play`. With leveling the
-    /// origin lines, `M370` and `G32` go through `jobRunner`, because each
-    /// must be acknowledged before the next (the probe cycle has to be over
-    /// before anything else moves), and `play` follows in `levelingFinished`.
+    /// Runs once the file is on the SD card. With neither pre-run step on,
+    /// it's the original two steps: set the origin, then `play`. With Auto Z
+    /// and/or Auto Level on, the origin lines plus whichever probe steps are
+    /// enabled go through `jobRunner` instead, because each has to be
+    /// acknowledged before the next — a probe cycle has to actually finish
+    /// before anything else moves — and `play` follows in `levelingFinished`
+    /// once the machine reports Idle again.
     private func startRun(remotePath: String) {
-        guard let area = pendingLevelingArea else {
+        let area = pendingLevelingArea
+        guard autoZBeforeRun || area != nil else {
             applyJobOrigin()
             sendRawCommand("play \(remotePath)", recordInHistory: false)
             return
         }
 
-        // Starting the job anyway would mean cutting unleveled, so an
-        // already-running macro (Auto Z, say) cancels the run, not the level.
+        // Starting the job anyway would mean cutting unprobed/unleveled, so
+        // an already-running macro cancels the run rather than skipping the
+        // step silently.
         guard !jobRunner.isActive else {
-            connection.appendLog("Auto level: another command sequence is running, so the job was uploaded but not started.")
+            connection.appendLog("Auto Z/Level: another command sequence is running, so the job was uploaded but not started.")
             return
         }
 
-        let margin = levelMargin
-        let points = Double(levelGridPoints)
-        let probe = CNC.probeGrid.with(
-            r: 1,
-            x: area.minX - margin, y: area.minY - margin,
-            a: area.width + 2 * margin, b: area.height + 2 * margin,
-            i: points, j: points,
-            h: levelProbeHeight
-        ).command
+        var lines = jobOriginCommands(for: pendingJobOffset)
+        var logMessages: [String] = ["Setting G54 work origin to X\(pendingJobOffset.x) Y\(pendingJobOffset.y) (job offset)."]
 
-        // M370 first so a probe that fails halfway can't leave the previous
-        // job's grid active.
-        let lines = jobOriginCommands(for: pendingJobOffset) + [CNC.clearBedLeveling.command, probe]
+        if autoZBeforeRun {
+            lines += [CNC.probe.with(z: -10, feed: 50).command, zeroCommand(z: true)]
+            logMessages.append("Auto Z before run: probing and zeroing work Z.")
+        }
+
+        if let area {
+            let margin = levelMargin
+            let points = Double(levelGridPoints)
+            let probe = CNC.probeGrid.with(
+                r: 1,
+                x: area.minX - margin, y: area.minY - margin,
+                a: area.width + 2 * margin, b: area.height + 2 * margin,
+                i: points, j: points,
+                h: levelProbeHeight
+            ).command
+            // M370 first so a probe that fails halfway can't leave the
+            // previous job's grid active.
+            lines += [CNC.clearBedLeveling.command, probe]
+            logMessages.append("Auto level before run: \(probe)")
+        }
 
         pendingPlayPath = remotePath
-        connection.appendLog("Auto level before run: \(probe)")
+        logMessages.forEach { connection.appendLog($0) }
         jobRunner.start(lines: lines)
     }
 
@@ -781,6 +817,14 @@ class ControllerModel: ObservableObject {
         let command = isLightOn ? CNC.lightOff : CNC.lightOn
         sendCommand(command)
         isLightOn.toggle()
+    }
+
+    /// M331/M332 — ties the vacuum to the spindle's on/off state. Used by
+    /// both `PanelAccessories`' manual buttons and `MachiningRunSheet`'s
+    /// "Assist Options" toggle; kept here so the two stay in sync.
+    func setAutoVacuum(_ enabled: Bool) {
+        sendCommand(enabled ? CNC.automaticVacuumOn : CNC.automaticVacuumOff)
+        autoVacuumEnabled = enabled
     }
 
     func sendMDI() {
