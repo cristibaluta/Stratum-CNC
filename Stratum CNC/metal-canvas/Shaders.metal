@@ -78,6 +78,10 @@ struct HeightmapUniforms {
     float topZ;
     float bottomZ;
     float depthDarkening;
+    // XY shift added to every vertex before the MVP transform. Zero for the
+    // heightmap surface itself (its offset is baked into the carved
+    // vertices); non-zero for solids that follow the toolpath, i.e. the tool.
+    float2 offset;
 };
 
 struct HeightmapVertexInput {
@@ -94,7 +98,7 @@ struct HeightmapVertexOutput {
 vertex HeightmapVertexOutput vertex_heightmap(HeightmapVertexInput in [[stage_in]],
                                               constant HeightmapUniforms& uniforms [[buffer(1)]]) {
     HeightmapVertexOutput out;
-    out.position = uniforms.modelViewProjectionMatrix * float4(in.position, 1.0);
+    out.position = uniforms.modelViewProjectionMatrix * float4(in.position + float3(uniforms.offset, 0.0), 1.0);
     // `in.position` is already in world/machine space - this renderer has
     // no per-object model matrix (see Camera.swift: the MVP is view *
     // projection only) - so the normal needs no transform beyond carrying

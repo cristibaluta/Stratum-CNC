@@ -19,7 +19,9 @@ struct RenderVertex {
 /// where a `MTLDevice` is available — that's `MetalRenderer`, and nowhere else.
 /// The model layer never sees this type; it only ever hands over `RenderObject`.
 private struct RenderBatch {
-    var vertexBuffer: MTLBuffer
+    /// Line geometry. `nil` for an object that is only a solid (the tool) —
+    /// `drawBatch` then has nothing to do for it.
+    var vertexBuffer: MTLBuffer?
     /// Total vertices actually in `vertexBuffer`.
     var vertexCount: Int
     /// How many of those vertices to draw this frame — `<= vertexCount`.
@@ -36,6 +38,11 @@ private struct RenderBatch {
     /// any edges, so the edge passes have real surface depth to test against.
     var occluderBuffer: MTLBuffer?
     var occluderVertexCount: Int = 0
+    /// Lit filled triangles for this batch's solid, if it has one (see
+    /// `RenderObject.solidTriangles`), drawn by `drawSolids` in `solidColor`.
+    var solidBuffer: MTLBuffer?
+    var solidVertexCount: Int = 0
+    var solidColor: SIMD4<Float> = .zero
 }
 
 /// GPU-backed draw call for the heightmap surface — separate from
@@ -67,6 +74,10 @@ struct HeightmapUniforms {
     var topZ: Float
     var bottomZ: Float
     var depthDarkening: Float
+    /// XY shift added to every vertex in the vertex shader. Zero for the
+    /// heightmap surface (its offset is baked into the carved vertices);
+    /// non-zero for solids that follow the toolpath, like the tool.
+    var offset: SIMD2<Float> = .zero
 }
 
 private extension RenderPrimitive {
@@ -235,11 +246,28 @@ class MetalRenderer: NSObject {
     /// The only place a `RenderObject` gets turned into a GPU-backed `RenderBatch`.
     private func buildRenderBatch(from object: RenderObject) -> RenderBatch? {
         let vertices = buildVertices(for: object)
-        guard !vertices.isEmpty,
-              let buffer = device.makeBuffer(bytes: vertices,
-                                             length: vertices.count * MemoryLayout<RenderVertex>.stride,
-                                             options: .storageModeShared) else {
+        let hasSolid = !object.solidTriangles.isEmpty
+        // An object needs lines, a solid, or both — nothing at all means
+        // there is nothing to draw.
+        guard !vertices.isEmpty || hasSolid else {
             return nil
+        }
+
+        var lineBuffer: MTLBuffer?
+        if !vertices.isEmpty {
+            guard let buffer = device.makeBuffer(bytes: vertices,
+                                                 length: vertices.count * MemoryLayout<RenderVertex>.stride,
+                                                 options: .storageModeShared) else {
+                return nil
+            }
+            lineBuffer = buffer
+        }
+
+        var solidBuffer: MTLBuffer?
+        if hasSolid {
+            solidBuffer = device.makeBuffer(bytes: object.solidTriangles,
+                                            length: object.solidTriangles.count * MemoryLayout<SolidVertex>.stride,
+                                            options: .storageModeShared)
         }
 
         // Occluder faces don't need real color/dist — nothing ever reads them
@@ -257,7 +285,7 @@ class MetalRenderer: NSObject {
                                                options: .storageModeShared)
         }
 
-        return RenderBatch(vertexBuffer: buffer,
+        return RenderBatch(vertexBuffer: lineBuffer,
                            vertexCount: vertices.count,
                            drawVertexCount: object.visibleVertexCount.map { min($0, vertices.count) } ?? vertices.count,
                            primitiveType: object.primitive.mtlPrimitiveType,
@@ -265,7 +293,10 @@ class MetalRenderer: NSObject {
                            isDashed: object.isDashed,
                            dashLength: object.dashLength,
                            occluderBuffer: occluderBuffer,
-                           occluderVertexCount: object.occluderFaces.count)
+                           occluderVertexCount: object.occluderFaces.count,
+                           solidBuffer: solidBuffer,
+                           solidVertexCount: solidBuffer == nil ? 0 : object.solidTriangles.count,
+                           solidColor: object.color)
     }
 
     /// Expands a `RenderObject`'s points into GPU vertices, accumulating
@@ -548,6 +579,11 @@ class MetalRenderer: NSObject {
                 minPoint = simd_min(minPoint, point)
                 maxPoint = simd_max(maxPoint, point)
             }
+            for vertex in object.solidTriangles {
+                found = true
+                minPoint = simd_min(minPoint, vertex.position)
+                maxPoint = simd_max(maxPoint, vertex.position)
+            }
         }
 
         guard found else {
@@ -567,15 +603,18 @@ private extension MetalRenderer {
     /// both the visible and hidden passes in `draw(in:)` — they differ only
     /// in which depth state is bound and what dash length they pass in.
     func drawBatch(_ batch: RenderBatch, mvp: matrix_float4x4, dashLength: Float, encoder: MTLRenderCommandEncoder) {
+        // Solid-only objects (the tool) have no line buffer; `drawSolids`
+        // handles those.
+        guard let vertexBuffer = batch.vertexBuffer else {
+            return
+        }
         // The toolpath draws and the tool marker move with `xyOffset` — the
         // marker sits at a machine-reported/scrubbed position that's only
         // meaningful relative to the (possibly offset) job, so it needs to
         // track the same shift as the toolpath it's following. The stock
         // box, axes, and the workbed/anchor fixtures are drawn at their true
-        // position regardless, same as the doc comment on `xyOffset` above
-        // explains.
-        let offset: SIMD2<Float> = (batch.role == .toolpathRapid || batch.role == .toolpathCutting || batch.role == .tool) ? xyOffset : .zero
-        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: dashLength, offset: offset)
+        // position regardless — see `drawOffset(for:)`.
+        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: dashLength, offset: drawOffset(for: batch.role))
 
         // Bind uniforms to Vertex Shader (buffer index 1)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
@@ -584,11 +623,63 @@ private extension MetalRenderer {
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
 
         // Bind vertex geometry buffer (buffer index 0)
-        encoder.setVertexBuffer(batch.vertexBuffer, offset: 0, index: 0)
+        encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
 
         // Draw primitives — `drawVertexCount`, not `vertexCount`: the buffer
         // may hold more than we want visible right now (see `RenderBatch`).
         encoder.drawPrimitives(type: batch.primitiveType, vertexStart: 0, vertexCount: batch.drawVertexCount)
+    }
+
+    /// The XY shift a batch is drawn with: the toolpath draws and the tool
+    /// follow `xyOffset`, everything else (stock, axes, fixtures) stays put.
+    func drawOffset(for role: RenderRole?) -> SIMD2<Float> {
+        switch role {
+            case .toolpathRapid, .toolpathCutting, .tool:
+                return xyOffset
+            default:
+                return .zero
+        }
+    }
+
+    /// Draws every batch's filled solid (today: just the tool) with the
+    /// heightmap's lit-triangle pipeline, so the tool is shaded the same way
+    /// as the carved surface.
+    ///
+    /// Back-face culling is off: the tool is closed and convex, so the depth
+    /// test alone picks the outward-facing surface, and this doesn't depend
+    /// on the winding matching whichever convention the encoder is in.
+    /// Depth shading is disabled (`depthDarkening: 0`) — it's a stock-depth
+    /// effect and means nothing for the tool.
+    func drawSolids(mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+        guard let heightmapPipelineState else {
+            return
+        }
+        var pipelineBound = false
+
+        for batch in renderBatches {
+            guard let solidBuffer = batch.solidBuffer, batch.solidVertexCount > 0 else {
+                continue
+            }
+            if !pipelineBound {
+                encoder.setRenderPipelineState(heightmapPipelineState)
+                encoder.setDepthStencilState(depthStateVisible)
+                encoder.setCullMode(.none)
+                pipelineBound = true
+            }
+
+            var uniforms = HeightmapUniforms(modelViewProjectionMatrix: mvp,
+                                             lightDirection: heightmapLightDirection,
+                                             baseColor: batch.solidColor,
+                                             ambient: heightmapAmbient,
+                                             topZ: 1,
+                                             bottomZ: 0,
+                                             depthDarkening: 0,
+                                             offset: drawOffset(for: batch.role))
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
+            encoder.setFragmentBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
+            encoder.setVertexBuffer(solidBuffer, offset: 0, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: batch.solidVertexCount)
+        }
     }
 
     /// Same binding dance as `drawBatch`, for occluder-face geometry: always
@@ -653,6 +744,14 @@ private extension MetalRenderer {
     /// heightmap mode existed: every batch in `renderBatches` — stock,
     /// toolpath, tool, axes.
     func drawWireframe(mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+
+        // Solids first (the tool). They go down before the occluder faces so
+        // the stock's invisible faces can't clip the part of the tool that's
+        // inside the stock — the stock is drawn see-through in this mode, so
+        // the whole tool should be visible. Their depth still lands in the
+        // buffer, so edges behind the tool are hidden/dashed like any other
+        // occluded edge.
+        drawSolids(mvp: mvp, encoder: encoder)
 
         // Pass 0 — occluder faces. Depth-only, color writes off, drawn
         // before any edges so their surfaces are already in the depth
@@ -779,8 +878,8 @@ private extension MetalRenderer {
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: orientationCubeVertexCount)
     }
 
-    /// Heightmap mode: axes and the tool marker still draw as ordinary
-    /// wireframe (a single normal-depth pass, no occluder pre-pass and no
+    /// Heightmap mode: axes still draw as ordinary wireframe and the tool
+    /// as a solid (a single normal-depth pass, no occluder pre-pass and no
     /// hidden-dashed pass 2 — the shaded surface below already gives the
     /// scene a real "inside" the way the wireframe-only scene never could,
     /// so there's nothing left for the hidden-line trick to do), then the
@@ -791,6 +890,11 @@ private extension MetalRenderer {
         for batch in renderBatches where batch.role.map({ !heightmapWireframeHiddenRoles.contains($0) }) ?? true {
             drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0.0, encoder: encoder)
         }
+
+        // The tool (solid). Depth-tested against the surface drawn right
+        // after, so the part of the tool below the stock top is correctly
+        // hidden by the uncut material and visible inside carved pockets.
+        drawSolids(mvp: mvp, encoder: encoder)
 
         guard let heightmapBatch, let heightmapPipelineState else {
             return

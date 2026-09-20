@@ -28,13 +28,23 @@ class CanvasSceneModel: ObservableObject {
     /// types here — MetalRenderer is the only thing that turns this into GPU buffers.
     @Published var renderObjects: [RenderObject] = RenderObject.defaultScene()
 
-    /// Real diameter/length of the tool currently drawn on the canvas, in
-    /// millimeters. Defaults to a common 1/8" end mill; set these from the
-    /// active `Tool` (`ToolLibrary`/`ToolsStore`) once tool selection is
-    /// tracked for a running job, and `updateToolPosition` will pick up the
-    /// new size on the next call.
+    /// Diameter of the tool drawn on the canvas when no `ToolSpec` is
+    /// assigned yet (see `updateTool`), in millimeters — a common 1/8" end
+    /// mill. Once a spec is known, its real diameter and shape are used
+    /// instead and this is ignored.
     @Published var toolDiameter: Double = 3.175
+    /// How tall the tool is drawn above its tip, in millimeters. `ToolSpec`
+    /// doesn't carry a length (the header parsers don't keep one), so this
+    /// applies to every tool, assigned or not.
     @Published var toolLength: Double = 40
+
+    /// The tool currently in the spindle, as far as the canvas knows —
+    /// `nil` draws the `toolDiameter` fallback end mill. Set via `updateTool`.
+    private var toolSpec: ToolSpec?
+    /// Where the tool tip is (work position), once anything has reported one.
+    /// Remembered so a change of tool can redraw at the same spot without
+    /// waiting for the next position update.
+    private var toolTipPosition: SIMD3<Float>?
 
     /// Which of the two canvas renderers `MetalCanvasView` should draw. See
     /// `CanvasRenderMode` — this is M4's UI-facing switch; `CanvasSection`
@@ -193,13 +203,44 @@ class CanvasSceneModel: ObservableObject {
         renderObjects.settingVisibleVertexCount(cutting, forRole: .toolpathCutting)
     }
 
-    /// Rebuilds the cutter wireframe at `point` (the machine's current
-    /// work position) using `toolDiameter`/`toolLength`, replacing whatever
-    /// was drawn there before — axes, stock, and the toolpath preview are
-    /// untouched. Call this whenever the machine reports a new position, or
-    /// the scrubber moves the "as-if-running" position.
+    /// Rebuilds the solid cutter at `point` (the machine's current work
+    /// position), replacing whatever was drawn there before — axes, stock,
+    /// and the toolpath preview are untouched. Uses the spec given to
+    /// `updateTool` (real diameter and shape), or the `toolDiameter`
+    /// fallback if there isn't one. Call this whenever the machine reports
+    /// a new position, or the scrubber moves the "as-if-running" position.
     func updateToolPosition(_ point: SIMD3<Float>) {
-        renderObjects.updating(.tool(at: point, diameter: toolDiameter, length: toolLength))
+        toolTipPosition = point
+        rebuildTool()
+    }
+
+    /// Switches which tool is drawn — its real diameter, and its shape
+    /// (flat, ball, cone) — and redraws it in place if it's already on the
+    /// canvas. Cheap when nothing changed, so callers can just call it after
+    /// anything that might have changed the active tool. `nil` (no tool
+    /// assigned) falls back to a generic end mill of `toolDiameter`.
+    func updateTool(_ spec: ToolSpec?) {
+        guard spec != toolSpec else {
+            return
+        }
+        toolSpec = spec
+        rebuildTool()
+    }
+
+    private func rebuildTool() {
+        // No position yet: nothing to draw until the first one arrives.
+        guard let tip = toolTipPosition else {
+            return
+        }
+        if let toolSpec {
+            renderObjects.updating(.tool(at: tip,
+                                         diameter: toolSpec.diameterMM,
+                                         length: toolLength,
+                                         kind: toolSpec.kind,
+                                         tipAngleDegrees: toolSpec.tipAngleDegrees))
+        } else {
+            renderObjects.updating(.tool(at: tip, diameter: toolDiameter, length: toolLength))
+        }
     }
 
     /// Recarves the heightmap grid from scratch and rebuilds `heightmapMesh`

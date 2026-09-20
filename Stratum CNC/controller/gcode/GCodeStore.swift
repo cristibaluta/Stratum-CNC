@@ -124,6 +124,17 @@ class GCodeStore: ObservableObject {
         document.toolpath(containingLine: scrubLine)?.toolNumber
     }
 
+    /// The `ToolSpec` to draw on the canvas: the tool actually in the spindle
+    /// at `scrubLine` when it's been assigned a spec, otherwise the same
+    /// first-assigned tool the heightmap carves with (`activeToolSpec`) —
+    /// e.g. past the end of the file, where no section owns the line.
+    var spindleToolSpec: ToolSpec? {
+        if let number = activeToolNumber, let spec = toolSpecAssignments[number] {
+            return spec
+        }
+        return activeToolSpec
+    }
+
     var activeToolSpec: ToolSpec? {
         for toolNumber in tools {
             if let spec = toolSpecAssignments[toolNumber] {

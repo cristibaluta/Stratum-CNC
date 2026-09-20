@@ -63,6 +63,9 @@ struct ControllerView: View {
         gCodeModel.scrubLine = line
         gCodeModel.requestedLine = line
 
+        // Scrubbing across a tool change swaps which tool is in the spindle.
+        scene.updateTool(gCodeModel.spindleToolSpec)
+
         let counts = gCodeModel.document.toolpathVertexCounts(upTo: line)
         scene.setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
 
@@ -520,6 +523,7 @@ private struct CanvasSection: View {
             }
             .overlay(
                 ToolPositionSync(connection: connection) { point in
+                    scene.updateTool(gCodeModel.spindleToolSpec)
                     scene.updateToolPosition(point)
                 }
             )
@@ -565,6 +569,7 @@ private struct CanvasSection: View {
             scene.updateStock(camModel.selectedStockMaterial)
             scene.updateToolpath(gCodeModel.document.toolpathSegments)
             gCodeModel.scrubLine = gCodeModel.document.lines.count
+            scene.updateTool(gCodeModel.spindleToolSpec)
             forceHeightmapRefresh()
         }
         .onChange(of: camModel.selectedStockMaterial) { _, newStock in
@@ -577,12 +582,15 @@ private struct CanvasSection: View {
             // always matches where the slider sits.
             scene.updateToolpath(newSegments)
             gCodeModel.scrubLine = gCodeModel.document.lines.count
+            scene.updateTool(gCodeModel.spindleToolSpec)
             forceHeightmapRefresh()
         }
         .onChange(of: gCodeModel.toolSpecAssignments) { _, _ in
             // Assigning (or reassigning) a `T` number's tool changes
             // what the heightmap should have been carved with — e.g.
-            // picking a bigger end mill widens every cut.
+            // picking a bigger end mill widens every cut — and the tool
+            // drawn on the canvas.
+            scene.updateTool(gCodeModel.spindleToolSpec)
             forceHeightmapRefresh()
         }
         .onChange(of: scene.renderMode) { _, mode in

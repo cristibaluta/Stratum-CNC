@@ -14,6 +14,12 @@ enum RenderPrimitive {
     case lineList   // points consumed in disconnected pairs (start, end, start, end, ...)
 }
 
+/// One vertex of a lit, filled triangle mesh (position + surface normal).
+/// Deliberately the same type the heightmap surface uses, so solid objects
+/// such as the tool marker can be drawn by the heightmap's shaded-triangle
+/// pipeline without a second vertex layout to keep in sync.
+typealias SolidVertex = HeightmapMesh.Vertex
+
 /// What a `RenderObject` represents, for the handful of cases where upstream
 /// code needs to find one again inside a scene array (e.g. swapping in a
 /// freshly-built stock wireframe whenever `CAMModel.selectedStockMaterial`
@@ -69,6 +75,11 @@ struct RenderObject: Identifiable {
     /// the GPU is concerned: an edge is only ever hidden by *another edge*
     /// landing on the same pixel, never by the surface it's actually behind.
     var occluderFaces: [SIMD3<Float>] = []
+    /// Visible, lit, filled triangles (3 vertices per triangle) drawn in
+    /// `color`. Independent of `points`: an object can carry lines, a solid,
+    /// or both. Unlike `occluderFaces` these are actually drawn — see
+    /// `MetalRenderer.drawSolids`. The tool marker is the only user so far.
+    var solidTriangles: [SolidVertex] = []
 }
 
 /// Find-and-replace helpers keyed by `RenderRole`, so callers holding a full
@@ -501,53 +512,144 @@ extension RenderObject {
         return objects
     }
 
+    /// The cutter as a solid, drawn at true size with its tip at
+    /// `tipPosition`. The body is a surface of revolution around the vertical
+    /// axis, shaped by `kind` the same way `ToolFootprint` shapes the cut:
+    ///
+    /// - `.endMill`, `.drill`: flat-bottomed cylinder.
+    /// - `.ballNose`: hemispherical tip, radius = tool radius.
+    /// - `.vBit`, `.engraver`: cone from the tip up to the full diameter,
+    ///   half-angle from `tipAngleDegrees` (flat if none is on file, same
+    ///   fallback as `ToolFootprint.surfaceZ`).
+    ///
+    /// Above the tip shape the tool continues as a full-diameter cylinder up
+    /// to `length` above the tip. Triangles wind counter-clockwise seen from
+    /// outside and carry analytic normals (smooth on the ball nose, hard
+    /// edges everywhere else).
     static func tool(at tipPosition: SIMD3<Float>,
                      diameter: Double,
                      length: Double,
-                     segments: Int = 32,
-                     strutCount: Int = 6,
+                     kind: ToolSpec.Kind = .endMill,
+                     tipAngleDegrees: Double? = nil,
+                     segments: Int = 48,
                      color: SIMD4<Float> = SIMD4<Float>(0.9, 0.0, 0.0, 1.0)) -> RenderObject {
 
-        let clampedSegments = max(3, segments)
+        let sides = max(3, segments)
         let radius = Float(max(0, diameter) / 2)
-        let baseZ = tipPosition.z
-        let topZ = tipPosition.z + Float(max(0, length))
+        guard radius > 0 else {
+            return RenderObject(role: .tool, points: [], color: color)
+        }
+        let totalLength = Float(max(0, length))
 
-        func ringPoint(_ i: Int, z: Float) -> SIMD3<Float> {
-            let t = Float(i) / Float(clampedSegments)
-            let angle = t * 2 * Float.pi
-            let x = tipPosition.x + radius * cos(angle)
-            let y = tipPosition.y + radius * sin(angle)
-            return SIMD3<Float>(x, y, z)
+        // Profile of the tool from the tip upward: (radius, height above the
+        // tip) plus the outward surface normal in that same (radial, up)
+        // plane. Consecutive points form one lathe band each; a hard edge is
+        // just two points at the same position with different normals.
+        struct ProfilePoint {
+            var r: Float
+            var z: Float
+            var nr: Float
+            var nz: Float
+        }
+        var profile: [ProfilePoint] = []
+
+        /// Straight band from (r0, z0) to (r1, z1), flat-shaded. Walking the
+        /// profile tip → outside → up → top center makes `(dz, -dr)` the
+        /// outward normal for every band type (bottom cap, cone, wall, top cap).
+        func addFlat(_ r0: Float, _ z0: Float, _ r1: Float, _ z1: Float) {
+            let dr = r1 - r0
+            let dz = z1 - z0
+            let len = (dr * dr + dz * dz).squareRoot()
+            guard len > 0 else {
+                return
+            }
+            let nr = dz / len
+            let nz = -dr / len
+            profile.append(ProfilePoint(r: r0, z: z0, nr: nr, nz: nz))
+            profile.append(ProfilePoint(r: r1, z: z1, nr: nr, nz: nz))
         }
 
-        var points: [SIMD3<Float>] = []
-        points.reserveCapacity(clampedSegments * 4 + max(0, strutCount) * 2 + 2)
+        // Tip shape — everything below `tipHeight`.
+        var tipHeight: Float = 0
+        switch kind {
+            case .ballNose:
+                let arcSteps = 12
+                for k in 0...arcSteps {
+                    let phi = Float(k) / Float(arcSteps) * (Float.pi / 2)
+                    profile.append(ProfilePoint(r: radius * sin(phi),
+                                                z: radius - radius * cos(phi),
+                                                nr: sin(phi),
+                                                nz: -cos(phi)))
+                }
+                tipHeight = radius
 
-        // Bottom ring — the cutting tip.
-        for i in 0..<clampedSegments {
-            points.append(ringPoint(i, z: baseZ))
-            points.append(ringPoint(i + 1, z: baseZ))
-        }
-        // Top ring — where the flute/shank ends, `length` above the tip.
-        for i in 0..<clampedSegments {
-            points.append(ringPoint(i, z: topZ))
-            points.append(ringPoint(i + 1, z: topZ))
-        }
-        // Vertical struts so the shape reads as a cylinder from any angle.
-        let clampedStruts = max(0, strutCount)
-        for s in 0..<clampedStruts {
-            let i = (s * clampedSegments) / max(1, clampedStruts)
-            points.append(ringPoint(i, z: baseZ))
-            points.append(ringPoint(i, z: topZ))
-        }
-        // Short centerline stub at the very tip so the actual cutting point
-        // stays visible even when the tool is thin enough that its ring
-        // barely reads on screen.
-        points.append(SIMD3<Float>(tipPosition.x, tipPosition.y, baseZ))
-        points.append(SIMD3<Float>(tipPosition.x, tipPosition.y, baseZ + max(radius, 1.0)))
+            case .vBit, .engraver:
+                if let angle = tipAngleDegrees, angle > 0, angle < 180 {
+                    let halfAngle = Float((angle / 2) * .pi / 180)
+                    tipHeight = radius / tan(halfAngle)
+                    addFlat(0, 0, radius, tipHeight)
+                } else {
+                    addFlat(0, 0, radius, 0)
+                }
 
-        return RenderObject(role: .tool, points: points, color: color, primitive: .lineList)
+            case .endMill, .drill:
+                addFlat(0, 0, radius, 0)
+        }
+
+        // Shank / flutes up to `length` above the tip, then the top cap.
+        // If `length` is shorter than the tip shape itself, the tip shape
+        // wins — better a stubby correct tip than a truncated one.
+        let topZ = max(totalLength, tipHeight)
+        if topZ > tipHeight {
+            addFlat(radius, tipHeight, radius, topZ)
+        }
+        addFlat(radius, topZ, 0, topZ)
+
+        // Spin the profile around the tool axis.
+        var cosines: [Float] = []
+        var sines: [Float] = []
+        cosines.reserveCapacity(sides + 1)
+        sines.reserveCapacity(sides + 1)
+        for j in 0...sides {
+            let angle = Float(j) / Float(sides) * 2 * Float.pi
+            cosines.append(cos(angle))
+            sines.append(sin(angle))
+        }
+
+        func vertex(_ p: ProfilePoint, _ j: Int) -> SolidVertex {
+            SolidVertex(position: SIMD3<Float>(tipPosition.x + p.r * cosines[j],
+                                               tipPosition.y + p.r * sines[j],
+                                               tipPosition.z + p.z),
+                        normal: SIMD3<Float>(p.nr * cosines[j], p.nr * sines[j], p.nz))
+        }
+
+        var triangles: [SolidVertex] = []
+        triangles.reserveCapacity(max(0, profile.count - 1) * sides * 6)
+
+        for i in 0..<(profile.count - 1) {
+            let a = profile[i]
+            let b = profile[i + 1]
+            // Zero-length band: the seam between two hard-edged runs.
+            if a.r == b.r && a.z == b.z {
+                continue
+            }
+            for j in 0..<sides {
+                let p00 = vertex(a, j)
+                let p01 = vertex(a, j + 1)
+                let p10 = vertex(b, j)
+                let p11 = vertex(b, j + 1)
+                // Bands that start or end on the axis collapse one triangle
+                // of the quad to a sliver; skip it.
+                if a.r > 0 {
+                    triangles.append(contentsOf: [p00, p01, p10])
+                }
+                if b.r > 0 {
+                    triangles.append(contentsOf: [p01, p11, p10])
+                }
+            }
+        }
+
+        return RenderObject(role: .tool, points: [], color: color, solidTriangles: triangles)
     }
 
     /// Small cylinder marker (e.g. current position, a probe point).
