@@ -382,6 +382,19 @@ private struct CanvasSection: View {
     let isStockVisible: Binding<Bool>
     @Binding var isShowingCanvasControlsSettings: Bool
 
+    /// Scroll movement that hasn't yet added up to a whole line. Fine
+    /// scrolling moves the scrubber by well under a line per event, and
+    /// rounding each event on its own would drop all of it — the scrubber
+    /// would either not move at all or only in the odd big jump.
+    @State private var scrubRemainder = 0.0
+
+    /// Fine scrubbing: how many lines one unit of scroll moves. A precise
+    /// device (trackpad, Magic Mouse) reports pixels, so this is
+    /// lines-per-pixel; a notched wheel reports whole units per notch, so it
+    /// is lines-per-notch. A line is the smallest step the toolpath drawing
+    /// has, so this is as fine as scrubbing goes.
+    private static let linesPerScrollUnit = 1.0
+
     private var scrubBinding: Binding<Double> {
         Binding(
             get: { Double(gCodeModel.scrubLine) },
@@ -417,19 +430,36 @@ private struct CanvasSection: View {
             ? event.scrollingDeltaX
             : event.scrollingDeltaY
 
-        let step: Double
-        if event.hasPreciseScrollingDeltas {
-            // Trackpad: proportional to how far you swiped rather than a
-            // fixed amount, so a longer swipe moves further through the file.
-            step = Double(delta) * Double(totalLines) * 0.002
-        } else {
-            // Mouse wheel: one deliberate chunk of the file per notch — this
-            // should feel like paging through, not like a fine nudge.
-            let notch: Double = delta > 0 ? 1 : (delta < 0 ? -1 : 0)
-            step = notch * max(1, Double(totalLines) / 200)
+        // A new swipe doesn't inherit the last one's leftover fraction.
+        if event.phase == .began {
+            scrubRemainder = 0
         }
 
-        let newLine = Int((Double(gCodeModel.scrubLine) + step).rounded())
+        let step: Double
+        if event.modifierFlags.contains(.shift) {
+            // Shift keeps the old coarse paging, for crossing a long file
+            // quickly: proportional to the swipe on a trackpad, one chunk
+            // of the file per notch on a wheel.
+            if event.hasPreciseScrollingDeltas {
+                step = Double(delta) * Double(totalLines) * 0.002
+            } else {
+                let notch: Double = delta > 0 ? 1 : (delta < 0 ? -1 : 0)
+                step = notch * max(1, Double(totalLines) / 200)
+            }
+        } else {
+            // Fine: the distance scrolled maps straight to lines, however
+            // long the file is. (It used to be a fraction of the file, so a
+            // small scroll of a big program jumped hundreds of lines.)
+            step = Double(delta) * Self.linesPerScrollUnit
+        }
+
+        // Only whole lines can be shown; keep the fraction for the next event.
+        scrubRemainder += step
+        let whole = scrubRemainder.rounded(.towardZero)
+        guard whole != 0 else { return }
+        scrubRemainder -= whole
+
+        let newLine = gCodeModel.scrubLine + Int(whole)
         // Like the drag binding above: a two-finger swipe can fire a burst
         // of these in quick succession, so this rides the same throttle
         // rather than forcing an exact recarve on every notch.
