@@ -268,6 +268,7 @@ struct ControllerView: View {
                 CanvasControlsSettingsView()
             }
         }
+        .machineAlerts(model.alerts, onResume: model.resumeJob)
         .fileImporter(isPresented: $model.isGCodeImporterPresented,
                       allowedContentTypes: gCodeModel.allowedContentTypes,
                       allowsMultipleSelection: false) { result in

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 import simd
 #if os(macOS)
 import AppKit
@@ -67,6 +68,24 @@ class ControllerModel: ObservableObject {
     /// where the job that was just sent ends up. Consumed by
     /// `applyJobOrigin()` right before `play`.
     private var pendingJobOffset: SIMD2<Float> = .zero
+
+    // MARK: Alerts
+
+    /// Tool changes, alarms, errors and lost connections, made hard to miss
+    /// (`MachineAlerts.swift`). Observed by the view through `.machineAlerts`
+    /// rather than published from here, like `connection`'s own state.
+    let alerts = MachineAlertCenter()
+
+    private var cancellables = Set<AnyCancellable>()
+
+    /// The status state before the current one, without its `:sub-state`
+    /// ("Hold:0" → "Hold"). Empty while disconnected, so the first report
+    /// after connecting isn't mistaken for a transition.
+    private var lastBaseState = ""
+
+    /// The most recent alarm/error text, to say *what* went wrong when the
+    /// status change is what announces it.
+    private var lastFault: (text: String, date: Date)?
 
     // MARK: Auto level before run
 
@@ -161,7 +180,21 @@ class ControllerModel: ObservableObject {
         connection.onLine = { [weak self] line in
             self?.jobRunner.handleMachineLine(line)
             self?.uploader.handleMachineLine(line)
+            self?.raiseAlert(forLine: line)
         }
+        connection.$status
+            .map { $0?.state.split(separator: ":").first.map { String($0) } ?? "" }
+            .removeDuplicates()
+            .sink { [weak self] state in
+                Task { @MainActor in self?.machineStateChanged(to: state) }
+            }
+            .store(in: &cancellables)
+        connection.$isConnected
+            .removeDuplicates()
+            .sink { [weak self] connected in
+                Task { @MainActor in self?.connectionChanged(connected) }
+            }
+            .store(in: &cancellables)
 
         #if os(macOS)
         // A held button's release is never delivered once the app is in the
@@ -306,6 +339,72 @@ class ControllerModel: ObservableObject {
                 .with(workspace: 1, x: Double(offset.x), y: Double(offset.y))
                 .command
         ]
+    }
+
+    // MARK: - Alerts
+
+    /// Alarm, error and tool-change lines from the machine.
+    private func raiseAlert(forLine line: String) {
+        guard let alert = MachineAlertRules.alert(forLine: line) else { return }
+        if alert.kind == .alarm || alert.kind == .error {
+            lastFault = (alert.message, Date())
+        }
+        alerts.post(alert)
+    }
+
+    /// The status report is the second source of truth: it catches a stop
+    /// the machine didn't explain in text, and tells us when the cause has
+    /// gone away (someone resumed or unlocked at the machine itself).
+    private func machineStateChanged(to state: String) {
+        let previous = lastBaseState
+        lastBaseState = state
+        guard !state.isEmpty, !previous.isEmpty, state != previous else { return }
+
+        switch state {
+            case "Alarm":
+                // The explaining line normally arrives first and has already
+                // raised its own alert.
+                if !alerts.wasPosted(.alarm, within: 10) {
+                    var detail = "The machine stopped with an alarm. Check the terminal, then Unlock to clear it."
+                    if let fault = lastFault, Date().timeIntervalSince(fault.date) < 15 {
+                        detail = fault.text
+                    }
+                    alerts.post(MachineAlert(kind: .alarm, title: "Machine alarm", message: detail))
+                }
+            case "Pause":
+                // The app has no button that suspends a job, so a suspended
+                // machine was paused by the machine itself — usually to wait
+                // for a tool change. Skipped when a specific tool-change
+                // prompt already said so.
+                if !alerts.wasPosted(.toolChange, within: 60) {
+                    alerts.post(MachineAlert(
+                        kind: .paused,
+                        title: "Job paused by the machine",
+                        message: "It may be waiting for a tool change. Check the machine, then resume."
+                    ))
+                }
+            default:
+                break
+        }
+
+        if previous == "Pause" { alerts.resolve([.toolChange, .paused]) }
+        if previous == "Alarm" { alerts.resolve([.alarm]) }
+    }
+
+    private func connectionChanged(_ connected: Bool) {
+        if connected {
+            alerts.requestAuthorization()
+            return
+        }
+        // `lastError` is only set by failures, not by an ordinary disconnect.
+        if connection.lastError != nil, ["Run", "Hold", "Pause"].contains(lastBaseState) {
+            alerts.post(MachineAlert(
+                kind: .connectionLost,
+                title: "Lost connection to the machine",
+                message: "A job that was already started from the SD card should keep running on the machine. Reconnect to monitor it."
+            ))
+        }
+        lastBaseState = ""
     }
 
     // MARK: - Run sequence (origin → auto level → play)
