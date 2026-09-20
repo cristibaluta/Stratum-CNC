@@ -17,7 +17,7 @@ struct MaterialPanelView: View {
 
     var body: some View {
         GroupBox("MATERIAL") {
-            VStack {
+            VStack(alignment: .leading) {
                 HStack(spacing: 8) {
                     if !isCompact {
                         visibilityButton
@@ -55,7 +55,9 @@ struct MaterialPanelView: View {
                     }
                 }
                 if isCompact {
-                    dimensionsRow
+                    HStack {
+                        dimensionsRow
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

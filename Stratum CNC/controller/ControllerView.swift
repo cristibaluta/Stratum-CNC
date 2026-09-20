@@ -484,26 +484,26 @@ private struct CanvasSection: View {
         VStack {
             HStack(alignment: .top, spacing: 12) {
                 MaterialPanelView(stock: $camModel.selectedStockMaterial, isStockVisible: isStockVisible, isCompact: true)
+                    .frame(width: 300)
 
                 if !gCodeModel.tools.isEmpty {
                     Divider()
                     ToolsPickerView(tools: gCodeModel.tools,
                                     assignments: $gCodeModel.toolSpecAssignments,
                                     fileSpecs: gCodeModel.headerToolSpecs)
-                        .frame(width: 100)
+                        .frame(width: 300)
                 }
                 Divider()
-                VStack {
+                VStack(alignment: .leading) {
                     HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
-                        .frame(minWidth: 100)
                     XYOffsetControlView(xyOffset: $scene.xyOffset)
                 }
+                .frame(minWidth: 100)
+                Spacer()
             }
-            .padding(8)
-            .frame(height: 100)
+            .frame(height: 120)
             .background(.regularMaterial)
             .cornerRadius(8)
-            .padding()
 
             MetalCanvasView(objects: $scene.renderObjects,
                             renderMode: scene.renderMode,

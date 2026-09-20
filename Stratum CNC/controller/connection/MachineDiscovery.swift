@@ -11,7 +11,7 @@ import Network
 @MainActor
 final class MachineDiscovery: ObservableObject {
 
-    @Published private(set) var machines: [MakeraMachine] = [MakeraMachine(name: "Mock Machine", ip: "00.00.00.00", port: 0, busy: false)]
+    @Published private(set) var machines: [MakeraMachine] = [.mock]
     @Published private(set) var isScanning = false
     @Published var lastError: String?
 

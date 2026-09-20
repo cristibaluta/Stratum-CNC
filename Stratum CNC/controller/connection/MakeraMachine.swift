@@ -27,3 +27,21 @@ struct MakeraMachine: Identifiable, Equatable, Hashable {
         self.id = "\(name)@\(ip)"
     }
 }
+
+extension MakeraMachine {
+    /// A fake machine that's always available to pick from
+    /// `MachinesList`/`MachineConnectSheet`, so the UI — connecting,
+    /// jogging, probing, the pre-run review, uploading and running a job —
+    /// can be exercised without real hardware. `MachineDiscovery` seeds its
+    /// list with exactly this value, and `MachineConnection.connect(to:)`
+    /// checks `isMock` to route to `MockMachineSimulator` instead of
+    /// opening a real socket.
+    static let mock = MakeraMachine(name: "Mock Machine", ip: "00.00.00.00", port: 0, busy: false)
+
+    /// The sentinel IP `.mock` uses is never a routable address, so it's
+    /// safe as the marker — checked by IP/port rather than `self == .mock`
+    /// so it still recognises the entry after `MachineDiscovery` overwrites
+    /// `busy` on a refresh (structural `Equatable` would otherwise stop
+    /// matching the moment any field differs).
+    var isMock: Bool { ip == MakeraMachine.mock.ip && port == MakeraMachine.mock.port }
+}

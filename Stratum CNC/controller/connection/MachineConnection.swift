@@ -269,6 +269,13 @@ final class MachineConnection: ObservableObject {
     private var connection: NWConnection?
     private var pollTimer: Timer?
 
+    /// Non-`nil` exactly while connected to `MakeraMachine.mock` — every
+    /// public send path below checks this first and, if set, routes to the
+    /// simulator instead of the real socket (which stays `nil` the whole
+    /// time). See `MockMachineSimulator`'s doc comment for why replies come
+    /// back through the same `handleLine(_:)` real traffic uses.
+    private var mockSimulator: MockMachineSimulator?
+
     // Smoothie (plain-text) parsing state
     private var lineBuffer = Data()
 
@@ -284,6 +291,11 @@ final class MachineConnection: ObservableObject {
 
     func connect(to machine: MakeraMachine) {
         disconnect()
+
+        if machine.isMock {
+            connectMock()
+            return
+        }
 
         let endpoint = NWEndpoint.hostPort(
             host: NWEndpoint.Host(machine.ip),
@@ -315,7 +327,31 @@ final class MachineConnection: ObservableObject {
         self.connection = connection
     }
 
+    /// No socket, no protocol detection — jumps straight to "connected"
+    /// with the framed Makera protocol assumed (stock firmware's own
+    /// default, and `MockMachineSimulator`'s replies don't need CRC
+    /// framing at this layer either way; `wireProtocol` only has to be
+    /// *some* non-`nil` value for `GCodeUploader`/`startPolling` callers to
+    /// proceed). `MockMachineSimulator` owns its own 1 Hz status tick, so
+    /// `startPolling()` — built around `pollTimer` sending a real `?` byte
+    /// — is deliberately not called here.
+    private func connectMock() {
+        let simulator = MockMachineSimulator()
+        mockSimulator = simulator
+        isConnected = true
+        lastError = nil
+        wireProtocol = .makera
+        rawLog.append("Connected to Mock Machine (simulated — no hardware).")
+
+        simulator.onStatusLine = { [weak self] line in
+            self?.handleLine(line)
+        }
+        simulator.start()
+    }
+
     func disconnect() {
+        mockSimulator?.stop()
+        mockSimulator = nil
         pollTimer?.invalidate()
         pollTimer = nil
         connection?.cancel()
@@ -392,6 +428,14 @@ final class MachineConnection: ObservableObject {
     /// command like "get wcs" or "config-get-all -e". Encoded according to
     /// whichever wire protocol was detected for this connection.
     func send(_ command: String) {
+        if let mockSimulator {
+            rawLog.append("> \(command)")
+            mockSimulator.handle(command: command) { [weak self] reply in
+                self?.handleLine(reply)
+            }
+            return
+        }
+
         guard let connection else { return }
 
         // Record our command in the raw logs
@@ -425,6 +469,16 @@ final class MachineConnection: ObservableObject {
     /// so a hold/resume/reset is visible in the console history.
     @discardableResult
     func sendRealtime(_ command: MachineRealtimeCommand) -> Bool {
+        if let mockSimulator {
+            if command != .statusQuery {
+                appendLog("> \(command.logText)")
+            }
+            if let line = mockSimulator.handleRealtime(command) {
+                handleLine(line)
+            }
+            return true
+        }
+
         guard let connection, wireProtocol != nil else { return false }
 
         if command != .statusQuery {
@@ -469,6 +523,21 @@ final class MachineConnection: ObservableObject {
     /// `GCodeUploader` can pace chunk-by-chunk sending off real socket
     /// backpressure instead of firing every chunk at once.
     func sendFileFrame(ptype: UInt8, payload: Data, completion: @escaping (Error?) -> Void) {
+        if let mockSimulator {
+            mockSimulator.handleFileFrame(payloadSize: payload.count) { [weak self] in
+                completion(nil)
+                // `GCodeUploader.finishFrameTransfer()` puts itself in
+                // `.verifying` right after the End frame's completion and
+                // waits for a text line containing "ok"/"done"/"saved" to
+                // leave it — a real machine's own save-confirmation line.
+                // The mock supplies that line itself here rather than
+                // requiring a second round trip.
+                if ptype == MakeraFraming.ptypeFileEnd {
+                    self?.handleLine("ok")
+                }
+            }
+            return
+        }
         guard let connection, wireProtocol == .makera else {
             completion(MachineConnectionError.notReady)
             return
@@ -484,6 +553,15 @@ final class MachineConnection: ObservableObject {
     /// legacy `upload` flow: the raw file body, then a single 0x04 (Ctrl-D)
     /// terminator byte.
     func sendRawBytes(_ bytes: Data, completion: @escaping (Error?) -> Void) {
+        if let mockSimulator {
+            // `connectMock()` always reports `.makera`, so `GCodeUploader`
+            // never actually picks this path against the mock — handled
+            // anyway so nothing silently hangs if that ever changes.
+            mockSimulator.handleFileFrame(payloadSize: bytes.count) {
+                completion(nil)
+            }
+            return
+        }
         guard let connection, wireProtocol == .smoothie else {
             completion(MachineConnectionError.notReady)
             return

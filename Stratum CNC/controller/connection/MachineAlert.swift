@@ -209,7 +209,7 @@ final class MachineAlertCenter: ObservableObject {
     /// permission prompt appears while someone is at the screen — not for
     /// the first time in the middle of an unattended job.
     func requestAuthorization() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+//        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     private func postSystemNotification(_ alert: MachineAlert) {
@@ -220,7 +220,7 @@ final class MachineAlertCenter: ObservableObject {
         content.interruptionLevel = .timeSensitive
 
         let request = UNNotificationRequest(identifier: alert.id.uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
+//        UNUserNotificationCenter.current().add(request)
     }
 }
 

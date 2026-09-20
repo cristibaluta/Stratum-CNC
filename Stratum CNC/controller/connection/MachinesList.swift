@@ -21,16 +21,28 @@ struct MachinesList: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(machine.name)
                         .font(.headline)
-                    Text("\(machine.ip):\(machine.port)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if machine.isMock {
+                        Text("Simulated — no hardware required")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("\(machine.ip):\(machine.port)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer()
 
-                Text(machine.busy ? "Busy" : "Idle")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if machine.isMock {
+                    Image(systemName: "wand.and.stars")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(machine.busy ? "Busy" : "Idle")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             .padding(.vertical, 4)
             .tag(machine)
