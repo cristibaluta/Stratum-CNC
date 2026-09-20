@@ -158,6 +158,17 @@ struct HeightmapGrid {
         index(col: col, row: row).map { heights[$0] }
     }
 
+    /// Overwrites `heights` wholesale with a previously-saved snapshot —
+    /// the only way this grid's heights ever move *up* again, since
+    /// `carve` itself can only lower them. Used exclusively by
+    /// `HeightmapCarveCache` to rewind a scrub to an earlier position
+    /// without re-carving from segment zero; the caller is responsible for
+    /// `heights` actually coming from a snapshot of this same grid (same
+    /// `columns`/`rows`/`mask`), since nothing here re-validates that.
+    mutating func restoreHeights(_ heights: [Float]) {
+        self.heights = heights
+    }
+
     // MARK: Carving
 
     /// Lowers every cell a tool's footprint overlaps as it sweeps from

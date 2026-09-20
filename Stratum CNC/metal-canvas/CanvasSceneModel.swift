@@ -89,11 +89,10 @@ class CanvasSceneModel: ObservableObject {
 
     /// M5: how many `scrubHeightmap` calls to skip between actual recarves.
     /// Dragging the scrub slider (or scrubbing with the scroll wheel) fires
-    /// many calls per second; recarving the whole grid on every single one
-    /// would make the drag itself feel laggy on anything but a tiny file.
-    /// This is the "start simple" throttle the roadmap calls for — M6's
-    /// incremental/snapshot carve is the real fix if this interval still
-    /// isn't enough on a large program.
+    /// many calls per second; even with M6 step 1's incremental carve
+    /// (`HeightmapCarveCache`) making each individual recarve cheap, there's
+    /// still no reason to run one on every tick of a fast drag when the
+    /// result would just be replaced a few milliseconds later.
     private let heightmapScrubTickInterval = 6
 
     /// M5: calls to `scrubHeightmap` since the last actual recarve. Reset
@@ -127,6 +126,32 @@ class CanvasSceneModel: ObservableObject {
     /// running carve lands, so a long drag shows a stream of intermediate
     /// surfaces instead of nothing until release.
     private var pendingHeightmapRequest: HeightmapRequest?
+
+    /// M6, step 1: the incremental-carve cache. Holds the grid as last
+    /// carved plus its periodic snapshots, so the *next* `updateHeightmap`/
+    /// `scrubHeightmap` call — forward or backward — only carves the
+    /// segments between that position and the new one, instead of redoing
+    /// the whole prefix (see `HeightmapCarveCache`). Captured into a
+    /// `HeightmapRequest` at request time same as `stock`/`tool`/etc, and
+    /// overwritten with whatever `finishHeightmapCarve` gets back — even
+    /// from a cancelled carve, whose partial forward progress is still
+    /// worth keeping (see that method).
+    ///
+    /// `nil` before the first carve, and cleared whenever there's no tool
+    /// to carve with (`updateHeightmap`/`scrubHeightmap`'s `tool == nil`
+    /// branches) — a cache holds onto its grid and every snapshot it's
+    /// taken, so there's no reason to keep that memory around once there's
+    /// nothing it can be reused for.
+    private var heightmapCarveCache: HeightmapCarveCache?
+
+    /// Segments between snapshots the cache takes while carving forward —
+    /// see `HeightmapCarveCache.snapshotInterval`. 256 is a starting point,
+    /// not a measured optimum: small enough that even a big backward scrub
+    /// rarely replays more than a couple hundred segments, large enough
+    /// that a full-length file doesn't blow past `HeightmapCarveCache`'s
+    /// snapshot cap (and so start thinning, coarsening the fallback) too
+    /// quickly.
+    private let heightmapSnapshotInterval = 256
 
     /// Rebuilds just the stock wireframe from `stock`'s shape and dimensions,
     /// leaving the rest of the scene (axes, toolpath preview, position
@@ -235,6 +260,7 @@ class CanvasSceneModel: ObservableObject {
         guard let tool else {
             stopHeightmapWork()
             heightmapMesh = nil
+            heightmapCarveCache = nil
             return
         }
 
@@ -242,7 +268,9 @@ class CanvasSceneModel: ObservableObject {
                                        segments: segments,
                                        tool: tool,
                                        cellSize: heightmapCellSize,
-                                       offset: xyOffset)
+                                       offset: xyOffset,
+                                       cache: UncheckedSendable(heightmapCarveCache),
+                                       snapshotInterval: heightmapSnapshotInterval)
 
         if supersedesRunning {
             cancelHeightmapWork()
@@ -278,6 +306,7 @@ class CanvasSceneModel: ObservableObject {
         guard let tool else {
             stopHeightmapWork()
             heightmapMesh = nil
+            heightmapCarveCache = nil
             heightmapScrubTickCount = 0
             return
         }
@@ -306,11 +335,11 @@ class CanvasSceneModel: ObservableObject {
         setComputingHeightmap(true)
 
         heightmapTask = Task.detached(priority: .userInitiated) { [weak self] in
-            let mesh = Self.carveMesh(for: request)
+            let result = Self.carveMesh(for: request)
             guard let self else {
                 return
             }
-            await self.finishHeightmapCarve(mesh, generation: generation)
+            await self.finishHeightmapCarve(result.mesh, cache: result.cache, generation: generation)
         }
     }
 
@@ -320,11 +349,19 @@ class CanvasSceneModel: ObservableObject {
     /// spinner off. `mesh` is `nil` only for a carve that noticed its own
     /// cancellation — which always means the generation is stale too, so it
     /// never reaches the publish below.
-    private func finishHeightmapCarve(_ mesh: HeightmapMesh?, generation: Int) {
+    ///
+    /// `cache` is committed even when `mesh` is `nil`: a cancelled carve
+    /// may still have carved forward some way before it noticed (see
+    /// `HeightmapCarveCache.carveForward`'s check every 1024 segments), and
+    /// that progress is exactly as reusable as if it had come from a carve
+    /// that ran to completion — dropping it would just mean redoing it on
+    /// the next request for no reason.
+    private func finishHeightmapCarve(_ mesh: HeightmapMesh?, cache: HeightmapCarveCache, generation: Int) {
         guard generation == heightmapGeneration else {
             return
         }
         heightmapTask = nil
+        heightmapCarveCache = cache
 
         if let mesh {
             heightmapMesh = mesh
@@ -365,31 +402,39 @@ class CanvasSceneModel: ObservableObject {
         }
     }
 
-    /// The actual work: build the grid, carve every segment, mesh it.
-    /// `nonisolated` so it genuinely runs on the calling background task
-    /// rather than hopping back to the main actor. Returns `nil` if the task
-    /// was cancelled part-way — checked every 1024 segments, so a cancelled
-    /// carve of a big file stops within a fraction of a second, and once
-    /// more before the mesh build, which is one uninterruptible pass.
-    private nonisolated static func carveMesh(for request: HeightmapRequest) -> HeightmapMesh? {
-        var grid = HeightmapGrid(stock: request.stock.value, cellSize: request.cellSize)
+    /// The actual work: bring the carve cache up to `request.segments`
+    /// (incrementally — see `HeightmapCarveCache` — rather than always
+    /// from scratch) and mesh the result. `nonisolated` so it genuinely
+    /// runs on the calling background task rather than hopping back to the
+    /// main actor.
+    ///
+    /// `mesh` is `nil` if the task was cancelled part-way through carving
+    /// (checked every 1024 segments — see `HeightmapCarveCache
+    /// .carveForward`) or just before the mesh build, which is one
+    /// uninterruptible pass; `cache` is returned either way; see
+    /// `finishHeightmapCarve` for why that's still useful on cancellation.
+    private nonisolated static func carveMesh(for request: HeightmapRequest) -> (mesh: HeightmapMesh?, cache: HeightmapCarveCache) {
+        let emptyGrid = HeightmapGrid(stock: request.stock.value, cellSize: request.cellSize)
+        let setup = HeightmapCarveCache.Setup(grid: emptyGrid, tool: request.tool, offset: request.offset)
 
-        var carved = 0
-        for segment in request.segments {
-            if (carved & 0x3FF) == 0, Task.isCancelled {
-                return nil
-            }
-            grid.carve(segment: segment,
-                       tool: request.tool,
-                       offsetX: request.offset.x,
-                       offsetY: request.offset.y)
-            carved += 1
+        // Reuse the cached grid only if it was carved with the same shape,
+        // mask, tool, and offset — anything else and there's no valid
+        // partial state to build on, so start clean instead (still exactly
+        // as cheap as a full recarve always was).
+        var cache: HeightmapCarveCache
+        if let existing = request.cache.value, existing.setup == setup {
+            cache = existing
+        } else {
+            cache = HeightmapCarveCache(setup: setup, grid: emptyGrid, snapshotInterval: request.snapshotInterval)
         }
 
+        guard let grid = cache.carve(through: request.segments) else {
+            return (nil, cache)
+        }
         guard !Task.isCancelled else {
-            return nil
+            return (nil, cache)
         }
-        return HeightmapMesh(grid: grid)
+        return (HeightmapMesh(grid: grid), cache)
     }
 }
 
@@ -403,6 +448,20 @@ private struct HeightmapRequest: Sendable {
     let tool: ToolSpec
     let cellSize: Float
     let offset: SIMD2<Float>
+    /// The incremental-carve cache as last committed by
+    /// `finishHeightmapCarve`, if any — `nil` before the first carve.
+    /// `HeightmapCarveCache` is a plain value type (arrays of `Float`/
+    /// `Bool`, a `HeightmapGrid`, a `ToolSpec`), so wrapping it here follows
+    /// the same `UncheckedSendable` pattern `stock` already does rather
+    /// than chasing `Sendable` conformance through every type it's made of.
+    let cache: UncheckedSendable<HeightmapCarveCache?>
+    /// Threaded through from `CanvasSceneModel.heightmapSnapshotInterval`
+    /// so `HeightmapCarveCache`'s own default doesn't drift from the one
+    /// actually in effect — only used the first time a cache is created for
+    /// a given `Setup`; an existing cache keeps whatever interval it's
+    /// already thinned its way to (see `HeightmapCarveCache
+    /// .thinSnapshotsIfNeeded`).
+    let snapshotInterval: Int
 }
 
 /// `StockMaterial` is defined in the CAM module and isn't declared
