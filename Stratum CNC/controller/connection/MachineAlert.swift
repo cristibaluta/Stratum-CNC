@@ -1,12 +1,4 @@
 //
-//  MachineAlert.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 20.09.2026.
-//
-
-
-//
 //  MachineAlerts.swift
 //  Stratum CNC
 //
@@ -32,6 +24,10 @@ struct MachineAlert: Identifiable, Equatable {
         case alarm
         case error
         case connectionLost
+        /// A job was already suspended on the machine when we connected —
+        /// e.g. the app was closed while it waited. Informational: nothing
+        /// is going wrong, it's just there to be picked back up.
+        case suspendedJob
     }
 
     let id = UUID()
@@ -42,13 +38,13 @@ struct MachineAlert: Identifiable, Equatable {
     /// The alert is about a stopped job that continues when the person says
     /// so, so the dialog offers a Resume button.
     var offersResume: Bool {
-        kind == .toolChange || kind == .paused
+        kind == .toolChange || kind == .paused || kind == .suspendedJob
     }
 
     /// Kinds that keep repeating a sound until dismissed — the ones where
     /// the machine is stuck until someone acts.
     var isPersistent: Bool {
-        kind != .error
+        kind != .error && kind != .suspendedJob
     }
 }
 

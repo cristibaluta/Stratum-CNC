@@ -145,6 +145,7 @@ struct ControllerView: View {
                                     )
                                 },
                                 onPause: model.pauseJob,
+                                onSuspend: model.suspendJob,
                                 onResume: model.resumeJob,
                                 onResumeFromLine: { model.resumeJob(fromLine: $0) },
                                 canResumeFromLine: model.lastUploadedRemotePath != nil,

@@ -59,7 +59,13 @@ class ControllerModel: ObservableObject {
     /// loaded/scrubbed without being re-uploaded — there's no way to ask the
     /// firmware what it currently has loaded, so this is a best-effort
     /// "last thing we sent it", same caveat as `lastJob` on the status side.
-    @Published private(set) var lastUploadedRemotePath: String?
+    ///
+    /// Persisted, so "Resume from Line" still works after the app was closed
+    /// while a job sat suspended on the machine — the suspended state itself
+    /// lives on the machine, this is just the file name to seek in.
+    @Published private(set) var lastUploadedRemotePath: String? = UserDefaults.standard.string(forKey: "lastUploadedRemotePath") {
+        didSet { UserDefaults.standard.set(lastUploadedRemotePath, forKey: "lastUploadedRemotePath") }
+    }
 
     /// The canvas XY offset (mm, measured from the canvas origin — the
     /// anchor's inside corner) that was on screen when the current upload
@@ -86,6 +92,11 @@ class ControllerModel: ObservableObject {
     /// The most recent alarm/error text, to say *what* went wrong when the
     /// status change is what announces it.
     private var lastFault: (text: String, date: Date)?
+
+    /// When the app itself last sent `suspend`, so the resulting Pause state
+    /// isn't reported as "paused by the machine". Cleared when it's used,
+    /// and when the job ends without ever getting there.
+    private var suspendRequestedAt: Date?
 
     // MARK: Auto level before run
 
@@ -358,7 +369,27 @@ class ControllerModel: ObservableObject {
     private func machineStateChanged(to state: String) {
         let previous = lastBaseState
         lastBaseState = state
+
+        // First report after connecting, and a job is sitting suspended on
+        // the machine: the "continue later" moment. Say where it stopped.
+        if previous.isEmpty, state == "Pause" {
+            var message = "A job is suspended on the machine."
+            if let job = connection.status?.activeJob {
+                message = "A job is suspended on the machine at line \(job.currentLine) (\(job.percent)%, \(job.elapsedText) elapsed)."
+            }
+            alerts.post(MachineAlert(
+                kind: .suspendedJob,
+                title: "Suspended job",
+                message: message + " If it stopped for a tool change, do that first, then resume."
+            ))
+            return
+        }
+
         guard !state.isEmpty, !previous.isEmpty, state != previous else { return }
+
+        // The job ended (or the machine faulted) before a requested suspend
+        // took effect: a later pause is then not ours.
+        if state == "Idle" || state == "Alarm" { suspendRequestedAt = nil }
 
         switch state {
             case "Alarm":
@@ -372,11 +403,13 @@ class ControllerModel: ObservableObject {
                     alerts.post(MachineAlert(kind: .alarm, title: "Machine alarm", message: detail))
                 }
             case "Pause":
-                // The app has no button that suspends a job, so a suspended
-                // machine was paused by the machine itself — usually to wait
-                // for a tool change. Skipped when a specific tool-change
-                // prompt already said so.
-                if !alerts.wasPosted(.toolChange, within: 60) {
+                if let requested = suspendRequestedAt, Date().timeIntervalSince(requested) < 60 {
+                    // Our own `suspend` took effect — the person knows.
+                    suspendRequestedAt = nil
+                } else if !alerts.wasPosted(.toolChange, within: 60) {
+                    // Otherwise the machine paused itself — usually to wait
+                    // for a tool change. Skipped when a specific tool-change
+                    // prompt already said so.
                     alerts.post(MachineAlert(
                         kind: .paused,
                         title: "Job paused by the machine",
@@ -387,7 +420,7 @@ class ControllerModel: ObservableObject {
                 break
         }
 
-        if previous == "Pause" { alerts.resolve([.toolChange, .paused]) }
+        if previous == "Pause" { alerts.resolve([.toolChange, .paused, .suspendedJob]) }
         if previous == "Alarm" { alerts.resolve([.alarm]) }
     }
 
@@ -535,6 +568,28 @@ class ControllerModel: ObservableObject {
         connection.requestStatus()
     }
 
+    /// Suspends the running job so it can be picked up later, unlike
+    /// `pauseJob()`'s feed-hold, which is a momentary stop. Per the firmware
+    /// (see `MakeraMachineStatus.isSuspended`) `suspend` lets the planner
+    /// drain, saves the position and stops the spindle — so the machine is
+    /// safe to leave, and to jog or MDI around while it waits. Continue with
+    /// `resumeJob()` (console `resume`), also after the app was closed and
+    /// reopened: the suspended state lives on the machine, not here.
+    ///
+    /// Only offered for a job playing from the SD card and currently moving.
+    /// A macro streamed by `jobRunner` (the auto-level pre-run, Auto Z) has
+    /// nothing the firmware could suspend.
+    func suspendJob() {
+        guard connection.isConnected,
+              let status = connection.status,
+              status.isRunning,
+              status.activeJob != nil else { return }
+
+        suspendRequestedAt = Date()
+        sendRawCommand(consoleSuspendCommand, recordInHistory: false)
+        connection.requestStatus()
+    }
+
     /// Resumes whichever kind of pause the machine is in, from wherever it
     /// actually paused. See `resumeJob(fromLine:)` to resume from a chosen
     /// line instead (Roadmap 1.5).
@@ -653,6 +708,10 @@ class ControllerModel: ObservableObject {
     /// to be confused with `resumeCommand` above, which is the realtime `~`
     /// that resumes a feed-hold. See `resumeJob()`.
     let consoleResumeCommand = "resume"
+
+    /// Console (line) command that suspends a job at the next safe point.
+    /// The counterpart of `consoleResumeCommand`; see `suspendJob()`.
+    let consoleSuspendCommand = "suspend"
 
     /// Printable stand-in for Ctrl-X (0x18), which can't be shown in the
     /// palette or typed into the MDI box. Sends the soft-reset byte.

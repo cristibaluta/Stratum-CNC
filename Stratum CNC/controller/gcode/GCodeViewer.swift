@@ -35,7 +35,12 @@ struct GCodeViewer: View {
     /// supplies `pauseJob`, which also gates on the machine's reported state
     /// (Roadmap 1.3).
     var onPause: (() -> Void)? = nil
-    /// Cycle-resume (`~`) after a feed-hold. Supplied as `resumeJob`.
+    /// Suspends the job so it can be continued later (console `suspend`):
+    /// stops the spindle and saves the position, unlike `onPause`'s
+    /// momentary feed-hold. Supplied as `ControllerModel.suspendJob`.
+    var onSuspend: (() -> Void)? = nil
+    /// Resume after either kind of pause. Supplied as `resumeJob`, which
+    /// picks `~` for a feed-hold or `resume` for a suspend.
     var onResume: (() -> Void)? = nil
     /// Resume, but seek to a chosen line first (`goto <line>`, Roadmap 1.5)
     /// instead of continuing from wherever the hold happened. Supplied as
@@ -221,6 +226,13 @@ struct GCodeViewer: View {
         return status.isRunning || status.isHeld
     }
 
+    /// Suspend needs a job that is actually playing and moving, mirroring
+    /// `ControllerModel.suspendJob`'s own guard.
+    private var canSuspend: Bool {
+        guard connection.isConnected, let status = connection.status else { return false }
+        return status.isRunning && status.activeJob != nil
+    }
+
     /// Stop covers both an upload in flight and a job running on the
     /// machine, so it's enabled for either.
     private var canStop: Bool {
@@ -236,6 +248,9 @@ struct GCodeViewer: View {
     }
 
     private var progressText: String? {
+        if connection.status?.isSuspended == true {
+            return "Suspended"
+        }
         if isHeld {
             return "Paused"
         }
@@ -273,7 +288,17 @@ struct GCodeViewer: View {
             }
             .buttonStyle(.borderless)
             .disabled(!canPauseOrResume)
-            .help(isHeld ? "Resume the job (~)" : "Pause the job — feed hold (!)")
+            .help(isHeld ? "Resume the job" : "Pause the job — feed hold (!)")
+
+            Button {
+                onSuspend?()
+            } label: {
+                Image(systemName: "moon.zzz.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .disabled(!canSuspend)
+            .help("Suspend the job to continue later: stops the spindle and saves the position (console suspend). Resume brings it back.")
 
             Button {
                 onStop?()

@@ -124,6 +124,17 @@ The app can't actually run a G-code file on the machine yet. This is the core mi
       other file-position console commands (`play <path>`), but worth checking against a real
       machine before relying on it, especially whether `goto` needs the path repeated
       (`goto <path> <line>`) rather than a bare line number.
+- [x] 1.6 Suspend a job and continue later
+      `ControllerModel.suspendJob()` sends the console `suspend` (1.3 notes what it does:
+      drains the planner, saves position, stops the spindle) from a separate button in
+      `GCodeViewer`'s command bar; the existing resume picks the matching `resume`. The
+      suspended state lives on the machine, so it survives closing the app: on connecting to
+      a machine already in `Pause` with a job, an alert says where it stopped and offers
+      Resume. `lastUploadedRemotePath` is persisted so "Resume from Line" still works after a
+      relaunch. Our own suspend is not reported as "paused by the machine".
+      Not covered: a job that was *stopped* (`^X`) or a machine that was powered off. Neither
+      leaves anything to resume; restarting mid-file would first need the tool, spindle, feed,
+      modal state and leveling grid re-established.
 
 ## Phase 2 — Wire up already-modeled commands
 
