@@ -25,6 +25,18 @@ final class D2_CanvasState: ObservableObject, Equatable {
     @Published private(set) var selectedObjectIDs: Set<UUID> = []
     @Published private(set) var selectedPaths: [PathSelection] = []
 
+    /// True while the user is picking shapes for a toolpath. In this mode a
+    /// click on a path toggles it in `pickedPaths`, empty-space clicks do
+    /// nothing, and the regular object/path selection is frozen.
+    @Published private(set) var isPickingPaths: Bool = false
+
+    /// The shapes picked so far in the current picking session.
+    @Published private(set) var pickedPaths: [PathSelection] = []
+
+    /// Fired after every change to `pickedPaths` made while picking, with the
+    /// full current list. CAMModel writes it into the toolpath being edited.
+    var onPickedPathsChanged: (([PathSelection]) -> Void)?
+
     /// Whether the stock should be drawn. The persisted value lives in
     /// ProjectData; whoever owns that (currently CAMView) is responsible for
     /// mirroring it here whenever it changes, so the renderer only ever has
@@ -74,12 +86,14 @@ final class D2_CanvasState: ObservableObject, Equatable {
         objects.removeAll { $0.id == id }
         selectedObjectIDs.remove(id)
         selectedPaths.removeAll { $0.objectID == id }
+        dropPickedPaths { $0.objectID == id }
         onObjectsChanged?()
     }
 
     func removeAll() {
         objects.removeAll()
         clearSelection()
+        dropPickedPaths { _ in true }
         onObjectsChanged?()
     }
 
@@ -90,7 +104,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
     // MARK: Selection
 
     func selectObject(_ id: UUID) {
-        guard objects.contains(where: { $0.id == id }) else {
+        guard !isPickingPaths, objects.contains(where: { $0.id == id }) else {
             return
         }
 
@@ -100,7 +114,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Replaces the current selection with a single path.
     func selectPath(objectID: UUID, pathIndex: Int) {
-        guard objects.contains(where: { $0.id == objectID }) else {
+        guard !isPickingPaths, objects.contains(where: { $0.id == objectID }) else {
             return
         }
 
@@ -111,7 +125,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// Adds the path to the selection if it isn't already selected, otherwise removes it.
     /// Used for shift/cmd-click multi-select.
     func togglePathSelection(objectID: UUID, pathIndex: Int) {
-        guard objects.contains(where: { $0.id == objectID }) else {
+        guard !isPickingPaths, objects.contains(where: { $0.id == objectID }) else {
             return
         }
 
@@ -147,6 +161,69 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     func isPathSelected(objectID: UUID, pathIndex: Int) -> Bool {
         selectedPaths.contains(PathSelection(objectID: objectID, pathIndex: pathIndex))
+    }
+
+    // MARK: Path picking mode
+    //
+    // Entered from a toolpath cell ("Select shapes"), left again from the same
+    // cell ("Done"). While active, the canvas toggles shapes in and out of
+    // `pickedPaths` on click instead of touching the normal selection.
+
+    /// Enters picking mode, seeded with the toolpath's existing targets.
+    /// Normal selection is cleared so red/blue highlights don't compete with
+    /// the picked-shape highlight.
+    func beginPickingPaths(initial: [PathSelection]) {
+        clearSelection()
+
+        // Drop targets that no longer resolve (object removed, file re-imported).
+        let valid = initial.filter { isValidPath($0) }
+        pickedPaths = valid
+        isPickingPaths = true
+
+        if valid.count != initial.count {
+            onPickedPathsChanged?(valid)
+        }
+    }
+
+    func endPickingPaths() {
+        isPickingPaths = false
+        pickedPaths.removeAll()
+    }
+
+    /// Adds the path to the picked set, or removes it if it's already there.
+    func togglePickedPath(objectID: UUID, pathIndex: Int) {
+        let selection = PathSelection(objectID: objectID, pathIndex: pathIndex)
+        guard isPickingPaths, isValidPath(selection) else {
+            return
+        }
+
+        if let existing = pickedPaths.firstIndex(of: selection) {
+            pickedPaths.remove(at: existing)
+        } else {
+            pickedPaths.append(selection)
+        }
+        onPickedPathsChanged?(pickedPaths)
+    }
+
+    /// Picked path indices for one object, for rendering.
+    func pickedPathIndices(for object: D2_Object) -> Set<Int> {
+        Set(pickedPaths.filter { $0.objectID == object.id }.map { $0.pathIndex })
+    }
+
+    private func isValidPath(_ selection: PathSelection) -> Bool {
+        guard let object = object(withID: selection.objectID) else {
+            return false
+        }
+        return object.paths.indices.contains(selection.pathIndex)
+    }
+
+    private func dropPickedPaths(where shouldDrop: (PathSelection) -> Bool) {
+        guard isPickingPaths else { return }
+        let before = pickedPaths.count
+        pickedPaths.removeAll(where: shouldDrop)
+        if pickedPaths.count != before {
+            onPickedPathsChanged?(pickedPaths)
+        }
     }
 
     // MARK: Object editing
@@ -225,6 +302,8 @@ final class D2_CanvasState: ObservableObject, Equatable {
         lhs.objects.count == rhs.objects.count &&
         lhs.selectedObjectIDs.count == rhs.selectedObjectIDs.count &&
         lhs.selectedPaths.count == rhs.selectedPaths.count &&
+        lhs.isPickingPaths == rhs.isPickingPaths &&
+        lhs.pickedPaths.count == rhs.pickedPaths.count &&
         lhs.isStockVisible == rhs.isStockVisible &&
         lhs.zoomScale == rhs.zoomScale
     }

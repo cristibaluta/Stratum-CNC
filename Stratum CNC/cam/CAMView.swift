@@ -165,7 +165,11 @@ struct CAMView: View {
     private var toolpathsPanel: some View {
         GroupBox("TOOLPATHS") {
             ToolpathListView(
-                toolpaths: $camModel.toolpaths
+                toolpaths: $camModel.toolpaths,
+                pickingToolpathID: camModel.pickingToolpathID,
+                onTogglePicking: { id in
+                    camModel.togglePicking(for: id)
+                }
             )
         }
     }

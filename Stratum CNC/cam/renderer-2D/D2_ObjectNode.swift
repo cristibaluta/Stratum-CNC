@@ -55,7 +55,8 @@ extension D2_ObjectNode {
     func update(object: D2_Object,
                 zoomScale: CGFloat,
                 objectSelected: Bool,
-                selectedPathIndexes: [Int]) {
+                selectedPathIndexes: [Int],
+                pickedPathIndexes: Set<Int>) {
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -72,7 +73,8 @@ extension D2_ObjectNode {
         updateStyles(object: object,
                      zoomScale: zoomScale,
                      objectSelected: objectSelected,
-                     selectedPathIndexes: selectedPathIndexes)
+                     selectedPathIndexes: selectedPathIndexes,
+                     pickedPathIndexes: pickedPathIndexes)
 
         CATransaction.commit()
     }
@@ -102,7 +104,8 @@ private extension D2_ObjectNode {
     func updateStyles(object: D2_Object,
                       zoomScale: CGFloat,
                       objectSelected: Bool,
-                      selectedPathIndexes: [Int]) {
+                      selectedPathIndexes: [Int],
+                      pickedPathIndexes: Set<Int>) {
 
         let effectiveScale = max(zoomScale * object.scale, 0.000001)
 
@@ -110,7 +113,12 @@ private extension D2_ObjectNode {
 
             let isPathSelected = selectedPathIndexes.contains(index)
 
-            if objectSelected {
+            if pickedPathIndexes.contains(index) {
+                // Shape picked for the toolpath currently being edited
+                shapeLayer.strokeColor = STColor.systemOrange.cgColor
+                shapeLayer.lineWidth = 2.5 / effectiveScale
+
+            } else if objectSelected {
                 shapeLayer.strokeColor = STColor.systemRed.cgColor
                 shapeLayer.lineWidth = 2.5 / effectiveScale
 

@@ -30,6 +30,11 @@ class CAMModel: ObservableObject {
     @Published var toolpaths: [ToolpathData] = []
     @Published var selectedToolpathID: UUID?
 
+    /// The toolpath currently in "select shapes" mode, if any. While this is
+    /// non-nil the canvas is in picking mode (canvasState.isPickingPaths) and
+    /// every click on a shape adds/removes it from that toolpath's `targets`.
+    @Published private(set) var pickingToolpathID: UUID?
+
     // ---- CANVAS VIEWPORT STATE ----
     // Persisted between sessions. Not @Published: this is *reported* by the
     // canvas (via CAM_2D_View's onViewportChanged) after the user pans/zooms,
@@ -82,6 +87,47 @@ class CAMModel: ObservableObject {
             guard let self else { return }
             self.onObjectsChanged?(self.canvasState.objects)
         }
+
+        // Picks are written into the toolpath live, so the cell's shape count
+        // updates as the user clicks and nothing is lost when the mode closes.
+        canvasState.onPickedPathsChanged = { [weak self] paths in
+            self?.applyPickedPaths(paths)
+        }
+    }
+
+    // MARK: Shape picking
+
+    /// Enters picking mode for `id`, or leaves it if `id` is already the one
+    /// being edited. Starting it for a different toolpath switches over.
+    func togglePicking(for id: UUID) {
+        if pickingToolpathID == id {
+            endPicking()
+        } else {
+            beginPicking(for: id)
+        }
+    }
+
+    func beginPicking(for id: UUID) {
+        guard let toolpath = toolpaths.first(where: { $0.id == id }) else {
+            return
+        }
+        // Set before seeding the canvas: seeding can prune stale targets and
+        // report that back through applyPickedPaths, which needs this id.
+        pickingToolpathID = id
+        canvasState.beginPickingPaths(initial: toolpath.targets)
+    }
+
+    func endPicking() {
+        pickingToolpathID = nil
+        canvasState.endPickingPaths()
+    }
+
+    private func applyPickedPaths(_ paths: [PathSelection]) {
+        guard let id = pickingToolpathID,
+              let index = toolpaths.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        toolpaths[index].targets = paths
     }
 
     @discardableResult
@@ -119,6 +165,7 @@ class CAMModel: ObservableObject {
     }
 
     func clear() {
+        endPicking()
         canvasState.removeAll()
         toolpaths.removeAll()
     }

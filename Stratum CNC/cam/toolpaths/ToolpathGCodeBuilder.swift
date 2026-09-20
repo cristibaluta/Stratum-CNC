@@ -18,7 +18,7 @@ enum ToolpathGCodeBuilder {
 
         var errorDescription: String? {
             switch self {
-            case .noTarget: return "This toolpath isn't assigned to a contour yet — select one on the canvas first."
+            case .noTarget: return "This toolpath has no shapes yet - use 'Select shapes' and click them on the canvas."
             case .objectNotFound: return "The object this toolpath targets is no longer on the canvas."
             case .pathIndexOutOfRange: return "The targeted contour no longer exists on this object (was the file re-imported?)."
             case .emptyPath: return "The targeted contour has no drawable geometry."
@@ -26,26 +26,29 @@ enum ToolpathGCodeBuilder {
         }
     }
 
-    /// Builds a complete G-code program for one toolpath, using the contour
-    /// it targets (`toolpath.target`), resolved against the current canvas state.
+    /// Builds a complete G-code program for one toolpath, using the contours
+    /// it targets (`toolpath.targets`), resolved against the current canvas state.
     static func generate(for toolpath: ToolpathData, canvasState: D2_CanvasState, flattenTolerance: CGFloat = 0.05) throws -> String {
 
-        guard let target = toolpath.target else { throw BuildError.noTarget }
-        guard let object = canvasState.objects.first(where: { $0.id == target.objectID }) else {
-            throw BuildError.objectNotFound
-        }
-        guard object.paths.indices.contains(target.pathIndex) else {
-            throw BuildError.pathIndexOutOfRange
-        }
+        guard !toolpath.targets.isEmpty else { throw BuildError.noTarget }
 
-        let localPath = object.paths[target.pathIndex]
-
-        // Flatten in local (import) space, then map every point into world/
-        // machine space via the object's *current* transform — same
+        // Flatten each target in local (import) space, then map every point
+        // into world/machine space via its object's *current* transform — same
         // convention `machineEntities` uses, so this always matches what's
         // drawn, however the object's been moved/resized/rotated since import.
-        var subpaths = BezierPathFlattener.flatten([localPath], tolerance: flattenTolerance)
-            .map { $0.map { object.worldPoint(fromLocal: $0) } }
+        var subpaths = [[CGPoint]]()
+        for target in toolpath.targets {
+            guard let object = canvasState.objects.first(where: { $0.id == target.objectID }) else {
+                throw BuildError.objectNotFound
+            }
+            guard object.paths.indices.contains(target.pathIndex) else {
+                throw BuildError.pathIndexOutOfRange
+            }
+
+            let localPath = object.paths[target.pathIndex]
+            subpaths += BezierPathFlattener.flatten([localPath], tolerance: flattenTolerance)
+                .map { $0.map { object.worldPoint(fromLocal: $0) } }
+        }
 
         guard !subpaths.isEmpty, subpaths.contains(where: { $0.count > 1 }) else {
             throw BuildError.emptyPath

@@ -10,6 +10,10 @@ import SwiftUI
 struct ToolpathListView: View {
 
     @Binding var toolpaths: [ToolpathData]
+    /// The toolpath currently in "select shapes" mode, if any.
+    var pickingToolpathID: UUID?
+    var onTogglePicking: (UUID) -> Void = { _ in }
+
     @State private var draggedToolpath: ToolpathData?
 
     var body: some View {
@@ -20,7 +24,9 @@ struct ToolpathListView: View {
                 LazyVStack(spacing: 16) {
 
                     ForEach($toolpaths) { $toolpath in
-                        ToolpathCellView(toolpath: $toolpath)
+                        ToolpathCellView(toolpath: $toolpath,
+                                         isPicking: pickingToolpathID == toolpath.id,
+                                         onTogglePicking: { onTogglePicking(toolpath.id) })
                             .onDrag {
                                 draggedToolpath = toolpath
                                 return NSItemProvider(object: toolpath.id.uuidString as NSString)
@@ -78,6 +84,8 @@ struct ToolpathListView: View {
                                 stepOver: 0.1,
                                 safeZ: 3)
                 lastToolpath.id = UUID()
+                // Copy the settings, not the shapes: the new toolpath starts with nothing selected
+                lastToolpath.targets = []
                 toolpaths += [lastToolpath]
             }
             Spacer()

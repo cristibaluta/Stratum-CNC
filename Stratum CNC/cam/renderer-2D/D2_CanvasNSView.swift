@@ -43,6 +43,13 @@ final class D2_CanvasNSView: NSView {
     private var lastDragLocation: CGPoint?
     private var lastDragWorldLocation: CGPoint?
     private var dragMode: DragMode = .pan
+
+    /// Picking mode: the shape under the cursor at mouse-down. It's only
+    /// toggled on mouse-up, and only if the cursor didn't travel far, so
+    /// click-dragging over a shape still pans the canvas instead of
+    /// toggling it by accident.
+    private var pendingPick: (selection: PathSelection, startLocation: CGPoint)?
+    private static let clickDragThreshold: CGFloat = 4
     private var panOffset = CGPoint.zero
     private var zoomScale: CGFloat = 3.0
     private var needsAutoFitAfterLayout = false
@@ -232,6 +239,21 @@ final class D2_CanvasNSView: NSView {
         lastDragWorldLocation = worldPoint
         dragMode = .pan
 
+        // Picking shapes for a toolpath: bypass the normal object/path
+        // selection entirely (see D2_CanvasState.isPickingPaths).
+        if canvasState.isPickingPaths {
+            if let hit = hitTester.hitTest(worldPoint: worldPoint,
+                                           objects: canvasState.objects,
+                                           nodes: renderer.nodes,
+                                           worldLayer: renderer.workLayer,
+                                           zoomScale: zoomScale) {
+                pendingPick = (selection: hit, startLocation: viewPoint)
+            } else {
+                pendingPick = nil
+            }
+            return
+        }
+
         if let selectedObjectId = canvasState.selectedObjectIDs.first,
            let object = canvasState.object(withID: selectedObjectId),
            let selectedNode = renderer.nodes[selectedObjectId],
@@ -279,6 +301,12 @@ final class D2_CanvasNSView: NSView {
             return
         }
 
+        // Moved too far to be a click: it's a pan, not a pick.
+        if let pick = pendingPick,
+           hypot(location.x - pick.startLocation.x, location.y - pick.startLocation.y) > Self.clickDragThreshold {
+            pendingPick = nil
+        }
+
         switch dragMode {
         case .pan:
             panOffset.x += location.x - last.x
@@ -302,6 +330,12 @@ final class D2_CanvasNSView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let pick = pendingPick {
+            canvasState.togglePickedPath(objectID: pick.selection.objectID,
+                                         pathIndex: pick.selection.pathIndex)
+            pendingPick = nil
+            render()
+        }
         if case .pan = dragMode {
             onViewportChanged?(panOffset, zoomScale)
         }

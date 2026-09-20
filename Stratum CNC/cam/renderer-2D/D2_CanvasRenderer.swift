@@ -68,7 +68,8 @@ final class D2_CanvasRenderer {
             node.update(object: obj,
                         zoomScale: canvasState.zoomScale,
                         objectSelected: selected,
-                        selectedPathIndexes: selectedPathIndexes)
+                        selectedPathIndexes: selectedPathIndexes,
+                        pickedPathIndexes: canvasState.pickedPathIndices(for: obj))
         }
     }
 }

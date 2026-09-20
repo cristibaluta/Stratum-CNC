@@ -28,9 +28,55 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     var stepOver: Double
     var safeZ: Double
 
-    /// Which contour this toolpath cuts. Nil until it's assigned — e.g. by
-    /// creating the toolpath from the currently-selected contour.
-    var target: PathSelection? = nil
+    /// The contours (paths on the canvas) this toolpath cuts. Empty until the
+    /// user picks some — see CAMModel.beginPicking(for:).
+    var targets: [PathSelection] = []
+
+    // Explicit so the legacy single-contour `target` key can be read on decode
+    // (see init(from:) below) without being written back on encode.
+    private enum CodingKeys: String, CodingKey {
+        case id, name, tool
+        case startZ, endZ
+        case contour, ramping
+        case feedRate, plungeRate, spindleRPM
+        case stepDown, stepOver, safeZ
+        case targets
+    }
+}
+
+// Kept in an extension so the compiler-generated memberwise init survives.
+extension ToolpathData {
+
+    /// Projects saved before multi-shape support stored one optional `target`.
+    private enum LegacyKeys: String, CodingKey {
+        case target
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        tool = try c.decode(Tool.self, forKey: .tool)
+        startZ = try c.decode(Double.self, forKey: .startZ)
+        endZ = try c.decode(Double.self, forKey: .endZ)
+        contour = try c.decode(ContourType.self, forKey: .contour)
+        ramping = try c.decode(RampingSettings.self, forKey: .ramping)
+        feedRate = try c.decode(Double.self, forKey: .feedRate)
+        plungeRate = try c.decode(Double.self, forKey: .plungeRate)
+        spindleRPM = try c.decode(Int.self, forKey: .spindleRPM)
+        stepDown = try c.decode(Double.self, forKey: .stepDown)
+        stepOver = try c.decode(Double.self, forKey: .stepOver)
+        safeZ = try c.decode(Double.self, forKey: .safeZ)
+
+        targets = try c.decodeIfPresent([PathSelection].self, forKey: .targets) ?? []
+
+        if targets.isEmpty {
+            let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+            if let old = try legacy.decodeIfPresent(PathSelection.self, forKey: .target) {
+                targets = [old]
+            }
+        }
+    }
 }
 
 enum ContourType: String, CaseIterable, Codable, Hashable {

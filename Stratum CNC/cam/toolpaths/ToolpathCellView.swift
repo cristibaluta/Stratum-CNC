@@ -10,6 +10,11 @@ import SwiftUI
 struct ToolpathCellView: View {
     @Binding var toolpath: ToolpathData
 
+    /// True while the canvas is in "select shapes" mode for this toolpath.
+    var isPicking: Bool = false
+    /// Enters shape-picking mode for this toolpath, or leaves it if already active.
+    var onTogglePicking: () -> Void = {}
+
     @State private var expanded = true
     @State private var showRampEditor = false
 
@@ -25,6 +30,8 @@ struct ToolpathCellView: View {
                         .font(.system(size: 15, weight: .semibold))
 
                     Spacer()
+
+                    shapesButton
 
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) {
@@ -85,6 +92,47 @@ struct ToolpathCellView: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(.quaternary)
         )
+        .overlay {
+            // Marks which toolpath the canvas clicks are going to
+            if isPicking {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.orange, lineWidth: 2)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    // MARK: Shapes
+
+    /// "Select shapes" -> (canvas picking mode, button becomes "Done") -> back.
+    /// Esc also closes the mode while it's active.
+    private var shapesButton: some View {
+        Button {
+            onTogglePicking()
+        } label: {
+            Label(shapesTitle,
+                  systemImage: isPicking ? "checkmark.circle.fill" : "cursorarrow.click")
+                .font(.system(size: 12, weight: .medium))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(isPicking ? .orange : nil)
+        .keyboardShortcut(isPicking ? .cancelAction : nil)
+        .help(isPicking
+              ? "Click shapes on the canvas to add or remove them. Click Done (or press Esc) when finished."
+              : "Choose which shapes on the canvas this toolpath cuts")
+    }
+
+    private var shapesTitle: String {
+        let count = toolpath.targets.count
+        if isPicking {
+            return count == 0 ? "Done" : "Done (\(count) selected)"
+        }
+        switch count {
+        case 0: return "Select shapes"
+        case 1: return "1 shape"
+        default: return "\(count) shapes"
+        }
     }
 }
 
