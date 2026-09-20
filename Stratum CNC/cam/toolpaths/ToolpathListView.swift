@@ -16,6 +16,8 @@ struct ToolpathListView: View {
     /// Last generation result per toolpath id.
     var generations: [UUID: ToolpathGeneration] = [:]
     var onGenerate: (UUID) -> Void = { _ in }
+    /// Toolpaths currently generating in the background.
+    var generatingIDs: Set<UUID> = []
 
     @State private var draggedToolpath: ToolpathData?
 
@@ -31,6 +33,7 @@ struct ToolpathListView: View {
                                          isPicking: pickingToolpathID == toolpath.id,
                                          onTogglePicking: { onTogglePicking(toolpath.id) },
                                          generation: generations[toolpath.id],
+                                         isGenerating: generatingIDs.contains(toolpath.id),
                                          onGenerate: { onGenerate(toolpath.id) })
                             .onDrag {
                                 draggedToolpath = toolpath

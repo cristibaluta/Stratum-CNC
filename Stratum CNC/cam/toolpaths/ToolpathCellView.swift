@@ -17,6 +17,8 @@ struct ToolpathCellView: View {
 
     /// Result of the last Generate for this toolpath, if any.
     var generation: ToolpathGeneration? = nil
+    /// True while the generation is running in the background.
+    var isGenerating: Bool = false
     /// Builds the toolpaths from the selected shapes.
     var onGenerate: () -> Void = {}
 
@@ -122,12 +124,21 @@ struct ToolpathCellView: View {
             Button {
                 onGenerate()
             } label: {
-                Label("Generate", systemImage: "wand.and.stars")
-                    .font(.system(size: 12, weight: .medium))
+                if isGenerating {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Generating…")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                } else {
+                    Label("Generate", systemImage: "wand.and.stars")
+                        .font(.system(size: 12, weight: .medium))
+                }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .disabled(toolpath.targets.isEmpty)
+            .disabled(toolpath.targets.isEmpty || isGenerating)
             .help(toolpath.targets.isEmpty
                   ? "Select the shapes to cut first"
                   : "Generate the toolpaths for the selected shapes")

@@ -34,9 +34,20 @@ enum ToolpathGenerator {
         }
     }
 
-    /// Generates the toolpaths for every shape in `toolpath.targets`, resolved
-    /// against the objects' *current* position/scale/rotation on the canvas.
-    static func generate(for toolpath: ToolpathData, canvasState: D2_CanvasState) throws -> [SC.OutputToolpath] {
+    /// Everything the engine needs, captured up front so the (slow) engine
+    /// run can happen on a background thread without touching the canvas.
+    struct Job: Sendable {
+        let contours: [SC.Contour]
+        let tool: SC.ToolParams
+        let settings: SC.MachineSettings
+        let operation: SC.MachiningOperation
+        let startZ: Double
+    }
+
+    /// Validates the toolpath and resolves its shapes against the objects'
+    /// *current* position/scale/rotation on the canvas. Cheap, but reads
+    /// canvas state, so call it on the main thread; then hand the `Job` to `run`.
+    static func prepare(for toolpath: ToolpathData, canvasState: D2_CanvasState) throws -> Job {
 
         guard !toolpath.targets.isEmpty else {
             throw GenerationError.noShapes
@@ -59,12 +70,22 @@ enum ToolpathGenerator {
             throw GenerationError.noGeometry
         }
 
-        let outputs = try SCEngine().generateToolpaths(from: contours,
-                                                       tool: makeTool(from: toolpath.tool),
-                                                       settings: makeSettings(from: toolpath),
-                                                       operation: makeOperation(from: toolpath))
+        return Job(contours: contours,
+                   tool: makeTool(from: toolpath.tool),
+                   settings: makeSettings(from: toolpath),
+                   operation: makeOperation(from: toolpath),
+                   startZ: toolpath.startZ)
+    }
 
-        return outputs.map { droppingPasses(above: toolpath.startZ, from: $0) }
+    /// The slow part: runs StratumCAM. Touches no shared state, so it's safe
+    /// to call from any thread.
+    static func run(_ job: Job) throws -> [SC.OutputToolpath] {
+        let outputs = try SCEngine().generateToolpaths(from: job.contours,
+                                                       tool: job.tool,
+                                                       settings: job.settings,
+                                                       operation: job.operation)
+
+        return outputs.map { droppingPasses(above: job.startZ, from: $0) }
     }
 
     /// A message fit for showing under the Generate button.

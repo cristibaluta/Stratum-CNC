@@ -24,6 +24,13 @@ final class D2_CanvasRenderer {
     private let toolpathLineWidth: CGFloat = 0.75
     /// The path currently on `toolpathsLayer`, so it's only re-assigned when it actually changed.
     private var renderedToolpathsPath: CGPath?
+    /// Line width currently on `toolpathsLayer` (0 = not set yet).
+    private var appliedToolpathLineWidth: CGFloat = 0
+
+    /// The objects `nodes` were built from. Nodes only depend on an object's
+    /// immutable geometry (`paths`, `originalSize`), so as long as this is the
+    /// same list of the same instances, nodes are reused and merely updated.
+    private var renderedObjects: [D2_Object] = []
 
     init() {
         rulerLayer = RulerShapeLayer(rulerLength: rulerLength)
@@ -60,14 +67,45 @@ final class D2_CanvasRenderer {
             toolpathsLayer.path = canvasState.toolpathsPath
             renderedToolpathsPath = canvasState.toolpathsPath
         }
-        toolpathsLayer.lineWidth = toolpathLineWidth / max(canvasState.zoomScale, 0.000001)
+
+        // Changing lineWidth makes Core Animation re-stroke the whole (large) path,
+        // so during a zoom only do it once the width is visibly off (>15%) —
+        // for a hairline that's imperceptible, and it turns hundreds of
+        // restrokes per pinch into a handful.
+        let desiredWidth = toolpathLineWidth / max(canvasState.zoomScale, 0.000001)
+        if appliedToolpathLineWidth == 0 || abs(desiredWidth - appliedToolpathLineWidth) > appliedToolpathLineWidth * 0.15 {
+            toolpathsLayer.lineWidth = desiredWidth
+            appliedToolpathLineWidth = desiredWidth
+        }
 
         CATransaction.commit()
+    }
+
+    /// Rebuilds the layer tree only when the set of objects actually changed
+    /// (added, removed, replaced, reordered). Moves, rotations, scaling,
+    /// selection and zoom don't — `D2_ObjectNode.update` handles those on the
+    /// existing layers. Previously every render recreated every CAShapeLayer.
+    private func syncNodes(with objects: [D2_Object]) {
+
+        let unchanged = objects.count == renderedObjects.count
+            && zip(objects, renderedObjects).allSatisfy { $0 === $1 }
+        guard !unchanged else {
+            return
+        }
+
+        removeAll()
+        for obj in objects {
+            let node = D2_ObjectNode(object: obj, baseStrokeWidth: baseStrokeWidth)
+            nodes[obj.id] = node
+            objectsLayer.addSublayer(node.layer)
+        }
+        renderedObjects = objects
     }
 
     func removeAll() {
         objectsLayer.sublayers?.forEach { $0.removeFromSuperlayer() }
         nodes.removeAll()
+        renderedObjects = []
     }
 
     func render(state canvasState: D2_CanvasState) {
@@ -81,11 +119,12 @@ final class D2_CanvasRenderer {
 
         renderToolpaths(state: canvasState)
 
-        removeAll()
+        syncNodes(with: canvasState.objects)
+
         for obj in canvasState.objects {
-            let node = D2_ObjectNode(object: obj, baseStrokeWidth: baseStrokeWidth)
-            self.nodes[obj.id] = node
-            self.objectsLayer.addSublayer(node.layer)
+            guard let node = nodes[obj.id] else {
+                continue
+            }
 
             let selected = canvasState.selectedObjectIDs.contains(obj.id)
             let selectedPathIndexes: [Int] = canvasState.selectedPaths.compactMap {

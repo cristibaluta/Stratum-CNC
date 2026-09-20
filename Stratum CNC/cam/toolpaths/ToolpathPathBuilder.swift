@@ -18,12 +18,22 @@ enum ToolpathPathBuilder {
     /// Every pass of every toolpath as one path. Only cutting moves are drawn:
     /// rapids are skipped, and so are pure Z moves (plunges/retracts), which
     /// have no XY extent. Returns nil if there's nothing to draw.
+    ///
+    /// Seen from above, most passes of a profile cut are the same line at a
+    /// different depth (30 passes at 0.1 mm stepdown = 30 copies), so a pass
+    /// whose XY geometry was already drawn is skipped. That cuts the path —
+    /// and the cost of building and stroking it — by the pass count.
     static func path(for outputs: [SC.OutputToolpath]) -> CGPath? {
 
         var pen = Pen()
+        var drawnPasses = Set<Int>()
 
         for output in outputs {
             for pass in output.passes {
+                guard drawnPasses.insert(signature(of: pass)).inserted else {
+                    continue
+                }
+
                 var current: CGPoint?
 
                 for waypoint in pass.waypoints {
@@ -51,6 +61,36 @@ enum ToolpathPathBuilder {
         }
 
         return pen.path.isEmpty ? nil : pen.path
+    }
+
+    /// A hash of the pass's XY moves (Z ignored), to spot passes that would
+    /// draw exactly the same line. Coordinates are quantized to 0.1 µm.
+    private static func signature(of pass: SC.ToolpathPass) -> Int {
+
+        func q(_ value: Double) -> Int {
+            Int((value * 10_000).rounded())
+        }
+
+        var hasher = Hasher()
+        for waypoint in pass.waypoints {
+            switch waypoint.motion {
+            case .rapid:
+                hasher.combine(0)
+            case .linear:
+                hasher.combine(1)
+            case .arcCW(let center):
+                hasher.combine(2)
+                hasher.combine(q(center.x))
+                hasher.combine(q(center.y))
+            case .arcCCW(let center):
+                hasher.combine(3)
+                hasher.combine(q(center.x))
+                hasher.combine(q(center.y))
+            }
+            hasher.combine(q(waypoint.position.x))
+            hasher.combine(q(waypoint.position.y))
+        }
+        return hasher.finalize()
     }
 
     /// Draws connected moves as one subpath, starting a new one only when the

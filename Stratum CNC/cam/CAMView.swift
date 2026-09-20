@@ -173,7 +173,8 @@ struct CAMView: View {
                 generations: camModel.generations,
                 onGenerate: { id in
                     camModel.generateToolpaths(for: id)
-                }
+                },
+                generatingIDs: camModel.generatingIDs
             )
         }
     }

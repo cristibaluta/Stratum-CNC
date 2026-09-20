@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import CoreGraphics
 import StratumCAM
 
 /// The outcome of the last "Generate" for one toolpath. Session-only: the
@@ -14,6 +15,10 @@ struct ToolpathGeneration {
     /// The settings the result was generated from, to tell when it's outdated.
     let source: ToolpathData
     let outcome: Result<[SC.OutputToolpath], Error>
+
+    /// The canvas overlay for this result, built off the main thread together
+    /// with the engine run so showing it is cheap. Nil on failure.
+    let previewPath: CGPath?
 
     var passCount: Int {
         guard case .success(let outputs) = outcome else { return 0 }

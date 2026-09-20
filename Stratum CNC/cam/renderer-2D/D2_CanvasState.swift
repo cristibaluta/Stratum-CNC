@@ -58,11 +58,14 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// every pan/zoom/fit so anything computing zoom-dependent stroke widths
     /// (stock texture, ruler) reads the value that's actually on screen,
     /// instead of the stale default it used to be stuck at.
-    @Published var zoomScale: CGFloat = 1 {
-        didSet {
-            print("zoom scale : \(zoomScale)")
-        }
-    }
+    ///
+    /// Deliberately NOT @Published: it changes on every pinch tick, and
+    /// publishing it made SwiftUI re-evaluate the whole CAMView (inspector,
+    /// material panel, every toolpath cell) at that rate, for nothing — the
+    /// canvas repaints itself after each zoom (see D2_CanvasNSView.magnify).
+    /// A SwiftUI view that needs to show the zoom level (e.g. the zoom
+    /// toolbar, currently disabled) must trigger its own refresh.
+    var zoomScale: CGFloat = 1
 
     /// Invoked after any edit that changes an object's persisted transform
     /// (position, width/scale, rotation) or the object list itself

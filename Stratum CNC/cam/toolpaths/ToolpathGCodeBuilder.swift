@@ -18,7 +18,7 @@ enum ToolpathGCodeBuilder {
 
         var errorDescription: String? {
             switch self {
-            case .noTarget: return "This toolpath has no shapes yet - use 'Select shapes' and click them on the canvas."
+            case .noTarget: return "This toolpath has no shapes yet — use 'Select shapes' and click them on the canvas."
             case .objectNotFound: return "The object this toolpath targets is no longer on the canvas."
             case .pathIndexOutOfRange: return "The targeted contour no longer exists on this object (was the file re-imported?)."
             case .emptyPath: return "The targeted contour has no drawable geometry."

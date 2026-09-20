@@ -37,6 +37,13 @@ class CAMModel: ObservableObject {
     @Published private(set) var pickingToolpathID: UUID?
 
     /// Result of the last "Generate" per toolpath id. Session-only.
+    /// Toolpaths whose generation is running in the background right now.
+    @Published private(set) var generatingIDs: Set<UUID> = []
+    /// Identifies the in-flight run per toolpath. A run only applies its result
+    /// if its token is still current — otherwise it was superseded, or the
+    /// objects changed underneath it and the result would be stale.
+    private var generationTokens: [UUID: UUID] = [:]
+
     @Published private(set) var generations: [UUID: ToolpathGeneration] = [:] {
         didSet {
             updateToolpathPreview()
@@ -95,9 +102,7 @@ class CAMModel: ObservableObject {
             guard let self else { return }
             // Toolpaths are built in world space, so moving/scaling/rotating/
             // removing an object leaves every generated result stale.
-            if !self.generations.isEmpty {
-                self.generations.removeAll()
-            }
+            self.discardGenerations()
             self.onObjectsChanged?(self.canvasState.objects)
         }
 
@@ -139,31 +144,84 @@ class CAMModel: ObservableObject {
 
     /// Runs StratumCAM for the toolpath `id` and stores the outcome (result or
     /// error) in `generations`, where the toolpath's cell reads it from.
+    ///
+    /// The canvas is read here on the main thread, but the engine run and the
+    /// overlay path building happen in the background; the UI stays responsive
+    /// and the cell shows a spinner until `finishGeneration` applies the result.
     func generateToolpaths(for id: UUID) {
-        guard let toolpath = toolpaths.first(where: { $0.id == id }) else {
+        guard let toolpath = toolpaths.first(where: { $0.id == id }),
+              !generatingIDs.contains(id) else {
             return
         }
 
-        let outcome: Result<[SC.OutputToolpath], Error>
+        let job: ToolpathGenerator.Job
         do {
-            outcome = .success(try ToolpathGenerator.generate(for: toolpath, canvasState: canvasState))
+            job = try ToolpathGenerator.prepare(for: toolpath, canvasState: canvasState)
         } catch {
-            outcome = .failure(error)
+            // Bad input (no shapes, invalid depth…): report it right away.
+            generations[id] = ToolpathGeneration(source: toolpath, outcome: .failure(error), previewPath: nil)
+            return
         }
-        generations[id] = ToolpathGeneration(source: toolpath, outcome: outcome)
+
+        let token = UUID()
+        generationTokens[id] = token
+        generatingIDs.insert(id)
+
+        Task { [weak self] in
+            let computed = await Task.detached(priority: .userInitiated) { () -> ComputedGeneration in
+                do {
+                    let outputs = try ToolpathGenerator.run(job)
+                    return ComputedGeneration(outcome: .success(outputs),
+                                              previewPath: ToolpathPathBuilder.path(for: outputs))
+                } catch {
+                    return ComputedGeneration(outcome: .failure(error), previewPath: nil)
+                }
+            }.value
+
+            self?.finishGeneration(id: id, token: token, source: toolpath, computed: computed)
+        }
+    }
+
+    private func finishGeneration(id: UUID, token: UUID, source: ToolpathData, computed: ComputedGeneration) {
+        guard generationTokens[id] == token else {
+            return
+        }
+        generationTokens[id] = nil
+        generatingIDs.remove(id)
+        generations[id] = ToolpathGeneration(source: source,
+                                             outcome: computed.outcome,
+                                             previewPath: computed.previewPath)
+    }
+
+    /// Drops every result and abandons runs in flight (their tokens no longer match).
+    private func discardGenerations() {
+        if !generationTokens.isEmpty {
+            generationTokens.removeAll()
+        }
+        if !generatingIDs.isEmpty {
+            generatingIDs.removeAll()
+        }
+        if !generations.isEmpty {
+            generations.removeAll()
+        }
     }
 
     /// Redraws the canvas's toolpath overlay from the current results, in the
     /// same order as the toolpath list. Also runs when results are cleared
     /// (object edited, project cleared), which removes the overlay.
     private func updateToolpathPreview() {
-        let outputs = toolpaths.flatMap { toolpath -> [SC.OutputToolpath] in
-            guard case .success(let outputs)? = generations[toolpath.id]?.outcome else {
-                return []
-            }
-            return outputs
+        let paths = toolpaths.compactMap { generations[$0.id]?.previewPath }
+
+        switch paths.count {
+        case 0:
+            canvasState.setToolpathsPath(nil)
+        case 1:
+            canvasState.setToolpathsPath(paths[0])
+        default:
+            let combined = CGMutablePath()
+            paths.forEach { combined.addPath($0) }
+            canvasState.setToolpathsPath(combined)
         }
-        canvasState.setToolpathsPath(ToolpathPathBuilder.path(for: outputs))
     }
 
     private func applyPickedPaths(_ paths: [PathSelection]) {
@@ -210,7 +268,7 @@ class CAMModel: ObservableObject {
 
     func clear() {
         endPicking()
-        generations.removeAll()
+        discardGenerations()
         canvasState.removeAll()
         toolpaths.removeAll()
     }
@@ -261,4 +319,11 @@ class CAMModel: ObservableObject {
     func resetToTrueToLife() {
         canvasState.zoomScale = trueToLifeScale
     }
+}
+
+/// What a background generation hands back to the main actor.
+/// `@unchecked Sendable`: the CGPath is fully built before it crosses over and is never mutated afterwards.
+private struct ComputedGeneration: @unchecked Sendable {
+    let outcome: Result<[SC.OutputToolpath], Error>
+    let previewPath: CGPath?
 }
