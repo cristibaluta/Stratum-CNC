@@ -17,39 +17,46 @@ struct MaterialPanelView: View {
 
     var body: some View {
         GroupBox("MATERIAL") {
-            HStack(spacing: 8) {
-                if !isCompact {
-                    visibilityButton
-                }
-
-                Picker("Material", selection: $stock.material) {
-                    ForEach(StockMaterialType.allCases, id: \.self) { material in
-                        Text(material.displayName)
-                            .tag(material)
+            VStack {
+                HStack(spacing: 8) {
+                    if !isCompact {
+                        visibilityButton
                     }
-                }
-                .labelsHidden()
 
-                Picker("Geometry", selection: Binding(
-                    get: {
-                        shapeBinding.wrappedValue.id
-                    },
-                    set: { newID in
-                        if let newShape = StockGeometry.allCases.first(where: { $0.id == newID }) {
-                            shapeBinding.wrappedValue = newShape
+                    Picker("Material", selection: $stock.material) {
+                        ForEach(StockMaterialType.allCases, id: \.self) { material in
+                            Text(material.displayName)
+                                .tag(material)
                         }
                     }
-                )) {
-                    ForEach(StockGeometry.allCases, id: \.id) { shape in
-                        Text(shape.displayName)
-                            .tag(shape.id)
+                    .labelsHidden()
+
+                    Picker("Geometry", selection: Binding(
+                        get: {
+                            shapeBinding.wrappedValue.id
+                        },
+                        set: { newID in
+                            if let newShape = StockGeometry.allCases.first(where: { $0.id == newID }) {
+                                shapeBinding.wrappedValue = newShape
+                            }
+                        }
+                    )) {
+                        ForEach(StockGeometry.allCases, id: \.id) { shape in
+                            Text(shape.displayName)
+                                .tag(shape.id)
+                        }
+                    }
+                    .labelsHidden()
+
+                    Divider().frame(height: 20)
+
+                    if !isCompact {
+                        dimensionsRow
                     }
                 }
-                .labelsHidden()
-
-                Divider().frame(height: 20)
-
-                dimensionsRow
+                if isCompact {
+                    dimensionsRow
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(8)

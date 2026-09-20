@@ -5,14 +5,6 @@
 //  Created by Cristian Baluta on 20.09.2026.
 //
 
-
-//
-//  MachiningRunSheet.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 20.09.2026.
-//
-
 import SwiftUI
 import StratumCAM
 
@@ -21,13 +13,20 @@ import StratumCAM
 ///
 /// Mirrors what MakerStudio's "Machining Wizard" spreads across five tabs
 /// (Set Stock / Set Origin / Auto Probe / Assist Options / Run) — but as one
-/// scrollable view instead of a tab flow, since every one of those settings
-/// is small enough to review at a glance together. Unlike MakerStudio's "Set
-/// Origin" tab, the origin section here is read-only: this app sets the job
-/// origin from the canvas's XY offset control (`XYOffsetControlView`), not
-/// from this sheet, so it's shown as info text only — change it on the
-/// canvas, then reopen this sheet (or just re-check the number here) before
-/// starting.
+/// fixed two-column view instead of a tab flow, since every one of those
+/// settings is small enough to review at a glance together, without
+/// scrolling. Unlike MakerStudio's "Set Origin" tab, the origin section here
+/// is read-only: this app sets the job origin from the canvas's XY offset
+/// control (`XYOffsetControlView`), not from this sheet, so it's shown as
+/// info text only — change it on the canvas, then reopen this sheet (or just
+/// re-check the number here) before starting.
+///
+/// Sections are split by hand into `leftColumn`/`rightColumn` rather than
+/// auto-flowed, so the two columns stay visually balanced (a right column of
+/// mostly toggles reads taller per row than the info-only left column). A
+/// new section later is just one more call in whichever column has room —
+/// or, past a certain point, a third column is a straightforward addition
+/// alongside these two.
 ///
 /// Reads `ControllerModel`/`GCodeStore`/`CAMModel` directly rather than
 /// taking a narrower set of bindings — same reasoning as `PanelProbe`/
@@ -55,25 +54,34 @@ struct MachiningRunSheet: View {
 
             Divider()
 
-            ScrollView {
+            HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 16) {
                     stockSection
                     originSection
                     toolsSection
+                }
+                .frame(maxWidth: .infinity, alignment: .top)
+
+                VStack(alignment: .leading, spacing: 16) {
                     autoProbeSection
                     assistOptionsSection
-                    if let warning = blockingWarning {
-                        warningBanner(warning)
-                    }
+                    Spacer(minLength: 0)
                 }
-                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .padding(16)
+
+            if let warning = blockingWarning {
+                warningBanner(warning)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
             }
 
             Divider()
 
             footer
         }
-        .frame(width: 420, height: 560)
+        .frame(width: 640, height: 460)
     }
 
     // MARK: - Header / footer
