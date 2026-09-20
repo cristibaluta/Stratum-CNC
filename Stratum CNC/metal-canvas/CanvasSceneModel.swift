@@ -102,6 +102,32 @@ class CanvasSceneModel: ObservableObject {
     /// picking up wherever the last one left off.
     private var heightmapScrubTickCount = 0
 
+    /// `true` from the moment a heightmap carve is handed to a background
+    /// task until its mesh — or the last of a coalesced run of them — has
+    /// landed in `heightmapMesh`. `CanvasSection` shows a spinner over the
+    /// canvas while this is set. Only ever assigned through
+    /// `setComputingHeightmap`, which skips no-op writes: a `@Published`
+    /// fires on every assignment, and this object's own doc comment explains
+    /// what redundant publishes cost.
+    @Published private(set) var isComputingHeightmap = false
+
+    /// The in-flight background carve, if any. Non-`nil` exactly while
+    /// `isComputingHeightmap` is `true`.
+    private var heightmapTask: Task<Void, Never>?
+
+    /// Bumped whenever a carve starts or is cancelled. A finished carve only
+    /// publishes its mesh if the number it started with is still current, so
+    /// a superseded task can never overwrite a newer result — cancellation
+    /// alone can't guarantee that, since a task can finish just before it is
+    /// cancelled and still be waiting for its turn on the main actor.
+    private var heightmapGeneration = 0
+
+    /// A throttled scrub tick that arrived while a carve was already
+    /// running. Only the newest one is kept; it starts as soon as the
+    /// running carve lands, so a long drag shows a stream of intermediate
+    /// surfaces instead of nothing until release.
+    private var pendingHeightmapRequest: HeightmapRequest?
+
     /// Rebuilds just the stock wireframe from `stock`'s shape and dimensions,
     /// leaving the rest of the scene (axes, toolpath preview, position
     /// marker) untouched. `ControllerView` calls this whenever
@@ -156,9 +182,21 @@ class CanvasSceneModel: ObservableObject {
     /// change (a new stock, a freshly parsed file, a reassigned tool — see
     /// `CanvasSection`), and with just a prefix for a scrub position (see
     /// `scrubHeightmap`, M5's throttled wrapper around this). `segments` is
-    /// `some Sequence` rather than `[ToolpathSegment]` so a scrub's
-    /// `ArraySlice` (`NCFileDocument.toolpathSegments(upTo:)`) can be handed
-    /// straight through — no need to copy it into a fresh `Array` first.
+    /// an `ArraySlice` so a scrub's prefix
+    /// (`NCFileDocument.toolpathSegments(upTo:)`) can be handed straight
+    /// through with no copy — and, being a value that shares the document's
+    /// buffer copy-on-write, it's safe to hand to a background task.
+    ///
+    /// The carve and the mesh build run off the main thread (see
+    /// `startHeightmapCarve`), so this returns immediately; `heightmapMesh`
+    /// updates when the work lands, and `isComputingHeightmap` is `true` in
+    /// between. Until then the previous surface stays on screen.
+    ///
+    /// `supersedesRunning` decides what happens if a carve is already in
+    /// flight. `true` (the default — structural changes and exact refreshes)
+    /// cancels it and starts over, since its result would be for stale
+    /// inputs. `false` (throttled scrub ticks) lets it finish and keeps this
+    /// request as the one to run next, replacing any older waiting one.
     ///
     /// `tool` is `nil` when the file's `T` number hasn't been assigned a
     /// `ToolSpec` yet (see `GCodeStore.toolSpecAssignments`/`ToolsPickerView`)
@@ -172,27 +210,48 @@ class CanvasSceneModel: ObservableObject {
     /// heightmap surface and the wireframe toolpath preview never disagree
     /// about where the job sits, even though they get there by different
     /// means (this bakes the offset into the carved vertices once per carve;
-    /// the GPU path re-applies its uniform every frame).
-    func updateHeightmap(stock: StockMaterial, segments: some Sequence<ToolpathSegment>, tool: ToolSpec?) {
+    /// the GPU path re-applies its uniform every frame). The stock, tool,
+    /// cell size and offset are all read *here*, at request time, so a carve
+    /// always finishes with the inputs it was asked for even if they change
+    /// again while it runs.
+    func updateHeightmap(stock: StockMaterial,
+                         segments: ArraySlice<ToolpathSegment>,
+                         tool: ToolSpec?,
+                         supersedesRunning: Bool = true) {
         // Nothing draws the surface outside `.heightmap` mode (see
         // `MetalRenderer.draw`), so carving and meshing here would be pure
-        // wasted work — on the main thread, on every scrub. `CanvasSection`
-        // forces a recarve when the mode is switched *to* `.heightmap`, so
-        // the surface is current the moment it's needed.
+        // wasted work. `CanvasSection` forces a recarve when the mode is
+        // switched *to* `.heightmap`, so the surface is current the moment
+        // it's needed. Leaving the mode also abandons any carve still
+        // running, so it doesn't keep burning a core for a surface nobody
+        // can see.
         guard renderMode == .heightmap else {
+            stopHeightmapWork()
             return
         }
 
         heightmapScrubTickCount = 0
 
         guard let tool else {
+            stopHeightmapWork()
             heightmapMesh = nil
             return
         }
 
-        var grid = HeightmapGrid(stock: stock, cellSize: heightmapCellSize)
-        grid.carve(segments: segments, tool: tool, offsetX: xyOffset.x, offsetY: xyOffset.y)
-        heightmapMesh = HeightmapMesh(grid: grid)
+        let request = HeightmapRequest(stock: UncheckedSendable(stock),
+                                       segments: segments,
+                                       tool: tool,
+                                       cellSize: heightmapCellSize,
+                                       offset: xyOffset)
+
+        if supersedesRunning {
+            cancelHeightmapWork()
+            startHeightmapCarve(request)
+        } else if heightmapTask != nil {
+            pendingHeightmapRequest = request
+        } else {
+            startHeightmapCarve(request)
+        }
     }
 
     /// M5: the scrub slider's path into `updateHeightmap` — recarves from
@@ -205,14 +264,19 @@ class CanvasSceneModel: ObservableObject {
     /// throttled away simply leaves `heightmapMesh` as whatever the last
     /// actual carve produced, same as the wireframe path briefly lags a
     /// fast drag by a few ticks before catching up.
+    ///
+    /// A forced call cancels any carve still running; an unforced one waits
+    /// its turn behind it (see `updateHeightmap`'s `supersedesRunning`).
     func scrubHeightmap(stock: StockMaterial, document: NCFileDocument, line: Int, tool: ToolSpec?, force: Bool = false) {
         // See `updateHeightmap`: no surface is drawn in wireframe mode, so a
         // scrub there shouldn't touch the heightmap at all.
         guard renderMode == .heightmap else {
+            stopHeightmapWork()
             return
         }
 
         guard let tool else {
+            stopHeightmapWork()
             heightmapMesh = nil
             heightmapScrubTickCount = 0
             return
@@ -223,6 +287,134 @@ class CanvasSceneModel: ObservableObject {
             return
         }
 
-        updateHeightmap(stock: stock, segments: document.toolpathSegments(upTo: line), tool: tool)
+        updateHeightmap(stock: stock,
+                        segments: document.toolpathSegments(upTo: line),
+                        tool: tool,
+                        supersedesRunning: force)
+    }
+
+    // MARK: Background carve
+
+    /// Hands `request` to a background task. Only the final publish hops
+    /// back to the main actor — same shape as `NCFileDocument.load(from:)`,
+    /// including `Task.detached` rather than `Task { }`: this method is
+    /// `@MainActor`-isolated, and a plain `Task { }` would inherit that and
+    /// run the carve on the main thread again.
+    private func startHeightmapCarve(_ request: HeightmapRequest) {
+        heightmapGeneration += 1
+        let generation = heightmapGeneration
+        setComputingHeightmap(true)
+
+        heightmapTask = Task.detached(priority: .userInitiated) { [weak self] in
+            let mesh = Self.carveMesh(for: request)
+            guard let self else {
+                return
+            }
+            await self.finishHeightmapCarve(mesh, generation: generation)
+        }
+    }
+
+    /// Runs on the main actor. Drops the result if a newer carve (or a
+    /// cancel) has happened since `generation` was issued; otherwise
+    /// publishes it and either starts the waiting request or turns the
+    /// spinner off. `mesh` is `nil` only for a carve that noticed its own
+    /// cancellation — which always means the generation is stale too, so it
+    /// never reaches the publish below.
+    private func finishHeightmapCarve(_ mesh: HeightmapMesh?, generation: Int) {
+        guard generation == heightmapGeneration else {
+            return
+        }
+        heightmapTask = nil
+
+        if let mesh {
+            heightmapMesh = mesh
+        }
+
+        if let next = pendingHeightmapRequest {
+            pendingHeightmapRequest = nil
+            startHeightmapCarve(next)
+        } else {
+            setComputingHeightmap(false)
+        }
+    }
+
+    /// Cancels the running carve and forgets any waiting request. Leaves
+    /// `isComputingHeightmap` alone: callers that go on to start another
+    /// carve shouldn't blink the spinner off and on.
+    private func cancelHeightmapWork() {
+        heightmapGeneration += 1
+        heightmapTask?.cancel()
+        heightmapTask = nil
+        pendingHeightmapRequest = nil
+    }
+
+    /// Cancels everything and clears the spinner. A no-op (and no publish)
+    /// when nothing is running, which is the common case for a scrub tick
+    /// in wireframe mode.
+    private func stopHeightmapWork() {
+        guard isComputingHeightmap else {
+            return
+        }
+        cancelHeightmapWork()
+        setComputingHeightmap(false)
+    }
+
+    private func setComputingHeightmap(_ value: Bool) {
+        if isComputingHeightmap != value {
+            isComputingHeightmap = value
+        }
+    }
+
+    /// The actual work: build the grid, carve every segment, mesh it.
+    /// `nonisolated` so it genuinely runs on the calling background task
+    /// rather than hopping back to the main actor. Returns `nil` if the task
+    /// was cancelled part-way — checked every 1024 segments, so a cancelled
+    /// carve of a big file stops within a fraction of a second, and once
+    /// more before the mesh build, which is one uninterruptible pass.
+    private nonisolated static func carveMesh(for request: HeightmapRequest) -> HeightmapMesh? {
+        var grid = HeightmapGrid(stock: request.stock.value, cellSize: request.cellSize)
+
+        var carved = 0
+        for segment in request.segments {
+            if (carved & 0x3FF) == 0, Task.isCancelled {
+                return nil
+            }
+            grid.carve(segment: segment,
+                       tool: request.tool,
+                       offsetX: request.offset.x,
+                       offsetY: request.offset.y)
+            carved += 1
+        }
+
+        guard !Task.isCancelled else {
+            return nil
+        }
+        return HeightmapMesh(grid: grid)
+    }
+}
+
+// MARK: - Background carve support
+
+/// Everything a background carve needs, captured on the main actor at
+/// request time so the task never reads live model state.
+private struct HeightmapRequest: Sendable {
+    let stock: UncheckedSendable<StockMaterial>
+    let segments: ArraySlice<ToolpathSegment>
+    let tool: ToolSpec
+    let cellSize: Float
+    let offset: SIMD2<Float>
+}
+
+/// `StockMaterial` is defined in the CAM module and isn't declared
+/// `Sendable` where this file can see it. It's a plain value type (a shape
+/// plus a material), so moving a copy to another thread is safe in practice;
+/// this wrapper says so to the compiler in one place instead of loosening
+/// the whole request. If `StockMaterial` is (or becomes) `Sendable`, this
+/// can go.
+private struct UncheckedSendable<Value>: @unchecked Sendable {
+    let value: Value
+
+    init(_ value: Value) {
+        self.value = value
     }
 }

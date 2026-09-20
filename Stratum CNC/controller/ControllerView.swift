@@ -497,6 +497,12 @@ private struct CanvasSection: View {
                             stockColor: scene.stockColor,
                             heightmapMesh: scene.heightmapMesh)
             .cornerRadius(8)
+            .overlay {
+                // The carve runs on a background task; the old surface
+                // stays visible until the new one lands. Wireframe mode
+                // never shows the surface, so it never shows the spinner.
+                HeightmapBusyOverlay(isBusy: scene.renderMode == .heightmap && scene.isComputingHeightmap)
+            }
             .overlay(
                 ToolPositionSync(connection: connection) { point in
                     scene.updateToolPosition(point)
