@@ -17,15 +17,25 @@ struct ToolsPickerView: View {
     /// Specs the loaded file's own header declares, by tool number. Offered
     /// first in that tool's list, since it's what the CAM actually used.
     var fileSpecs: [Int: ToolSpec] = [:]
+    /// The `T` number currently "in the spindle" at the scrub position
+    /// (`GCodeStore.activeToolNumber`) — its row is marked so it's obvious
+    /// at a glance which tool the canvas is showing right now. `nil` when
+    /// nothing is loaded or the scrub position isn't inside any tool's
+    /// section.
+    var activeTool: Int? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(tools, id: \.self) { tool in
 
                 HStack(alignment: .center, spacing: 2) {
+                    Image(systemName: "smallcircle.filled.circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(tool == activeTool ? .green : .clear)
+
                     Text("T\(tool)")
                         .font(.caption2.bold())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(tool == activeTool ? .primary : .secondary)
 
                     Picker("", selection: binding(for: tool)) {
                         Text("Unassigned").tag(ToolSpec?.none)

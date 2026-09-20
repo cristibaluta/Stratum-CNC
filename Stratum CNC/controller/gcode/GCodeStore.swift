@@ -114,6 +114,16 @@ class GCodeStore: ObservableObject {
     /// callers treat that as "nothing to carve with" and clear the surface.
     /// Multi-tool files only ever carve with this one tool for now; see
     /// `HeightmapGrid.carve`'s M6 note on per-segment tool switching.
+    /// The `T` number whose section owns `scrubLine` — i.e. whichever tool
+    /// is "in the spindle" at the point the canvas is currently scrubbed to
+    /// (or, once a running job drives `scrubLine`, at the line actually
+    /// executing). `nil` before anything is loaded, past the end of the
+    /// file, or during a rapid-only stretch with no tool change yet.
+    /// `ToolsPickerView` uses this to highlight the matching row.
+    var activeToolNumber: Int? {
+        document.toolpath(containingLine: scrubLine)?.toolNumber
+    }
+
     var activeToolSpec: ToolSpec? {
         for toolNumber in tools {
             if let spec = toolSpecAssignments[toolNumber] {

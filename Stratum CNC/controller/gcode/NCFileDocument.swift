@@ -29,6 +29,14 @@ final class NCFileDocument: ObservableObject {
     /// issue for its own toolpath list; same fix here.
     @Published private(set) var tools: [Int] = []
 
+    /// Every tool/operation section `GCodeToolpathAnalyzer` found in the
+    /// current `lines`, in file order — the same analysis `tools` is
+    /// derived from, kept here in full so the canvas can highlight whichever
+    /// section owns the line currently being scrubbed or executed (see
+    /// `toolpath(containingLine:)`). Recomputed alongside `tools`, never on
+    /// scrub.
+    @Published private(set) var toolpaths: [GCodeToolpath] = []
+
     /// Header metadata (tool specs, ...) from the most recent *load*. Set
     /// only when a file/program is loaded — not on `rebuildToolpath` — so
     /// editing a line doesn't re-emit it and wipe tool choices the person
@@ -90,10 +98,12 @@ final class NCFileDocument: ObservableObject {
     /// `rebuildVertexPrefixSums` — everywhere `lines` is (re)assigned — never
     /// on scrub.
     private func recomputeTools() {
+        let analyzed = GCodeToolpathAnalyzer.analyze(lines.map { (id: $0.id, text: $0.text) })
+        toolpaths = analyzed
+
         var seen = Set<Int>()
         var ordered: [Int] = []
-        let toolpaths = GCodeToolpathAnalyzer.analyze(lines.map { (id: $0.id, text: $0.text) })
-        for toolpath in toolpaths {
+        for toolpath in analyzed {
             guard let tool = toolpath.toolNumber, seen.insert(tool).inserted else { continue }
             ordered.append(tool)
         }
@@ -297,6 +307,16 @@ final class NCFileDocument: ObservableObject {
         return (rapidVertexPrefix[end], cuttingVertexPrefix[end])
     }
 
+    /// The tool/operation section (see `toolpaths`) that line `line` falls
+    /// inside, if any — used to figure out which `T` number is actually
+    /// running for whatever line is currently scrubbed to or being executed.
+    /// `toolpaths` is only ever dozens of entries even for a large program,
+    /// so a linear scan is simpler than maintaining another index and no
+    /// slower in practice.
+    func toolpath(containingLine line: Int) -> GCodeToolpath? {
+        toolpaths.first { line >= $0.startLine && line <= $0.endLine }
+    }
+
     // MARK: Machine line lookup
 
     /// Returns the table row corresponding to a machine P: line number.
@@ -329,6 +349,7 @@ final class NCFileDocument: ObservableObject {
         rapidVertexPrefix = [0]
         cuttingVertexPrefix = [0]
         tools.removeAll()
+        toolpaths.removeAll()
         loadedHeader = nil
 
         lastError = nil

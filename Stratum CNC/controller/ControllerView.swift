@@ -490,7 +490,8 @@ private struct CanvasSection: View {
                     Divider()
                     ToolsPickerView(tools: gCodeModel.tools,
                                     assignments: $gCodeModel.toolSpecAssignments,
-                                    fileSpecs: gCodeModel.headerToolSpecs)
+                                    fileSpecs: gCodeModel.headerToolSpecs,
+                                    activeTool: gCodeModel.activeToolNumber)
                         .frame(width: 300)
                 }
                 Divider()
