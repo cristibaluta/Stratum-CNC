@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftDXF
+import StratumCAM
 
 final class D2_Object {
 
@@ -16,6 +17,13 @@ final class D2_Object {
     /// Paths normalized so their origin is at (0, 0).
     let paths: [STBezierPath]
     let entities: [DXF.Entity]
+
+    /// Machinable contours, index-aligned with `paths`: `contours[i]` is the
+    /// geometry behind `paths[i]`, in the same local frame. Usually one
+    /// contour per path; an SVG path made of several subpaths yields one per
+    /// subpath. This is what a `PathSelection.pathIndex` resolves to when
+    /// generating toolpaths — read it via `machineContours(forPathAt:)`.
+    let contours: [[SC.Contour]]
 
     /// Original imported dimensions.
     let originalSize: CGSize
@@ -34,6 +42,7 @@ final class D2_Object {
         name: String,
         paths: [STBezierPath],
         entities: [DXF.Entity],
+        contours: [[SC.Contour]] = [],
         position: CGPoint,
         originalSize: CGSize,
         width: CGFloat
@@ -42,6 +51,7 @@ final class D2_Object {
         self.name = name
         self.paths = paths
         self.entities = entities
+        self.contours = contours
         self.position = position
         self.originalSize = originalSize
         self.width = width
@@ -121,6 +131,21 @@ final class D2_Object {
                        worldVector: worldVector(fromLocal:),
                        scale: scale,
                        rotationDegrees: rotationDegrees)
+        }
+    }
+
+    /// The contours behind `paths[index]`, mapped into world/machine space
+    /// with this object's *current* position, scale and rotation — the same
+    /// rule as `machineEntities`, so toolpaths always match what's drawn.
+    func machineContours(forPathAt index: Int) -> [SC.Contour] {
+        guard contours.indices.contains(index) else {
+            return []
+        }
+        return contours[index].map {
+            $0.resolved(worldPoint: worldPoint(fromLocal:),
+                        worldVector: worldVector(fromLocal:),
+                        scale: scale,
+                        rotationDegrees: rotationDegrees)
         }
     }
 

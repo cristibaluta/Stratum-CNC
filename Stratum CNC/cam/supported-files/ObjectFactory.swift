@@ -7,10 +7,12 @@
 
 import Foundation
 import SwiftDXF
+import StratumCAM
 
 struct ObjectFactory {
 
-    func makeObject(name: String, paths: [STBezierPath], entities: [DXF.Entity]) -> D2_Object? {
+    /// - Parameter contours: index-aligned with `paths` (see `D2_Object.contours`).
+    func makeObject(name: String, paths: [STBezierPath], entities: [DXF.Entity], contours: [[SC.Contour]]) -> D2_Object? {
 
         guard !paths.isEmpty else {
             return nil
@@ -31,11 +33,15 @@ struct ObjectFactory {
         // raw import coordinates while paths get normalized, and the two
         // would silently disagree about where the geometry sits.
         let normalizedEntities = entities.normalized(relativeTo: combinedBounds)
+        let normalizedContours = contours.map { group in
+            group.map { $0.translated(dx: -combinedBounds.minX, dy: -combinedBounds.minY) }
+        }
 
         return D2_Object(
             name: name,
             paths: normalizedPaths,
             entities: normalizedEntities,
+            contours: normalizedContours,
             position: CGPoint(x: combinedBounds.minX, y: combinedBounds.minY),
             originalSize: originalSize,
             width: originalSize.width

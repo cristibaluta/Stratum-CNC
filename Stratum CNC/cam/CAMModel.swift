@@ -10,6 +10,7 @@ import CoreGraphics
 import Combine
 import UniformTypeIdentifiers
 import AppKit
+import StratumCAM
 
 @MainActor
 class CAMModel: ObservableObject {
@@ -34,6 +35,9 @@ class CAMModel: ObservableObject {
     /// non-nil the canvas is in picking mode (canvasState.isPickingPaths) and
     /// every click on a shape adds/removes it from that toolpath's `targets`.
     @Published private(set) var pickingToolpathID: UUID?
+
+    /// Result of the last "Generate" per toolpath id. Session-only.
+    @Published private(set) var generations: [UUID: ToolpathGeneration] = [:]
 
     // ---- CANVAS VIEWPORT STATE ----
     // Persisted between sessions. Not @Published: this is *reported* by the
@@ -85,6 +89,11 @@ class CAMModel: ObservableObject {
 
         canvasState.onObjectsChanged = { [weak self] in
             guard let self else { return }
+            // Toolpaths are built in world space, so moving/scaling/rotating/
+            // removing an object leaves every generated result stale.
+            if !self.generations.isEmpty {
+                self.generations.removeAll()
+            }
             self.onObjectsChanged?(self.canvasState.objects)
         }
 
@@ -120,6 +129,24 @@ class CAMModel: ObservableObject {
     func endPicking() {
         pickingToolpathID = nil
         canvasState.endPickingPaths()
+    }
+
+    // MARK: Toolpath generation
+
+    /// Runs StratumCAM for the toolpath `id` and stores the outcome (result or
+    /// error) in `generations`, where the toolpath's cell reads it from.
+    func generateToolpaths(for id: UUID) {
+        guard let toolpath = toolpaths.first(where: { $0.id == id }) else {
+            return
+        }
+
+        let outcome: Result<[SC.OutputToolpath], Error>
+        do {
+            outcome = .success(try ToolpathGenerator.generate(for: toolpath, canvasState: canvasState))
+        } catch {
+            outcome = .failure(error)
+        }
+        generations[id] = ToolpathGeneration(source: toolpath, outcome: outcome)
     }
 
     private func applyPickedPaths(_ paths: [PathSelection]) {
@@ -166,6 +193,7 @@ class CAMModel: ObservableObject {
 
     func clear() {
         endPicking()
+        generations.removeAll()
         canvasState.removeAll()
         toolpaths.removeAll()
     }

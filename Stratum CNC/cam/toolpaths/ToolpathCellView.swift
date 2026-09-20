@@ -15,6 +15,11 @@ struct ToolpathCellView: View {
     /// Enters shape-picking mode for this toolpath, or leaves it if already active.
     var onTogglePicking: () -> Void = {}
 
+    /// Result of the last Generate for this toolpath, if any.
+    var generation: ToolpathGeneration? = nil
+    /// Builds the toolpaths from the selected shapes.
+    var onGenerate: () -> Void = {}
+
     @State private var expanded = true
     @State private var showRampEditor = false
 
@@ -87,6 +92,12 @@ struct ToolpathCellView: View {
                 }
                 .padding(10)
             }
+
+            // MARK: Generate
+
+            Divider()
+
+            generateRow
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
@@ -100,6 +111,56 @@ struct ToolpathCellView: View {
                     .allowsHitTesting(false)
             }
         }
+    }
+
+    // MARK: Generate
+
+    private var generateRow: some View {
+        HStack(spacing: 10) {
+            generationStatus
+            Spacer(minLength: 8)
+            Button {
+                onGenerate()
+            } label: {
+                Label("Generate", systemImage: "wand.and.stars")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(toolpath.targets.isEmpty)
+            .help(toolpath.targets.isEmpty
+                  ? "Select the shapes to cut first"
+                  : "Generate the toolpaths for the selected shapes")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var generationStatus: some View {
+        if let generation {
+            if let message = generation.errorMessage {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .font(.system(size: 11))
+            } else if !generation.isCurrent(for: toolpath) {
+                Label("Outdated — generate again", systemImage: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 11))
+            } else {
+                Label(successText(for: generation), systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 11))
+            }
+        }
+    }
+
+    private func successText(for generation: ToolpathGeneration) -> String {
+        let toolpaths = generation.outputCount
+        let passes = generation.passCount
+        return "\(toolpaths) toolpath\(toolpaths == 1 ? "" : "s") · \(passes) pass\(passes == 1 ? "" : "es")"
     }
 
     // MARK: Shapes

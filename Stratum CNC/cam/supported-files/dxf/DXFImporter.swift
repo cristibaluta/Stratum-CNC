@@ -33,6 +33,8 @@ class DXFImporter: Importer {
         let contours = EntityChainer.chain(dwg.entities)
 
         var paths: [STBezierPath] = []
+        // Index-aligned with `paths` — see D2_Object.contours
+        var pathContours: [[SC.Contour]] = []
         for contour in contours {
 
             let path = STBezierPath()
@@ -52,13 +54,14 @@ class DXFImporter: Importer {
             }
 
             paths.append(path)
+            pathContours.append([contour])
         }
 
         // ObjectFactory normalizes both paths and entities relative to the
         // same bounds, so they stay in agreement about where local (0, 0)
         // is — this used to be built by hand here, in un-normalized file
         // coordinates, which disagreed with `paths`.
-        return factory.makeObject(name: url.lastPathComponent, paths: paths, entities: dwg.entities)
+        return factory.makeObject(name: url.lastPathComponent, paths: paths, entities: dwg.entities, contours: pathContours)
     }
 }
 

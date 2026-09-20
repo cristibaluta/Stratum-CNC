@@ -20,6 +20,7 @@
 
 import Foundation
 import SwiftDXF
+import StratumCAM
 
 extension DXF.Point {
     var cgPoint: CGPoint {
@@ -118,5 +119,35 @@ extension DXF.Entity {
             // ever need to move with the object.
             return self
         }
+    }
+}
+
+extension SC.Contour {
+
+    /// Pure origin shift — the contour equivalent of `DXF.Entity.translated`.
+    /// Used once at import time to put contours in the same local frame as `paths`.
+    func translated(dx: CGFloat, dy: CGFloat) -> SC.Contour {
+        mapEntities { $0.translated(dx: dx, dy: dy) }
+    }
+
+    /// Maps the contour from local space into world/machine space; see
+    /// `DXF.Entity.resolved` for what each parameter means.
+    func resolved(worldPoint: (CGPoint) -> CGPoint,
+                  worldVector: (CGPoint) -> CGPoint,
+                  scale: CGFloat,
+                  rotationDegrees: CGFloat) -> SC.Contour {
+        mapEntities {
+            $0.resolved(worldPoint: worldPoint,
+                        worldVector: worldVector,
+                        scale: scale,
+                        rotationDegrees: rotationDegrees)
+        }
+    }
+
+    // `reversed` (the chaining direction) and `isClosed` are properties of the
+    // chain, not of the geometry, so they survive any point transform unchanged.
+    private func mapEntities(_ transform: (DXF.Entity) -> DXF.Entity) -> SC.Contour {
+        SC.Contour(entities: entities.map { SC.Contour.Chained(entity: transform($0.entity), reversed: $0.reversed) },
+                   isClosed: isClosed)
     }
 }

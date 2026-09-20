@@ -8,6 +8,7 @@
 import Foundation
 import PocketSVG
 import SwiftDXF
+import StratumCAM
 
 class SVGImporter: Importer {
 
@@ -53,8 +54,10 @@ class SVGImporter: Importer {
         // beforehand (from pre-flip geometry) would leave entities mirrored
         // vertically relative to what's actually drawn.
         let entities = bezierPaths.flatMap { $0.dxfEntities() }
+        // Index-aligned with `bezierPaths` — see D2_Object.contours
+        let contours = bezierPaths.map { $0.dxfContours() }
 
-        return factory.makeObject(name: url.lastPathComponent, paths: bezierPaths, entities: entities)
+        return factory.makeObject(name: url.lastPathComponent, paths: bezierPaths, entities: entities, contours: contours)
     }
 }
 
@@ -74,11 +77,37 @@ extension STBezierPath {
 
         return converter.entities
     }
+
+    /// Same conversion as `dxfEntities`, but keeps the subpaths apart: one
+    /// `SC.Contour` per subpath (each `moveTo` starts a new one). A single SVG
+    /// path can hold several — e.g. the outer ring and the hole of an "O" —
+    /// and the engine treats a contour as one connected chain, so they must
+    /// not be merged.
+    func dxfContours(tolerance: Double = 0.01, layer: String = "0", color: Int = 0) -> [SC.Contour] {
+
+        var converter = DXFPathConverter(
+            tolerance: tolerance,
+            layer: layer,
+            color: color
+        )
+
+        cgPath.applyWithBlock { elementPointer in
+            converter.consume(elementPointer.pointee)
+        }
+        converter.finish()
+
+        return converter.contours
+    }
 }
 
 private struct DXFPathConverter {
 
     private(set) var entities: [DXF.Entity] = []
+    /// One per subpath, built from slices of `entities`. Only complete after `finish()`.
+    private(set) var contours: [SC.Contour] = []
+
+    private var subpathFirstEntity = 0
+    private var subpathExplicitlyClosed = false
 
     private let tolerance: Double
     private let layer: String
@@ -99,6 +128,7 @@ private struct DXFPathConverter {
         case .moveToPoint:
             let point = element.points[0]
 
+            finishSubpath()
             currentPoint = point
             subpathStartPoint = point
 
@@ -154,11 +184,38 @@ private struct DXFPathConverter {
                 )
             }
 
+            subpathExplicitlyClosed = true
             currentPoint = start
 
         @unknown default:
             break
         }
+    }
+
+    /// Call once after the last element so the final subpath becomes a contour.
+    mutating func finish() {
+        finishSubpath()
+    }
+
+    /// Turns the entities added since the last subpath boundary into a contour.
+    /// Must run *before* `currentPoint`/`subpathStartPoint` are updated by the
+    /// next `moveTo`, since it reads them to detect an implicitly closed subpath.
+    private mutating func finishSubpath() {
+        let chain = entities[subpathFirstEntity...].map {
+            SC.Contour.Chained(entity: $0, reversed: false)
+        }
+
+        if !chain.isEmpty {
+            var isClosed = subpathExplicitlyClosed
+            if !isClosed, let current = currentPoint, let start = subpathStartPoint {
+                // Ends where it started without an explicit close
+                isClosed = distance(current, start) <= 1e-6
+            }
+            contours.append(SC.Contour(entities: chain, isClosed: isClosed))
+        }
+
+        subpathFirstEntity = entities.count
+        subpathExplicitlyClosed = false
     }
 
     private mutating func appendLine(

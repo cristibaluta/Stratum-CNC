@@ -169,6 +169,10 @@ struct CAMView: View {
                 pickingToolpathID: camModel.pickingToolpathID,
                 onTogglePicking: { id in
                     camModel.togglePicking(for: id)
+                },
+                generations: camModel.generations,
+                onGenerate: { id in
+                    camModel.generateToolpaths(for: id)
                 }
             )
         }

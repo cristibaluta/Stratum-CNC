@@ -32,6 +32,8 @@ final class GerberImporter: Importer {
             let contours = EntityChainer.chain(entities)
 
             var paths: [STBezierPath] = []
+            // Index-aligned with `paths` — see D2_Object.contours
+            var pathContours: [[SC.Contour]] = []
 
             for contour in contours {
 
@@ -50,13 +52,14 @@ final class GerberImporter: Importer {
                 }
 
                 paths.append(path)
+                pathContours.append([contour])
             }
 
             guard !paths.isEmpty else {
                 continue
             }
 
-            if let object = factory.makeObject(name: file.name, paths: paths, entities: entities) {
+            if let object = factory.makeObject(name: file.name, paths: paths, entities: entities, contours: pathContours) {
                 objects.append(object)
             }
         }

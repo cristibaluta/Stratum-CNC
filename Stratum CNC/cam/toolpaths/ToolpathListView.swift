@@ -13,6 +13,9 @@ struct ToolpathListView: View {
     /// The toolpath currently in "select shapes" mode, if any.
     var pickingToolpathID: UUID?
     var onTogglePicking: (UUID) -> Void = { _ in }
+    /// Last generation result per toolpath id.
+    var generations: [UUID: ToolpathGeneration] = [:]
+    var onGenerate: (UUID) -> Void = { _ in }
 
     @State private var draggedToolpath: ToolpathData?
 
@@ -26,7 +29,9 @@ struct ToolpathListView: View {
                     ForEach($toolpaths) { $toolpath in
                         ToolpathCellView(toolpath: $toolpath,
                                          isPicking: pickingToolpathID == toolpath.id,
-                                         onTogglePicking: { onTogglePicking(toolpath.id) })
+                                         onTogglePicking: { onTogglePicking(toolpath.id) },
+                                         generation: generations[toolpath.id],
+                                         onGenerate: { onGenerate(toolpath.id) })
                             .onDrag {
                                 draggedToolpath = toolpath
                                 return NSItemProvider(object: toolpath.id.uuidString as NSString)
