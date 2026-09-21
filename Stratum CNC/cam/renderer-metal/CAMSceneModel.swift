@@ -32,10 +32,10 @@ final class CAMSceneModel: ObservableObject {
     @Published private(set) var backgroundColor = SIMD4<Float>(0.2, 0.2, 0.2, 1)
 
     /// The per-path data from the last rebuild — world-space `CGPath` and
-    /// bounds included. Not read by anything yet: it's here so step 4's hit
-    /// tester works against exactly the geometry that's on screen, rather
-    /// than flattening a second time (the plan's "cache the world-space
-    /// CGPath per path alongside its RenderObject").
+    /// bounds included. `CAMCanvasInteraction` hit-tests against this, so a
+    /// click is resolved against exactly the geometry that's on screen,
+    /// without flattening again (the plan's "cache the world-space CGPath
+    /// per path alongside its RenderObject").
     private(set) var renderPaths: [D2_RenderPath] = []
 
     /// Fixed look for the non-path objects. Colors are muted on purpose:
@@ -48,6 +48,14 @@ final class CAMSceneModel: ObservableObject {
         static let rulerColor = SIMD4<Float>(0.55, 0.55, 0.55, 1)
         static let stockColor = SIMD4<Float>(0.5, 0.5, 0.62, 1)
     }
+
+    /// Mouse handling for this scene: hit-tests against `renderPaths` and
+    /// writes selection / moves back into the canvas state. Created on
+    /// first use; handed to `MetalCanvasView.pointerHandler`.
+    private(set) lazy var interaction = CAMCanvasInteraction(canvasState: canvasState,
+                                                            renderPaths: { [weak self] in
+                                                                self?.renderPaths ?? []
+                                                            })
 
     private let canvasState: D2_CanvasState
     private var appearance: NSAppearance
@@ -104,18 +112,31 @@ final class CAMSceneModel: ObservableObject {
         var paths: [D2_RenderPath] = []
         var toolpath: RenderObject?
         var background = SIMD4<Float>(0.2, 0.2, 0.2, 1)
+        var overlay: [RenderObject] = []
         appearance.performAsCurrentDrawingAppearance {
             paths = D2_RenderObjectBuilder.renderPaths(for: canvasState)
             toolpath = D2_RenderObjectBuilder.toolpathRenderObject(for: canvasState)
             background = Self.rgba(NSColor.textBackgroundColor)
+
+            // Dashed box + rotation-center handle for whichever objects
+            // are selected as a whole (a selected *path* gets neither, same
+            // as `D2_ObjectNode`).
+            let boxColor = Self.rgba(NSColor.systemRed)
+            let handleColor = Self.rgba(NSColor.systemOrange)
+            for object in canvasState.objects where canvasState.selectedObjectIDs.contains(object.id) {
+                overlay.append(contentsOf: CAMSelectionOverlay.renderObjects(for: object,
+                                                                             boxColor: boxColor,
+                                                                             handleColor: handleColor))
+            }
         }
 
         // Order matters. The renderer's depth test is `.less` and all of
         // this is at z = 0, so where two lines coincide the one drawn
-        // *first* wins. Shapes (the thing being selected) go first, then
-        // the toolpath preview, then the ruler, then the stock outline.
-        var objects: [RenderObject] = []
-        objects.reserveCapacity(paths.count + 3)
+        // *first* wins. Selection overlay first (the handle must be on
+        // top), then shapes (the thing being selected), then the toolpath
+        // preview, then the ruler, then the stock outline.
+        var objects: [RenderObject] = overlay
+        objects.reserveCapacity(overlay.count + paths.count + 3)
         for path in paths where !path.renderObject.points.isEmpty {
             objects.append(path.renderObject)
         }

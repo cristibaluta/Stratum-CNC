@@ -32,6 +32,38 @@ struct MetalCanvasView: NSViewRepresentable {
             super.layout()
             draw()
         }
+
+        // Direct mouse forwarding, used only when the owner installs these
+        // (CAM's locked 2D view, which needs press/drag/release rather than
+        // a pan gesture). Left `nil` — the controller — the events fall
+        // through to `super` and the gesture recognizers, exactly as before.
+        var onMouseDown: ((NSEvent) -> Void)?
+        var onMouseDragged: ((NSEvent) -> Void)?
+        var onMouseUp: ((NSEvent) -> Void)?
+
+        override func mouseDown(with event: NSEvent) {
+            if let onMouseDown {
+                onMouseDown(event)
+            } else {
+                super.mouseDown(with: event)
+            }
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            if let onMouseDragged {
+                onMouseDragged(event)
+            } else {
+                super.mouseDragged(with: event)
+            }
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            if let onMouseUp {
+                onMouseUp(event)
+            } else {
+                super.mouseUp(with: event)
+            }
+        }
     }
 
     @Binding var objects: [RenderObject]
@@ -73,6 +105,14 @@ struct MetalCanvasView: NSViewRepresentable {
     /// path colors keep their contrast in both light and dark mode.
     /// Applied in `updateNSView`, so changing it just needs a redraw.
     var clearColor: SIMD4<Float>? = nil
+
+    /// Receives press / drag / release in `.locked2D` (CAM's shape
+    /// selection). Read once in `makeNSView`, like `interactionMode`. When
+    /// set, the plain left-button drag is no longer a pan *gesture* — a
+    /// recognizer would swallow the mouse events — so the handler's
+    /// `pointerDown` answer decides between panning and doing something
+    /// else with the drag. Ignored in `.free3D`.
+    var pointerHandler: (any CanvasPointerHandler)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -126,8 +166,21 @@ struct MetalCanvasView: NSViewRepresentable {
         // Plain left-button drag and Shift+drag. handlePan tells these two
         // apart via the Shift modifier and looks up what each one should do
         // in CanvasInputSettings (see CanvasControlsSettingsView).
-        let panGesture = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
-        mtkView.addGestureRecognizer(panGesture)
+        if interactionMode == .locked2D, let pointerHandler {
+            context.coordinator.pointerHandler = pointerHandler
+            mtkView.onMouseDown = { [weak coordinator = context.coordinator] event in
+                coordinator?.handleMouseDown(event)
+            }
+            mtkView.onMouseDragged = { [weak coordinator = context.coordinator] event in
+                coordinator?.handleMouseDragged(event)
+            }
+            mtkView.onMouseUp = { [weak coordinator = context.coordinator] event in
+                coordinator?.handleMouseUp(event)
+            }
+        } else {
+            let panGesture = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
+            mtkView.addGestureRecognizer(panGesture)
+        }
 
         // Middle-button drag, its own recognizer so handlePan can tell it
         // apart from the two above (see `middleDragGesture` below) and look
@@ -295,6 +348,74 @@ struct MetalCanvasView: NSViewRepresentable {
             let sensitivity: Float = 0.006
             let newDistance = camera.distance - Float(translation.y) * (camera.distance * sensitivity)
             applyZoom(to: newDistance, towards: gesture.location(in: view), in: view)
+        }
+
+        // MARK: - Direct mouse (locked 2D with a pointer handler)
+
+        /// Weak: the owner (CAM's scene model) outlives the view.
+        weak var pointerHandler: (any CanvasPointerHandler)?
+        private var dragAction: CanvasPointerDragAction = .pan
+        private var lastDragViewPoint: CGPoint = .zero
+
+        func handleMouseDown(_ event: NSEvent) {
+            guard let pointer = pointerEvent(for: event) else {
+                dragAction = .pan
+                return
+            }
+            lastDragViewPoint = pointer.viewPoint
+            dragAction = pointerHandler?.pointerDown(pointer) ?? .pan
+            metalView?.draw()
+        }
+
+        func handleMouseDragged(_ event: NSEvent) {
+            guard let pointer = pointerEvent(for: event) else {
+                return
+            }
+            // The event was built from the camera as it is *now*; pan after,
+            // so the handler sees the point that was actually under the
+            // cursor rather than one shifted by this same drag step.
+            pointerHandler?.pointerDragged(pointer)
+
+            if dragAction == .pan {
+                performPan(translation: CGPoint(x: pointer.viewPoint.x - lastDragViewPoint.x,
+                                                y: pointer.viewPoint.y - lastDragViewPoint.y))
+            }
+            lastDragViewPoint = pointer.viewPoint
+            metalView?.draw()
+        }
+
+        func handleMouseUp(_ event: NSEvent) {
+            if let pointer = pointerEvent(for: event) {
+                pointerHandler?.pointerUp(pointer)
+            }
+            dragAction = .pan
+            metalView?.draw()
+        }
+
+        /// View point → world point (z = 0) + the zoom, packaged for the
+        /// handler. Same view-point → NDC mapping `applyZoom` uses, since
+        /// this view isn't flipped (origin bottom-left, y up).
+        private func pointerEvent(for event: NSEvent) -> CanvasPointerEvent? {
+            guard let camera = renderer?.camera, let view = metalView else {
+                return nil
+            }
+            let size = view.bounds.size
+            guard size.width > 0, size.height > 0 else {
+                return nil
+            }
+            let location = view.convert(event.locationInWindow, from: nil)
+            let ndc = SIMD2<Float>(Float(location.x / size.width) * 2 - 1,
+                                   Float(location.y / size.height) * 2 - 1)
+            guard let world = camera.worldPoint(atScreenNDC: ndc) else {
+                return nil
+            }
+            // Same relation `Camera.pan` uses: the view spans
+            // 2 * distance * tan(fov/2) world units vertically.
+            let worldPerPoint = 2 * camera.distance * tan(camera.fov * 0.5) / Float(size.height)
+            return CanvasPointerEvent(worldPoint: CGPoint(x: CGFloat(world.x), y: CGFloat(world.y)),
+                                      viewPoint: location,
+                                      modifierFlags: event.modifierFlags,
+                                      pointsPerWorldUnit: CGFloat(1 / max(worldPerPoint, 1e-9)))
         }
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {

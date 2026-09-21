@@ -217,6 +217,32 @@ class Camera {
         distance = newDistance
     }
 
+    /// The inverse of what `zoom(to:towards:)` does inline: the world point
+    /// that sits under `ndc` on screen, on the plane `z == planeZ` (the
+    /// default, z = 0, is where all of CAM's geometry lives).
+    ///
+    /// The projection is orthographic, so every screen point is a ray
+    /// parallel to the view direction; this finds the point on the focal
+    /// plane under `ndc`, then slides it along that direction until it
+    /// reaches `planeZ`. From the top view that's just `target` plus the
+    /// screen offset; from a side view (`back.z == 0`) the ray never meets
+    /// the plane and this returns `nil`.
+    /// - Parameter ndc: same convention as `zoom(to:towards:)` — -1...1,
+    ///   (0,0) the screen center, +1 right/top.
+    func worldPoint(atScreenNDC ndc: SIMD2<Float>, planeZ: Float = 0) -> SIMD3<Float>? {
+        let halfHeight = distance * tan(fov * 0.5)
+        let halfWidth = halfHeight * aspectRatio
+
+        let onFocalPlane = target + right * (ndc.x * halfWidth) + up * (ndc.y * halfHeight)
+
+        let backZ = back.z
+        guard abs(backZ) > 1e-6 else {
+            return nil
+        }
+        let slide = (onFocalPlane.z - planeZ) / backZ
+        return onFocalPlane - back * slide
+    }
+
     /// Slides `target` in the view plane so the scene follows the pointer
     /// 1:1 on screen, at any zoom level.
     /// - Parameters:

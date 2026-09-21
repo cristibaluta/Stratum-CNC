@@ -118,14 +118,23 @@ done 3. Stand up a new Metal-based CAM view **behind a flag**, `CAM_2D_View`
    keeps shipping in parallel. Landed as `CAM_Metal_View` + `CAMSceneModel`
    (`cam/renderer-metal/`), switched by `CAMFeatureFlags.metalCanvasKey`.
    Draw-only: no mouse selection yet (step 4).
-4. Port hit testing + mouse interaction (D+E); verify selection, shift/cmd
+done 4. Port hit testing + mouse interaction (D+E); verify selection, shift/cmd
    multi-select, "select shapes" picking mode, drag-to-move, and the
    rotation-center handle match today's behavior.
-5. Visual QA pass (F).
-6. Swap `CAMView.body`'s `CAM_2D_View(...)` for the new view; delete
+   Landed as `PathHitTester+World`, `CAMCanvasInteraction`, `CAMSelectionOverlay`,
+   `Camera.worldPoint(atScreenNDC:)` and `CanvasPointerHandler` (the seam
+   `MetalCanvasView` reports the mouse through). Not yet checked by hand —
+   walk the list above with the flag on.
+done 5. Visual QA pass (F).
+done 6. Swap `CAMView.body`'s `CAM_2D_View(...)` for the new view; delete
    `D2_CanvasNSView` / `D2_CanvasRenderer` / `D2_ObjectNode` / `StockLayer` /
    `RulerShapeLayer` / `CenterShapeLayer`. `D2_CanvasState`, `D2_Object`,
    `PathSelection`, and a rewritten `PathHitTester` survive.
+   Removed the now-pointless `CAMFeatureFlags.metalCanvasKey` toggle and its
+   DEBUG overlay too, since there's only one canvas left to switch between.
+   The layer-based `PathHitTester.hitTest` overload (the one that took
+   `[UUID: D2_ObjectNode]`) is gone; `PathHitTester+World`'s
+   world-space overload is the only one left.
 
 ## Decisions to make before starting
 

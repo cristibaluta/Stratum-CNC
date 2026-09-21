@@ -11,12 +11,13 @@
 //
 //  What it does today: draws shapes (selection/picking colors included),
 //  the toolpath preview, the ruler and the stock; pan (drag or scroll) and
-//  pinch-zoom via `MetalCanvasView`'s `.locked2D` mode.
+//  pinch-zoom via `MetalCanvasView`'s `.locked2D` mode; and, through
+//  `CAMCanvasInteraction`, click / Shift-Cmd multi-select, "select shapes"
+//  picking, and drag-to-move by the rotation-center handle (step 4).
 //
 //  What it does NOT do yet (each is a later step, on purpose):
-//    - click selection, multi-select, "select shapes" picking, drag-to-move,
-//      the rotation-center handle  → step 4 (hit testing + mouse)
-//    - stock fill tint / hatch, true-to-life 1 mm : 1 pt zoom → step 5 (QA)
+//    - stock fill tint / hatch, filled handle dot, true-to-life 1 mm : 1 pt
+//      zoom → step 5 (QA)
 //    - viewport persistence (`initialViewport` / `onViewportChanged`): the
 //      saved viewport is CoreAnimation pan/zoom units, meaningless to a
 //      `Camera` target/distance, so the Metal path ignores it for now.
@@ -43,7 +44,8 @@ struct CAM_Metal_View: View {
     var body: some View {
         MetalCanvasView(objects: .constant(scene.renderObjects),
                         interactionMode: .locked2D,
-                        clearColor: scene.backgroundColor)
+                        clearColor: scene.backgroundColor,
+                        pointerHandler: scene.interaction)
             .onAppear {
                 scene.setColorScheme(colorScheme)
             }
