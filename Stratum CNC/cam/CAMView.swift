@@ -25,7 +25,8 @@ import SwiftUI
             - D2_CanvasRenderer (based on the properties from D2_CanvasState)
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
     - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
-    - ToolpathListView
+    - ToolpathListView                         <- left, under the objects panel: select / show-hide / delete toolpaths
+    - ToolpathCellView                         <- right, under the material panel: only while a toolpath is selected
 */
 struct CAMView: View {
 
@@ -49,12 +50,13 @@ struct CAMView: View {
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right
                 HStack {
-                    VStack {
+                    VStack(spacing: 12) {
                         inspectorPanel
-                            .frame(minWidth: 200, maxWidth: 260)
-                            .padding(16)
+                        toolpathListPanel
                         Spacer()
                     }
+                    .frame(minWidth: 200, maxWidth: 260)
+                    .padding(16)
                     Spacer()
 //                    VStack {
 //                        CanvasZoomToolbar(viewModel: camModel)
@@ -66,11 +68,17 @@ struct CAMView: View {
                                           isStockVisible: stockVisibleBinding,
                                           isCompact: false)
                             .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
-                        toolpathsPanel
-                            .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
+                        // Only while a toolpath is selected in the list
+                        if let toolpath = selectedToolpath {
+                            toolpathSettingsPanel(for: toolpath)
+                                .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
+                                .transition(.opacity)
+                        }
                     }
                     .frame(width: 500)
                     .padding(16)
+                    // The settings panel only takes the height it needs, so pin the column to the top
+                    .frame(maxHeight: .infinity, alignment: .top)
                 }
             }
         }
@@ -163,20 +171,104 @@ struct CAMView: View {
         )
     }
 
-    private var toolpathsPanel: some View {
-        GroupBox("TOOLPATHS") {
-            ToolpathListView(
-                toolpaths: $camModel.toolpaths,
-                pickingToolpathID: camModel.pickingToolpathID,
-                onTogglePicking: { id in
-                    camModel.togglePicking(for: id)
-                },
-                generations: camModel.generations,
-                onGenerate: { id in
-                    camModel.generateToolpaths(for: id)
-                },
-                generatingIDs: camModel.generatingIDs
-            )
+    /// The toolpath open in the settings panel, if any. Looked up by id on every
+    /// render so a toolpath removed behind our back (project reload) just closes the panel.
+    private var selectedToolpath: ToolpathData? {
+        guard let id = camModel.selectedToolpathID else {
+            return nil
         }
+        return camModel.toolpaths.first { $0.id == id }
+    }
+
+    private var toolpathListPanel: some View {
+        ToolpathListView(
+            toolpaths: $camModel.toolpaths,
+            selectedID: camModel.selectedToolpathID,
+            hiddenIDs: camModel.hiddenToolpathIDs,
+            onSelect: { id in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    camModel.toggleToolpathSelection(id)
+                }
+            },
+            onToggleVisibility: { id in
+                camModel.toggleToolpathVisibility(id)
+            },
+            onDelete: { id in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    camModel.deleteToolpath(id)
+                }
+            },
+            onAdd: {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    camModel.addToolpath()
+                }
+            }
+        )
+    }
+
+    private func toolpathSettingsPanel(for toolpath: ToolpathData) -> some View {
+        GroupBox("TOOLPATH") {
+            FittingScrollView {
+                ToolpathCellView(toolpath: binding(for: toolpath),
+                                 isPicking: camModel.pickingToolpathID == toolpath.id,
+                                 onTogglePicking: {
+                                     camModel.togglePicking(for: toolpath.id)
+                                 },
+                                 generation: camModel.generations[toolpath.id],
+                                 isGenerating: camModel.generatingIDs.contains(toolpath.id),
+                                 onGenerate: {
+                                     camModel.generateToolpaths(for: toolpath.id)
+                                 })
+                    // One cell instance is reused for whichever toolpath is selected;
+                    // a fresh identity keeps its @State (expanded, field text) from
+                    // leaking from one toolpath to the next.
+                    .id(toolpath.id)
+                    .padding(8)
+            }
+        }
+    }
+
+    /// Edits go straight into `camModel.toolpaths`, looked up by id (not index)
+    /// so the binding stays safe if the array changes while a field is being edited.
+    private func binding(for toolpath: ToolpathData) -> Binding<ToolpathData> {
+        let id = toolpath.id
+        return Binding(
+            get: { camModel.toolpaths.first { $0.id == id } ?? toolpath },
+            set: { newValue in
+                if let index = camModel.toolpaths.firstIndex(where: { $0.id == id }) {
+                    camModel.toolpaths[index] = newValue
+                }
+            }
+        )
+    }
+}
+
+/// A vertical ScrollView that is only as tall as its content — up to whatever
+/// height it's offered, beyond which it scrolls. A plain ScrollView always grabs
+/// all the space it's given, which would turn the settings panel into a
+/// full-height slab even for a short toolpath.
+private struct FittingScrollView<Content: View>: View {
+
+    private let content: Content
+    @State private var contentHeight: CGFloat?
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView {
+            content
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .onChange(of: proxy.size.height, initial: true) { _, height in
+                                contentHeight = height
+                            }
+                    }
+                )
+        }
+        // Until the content has been measured, take what's offered
+        .frame(maxHeight: contentHeight ?? .infinity)
     }
 }

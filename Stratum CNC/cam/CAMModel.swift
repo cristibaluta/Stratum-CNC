@@ -29,7 +29,23 @@ class CAMModel: ObservableObject {
 
     // ---- TEMPORARY TOOLPATH EDITING ----
     @Published var toolpaths: [ToolpathData] = []
-    @Published var selectedToolpathID: UUID?
+
+    /// The toolpath whose settings are open in the right-hand panel; nil closes the panel.
+    @Published var selectedToolpathID: UUID? {
+        didSet {
+            // Shape picking belongs to the toolpath open in the panel. When that
+            // panel goes away (deselected) or shows another toolpath, the "Done"
+            // button that ends picking goes with it, so picking has to end too.
+            if let picking = pickingToolpathID, picking != selectedToolpathID {
+                endPicking()
+            }
+        }
+    }
+
+    /// Toolpaths whose generated result is hidden on the canvas (the eye toggle
+    /// in the toolpath list). Session-only, like the generated results themselves.
+    /// Deliberately no didSet: callers decide whether the overlay needs a rebuild.
+    @Published private(set) var hiddenToolpathIDs: Set<UUID> = []
 
     /// The toolpath currently in "select shapes" mode, if any. While this is
     /// non-nil the canvas is in picking mode (canvasState.isPickingPaths) and
@@ -114,6 +130,96 @@ class CAMModel: ObservableObject {
         }
     }
 
+    // MARK: Toolpath list
+
+    /// Appends a toolpath — same settings as the last one, or a default first
+    /// one — and opens it in the settings panel.
+    func addToolpath() {
+        var toolpath = toolpaths.last ?? Self.defaultToolpath()
+        toolpath.id = UUID()
+        toolpath.name = nextToolpathName()
+        // Copy the settings, not the shapes: the new toolpath starts with nothing selected
+        toolpath.targets = []
+        toolpaths.append(toolpath)
+        selectedToolpathID = toolpath.id
+    }
+
+    /// Clicking a toolpath in the list opens it in the settings panel;
+    /// clicking the open one again closes the panel.
+    func toggleToolpathSelection(_ id: UUID) {
+        selectedToolpathID = (selectedToolpathID == id) ? nil : id
+    }
+
+    func deleteToolpath(_ id: UUID) {
+        if pickingToolpathID == id {
+            endPicking()
+        }
+        if selectedToolpathID == id {
+            selectedToolpathID = nil
+        }
+        // Abandon a generation still running for it
+        generationTokens[id] = nil
+        generatingIDs.remove(id)
+        hiddenToolpathIDs.remove(id)
+
+        toolpaths.removeAll { $0.id == id }
+        // Removing the result also refreshes the canvas overlay (see `generations`)
+        if generations[id] != nil {
+            generations[id] = nil
+        }
+    }
+
+    /// Shows or hides one toolpath's generated result on the canvas.
+    func toggleToolpathVisibility(_ id: UUID) {
+        if hiddenToolpathIDs.contains(id) {
+            hiddenToolpathIDs.remove(id)
+        } else {
+            hiddenToolpathIDs.insert(id)
+        }
+        // Nothing generated means nothing on the canvas to add or remove
+        if generations[id]?.previewPath != nil {
+            updateToolpathPreview()
+        }
+    }
+
+    /// "Toolpath N" with the lowest free N past the current count, so names in
+    /// the list stay distinguishable (there is no rename UI yet).
+    private func nextToolpathName() -> String {
+        let existing = Set(toolpaths.map(\.name))
+        var number = toolpaths.count + 1
+        while existing.contains("Toolpath \(number)") {
+            number += 1
+        }
+        return "Toolpath \(number)"
+    }
+
+    private static func defaultToolpath() -> ToolpathData {
+        ToolpathData(id: UUID(),
+                     name: "Toolpath 1",
+                     tool: Tool(id: UUID(),
+                                name: "3.175mm",
+                                shankDiameter: 3.175,
+                                toolDiameter: 3.175,
+                                length: 12,
+                                type: .endMill,
+                                group: nil,
+                                tipAngle: nil,
+                                parameters: [:]),
+                     startZ: 0,
+                     endZ: -1,
+                     contour: .outline,
+                     ramping: RampingSettings(enabled: true,
+                                              type: .linear,
+                                              angle: 2,
+                                              length: 10),
+                     feedRate: 0.1,
+                     plungeRate: 0.1,
+                     spindleRPM: 1200,
+                     stepDown: 0.1,
+                     stepOver: 0.1,
+                     safeZ: 3)
+    }
+
     // MARK: Shape picking
 
     /// Enters picking mode for `id`, or leaves it if `id` is already the one
@@ -130,6 +236,10 @@ class CAMModel: ObservableObject {
         guard let toolpath = toolpaths.first(where: { $0.id == id }) else {
             return
         }
+        // Picking edits the toolpath open in the panel, so make sure it's the
+        // open one. Done first: if another toolpath was being picked, this ends
+        // that (see `selectedToolpathID`).
+        selectedToolpathID = id
         // Set before seeding the canvas: seeding can prune stale targets and
         // report that back through applyPickedPaths, which needs this id.
         pickingToolpathID = id
@@ -202,6 +312,9 @@ class CAMModel: ObservableObject {
 
         PerfLog.log("gen", "applying result on main thread — \(PerfLog.fmt(PerfLog.ms(since: requestedAt))) after the click")
         let applyStart = PerfLog.now()
+        // Generating a hidden toolpath means the user wants to see it. No preview
+        // rebuild needed here: setting `generations` below does it.
+        hiddenToolpathIDs.remove(id)
         generations[id] = ToolpathGeneration(source: source,
                                              outcome: computed.outcome,
                                              previewPath: computed.previewPath)
@@ -234,7 +347,9 @@ class CAMModel: ObservableObject {
         defer {
             PerfLog.log("gen", "updateToolpathPreview took \(PerfLog.fmt(PerfLog.ms(since: t0)))")
         }
-        let paths = toolpaths.compactMap { generations[$0.id]?.previewPath }
+        let paths = toolpaths
+            .filter { !hiddenToolpathIDs.contains($0.id) }
+            .compactMap { generations[$0.id]?.previewPath }
 
         switch paths.count {
         case 0:
@@ -283,7 +398,7 @@ class CAMModel: ObservableObject {
                     canvasState.add(obj, select: false)
                 }
                 return objs.first
-                
+
             default:
                 print("Unsupported file type: \(ext)")
         }
@@ -294,6 +409,8 @@ class CAMModel: ObservableObject {
         endPicking()
         discardGenerations()
         canvasState.removeAll()
+        selectedToolpathID = nil
+        hiddenToolpathIDs.removeAll()
         toolpaths.removeAll()
     }
 
