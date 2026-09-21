@@ -33,7 +33,7 @@ struct CAM_2D_View: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: D2_CanvasNSView, context: Context) {
-
+        let _ = Self._printChanges()
         // Only assign canvasState when it's genuinely a *different* instance
         // (e.g. a new document was opened). D2_CanvasNSView re-fits the
         // viewport whenever canvasState is set — reassigning the *same*

@@ -33,6 +33,7 @@ struct CAMView: View {
     @ObservedObject var projectModel: ProjectModel
 
     var body: some View {
+        let _ = Self._printChanges()
         ZStack {
             if $camModel.canvasState.objects.isEmpty {
                 emptyView
