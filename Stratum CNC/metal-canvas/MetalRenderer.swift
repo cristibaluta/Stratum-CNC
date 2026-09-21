@@ -205,6 +205,12 @@ class MetalRenderer: NSObject {
     private var lastObjects: [RenderObject] = []
     private var hasFittedInitialContent = false
 
+    /// Roles left out of the initial "fit to screen" framing. Empty by
+    /// default (the controller frames everything, as before). CAM's locked
+    /// 2D view sets `[.ruler]`: the ruler is a fixed 200 mm reference, and
+    /// letting it count would zoom a 30 mm drawing out to a speck.
+    var fitExcludedRoles: Set<RenderRole> = []
+
     /// Last built batch per `RenderObject.id`, so `updateGeometry` can tell
     /// "this is the same object, just with a different `visibleVertexCount`"
     /// (reuse the buffer) apart from "this is genuinely new geometry"
@@ -574,6 +580,9 @@ class MetalRenderer: NSObject {
         var found = false
 
         for object in objects {
+            if let role = object.role, fitExcludedRoles.contains(role) {
+                continue
+            }
             for point in object.points {
                 found = true
                 minPoint = simd_min(minPoint, point)

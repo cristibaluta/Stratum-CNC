@@ -67,6 +67,13 @@ struct MetalCanvasView: NSViewRepresentable {
     /// when it's actually a new mesh — see `Coordinator.lastHeightmapMeshID`.
     var heightmapMesh: HeightmapMesh?
 
+    /// Overrides the renderer's default dark-gray clear color when non-nil.
+    /// The controller leaves this `nil` and looks exactly as before; CAM's
+    /// canvas passes the window's own background so its (appearance-aware)
+    /// path colors keep their contrast in both light and dark mode.
+    /// Applied in `updateNSView`, so changing it just needs a redraw.
+    var clearColor: SIMD4<Float>? = nil
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -93,6 +100,8 @@ struct MetalCanvasView: NSViewRepresentable {
             // Only one face exists in this mode, so a cube for orienting
             // between faces has nothing useful to show.
             renderer.showOrientationCube = false
+            // Frame the drawing (and stock), not the 200 mm ruler.
+            renderer.fitExcludedRoles = [.ruler]
         }
 
         // Render on demand rather than continuously. The scene is static
@@ -136,6 +145,10 @@ struct MetalCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: MTKView, context: Context) {
+        if let clearColor {
+            nsView.clearColor = MTLClearColor(red: Double(clearColor.x), green: Double(clearColor.y),
+                                              blue: Double(clearColor.z), alpha: Double(clearColor.w))
+        }
         context.coordinator.renderer?.updateGeometry(objects: objects)
         context.coordinator.renderer?.renderMode = renderMode
         context.coordinator.renderer?.xyOffset = xyOffset

@@ -112,10 +112,12 @@ So nothing breaks mid-flight:
 
 done 1. Land the configurable-fixtures + locked-camera-mode refactor (A) — zero
    behavior change for the controller, verify against existing usage.
-2. Build the D2→RenderObject adapter (B+C) as a standalone, testable
+done 2. Build the D2→RenderObject adapter (B+C) as a standalone, testable
    function — no view changes yet.
-3. Stand up a new Metal-based CAM view **behind a flag**, `CAM_2D_View`
-   keeps shipping in parallel.
+done 3. Stand up a new Metal-based CAM view **behind a flag**, `CAM_2D_View`
+   keeps shipping in parallel. Landed as `CAM_Metal_View` + `CAMSceneModel`
+   (`cam/renderer-metal/`), switched by `CAMFeatureFlags.metalCanvasKey`.
+   Draw-only: no mouse selection yet (step 4).
 4. Port hit testing + mouse interaction (D+E); verify selection, shift/cmd
    multi-select, "select shapes" picking mode, drag-to-move, and the
    rotation-center handle match today's behavior.

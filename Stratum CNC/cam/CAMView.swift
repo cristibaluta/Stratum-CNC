@@ -20,9 +20,12 @@ import SwiftUI
           selection, stock render state, live zoom — everything the
           inspector, material panel and 2D view all read from and write to)
     - ProjectModel (ProjectData)               <- persisted project data
-    - CAM_2D_View
+    - CAM_2D_View                              <- default canvas (CoreAnimation)
         - D2_CanvasNSView
             - D2_CanvasRenderer (based on the properties from D2_CanvasState)
+    - CAM_Metal_View                           <- experimental canvas, behind CAMFeatureFlags.metalCanvasKey
+        - CAMSceneModel (D2_CanvasState -> [RenderObject] via D2_RenderObjectBuilder)
+        - MetalCanvasView (.locked2D)
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
     - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
     - ToolpathListView                         <- left, under the objects panel: select / show-hide / delete toolpaths
@@ -33,6 +36,10 @@ struct CAMView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var projectModel: ProjectModel
 
+    /// Experimental: draw the canvas with Metal (`CAM_Metal_View`) instead of
+    /// CoreAnimation (`CAM_2D_View`). Off by default; see the plan's step 3.
+    @AppStorage(CAMFeatureFlags.metalCanvasKey) private var useMetalCanvas = false
+
     var body: some View {
         let _ = Self._printChanges()
         ZStack {
@@ -41,11 +48,18 @@ struct CAMView: View {
             } else {
                 // TODO: This view should be swapable with a 3D view depending on the first open file
                 // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
-                CAM_2D_View(canvasState: camModel.canvasState,
-                            initialViewport: camModel.savedViewport,
-                            onViewportChanged: { pan, zoom in
-                                camModel.saveViewport(panOffset: pan, zoomScale: zoom)
-                            })
+                if useMetalCanvas {
+                    // `.id` so a different `D2_CanvasState` instance gets a fresh
+                    // scene model instead of one still observing the old state.
+                    CAM_Metal_View(canvasState: camModel.canvasState)
+                        .id(ObjectIdentifier(camModel.canvasState))
+                } else {
+                    CAM_2D_View(canvasState: camModel.canvasState,
+                                initialViewport: camModel.savedViewport,
+                                onViewportChanged: { pan, zoom in
+                                    camModel.saveViewport(panOffset: pan, zoomScale: zoom)
+                                })
+                }
 
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right
@@ -82,6 +96,15 @@ struct CAMView: View {
                 }
             }
         }
+        #if DEBUG
+        .overlay(alignment: .bottomLeading) {
+            Toggle("Metal canvas (experimental)", isOn: $useMetalCanvas)
+                .toggleStyle(.checkbox)
+                .padding(8)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+                .padding(16)
+        }
+        #endif
         .onAppear {
             // Establish the canvas's copy of stock visibility from the
             // persisted value the first time this screen appears.
