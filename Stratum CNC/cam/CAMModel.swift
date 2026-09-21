@@ -31,14 +31,11 @@ class CAMModel: ObservableObject {
     @Published var toolpaths: [ToolpathData] = []
 
     /// The toolpath whose settings are open in the right-hand panel; nil closes the panel.
+    /// Shape picking follows it: while a toolpath is open the canvas is in picking
+    /// mode for it, and closing the panel ends picking (see `syncPickingWithSelection`).
     @Published var selectedToolpathID: UUID? {
         didSet {
-            // Shape picking belongs to the toolpath open in the panel. When that
-            // panel goes away (deselected) or shows another toolpath, the "Done"
-            // button that ends picking goes with it, so picking has to end too.
-            if let picking = pickingToolpathID, picking != selectedToolpathID {
-                endPicking()
-            }
+            syncPickingWithSelection()
         }
     }
 
@@ -151,9 +148,7 @@ class CAMModel: ObservableObject {
     }
 
     func deleteToolpath(_ id: UUID) {
-        if pickingToolpathID == id {
-            endPicking()
-        }
+        // Closes the panel and ends picking if it was the open one
         if selectedToolpathID == id {
             selectedToolpathID = nil
         }
@@ -222,31 +217,32 @@ class CAMModel: ObservableObject {
 
     // MARK: Shape picking
 
-    /// Enters picking mode for `id`, or leaves it if `id` is already the one
-    /// being edited. Starting it for a different toolpath switches over.
-    func togglePicking(for id: UUID) {
-        if pickingToolpathID == id {
+    /// Keeps the canvas's picking mode in step with the open toolpath: opening
+    /// one starts picking shapes for it, switching moves picking over to the new
+    /// one, closing it stops picking.
+    private func syncPickingWithSelection() {
+        guard pickingToolpathID != selectedToolpathID else {
+            return
+        }
+        if pickingToolpathID != nil {
             endPicking()
-        } else {
+        }
+        if let id = selectedToolpathID {
             beginPicking(for: id)
         }
     }
 
-    func beginPicking(for id: UUID) {
+    private func beginPicking(for id: UUID) {
         guard let toolpath = toolpaths.first(where: { $0.id == id }) else {
             return
         }
-        // Picking edits the toolpath open in the panel, so make sure it's the
-        // open one. Done first: if another toolpath was being picked, this ends
-        // that (see `selectedToolpathID`).
-        selectedToolpathID = id
         // Set before seeding the canvas: seeding can prune stale targets and
         // report that back through applyPickedPaths, which needs this id.
         pickingToolpathID = id
         canvasState.beginPickingPaths(initial: toolpath.targets)
     }
 
-    func endPicking() {
+    private func endPicking() {
         pickingToolpathID = nil
         canvasState.endPickingPaths()
     }

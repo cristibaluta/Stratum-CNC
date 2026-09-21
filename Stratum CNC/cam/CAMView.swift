@@ -211,8 +211,10 @@ struct CAMView: View {
             FittingScrollView {
                 ToolpathCellView(toolpath: binding(for: toolpath),
                                  isPicking: camModel.pickingToolpathID == toolpath.id,
-                                 onTogglePicking: {
-                                     camModel.togglePicking(for: toolpath.id)
+                                 onDone: {
+                                     withAnimation(.easeOut(duration: 0.15)) {
+                                         camModel.selectedToolpathID = nil
+                                     }
                                  },
                                  generation: camModel.generations[toolpath.id],
                                  isGenerating: camModel.generatingIDs.contains(toolpath.id),

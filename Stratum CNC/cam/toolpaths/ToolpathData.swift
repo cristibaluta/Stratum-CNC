@@ -29,7 +29,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     var safeZ: Double
 
     /// The contours (paths on the canvas) this toolpath cuts. Empty until the
-    /// user picks some — see CAMModel.beginPicking(for:).
+    /// user picks some — picked on the canvas while the toolpath is open (see CAMModel.selectedToolpathID).
     var targets: [PathSelection] = []
 
     /// What the toolpath does (contour, pocket, drill…) and that operation's own options.

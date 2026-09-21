@@ -10,10 +10,11 @@ import SwiftUI
 struct ToolpathCellView: View {
     @Binding var toolpath: ToolpathData
 
-    /// True while the canvas is in "select shapes" mode for this toolpath.
+    /// True while the canvas is picking shapes for this toolpath. That's the case
+    /// whenever the cell is open: clicking a shape on the canvas adds/removes it.
     var isPicking: Bool = false
-    /// Enters shape-picking mode for this toolpath, or leaves it if already active.
-    var onTogglePicking: () -> Void = {}
+    /// Closes the cell and unselects the toolpath.
+    var onDone: () -> Void = {}
 
     /// Result of the last Generate for this toolpath, if any.
     var generation: ToolpathGeneration? = nil
@@ -37,7 +38,7 @@ struct ToolpathCellView: View {
 
                     Spacer()
 
-                    shapesButton
+                    shapesLabel
 
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) {
@@ -48,6 +49,8 @@ struct ToolpathCellView: View {
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .buttonStyle(.plain)
+
+                    doneButton
                 }
 
                 HStack(spacing: 8) {
@@ -175,35 +178,32 @@ struct ToolpathCellView: View {
 
     // MARK: Shapes
 
-    /// "Select shapes" -> (canvas picking mode, button becomes "Done") -> back.
-    /// Esc also closes the mode while it's active.
-    private var shapesButton: some View {
-        Button {
-            onTogglePicking()
-        } label: {
-            Label(shapesTitle,
-                  systemImage: isPicking ? "checkmark.circle.fill" : "cursorarrow.click")
-                .font(.system(size: 12, weight: .medium))
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
-        .tint(isPicking ? .orange : nil)
-        .keyboardShortcut(isPicking ? .cancelAction : nil)
-        .help(isPicking
-              ? "Click shapes on the canvas to add or remove them. Click Done (or press Esc) when finished."
-              : "Choose which shapes on the canvas this toolpath cuts")
+    /// How many shapes the toolpath cuts. Shapes are chosen by clicking them on
+    /// the canvas while the cell is open, so there's nothing to press here.
+    private var shapesLabel: some View {
+        Label(shapesTitle, systemImage: "cursorarrow.click")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(toolpath.targets.isEmpty ? Color.orange : Color.secondary)
+            .help("Click shapes on the canvas to add or remove them")
     }
 
     private var shapesTitle: String {
-        let count = toolpath.targets.count
-        if isPicking {
-            return count == 0 ? "Done" : "Done (\(count) selected)"
+        switch toolpath.targets.count {
+        case 0: return "Click shapes to select"
+        case 1: return "1 shape selected"
+        default: return "\(toolpath.targets.count) shapes selected"
         }
-        switch count {
-        case 0: return "Select shapes"
-        case 1: return "1 shape"
-        default: return "\(count) shapes"
+    }
+
+    /// Esc does the same.
+    private var doneButton: some View {
+        Button("Done") {
+            onDone()
         }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .keyboardShortcut(.cancelAction)
+        .help("Close the toolpath (Esc)")
     }
 }
 
