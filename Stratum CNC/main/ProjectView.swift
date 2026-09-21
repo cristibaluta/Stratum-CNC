@@ -21,6 +21,7 @@ struct ProjectView: View {
             switch projectModel.activeTab {
                 case .cam:
                     CAMView(camModel: projectModel.camModel, projectModel: projectModel)
+                        .environmentObject(appModel)
 
                 case .controller:
                     ControllerView(model: projectModel.controllerModel,
