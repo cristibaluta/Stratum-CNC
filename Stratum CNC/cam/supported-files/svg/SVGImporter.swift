@@ -251,13 +251,7 @@ private extension DXFPathConverter {
         to p2: CGPoint,
         tolerance: Double = 0.01
     ) {
-        let steps = bezierStepCount(
-            from: p0,
-            control1: p1,
-            control2: p1,
-            to: p2,
-            tolerance: tolerance
-        )
+        let steps = quadraticStepCount(from: p0, control: p1, to: p2, tolerance: tolerance)
 
         var previous = p0
 
@@ -369,6 +363,16 @@ private func cubicPoint(
     )
 }
 
+/// Number of equal-`t` line segments needed to keep a flattened cubic within `tolerance`
+/// (same units as the coordinates, mm here) of the true curve.
+///
+/// This is the standard bound on the deviation of a uniform subdivision:
+/// error <= (1/8) * max|B''| / n^2, with max|B''| <= 6 * max(|p0-2p1+p2|, |p1-2p2+p3|),
+/// so n = ceil(sqrt(0.75 * M / tolerance)).
+///
+/// It used to be `ceil(controlPolygonLength / tolerance)` — one segment per 0.01 mm of curve,
+/// regardless of how straight or curved it was — which turned a simple outline into tens of
+/// thousands of entities and the toolpath engine's output into millions of waypoints.
 private func bezierStepCount(
     from p0: CGPoint,
     control1 p1: CGPoint,
@@ -376,15 +380,24 @@ private func bezierStepCount(
     to p3: CGPoint,
     tolerance: Double
 ) -> Int {
-    let length =
-        distance(p0, p1)
-        + distance(p1, p2)
-        + distance(p2, p3)
+    let d1 = hypot(Double(p0.x - 2 * p1.x + p2.x), Double(p0.y - 2 * p1.y + p2.y))
+    let d2 = hypot(Double(p1.x - 2 * p2.x + p3.x), Double(p1.y - 2 * p2.y + p3.y))
+    let n = (0.75 * max(d1, d2) / max(tolerance, 0.000001)).squareRoot()
 
-    return max(
-        8,
-        Int(ceil(length / max(tolerance, 0.0001)))
-    )
+    return max(4, Int(n.rounded(.up)))
+}
+
+/// Same idea for a quadratic: max|B''| = 2 * |p0-2p1+p2|, so n = ceil(sqrt(0.25 * M / tolerance)).
+private func quadraticStepCount(
+    from p0: CGPoint,
+    control p1: CGPoint,
+    to p2: CGPoint,
+    tolerance: Double
+) -> Int {
+    let d = hypot(Double(p0.x - 2 * p1.x + p2.x), Double(p0.y - 2 * p1.y + p2.y))
+    let n = (0.25 * d / max(tolerance, 0.000001)).squareRoot()
+
+    return max(4, Int(n.rounded(.up)))
 }
 
 private func distance(

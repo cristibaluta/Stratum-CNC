@@ -48,8 +48,10 @@ final class D2_CanvasRenderer {
 
         toolpathsLayer.fillColor = nil
         toolpathsLayer.strokeColor = STColor.systemBlue.cgColor
-        toolpathsLayer.lineJoin = .round
-        toolpathsLayer.lineCap = .round
+        // Bevel/butt: much cheaper for Core Animation to stroke than round joins/caps, and
+        // invisible on a hairline. (Round joins add a fan of triangles at every vertex.)
+        toolpathsLayer.lineJoin = .bevel
+        toolpathsLayer.lineCap = .butt
 
         stockLayer.zPosition = -2
         rulerLayer.zPosition = -1
@@ -102,9 +104,11 @@ final class D2_CanvasRenderer {
         path.applyWithBlock { _ in elements += 1 }
         let bounds = path.boundingBoxOfPath
         PerfLog.log("canvas", String(format: "toolpathsLayer.path assigned: %ld elements, bbox %.1f × %.1f mm, "
-                                     + "lineWidth %.4f, join=round cap=round, zoom %.2f, setter %@",
+                                     + "lineWidth %.4f, join=%@ cap=%@, zoom %.2f, setter %@",
                                      elements, bounds.width, bounds.height,
-                                     toolpathsLayer.lineWidth, zoomScale, PerfLog.fmt(setterMs)))
+                                     toolpathsLayer.lineWidth,
+                                     toolpathsLayer.lineJoin.rawValue, toolpathsLayer.lineCap.rawValue,
+                                     zoomScale, PerfLog.fmt(setterMs)))
         PerfLog.logAfterNextRunLoopTurn("canvas", "after assigning the overlay path")
     }
 

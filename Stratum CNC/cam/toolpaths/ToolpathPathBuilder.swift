@@ -15,6 +15,13 @@ enum ToolpathPathBuilder {
     /// Max distance between an arc and the straight chords approximating it (mm).
     private static let chordTolerance: Double = 0.01
 
+    /// Preview only: points closer than this (mm) to the previous drawn point are dropped.
+    /// The engine can emit vertices microns apart; nothing on screen can show that, but
+    /// Core Animation has to tessellate and stroke every one of them. 0.02 mm stays sub-pixel
+    /// until you zoom past ~40 pt/mm (about 14x true-to-life), and the error it introduces
+    /// on a curve is well below a micron.
+    private static let minSegment: Double = 0.02
+
     /// Every pass of every toolpath as one path. Only cutting moves are drawn:
     /// rapids are skipped, and so are pure Z moves (plunges/retracts), which
     /// have no XY extent. Returns nil if there's nothing to draw.
@@ -76,6 +83,7 @@ enum ToolpathPathBuilder {
             }
         }
 
+        pen.finish()
         let result: CGPath? = pen.path.isEmpty ? nil : pen.path
 
         // Diagnostics
@@ -88,7 +96,8 @@ enum ToolpathPathBuilder {
                     + "\(drawnPasses.count) unique drawn, \(skippedPasses) skipped as duplicates · "
                     + "waypoints visited \(waypointsVisited)")
         PerfLog.log("path", "preview path: \(pen.moves) moveTo + \(pen.lines) lineTo "
-                    + "(\(pen.arcs) arcs flattened into \(pen.arcSegments) segments) · bbox \(boundsText)")
+                    + "(\(pen.decimated) points dropped as closer than \(minSegment) mm; "
+                    + "\(pen.arcs) arcs flattened into \(pen.arcSegments) segments) · bbox \(boundsText)")
         if drawnPasses.count > 1 {
             PerfLog.log("path", "unique passes drawn — waypoints per pass (first 8): \(Array(drawnPassWaypointCounts.prefix(8)))")
         }
@@ -135,22 +144,39 @@ enum ToolpathPathBuilder {
 
     /// Draws connected moves as one subpath, starting a new one only when the
     /// tool jumped (rapid / retract) since the last segment ended.
+    /// Call `finish()` before reading `path`.
     private struct Pen {
 
         let path = CGMutablePath()
-        private var last: CGPoint?
+
+        /// Where the pen logically is: the end of the last move, drawn or not.
+        private var cursor: CGPoint?
+        /// The last point actually added to `path`.
+        private var drawn: CGPoint?
+        /// `cursor` was swallowed by the decimation and still has to be added, so that a run of
+        /// tiny segments doesn't end short of where it really ends.
+        private var hasPendingEnd = false
 
         // Diagnostics: what actually ended up in `path`
         private(set) var moves = 0
         private(set) var lines = 0
         private(set) var arcs = 0
         private(set) var arcSegments = 0
+        private(set) var decimated = 0
 
         mutating func line(from: CGPoint, to: CGPoint) {
             begin(at: from)
+            cursor = to
+
+            if let drawn, hypot(to.x - drawn.x, to.y - drawn.y) < ToolpathPathBuilder.minSegment {
+                hasPendingEnd = true
+                decimated += 1
+                return
+            }
             path.addLine(to: to)
+            drawn = to
+            hasPendingEnd = false
             lines += 1
-            last = to
         }
 
         /// Arcs are flattened here instead of using `CGPath.addArc`, whose
@@ -183,22 +209,43 @@ enum ToolpathPathBuilder {
             arcs += 1
             arcSegments += steps
             lines += steps
+
             begin(at: from)
+            flushPendingEnd()   // the arc must start exactly where the pen is
             for i in 1..<steps {
                 let angle = startAngle + direction * sweep * Double(i) / Double(steps)
                 path.addLine(to: CGPoint(x: center.x + radius * cos(angle),
                                          y: center.y + radius * sin(angle)))
             }
             path.addLine(to: to)
-            last = to
+            cursor = to
+            drawn = to
+        }
+
+        /// Adds the last swallowed point, if any.
+        mutating func finish() {
+            flushPendingEnd()
+        }
+
+        private mutating func flushPendingEnd() {
+            guard hasPendingEnd, let cursor else {
+                return
+            }
+            path.addLine(to: cursor)
+            drawn = cursor
+            hasPendingEnd = false
+            lines += 1
         }
 
         private mutating func begin(at point: CGPoint) {
-            if let last, hypot(last.x - point.x, last.y - point.y) <= 1e-6 {
+            if let cursor, hypot(cursor.x - point.x, cursor.y - point.y) <= 1e-6 {
                 return
             }
+            flushPendingEnd()
             path.move(to: point)
             moves += 1
+            cursor = point
+            drawn = point
         }
     }
 }
