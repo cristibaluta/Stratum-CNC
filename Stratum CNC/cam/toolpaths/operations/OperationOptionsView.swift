@@ -48,10 +48,12 @@ struct OperationOptionsView: View {
         switch kind {
 
         case .contour:
-            HStack(spacing: 8) {
-                ContourPicker(selection: $toolpath.contour)
-                directionPicker
-                rampingButton
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    ContourPicker(selection: $toolpath.contour)
+                    directionPicker
+                }
+                rampingRow
             }
 
         case .pocket:
@@ -59,7 +61,6 @@ struct OperationOptionsView: View {
                 HStack(spacing: 8) {
                     EnumMenuPicker(title: "PATTERN", selection: $toolpath.operation.pocketPattern)
                     directionPicker
-                    rampingButton
                 }
                 switch toolpath.operation.pocketPattern {
                 case .spiral:
@@ -73,6 +74,7 @@ struct OperationOptionsView: View {
                 case .offset, .raster:
                     EmptyView()
                 }
+                rampingRow
             }
 
         case .facing:
@@ -87,9 +89,7 @@ struct OperationOptionsView: View {
                     EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource)
                     NumberField(title: "DEPTH / PASS", value: $toolpath.operation.slotDepthPerPass, suffix: "mm")
                 }
-                HStack(spacing: 8) {
-                    rampingButton
-                }
+                rampingRow
             }
 
         case .engrave:
@@ -111,8 +111,8 @@ struct OperationOptionsView: View {
                 }
                 HStack(spacing: 8) {
                     directionPicker
-                    rampingButton
                 }
+                rampingRow
             }
 
         case .boring:
@@ -161,6 +161,19 @@ struct OperationOptionsView: View {
 
     private var directionPicker: some View {
         EnumMenuPicker(title: "DIRECTION", selection: $toolpath.operation.direction)
+    }
+
+    /// Ramping gets its own line, since it applies across very different operations.
+    /// Once a method (anything other than "None") is chosen, its angle sits right
+    /// next to the button — bound to the same `toolpath.ramping.angle` the popover
+    /// edits, so the two always agree.
+    private var rampingRow: some View {
+        HStack(spacing: 8) {
+            rampingButton
+            if toolpath.ramping.type != .none {
+                NumberField(title: "RAMP ANGLE", value: $toolpath.ramping.angle, suffix: "°")
+            }
+        }
     }
 
     private var rampingButton: some View {

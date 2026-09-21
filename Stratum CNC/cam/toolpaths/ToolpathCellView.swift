@@ -79,7 +79,6 @@ struct ToolpathCellView: View {
                 VStack(spacing: 10) {
                     HStack(spacing: 10) {
                         NumberField(title: "FEED", value: $toolpath.feedRate, suffix: "mm/min")
-                        NumberField(title: "PLUNGE", value: $toolpath.plungeRate, suffix: "mm/min")
                         IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
                     }
                     HStack(spacing: 10) {
