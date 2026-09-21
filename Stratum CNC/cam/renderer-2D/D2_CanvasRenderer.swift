@@ -64,8 +64,12 @@ final class D2_CanvasRenderer {
 
         // Re-assigning a large path makes Core Animation re-tessellate it, so only do it on change.
         if renderedToolpathsPath !== canvasState.toolpathsPath {
+            let t0 = PerfLog.now()
             toolpathsLayer.path = canvasState.toolpathsPath
             renderedToolpathsPath = canvasState.toolpathsPath
+            logToolpathsPathAssigned(canvasState.toolpathsPath,
+                                     setterMs: PerfLog.ms(since: t0),
+                                     zoomScale: canvasState.zoomScale)
         }
 
         // Changing lineWidth makes Core Animation re-stroke the whole (large) path,
@@ -74,11 +78,34 @@ final class D2_CanvasRenderer {
         // restrokes per pinch into a handful.
         let desiredWidth = toolpathLineWidth / max(canvasState.zoomScale, 0.000001)
         if appliedToolpathLineWidth == 0 || abs(desiredWidth - appliedToolpathLineWidth) > appliedToolpathLineWidth * 0.15 {
+            if toolpathsLayer.path != nil {
+                PerfLog.count("canvas.restroke")
+                PerfLog.log("canvas", String(format: "toolpathsLayer.lineWidth %.4f → %.4f (zoom %.2f) — Core Animation re-strokes the whole overlay",
+                                             appliedToolpathLineWidth, desiredWidth, canvasState.zoomScale))
+            }
             toolpathsLayer.lineWidth = desiredWidth
             appliedToolpathLineWidth = desiredWidth
         }
 
         CATransaction.commit()
+    }
+
+    /// Diagnostics: how big is the overlay we just handed to Core Animation, and how long does the
+    /// main thread take to get through the commit that follows.
+    private func logToolpathsPathAssigned(_ path: CGPath?, setterMs: Double, zoomScale: CGFloat) {
+        guard let path else {
+            PerfLog.log("canvas", "toolpathsLayer.path cleared")
+            return
+        }
+
+        var elements = 0
+        path.applyWithBlock { _ in elements += 1 }
+        let bounds = path.boundingBoxOfPath
+        PerfLog.log("canvas", String(format: "toolpathsLayer.path assigned: %ld elements, bbox %.1f × %.1f mm, "
+                                     + "lineWidth %.4f, join=round cap=round, zoom %.2f, setter %@",
+                                     elements, bounds.width, bounds.height,
+                                     toolpathsLayer.lineWidth, zoomScale, PerfLog.fmt(setterMs)))
+        PerfLog.logAfterNextRunLoopTurn("canvas", "after assigning the overlay path")
     }
 
     /// Rebuilds the layer tree only when the set of objects actually changed

@@ -70,6 +70,8 @@ enum ToolpathGenerator {
             throw GenerationError.noGeometry
         }
 
+        logJobSummary(for: toolpath, contours: contours)
+
         return Job(contours: contours,
                    tool: makeTool(from: toolpath.tool),
                    settings: makeSettings(from: toolpath),
@@ -80,12 +82,29 @@ enum ToolpathGenerator {
     /// The slow part: runs StratumCAM. Touches no shared state, so it's safe
     /// to call from any thread.
     static func run(_ job: Job) throws -> [SC.OutputToolpath] {
-        let outputs = try SCEngine().generateToolpaths(from: job.contours,
+        let t0 = PerfLog.now()
+        PerfLog.log("gen", "engine: started (\(job.contours.count) contour(s))")
+
+        let outputs: [SC.OutputToolpath]
+        do {
+            outputs = try SCEngine().generateToolpaths(from: job.contours,
                                                        tool: job.tool,
                                                        settings: job.settings,
                                                        operation: job.operation)
+        } catch {
+            PerfLog.log("gen", "engine: FAILED after \(PerfLog.fmt(PerfLog.ms(since: t0))): \(message(for: error))")
+            throw error
+        }
+        PerfLog.log("gen", "engine: finished in \(PerfLog.fmt(PerfLog.ms(since: t0)))")
+        logStats(of: outputs, label: "engine output")
 
-        return outputs.map { droppingPasses(above: job.startZ, from: $0) }
+        let trimmed = outputs.map { droppingPasses(above: job.startZ, from: $0) }
+        let before = outputs.reduce(0) { $0 + $1.passes.count }
+        let after = trimmed.reduce(0) { $0 + $1.passes.count }
+        if before != after {
+            PerfLog.log("gen", "dropped \(before - after) pass(es) above startZ=\(job.startZ) (\(before) → \(after))")
+        }
+        return trimmed
     }
 
     /// A message fit for showing under the Generate button.
@@ -203,5 +222,68 @@ private extension ToolpathGenerator {
             SC.ToolpathPass(passIndex: index, depthZ: pass.depthZ, waypoints: pass.waypoints)
         }
         return result
+    }
+}
+
+
+// MARK: - Diagnostics (PerfLog)
+
+private extension ToolpathGenerator {
+
+    /// What we hand to the engine. `entities` is the number of line/arc pieces the
+    /// contours are chained from — SVG curves are flattened to short lines on import,
+    /// so a visually simple shape can still be tens of thousands of entities.
+    static func logJobSummary(for toolpath: ToolpathData, contours: [SC.Contour]) {
+        let entityCounts = contours.map { $0.entities.count }
+        let totalEntities = entityCounts.reduce(0, +)
+        let expectedPasses = toolpath.stepDown > 0
+            ? Int((abs(toolpath.endZ - min(toolpath.startZ, 0)) / toolpath.stepDown).rounded(.up))
+            : 0
+        let ramp = toolpath.ramping.enabled
+            ? "\(toolpath.ramping.type) angle=\(toolpath.ramping.angle)° length=\(toolpath.ramping.length)"
+            : "off"
+
+        PerfLog.log("gen", "job '\(toolpath.name)': \(toolpath.targets.count) shape(s) → \(contours.count) contour(s), "
+                    + "\(totalEntities) entities (largest contour: \(entityCounts.max() ?? 0))")
+        PerfLog.log("gen", "job '\(toolpath.name)': \(toolpath.contour) · tool Ø\(toolpath.tool.toolDiameter) · "
+                    + "stepdown \(toolpath.stepDown) · stepover \(toolpath.stepOver) · Z \(toolpath.startZ)…\(toolpath.endZ) "
+                    + "(≈\(expectedPasses) passes) · ramp: \(ramp)")
+    }
+
+    /// Size and shape of what the engine produced.
+    static func logStats(of outputs: [SC.OutputToolpath], label: String) {
+        var passes = 0
+        var waypoints = 0
+        var rapid = 0, linear = 0, arcCW = 0, arcCCW = 0
+        var perPass: [Int] = []
+        var waypointStride = 0
+
+        for output in outputs {
+            for pass in output.passes {
+                passes += 1
+                waypoints += pass.waypoints.count
+                perPass.append(pass.waypoints.count)
+
+                if waypointStride == 0, let first = pass.waypoints.first {
+                    waypointStride = MemoryLayout.stride(ofValue: first)
+                }
+                for waypoint in pass.waypoints {
+                    switch waypoint.motion {
+                    case .rapid: rapid += 1
+                    case .linear: linear += 1
+                    case .arcCW: arcCW += 1
+                    case .arcCCW: arcCCW += 1
+                    }
+                }
+            }
+        }
+
+        let megabytes = Double(waypoints * waypointStride) / 1_048_576
+        let average = passes > 0 ? waypoints / passes : 0
+        PerfLog.log("gen", "\(label): \(outputs.count) toolpath(s), \(passes) pass(es), \(waypoints) waypoints "
+                    + "(rapid \(rapid), linear \(linear), arcCW \(arcCW), arcCCW \(arcCCW))")
+        PerfLog.log("gen", "\(label): waypoints/pass min \(perPass.min() ?? 0) · avg \(average) · max \(perPass.max() ?? 0) · "
+                    + "first passes \(Array(perPass.prefix(6))) · ≈\(String(format: "%.0f", megabytes)) MB in memory "
+                    + "(\(waypointStride) B per waypoint, arrays only)")
     }
 }

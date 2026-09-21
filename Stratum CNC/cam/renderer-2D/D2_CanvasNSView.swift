@@ -78,6 +78,7 @@ final class D2_CanvasNSView: NSView {
     /// stock/material change) — anything that should repaint but must not
     /// reset the user's current pan/zoom.
     func refresh() {
+        PerfLog.count("nsview.refresh")
         render()
     }
 
@@ -116,10 +117,13 @@ final class D2_CanvasNSView: NSView {
     }
 
     private func render() {
+        let t0 = PerfLog.now()
         renderer.render(state: canvasState)
+        PerfLog.count("canvas.render", ms: PerfLog.ms(since: t0))
     }
 
     private func updateWorldTransform() {
+        PerfLog.count("nsview.pan/zoom")
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 

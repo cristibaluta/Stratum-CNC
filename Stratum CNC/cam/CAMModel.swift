@@ -83,6 +83,7 @@ class CAMModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     init(selectedStockMaterial: StockMaterial, toolpaths: [ToolpathData]) {
+        PerfLog.start()
         self.selectedStockMaterial = selectedStockMaterial
         self.toolpaths = toolpaths
         self.canvasState.stock = selectedStockMaterial
@@ -154,14 +155,19 @@ class CAMModel: ObservableObject {
             return
         }
 
+        let requestedAt = PerfLog.now()
+        PerfLog.log("gen", "▶ Generate requested for '\(toolpath.name)' (\(canvasState.objects.count) object(s) on canvas)")
+
         let job: ToolpathGenerator.Job
         do {
             job = try ToolpathGenerator.prepare(for: toolpath, canvasState: canvasState)
         } catch {
             // Bad input (no shapes, invalid depth…): report it right away.
+            PerfLog.log("gen", "prepare failed: \(ToolpathGenerator.message(for: error))")
             generations[id] = ToolpathGeneration(source: toolpath, outcome: .failure(error), previewPath: nil)
             return
         }
+        PerfLog.log("gen", "prepare (main thread) took \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
 
         let token = UUID()
         generationTokens[id] = token
@@ -171,30 +177,44 @@ class CAMModel: ObservableObject {
             let computed = await Task.detached(priority: .userInitiated) { () -> ComputedGeneration in
                 do {
                     let outputs = try ToolpathGenerator.run(job)
+                    let pathStart = PerfLog.now()
+                    let previewPath = ToolpathPathBuilder.path(for: outputs)
+                    PerfLog.log("gen", "background work finished; preview path step took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
                     return ComputedGeneration(outcome: .success(outputs),
-                                              previewPath: ToolpathPathBuilder.path(for: outputs))
+                                              previewPath: previewPath)
                 } catch {
                     return ComputedGeneration(outcome: .failure(error), previewPath: nil)
                 }
             }.value
 
-            self?.finishGeneration(id: id, token: token, source: toolpath, computed: computed)
+            self?.finishGeneration(id: id, token: token, source: toolpath, computed: computed, requestedAt: requestedAt)
         }
     }
 
-    private func finishGeneration(id: UUID, token: UUID, source: ToolpathData, computed: ComputedGeneration) {
+    private func finishGeneration(id: UUID, token: UUID, source: ToolpathData, computed: ComputedGeneration, requestedAt: UInt64) {
         guard generationTokens[id] == token else {
+            PerfLog.log("gen", "result for '\(source.name)' discarded (superseded, or canvas objects changed while it ran) "
+                        + "after \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
             return
         }
         generationTokens[id] = nil
         generatingIDs.remove(id)
+
+        PerfLog.log("gen", "applying result on main thread — \(PerfLog.fmt(PerfLog.ms(since: requestedAt))) after the click")
+        let applyStart = PerfLog.now()
         generations[id] = ToolpathGeneration(source: source,
                                              outcome: computed.outcome,
                                              previewPath: computed.previewPath)
+        PerfLog.log("gen", "◼ applied in \(PerfLog.fmt(PerfLog.ms(since: applyStart))) (state update + preview overlay); "
+                    + "total click → applied: \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
     }
 
     /// Drops every result and abandons runs in flight (their tokens no longer match).
     private func discardGenerations() {
+        if !generations.isEmpty || !generatingIDs.isEmpty {
+            PerfLog.log("gen", "discarding \(generations.count) result(s) and abandoning \(generatingIDs.count) running generation(s) "
+                        + "(an object or the project changed)")
+        }
         if !generationTokens.isEmpty {
             generationTokens.removeAll()
         }
@@ -210,6 +230,10 @@ class CAMModel: ObservableObject {
     /// same order as the toolpath list. Also runs when results are cleared
     /// (object edited, project cleared), which removes the overlay.
     private func updateToolpathPreview() {
+        let t0 = PerfLog.now()
+        defer {
+            PerfLog.log("gen", "updateToolpathPreview took \(PerfLog.fmt(PerfLog.ms(since: t0)))")
+        }
         let paths = toolpaths.compactMap { generations[$0.id]?.previewPath }
 
         switch paths.count {

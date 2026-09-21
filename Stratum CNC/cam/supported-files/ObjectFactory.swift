@@ -25,6 +25,13 @@ struct ObjectFactory {
         let originalSize = CGSize(width: max(combinedBounds.width, 0.001),
                                   height: max(combinedBounds.height, 0.001))
 
+        // Diagnostics: how many pieces the machinable contours are made of
+        let contourCount = contours.reduce(0) { $0 + $1.count }
+        let entityCounts = contours.flatMap { $0 }.map { $0.entities.count }
+        PerfLog.log("import", "'\(name)': \(paths.count) path(s), \(String(format: "%.1f × %.1f", originalSize.width, originalSize.height)) mm → "
+                    + "\(contourCount) contour(s) made of \(entityCounts.reduce(0, +)) entities "
+                    + "(largest contour \(entityCounts.max() ?? 0), \(entities.count) DXF entities in total)")
+
         let normalizedPaths = paths.map {
             $0.normalize(relativeTo: combinedBounds)
         }

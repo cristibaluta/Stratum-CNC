@@ -25,18 +25,34 @@ enum ToolpathPathBuilder {
     /// and the cost of building and stroking it — by the pass count.
     static func path(for outputs: [SC.OutputToolpath]) -> CGPath? {
 
+        let t0 = PerfLog.now()
         var pen = Pen()
         var drawnPasses = Set<Int>()
 
+        // Diagnostics
+        var totalPasses = 0
+        var skippedPasses = 0
+        var waypointsVisited = 0
+        var nonFinitePoints = 0
+        var drawnPassWaypointCounts: [Int] = []
+
         for output in outputs {
             for pass in output.passes {
+                totalPasses += 1
                 guard drawnPasses.insert(signature(of: pass)).inserted else {
+                    skippedPasses += 1
                     continue
                 }
+                drawnPassWaypointCounts.append(pass.waypoints.count)
 
                 var current: CGPoint?
 
                 for waypoint in pass.waypoints {
+                    waypointsVisited += 1
+                    if !(waypoint.position.x.isFinite && waypoint.position.y.isFinite) {
+                        nonFinitePoints += 1
+                    }
+
                     let target = CGPoint(x: waypoint.position.x, y: waypoint.position.y)
                     let from = current ?? target
                     current = target
@@ -60,7 +76,31 @@ enum ToolpathPathBuilder {
             }
         }
 
-        return pen.path.isEmpty ? nil : pen.path
+        let result: CGPath? = pen.path.isEmpty ? nil : pen.path
+
+        // Diagnostics
+        let bounds = pen.path.boundingBoxOfPath
+        let boundsText = bounds.isNull
+            ? "empty"
+            : String(format: "x %.1f…%.1f, y %.1f…%.1f mm (%.1f × %.1f)",
+                     bounds.minX, bounds.maxX, bounds.minY, bounds.maxY, bounds.width, bounds.height)
+        PerfLog.log("path", "preview built in \(PerfLog.fmt(PerfLog.ms(since: t0))): passes \(totalPasses) total → "
+                    + "\(drawnPasses.count) unique drawn, \(skippedPasses) skipped as duplicates · "
+                    + "waypoints visited \(waypointsVisited)")
+        PerfLog.log("path", "preview path: \(pen.moves) moveTo + \(pen.lines) lineTo "
+                    + "(\(pen.arcs) arcs flattened into \(pen.arcSegments) segments) · bbox \(boundsText)")
+        if drawnPasses.count > 1 {
+            PerfLog.log("path", "unique passes drawn — waypoints per pass (first 8): \(Array(drawnPassWaypointCounts.prefix(8)))")
+        }
+        if totalPasses > 3 && skippedPasses == 0 {
+            PerfLog.log("path", "⚠️ no pass was a duplicate of another — the XY dedupe removed nothing, "
+                        + "so the overlay holds all \(totalPasses) passes")
+        }
+        if nonFinitePoints > 0 {
+            PerfLog.log("path", "⚠️ \(nonFinitePoints) waypoint(s) with NaN/infinite X or Y")
+        }
+
+        return result
     }
 
     /// A hash of the pass's XY moves (Z ignored), to spot passes that would
@@ -100,9 +140,16 @@ enum ToolpathPathBuilder {
         let path = CGMutablePath()
         private var last: CGPoint?
 
+        // Diagnostics: what actually ended up in `path`
+        private(set) var moves = 0
+        private(set) var lines = 0
+        private(set) var arcs = 0
+        private(set) var arcSegments = 0
+
         mutating func line(from: CGPoint, to: CGPoint) {
             begin(at: from)
             path.addLine(to: to)
+            lines += 1
             last = to
         }
 
@@ -133,6 +180,9 @@ enum ToolpathPathBuilder {
             let step = max(min(chordAngle, .pi / 8), 1e-3)
             let steps = max(1, Int((sweep / step).rounded(.up)))
 
+            arcs += 1
+            arcSegments += steps
+            lines += steps
             begin(at: from)
             for i in 1..<steps {
                 let angle = startAngle + direction * sweep * Double(i) / Double(steps)
@@ -148,6 +198,7 @@ enum ToolpathPathBuilder {
                 return
             }
             path.move(to: point)
+            moves += 1
         }
     }
 }
