@@ -17,6 +17,7 @@ enum ToolpathGenerator {
         case objectNotFound
         case shapeNotFound
         case noGeometry
+        case invalidOption(String)
 
         var errorDescription: String? {
             switch self {
@@ -30,6 +31,8 @@ enum ToolpathGenerator {
                 return "A selected shape no longer exists on its object (was the file re-imported?)."
             case .noGeometry:
                 return "The selected shapes have no machinable geometry."
+            case .invalidOption(let message):
+                return message
             }
         }
     }
@@ -42,6 +45,9 @@ enum ToolpathGenerator {
         let settings: SC.MachineSettings
         let operation: SC.MachiningOperation
         let startZ: Double
+        /// The selected shapes are slot *outlines*: turn each into the centre line the
+        /// engine's `.slotting` expects before generating (see `run`).
+        let derivesSlotCenterline: Bool
     }
 
     /// Validates the toolpath and resolves its shapes against the objects'
@@ -52,9 +58,9 @@ enum ToolpathGenerator {
         guard !toolpath.targets.isEmpty else {
             throw GenerationError.noShapes
         }
-        guard toolpath.endZ < toolpath.startZ else {
-            throw GenerationError.invalidDepth
-        }
+        try validateOptions(of: toolpath)
+
+        let operation = makeOperation(from: toolpath)
 
         var contours: [SC.Contour] = []
         for target in toolpath.targets {
@@ -73,10 +79,12 @@ enum ToolpathGenerator {
         logJobSummary(for: toolpath, contours: contours)
 
         return Job(contours: contours,
-                   tool: makeTool(from: toolpath.tool),
+                   tool: makeTool(from: toolpath.tool, for: toolpath.operation.kind),
                    settings: makeSettings(from: toolpath),
-                   operation: makeOperation(from: toolpath),
-                   startZ: toolpath.startZ)
+                   operation: operation,
+                   startZ: toolpath.startZ,
+                   derivesSlotCenterline: toolpath.operation.kind == .slotting
+                       && toolpath.operation.slotSource == .outline)
     }
 
     /// The slow part: runs StratumCAM. Touches no shared state, so it's safe
@@ -85,12 +93,31 @@ enum ToolpathGenerator {
         let t0 = PerfLog.now()
         PerfLog.log("gen", "engine: started (\(job.contours.count) contour(s))")
 
+        let engine = SCEngine()
         let outputs: [SC.OutputToolpath]
         do {
-            outputs = try SCEngine().generateToolpaths(from: job.contours,
-                                                       tool: job.tool,
-                                                       settings: job.settings,
-                                                       operation: job.operation)
+            var contours = job.contours
+            if job.derivesSlotCenterline {
+                contours = try contours.map { (outline: SC.Contour) -> SC.Contour in
+                    // A little looser than the library's 0.001 mm default: hand-drawn (and
+                    // scaled or rotated) rectangles are never exact to a micron.
+                    guard let centerline = engine.rectangleSlotCenterline(fromBoundary: outline,
+                                                                           tool: job.tool,
+                                                                           tolerance: 0.05) else {
+                        throw GenerationError.invalidOption(
+                            "A selected slot outline isn't a straight-sided rectangle exactly as wide as the tool "
+                            + "(Ø\(job.tool.diameter) mm). Resize it, or set \"Selection is\" to \"Centre line\"."
+                        )
+                    }
+                    return centerline
+                }
+                PerfLog.log("gen", "derived \(contours.count) slot centre line(s) from the selected outlines")
+            }
+
+            outputs = try engine.generateToolpaths(from: contours,
+                                                   tool: job.tool,
+                                                   settings: job.settings,
+                                                   operation: job.operation)
         } catch {
             PerfLog.log("gen", "engine: FAILED after \(PerfLog.fmt(PerfLog.ms(since: t0))): \(message(for: error))")
             throw error
@@ -107,8 +134,9 @@ enum ToolpathGenerator {
         return trimmed
     }
 
-    /// A message fit for showing under the Generate button.
-    static func message(for error: Error) -> String {
+    /// A message fit for showing under the Generate button. `operation` (the operation the
+    /// error came from) lets a few generic engine errors say what actually went wrong.
+    static func message(for error: Error, operation: OperationKind? = nil) -> String {
         if let error = error as? GenerationError {
             return error.errorDescription ?? "Couldn't generate the toolpath."
         }
@@ -117,9 +145,14 @@ enum ToolpathGenerator {
             case .contourNotClosed:
                 return "This operation needs closed shapes, but a selected shape is open."
             case .invalidContour:
+                if operation == .threadMilling {
+                    return "Thread milling needs each selected shape to be one closed circle (the existing hole). "
+                        + "SVG circles are stored as lines and aren't recognised — use a DXF or drill-file circle."
+                }
                 return "A selected shape has no usable geometry."
             case .missingDrillPoint:
-                return "A selected shape has no drill point (expected a point or a closed circle)."
+                return "A selected shape isn't a point or a closed circle. "
+                    + "SVG circles are stored as lines and aren't recognised — use a DXF or drill-file circle."
             case .toolIncompatible:
                 return "The selected tool can't perform this operation."
             case .invalidParameter(let name):
@@ -138,16 +171,20 @@ enum ToolpathGenerator {
 
 private extension ToolpathGenerator {
 
-    static func makeTool(from tool: Tool) -> SC.ToolParams {
-        // `Tool.type` is not mapped yet: everything is treated as a flat end
-        // mill. When V-bits / drills / thread mills can be created in the app,
-        // switch on `tool.type` here to pick the matching `SC.ToolType`.
-        SC.ToolParams(id: tool.id,
-                      name: tool.name,
-                      type: .flatEndMill,
-                      diameter: Double(tool.toolDiameter),
-                      vAngle: tool.tipAngle.map { Double($0) },
-                      fluteLength: Double(tool.length!))
+    static func makeTool(from tool: Tool, for kind: OperationKind) -> SC.ToolParams {
+        let vAngle = tool.tipAngle.map { Double($0) }
+
+        // `Tool.type` is not mapped yet: everything is a flat end mill, except for a chamfer,
+        // the one operation that looks at the tool type — it derives its depth from a V-bit's
+        // included angle. A tool with a tip angle is taken as a V-bit there.
+        let type: SC.ToolType = (kind == .chamfer && (vAngle ?? 0) > 0) ? .vBit : .flatEndMill
+
+        return SC.ToolParams(id: tool.id,
+                             name: tool.name,
+                             type: type,
+                             diameter: Double(tool.toolDiameter),
+                             vAngle: vAngle,
+                             fluteLength: Double(tool.length!))
     }
 
     static func makeSettings(from toolpath: ToolpathData) -> SC.MachineSettings {
@@ -164,26 +201,182 @@ private extension ToolpathGenerator {
 
         // The library measures depth down from the top of the stock (Z0).
         // `startZ` is handled afterwards by `droppingPasses(above:from:)`.
+        // A counterbore has its own depth (and no End Z field); everything else cuts down to End Z.
+        let depth = toolpath.operation.kind == .counterbore
+            ? toolpath.operation.counterboreDepth
+            : toolpath.endZ
+
         return SC.MachineSettings(cutting: cutting,
                                   safeZ: toolpath.safeZ,
                                   retractZ: min(1.0, toolpath.safeZ),
-                                  targetDepth: abs(toolpath.endZ))
+                                  targetDepth: abs(depth))
     }
 
-    static func makeOperation(from toolpath: ToolpathData) -> SC.MachiningOperation {
-        let side: SC.CutSide
-        switch toolpath.contour {
-        case .inside:  side = .inside
-        case .outside: side = .outside
-        case .outline: side = .onContour
+    /// Rejects option values the engine can't work with, with a message the user can act on.
+    static func validateOptions(of toolpath: ToolpathData) throws {
+        let options = toolpath.operation
+
+        if options.kind.usesEndZ {
+            guard toolpath.endZ < toolpath.startZ else {
+                throw GenerationError.invalidDepth
+            }
         }
 
-        return .contour(side: side,
-                        direction: .climb,
-                        entry: makeEntry(from: toolpath.ramping),
-                        leadIn: nil,
-                        leadOut: nil,
-                        tabs: [])
+        switch options.kind {
+        case .contour, .engrave:
+            break
+        case .pocket:
+            if options.pocketPattern == .trochoidal,
+               !(5...100).contains(options.pocketTrochoidalPitch) {
+                // Below ~5 % the loops get so tight that the path explodes in size.
+                throw GenerationError.invalidOption("The trochoidal loop pitch must be between 5 % and 100 % of the tool radius.")
+            }
+        case .facing:
+            guard options.facingExtension >= 0 else {
+                throw GenerationError.invalidOption("The facing extension can't be negative.")
+            }
+        case .slotting:
+            guard options.slotDepthPerPass > 0 else {
+                throw GenerationError.invalidOption("Depth per pass must be greater than 0.")
+            }
+        case .drilling:
+            if options.drillUsesPecking, options.drillPeckDepth <= 0 {
+                throw GenerationError.invalidOption("The peck depth must be greater than 0.")
+            }
+        case .counterbore:
+            guard options.counterboreDepth > 0 else {
+                throw GenerationError.invalidOption("The counterbore depth must be greater than 0.")
+            }
+            guard options.counterboreDiameter > Double(toolpath.tool.toolDiameter) else {
+                throw GenerationError.invalidOption("The counterbore diameter must be larger than the tool (Ø\(toolpath.tool.toolDiameter) mm).")
+            }
+        case .boring:
+            guard options.boreTargetDiameter > 0 else {
+                throw GenerationError.invalidOption("The finished diameter must be greater than 0.")
+            }
+            if options.boreUsesDwell, options.boreDwellTime < 0 {
+                throw GenerationError.invalidOption("The dwell time can't be negative.")
+            }
+        case .threadMilling:
+            guard options.threadPitch > 0 else {
+                throw GenerationError.invalidOption("The thread pitch must be greater than 0.")
+            }
+            guard options.threadTargetDiameter > 0 else {
+                throw GenerationError.invalidOption("The thread diameter must be greater than 0.")
+            }
+            guard options.threadRadialPasses >= 1 else {
+                throw GenerationError.invalidOption("The thread needs at least 1 radial pass.")
+            }
+        case .chamfer:
+            guard options.chamferWidth > 0 else {
+                throw GenerationError.invalidOption("The chamfer width must be greater than 0.")
+            }
+            if options.chamferUsesDepth {
+                guard options.chamferDepth > 0 else {
+                    throw GenerationError.invalidOption("The chamfer depth must be greater than 0.")
+                }
+            } else if (toolpath.tool.tipAngle ?? 0) <= 0 {
+                throw GenerationError.invalidOption("A chamfer needs a V-bit: pick a tool with a tip angle, or turn on Fixed depth.")
+            }
+        }
+    }
+
+    /// The toolpath's operation and options as StratumCAM's `SC.MachiningOperation`.
+    ///
+    /// Not offered: `PocketClearingPattern.adaptive` (its engine code is a `fatalError`), the
+    /// slot patterns `.trochoidal`/`.adaptive` and `EntryStrategy.fromOpenEnd` (they only make
+    /// sense for slot outlines open at one or both ends, which the app doesn't derive yet), and
+    /// lead-in/out and holding tabs on contours.
+    static func makeOperation(from toolpath: ToolpathData) -> SC.MachiningOperation {
+        let options = toolpath.operation
+        let direction = makeDirection(from: options.direction)
+        let entry = makeEntry(from: toolpath.ramping)
+
+        switch options.kind {
+
+        case .contour:
+            let side: SC.CutSide
+            switch toolpath.contour {
+            case .inside:  side = .inside
+            case .outside: side = .outside
+            case .outline: side = .onContour
+            }
+            return .contour(side: side,
+                            direction: direction,
+                            entry: entry,
+                            leadIn: nil,
+                            leadOut: nil,
+                            tabs: [])
+
+        case .pocket:
+            return .pocket(direction: direction,
+                           pattern: makePocketPattern(from: options),
+                           entry: entry)
+
+        case .facing:
+            return .facing(direction: direction,
+                           extensionLength: options.facingExtension)
+
+        case .slotting:
+            // The pattern only matters together with `.fromOpenEnd` entry; for a plunge, ramp or
+            // helix entry the engine just traces the centre line.
+            return .slotting(depthPerPass: options.slotDepthPerPass,
+                             pattern: .raster,
+                             entry: entry)
+
+        case .engrave:
+            return .engrave
+
+        case .drilling:
+            return .drilling(peckDepth: options.drillUsesPecking ? options.drillPeckDepth : nil)
+
+        case .counterbore:
+            return .counterbore(diameter: options.counterboreDiameter,
+                                depth: options.counterboreDepth,
+                                direction: direction,
+                                entry: entry)
+
+        case .boring:
+            return .boring(targetDiameter: options.boreTargetDiameter,
+                           dwellTime: options.boreUsesDwell ? options.boreDwellTime : nil,
+                           shiftRetract: options.boreShiftRetract)
+
+        case .threadMilling:
+            return .threadMilling(pitch: options.threadPitch,
+                                  isInternal: options.threadIsInternal,
+                                  direction: options.threadHandedness == .rightHand ? .rightHand : .leftHand,
+                                  radialPasses: options.threadRadialPasses,
+                                  targetDiameter: options.threadTargetDiameter)
+
+        case .chamfer:
+            let params = SC.ChamferParams(width: options.chamferWidth,
+                                          depth: options.chamferUsesDepth ? options.chamferDepth : nil,
+                                          side: options.chamferSide == .outside ? .outside : .inside,
+                                          direction: direction)
+            return .chamfer(params: params)
+        }
+    }
+
+    static func makePocketPattern(from options: OperationSettings) -> SC.PocketClearingPattern {
+        switch options.pocketPattern {
+        case .offset:
+            return .offset
+        case .raster:
+            return .raster
+        case .spiral:
+            return .spiral(direction: options.pocketSpiral == .outsideIn ? .outsideIn : .insideOut)
+        case .trochoidal:
+            // `radialEngagement` is a fraction of the tool radius; the pocket ignores `loopRadius`.
+            return .trochoidal(settings: SC.TrochoidalSettings(radialEngagement: options.pocketTrochoidalPitch / 100,
+                                                               loopRadius: 0))
+        }
+    }
+
+    static func makeDirection(from direction: CutDirectionOption) -> SC.CutDirection {
+        switch direction {
+        case .climb:        return .climb
+        case .conventional: return .conventional
+        }
     }
 
     static func makeEntry(from ramping: RampingSettings) -> SC.EntryStrategy {
@@ -245,7 +438,10 @@ private extension ToolpathGenerator {
 
         PerfLog.log("gen", "job '\(toolpath.name)': \(toolpath.targets.count) shape(s) → \(contours.count) contour(s), "
                     + "\(totalEntities) entities (largest contour: \(entityCounts.max() ?? 0))")
-        PerfLog.log("gen", "job '\(toolpath.name)': \(toolpath.contour) · tool Ø\(toolpath.tool.toolDiameter) · "
+        let operation = toolpath.operation.kind == .contour
+            ? "contour/\(toolpath.contour)"
+            : "\(toolpath.operation.kind)"
+        PerfLog.log("gen", "job '\(toolpath.name)': \(operation) · tool Ø\(toolpath.tool.toolDiameter) · "
                     + "stepdown \(toolpath.stepDown) · stepover \(toolpath.stepOver) · Z \(toolpath.startZ)…\(toolpath.endZ) "
                     + "(≈\(expectedPasses) passes) · ramp: \(ramp)")
     }

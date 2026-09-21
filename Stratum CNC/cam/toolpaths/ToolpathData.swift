@@ -32,6 +32,11 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     /// user picks some — see CAMModel.beginPicking(for:).
     var targets: [PathSelection] = []
 
+    /// What the toolpath does (contour, pocket, drill…) and that operation's own options.
+    /// `contour` (the contour's side) and `ramping` (the entry) above are used by the
+    /// operations that have them; see `OperationKind`.
+    var operation = OperationSettings()
+
     // Explicit so the legacy single-contour `target` key can be read on decode
     // (see init(from:) below) without being written back on encode.
     private enum CodingKeys: String, CodingKey {
@@ -41,6 +46,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
         case feedRate, plungeRate, spindleRPM
         case stepDown, stepOver, safeZ
         case targets
+        case operation
     }
 }
 
@@ -69,6 +75,9 @@ extension ToolpathData {
         safeZ = try c.decode(Double.self, forKey: .safeZ)
 
         targets = try c.decodeIfPresent([PathSelection].self, forKey: .targets) ?? []
+
+        // Projects saved before operations existed were all contours.
+        operation = try c.decodeIfPresent(OperationSettings.self, forKey: .operation) ?? OperationSettings()
 
         if targets.isEmpty {
             let legacy = try decoder.container(keyedBy: LegacyKeys.self)

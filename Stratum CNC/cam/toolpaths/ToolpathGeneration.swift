@@ -32,7 +32,7 @@ struct ToolpathGeneration {
 
     var errorMessage: String? {
         guard case .failure(let error) = outcome else { return nil }
-        return ToolpathGenerator.message(for: error)
+        return ToolpathGenerator.message(for: error, operation: source.operation.kind)
     }
 
     /// False once the toolpath's settings or shapes were edited after generating.

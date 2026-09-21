@@ -23,7 +23,6 @@ struct ToolpathCellView: View {
     var onGenerate: () -> Void = {}
 
     @State private var expanded = true
-    @State private var showRampEditor = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,25 +52,22 @@ struct ToolpathCellView: View {
 
                 HStack(spacing: 8) {
 
+                    // What the toolpath does
+                    OperationPicker(kind: $toolpath.operation.kind)
+
                     // Tool
                     ToolPicker(tool: $toolpath.tool)
 
-                    // Z range
+                    // Z range (a counterbore has its own depth instead of an End Z)
                     NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
-                    NumberField(title: "END Z", value: $toolpath.endZ, suffix: "mm")
-
-                    // Contour
-                    ContourPicker(selection: $toolpath.contour)
-
-                    // Ramping
-                    RampingButton(ramping: toolpath.ramping) {
-                        showRampEditor = true
-                    }
-                    .popover(isPresented: $showRampEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                        RampingEditor(ramping: $toolpath.ramping, stepdown: toolpath.stepDown)
-                            .frame(width: 600)
+                    if toolpath.operation.kind.usesEndZ {
+                        NumberField(title: "END Z", value: $toolpath.endZ, suffix: "mm")
                     }
                 }
+
+                // Side, direction, entry, diameters… depending on the operation
+                OperationOptionsView(toolpath: $toolpath)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(10)
 
@@ -87,8 +83,12 @@ struct ToolpathCellView: View {
                         IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
                     }
                     HStack(spacing: 10) {
-                        NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
-                        NumberField(title: "STEPOVER", value: $toolpath.stepOver, suffix: "mm")
+                        if toolpath.operation.kind.usesStepdown {
+                            NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
+                        }
+                        if toolpath.operation.kind.usesStepover {
+                            NumberField(title: "STEPOVER", value: $toolpath.stepOver, suffix: "mm")
+                        }
                         NumberField(title: "SAFE Z", value: $toolpath.safeZ, suffix: "mm")
                     }
                 }
