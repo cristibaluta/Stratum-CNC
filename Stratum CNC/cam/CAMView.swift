@@ -20,10 +20,7 @@ import SwiftUI
           selection, stock render state, live zoom — everything the
           inspector, material panel and 2D view all read from and write to)
     - ProjectModel (ProjectData)               <- persisted project data
-    - CAM_2D_View                              <- default canvas (CoreAnimation)
-        - D2_CanvasNSView
-            - D2_CanvasRenderer (based on the properties from D2_CanvasState)
-    - CAM_Metal_View                           <- experimental canvas, behind CAMFeatureFlags.metalCanvasKey
+    - CAM_Metal_View                           <- canvas (Metal), replaced CAM_2D_View (CoreAnimation) in step 6
         - CAMSceneModel (D2_CanvasState -> [RenderObject] via D2_RenderObjectBuilder)
         - MetalCanvasView (.locked2D)
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
@@ -36,10 +33,6 @@ struct CAMView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var projectModel: ProjectModel
 
-    /// Experimental: draw the canvas with Metal (`CAM_Metal_View`) instead of
-    /// CoreAnimation (`CAM_2D_View`). Off by default; see the plan's step 3.
-    @AppStorage(CAMFeatureFlags.metalCanvasKey) private var useMetalCanvas = false
-
     var body: some View {
         let _ = Self._printChanges()
         ZStack {
@@ -48,18 +41,10 @@ struct CAMView: View {
             } else {
                 // TODO: This view should be swapable with a 3D view depending on the first open file
                 // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
-                if useMetalCanvas {
-                    // `.id` so a different `D2_CanvasState` instance gets a fresh
-                    // scene model instead of one still observing the old state.
-                    CAM_Metal_View(canvasState: camModel.canvasState)
-                        .id(ObjectIdentifier(camModel.canvasState))
-                } else {
-                    CAM_2D_View(canvasState: camModel.canvasState,
-                                initialViewport: camModel.savedViewport,
-                                onViewportChanged: { pan, zoom in
-                                    camModel.saveViewport(panOffset: pan, zoomScale: zoom)
-                                })
-                }
+                // `.id` so a different `D2_CanvasState` instance gets a fresh
+                // scene model instead of one still observing the old state.
+                CAM_Metal_View(canvasState: camModel.canvasState)
+                    .id(ObjectIdentifier(camModel.canvasState))
 
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right
@@ -81,11 +66,11 @@ struct CAMView: View {
                         MaterialPanelView(stock: $camModel.selectedStockMaterial,
                                           isStockVisible: stockVisibleBinding,
                                           isCompact: false)
-                            .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
+                            .background(.background)// Without a background the canvas is displayed above the GroupBox background
                         // Only while a toolpath is selected in the list
                         if let toolpath = selectedToolpath {
                             toolpathSettingsPanel(for: toolpath)
-                                .background(.background)// Without a background the CAM_2D_View is displayed above the GroupBox background
+                                .background(.background)// Without a background the canvas is displayed above the GroupBox background
                                 .transition(.opacity)
                         }
                     }
@@ -96,15 +81,6 @@ struct CAMView: View {
                 }
             }
         }
-        #if DEBUG
-        .overlay(alignment: .bottomLeading) {
-            Toggle("Metal canvas (experimental)", isOn: $useMetalCanvas)
-                .toggleStyle(.checkbox)
-                .padding(8)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
-                .padding(16)
-        }
-        #endif
         .onAppear {
             // Establish the canvas's copy of stock visibility from the
             // persisted value the first time this screen appears.

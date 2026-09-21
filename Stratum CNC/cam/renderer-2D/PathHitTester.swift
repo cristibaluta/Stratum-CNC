@@ -4,6 +4,12 @@
 //
 //  Created by Cristian Baluta on 24.08.2026.
 //
+//  The CALayer-based overload that used to live here (against
+//  `[UUID: D2_ObjectNode]` / `CALayer`) was CAM_2D_View's hit testing and
+//  was removed in step 6 along with `D2_CanvasNSView` / `D2_ObjectNode`.
+//  The surviving `hitTest(worldPoint:paths:pointsPerWorldUnit:)` overload
+//  is in PathHitTester+World.swift.
+//
 
 import Foundation
 import QuartzCore
@@ -11,45 +17,4 @@ import QuartzCore
 struct PathHitTester {
 
     let tolerance: CGFloat
-
-    func hitTest(worldPoint: CGPoint,
-                 objects: [D2_Object],
-                 nodes: [UUID: D2_ObjectNode],
-                 worldLayer: CALayer,
-                 zoomScale: CGFloat) -> PathSelection? {
-
-        for object in objects.reversed() {
-
-            guard let node = nodes[object.id] else {
-                continue
-            }
-
-            let localPoint = node.layer.convert(worldPoint, from: worldLayer)
-            let localTolerance = tolerance / max(zoomScale * object.scale, 0.000001)
-
-            for index in object.paths.indices.reversed() {
-
-                let path = object.paths[index]
-                let hitBounds = path.bounds.insetBy(dx: -localTolerance, dy: -localTolerance)
-
-                guard hitBounds.contains(localPoint) else {
-                    continue
-                }
-
-                let strokedPath =
-                    path.cgPath.copy(
-                        strokingWithWidth: max(localTolerance * 2, 0.5),
-                        lineCap: .round,
-                        lineJoin: .round,
-                        miterLimit: 10
-                    )
-
-                if strokedPath.contains(localPoint) {
-                    return PathSelection(objectID: object.id, pathIndex: index)
-                }
-            }
-        }
-
-        return nil
-    }
 }

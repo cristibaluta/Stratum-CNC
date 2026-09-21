@@ -11,8 +11,8 @@
 //  already in world space, built in the same pass as the pixels on screen,
 //  so what you can click is exactly what's drawn.
 //
-//  The layer-based overload in PathHitTester.swift stays until step 6 (it's
-//  still what `CAM_2D_View` uses).
+//  The layer-based overload that used to live in PathHitTester.swift (what
+//  `CAM_2D_View` used) was removed in step 6 — this is the only overload now.
 //
 
 import Foundation
