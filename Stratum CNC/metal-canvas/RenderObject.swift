@@ -332,17 +332,31 @@ extension RenderObject {
 
     // MARK: Machine fixtures (static, flat)
 
+    /// Every fixture role `fixtures(bottomZ:roles:)`/`fixtures(for:roles:)`
+    /// know how to build. The default `roles` argument on both — the
+    /// controller's "every fixture" scene — is defined in terms of this so
+    /// adding a new fixture role only means adding it here once.
+    static let allFixtureRoles: Set<RenderRole> = [.workbed, .anchor, .ruler]
+
     /// The static fixtures — work bed, anchor, and the anchor's ruler — at
-    /// height `z`.
-    static func fixtures(bottomZ z: Float) -> [RenderObject] {
-        [workbed(z: z), anchor(z: z), ruler(z: z)]
+    /// height `z`. `roles` picks which of the three to build (default: all
+    /// of them, the controller's scene). CAM's 2D view, which draws its own
+    /// stock and isn't positioned relative to the machine bed at all, asks
+    /// for just `[.ruler]` here instead.
+    static func fixtures(bottomZ z: Float, roles: Set<RenderRole> = allFixtureRoles) -> [RenderObject] {
+        var result: [RenderObject] = []
+        if roles.contains(.workbed) { result.append(workbed(z: z)) }
+        if roles.contains(.anchor) { result.append(anchor(z: z)) }
+        if roles.contains(.ruler) { result.append(ruler(z: z)) }
+        return result
     }
 
     /// The fixtures placed at `stock`'s bottom face, which is where they sit
     /// physically. Their Z follows the stock's depth, so `CanvasSceneModel`
     /// rebuilds them alongside the stock box whenever the stock changes.
-    static func fixtures(for stock: StockMaterial) -> [RenderObject] {
-        fixtures(bottomZ: bottomZ(of: stock))
+    /// See `fixtures(bottomZ:roles:)` for `roles`.
+    static func fixtures(for stock: StockMaterial, roles: Set<RenderRole> = allFixtureRoles) -> [RenderObject] {
+        fixtures(bottomZ: bottomZ(of: stock), roles: roles)
     }
 
     /// Z of `stock`'s bottom face — the same value each case of

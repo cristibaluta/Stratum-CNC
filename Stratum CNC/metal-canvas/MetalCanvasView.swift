@@ -36,6 +36,14 @@ struct MetalCanvasView: NSViewRepresentable {
 
     @Binding var objects: [RenderObject]
 
+    /// Which input scheme drives the camera — see `CanvasInteractionMode`.
+    /// A plain `let`, like `renderMode` below: nothing downstream ever
+    /// needs to change it back once the view's been created for a given
+    /// screen (the controller always passes `.free3D`, CAM's 2D view always
+    /// passes `.locked2D`), so it's read once in `makeNSView` rather than
+    /// re-applied on every `updateNSView`.
+    var interactionMode: CanvasInteractionMode = .free3D
+
     /// M4: which draw path `MetalRenderer.draw(in:)` takes, forwarded
     /// straight through in `updateNSView`. A plain `let`, not a `@Binding` —
     /// nothing downstream of the renderer ever needs to change it back, it
@@ -71,6 +79,21 @@ struct MetalCanvasView: NSViewRepresentable {
 
         context.coordinator.renderer = renderer
         mtkView.delegate = renderer
+
+        if interactionMode == .locked2D {
+            // `Camera`'s own default orientation already matches
+            // `StandardView.top` (see its doc comment), so this is belt-
+            // and-suspenders rather than strictly required — but making it
+            // explicit means a locked 2D view is never at the mercy of
+            // `Camera`'s default happening to still be `.top` later. Never
+            // orbited away from afterwards: `handlePan`/`handleScroll`
+            // below route every input to pan/zoom in this mode, orbit is
+            // simply never called.
+            renderer.camera.snap(to: .top)
+            // Only one face exists in this mode, so a cube for orienting
+            // between faces has nothing useful to show.
+            renderer.showOrientationCube = false
+        }
 
         // Render on demand rather than continuously. The scene is static
         // almost all the time — nothing to redraw between a scrub tick, a
@@ -167,24 +190,32 @@ struct MetalCanvasView: NSViewRepresentable {
             }
             let translation = gesture.translation(in: gesture.view)
 
-            // Which physical input this drag is, so the right entry of
-            // CanvasInputSettings applies. Shift+left-drag and a plain
-            // left-drag are told apart by the modifier flag; middle-button
-            // drag is its own recognizer (see `middleDragGesture`), never
-            // this one with the modifier held.
-            let trigger: CanvasInputTrigger
-            if gesture === middleDragGesture {
-                trigger = .middleButton
-            } else if NSEvent.modifierFlags.contains(.shift) {
-                trigger = .modified
+            // Locked 2D (CAM): every drag pans, full stop — see
+            // `CanvasInteractionMode.locked2D`. Free 3D (controller): which
+            // physical input this drag is decides the right entry of
+            // CanvasInputSettings. Shift+left-drag and a plain left-drag
+            // are told apart by the modifier flag; middle-button drag is
+            // its own recognizer (see `middleDragGesture`), never this one
+            // with the modifier held.
+            let action: CanvasControlAction
+            if parent.interactionMode == .locked2D {
+                action = .pan
             } else {
-                trigger = .primary
+                let trigger: CanvasInputTrigger
+                if gesture === middleDragGesture {
+                    trigger = .middleButton
+                } else if NSEvent.modifierFlags.contains(.shift) {
+                    trigger = .modified
+                } else {
+                    trigger = .primary
+                }
+                // Reassigning a trigger in CanvasControlsSettingsView takes
+                // effect immediately since this looks the mapping up fresh
+                // on every drag rather than caching it.
+                action = CanvasInputSettings.shared.action(for: trigger)
             }
 
-            // Reassigning a trigger in CanvasControlsSettingsView takes
-            // effect immediately since this looks the mapping up fresh on
-            // every drag rather than caching it.
-            switch CanvasInputSettings.shared.action(for: trigger) {
+            switch action {
             case .orbit:
                 performOrbit(translation: translation)
             case .pan:
@@ -280,21 +311,31 @@ struct MetalCanvasView: NSViewRepresentable {
         }
 
         func handleScroll(_ event: NSEvent) {
-            // Reassigning Scroll / Shift + Scroll / Option + Scroll in
-            // CanvasControlsSettingsView takes effect immediately since this
-            // looks the mapping up fresh on every scroll event rather than
-            // caching it. Modifiers are read from the event itself (not
-            // `NSEvent.modifierFlags`) so they reflect the state at the
-            // moment this scroll was generated.
-            let trigger: CanvasInputTrigger
-            if event.modifierFlags.contains(.option) {
-                trigger = .optionScroll
-            } else if event.modifierFlags.contains(.shift) {
-                trigger = .modifiedScroll
+            // Locked 2D (CAM): every scroll pans, regardless of modifiers —
+            // same as `handlePan` above, and matching the old CoreAnimation
+            // 2D canvas's `scrollWheel`, which never distinguished a
+            // modified scroll from a plain one either. Free 3D
+            // (controller): reassigning Scroll / Shift + Scroll / Option +
+            // Scroll in CanvasControlsSettingsView takes effect immediately
+            // since this looks the mapping up fresh on every scroll event
+            // rather than caching it. Modifiers are read from the event
+            // itself (not `NSEvent.modifierFlags`) so they reflect the
+            // state at the moment this scroll was generated.
+            let action: CanvasControlAction
+            if parent.interactionMode == .locked2D {
+                action = .pan
             } else {
-                trigger = .scroll
+                let trigger: CanvasInputTrigger
+                if event.modifierFlags.contains(.option) {
+                    trigger = .optionScroll
+                } else if event.modifierFlags.contains(.shift) {
+                    trigger = .modifiedScroll
+                } else {
+                    trigger = .scroll
+                }
+                action = CanvasInputSettings.shared.action(for: trigger)
             }
-            switch CanvasInputSettings.shared.action(for: trigger) {
+            switch action {
             case .zoom:
                 if event.hasPreciseScrollingDeltas {
                     // Trackpad two-finger swipe: fine deltas, smooth continuous zoom.
