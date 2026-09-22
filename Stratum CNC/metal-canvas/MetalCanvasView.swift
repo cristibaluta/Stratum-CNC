@@ -116,6 +116,13 @@ struct MetalCanvasView: NSViewRepresentable {
     /// else with the drag. Ignored in `.free3D`.
     var pointerHandler: (any CanvasPointerHandler)? = nil
 
+    /// Bridge for the "100%" / true-to-life zoom button (see
+    /// `CanvasZoomModel`, `CanvasZoomButton`). `nil` if the owner doesn't
+    /// offer that control. Read once in `makeNSView`, like `interactionMode`
+    /// and `pointerHandler` above — the object itself is what stays live
+    /// across re-renders, not this reference to it.
+    var zoomModel: CanvasZoomModel? = nil
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -128,6 +135,20 @@ struct MetalCanvasView: NSViewRepresentable {
 
         context.coordinator.renderer = renderer
         mtkView.delegate = renderer
+
+        // Wire the 100% button, if the owner offers one: the canvas reports
+        // its zoom after every frame it draws (see `MetalRenderer
+        // .onFrameRendered`), and the button calls back in through
+        // `resetAction` to jump the camera to true-to-life. See
+        // `CanvasZoomModel`'s doc comment for why this indirection exists
+        // rather than the button reaching into the camera directly.
+        context.coordinator.zoomModel = zoomModel
+        renderer.onFrameRendered = { [weak coordinator = context.coordinator] in
+            coordinator?.updateZoomPercent()
+        }
+        zoomModel?.installResetAction { [weak coordinator = context.coordinator] in
+            coordinator?.resetToTrueToLife()
+        }
 
         if interactionMode == .locked2D {
             // `Camera`'s own default orientation already matches
@@ -241,6 +262,11 @@ struct MetalCanvasView: NSViewRepresentable {
         /// retain graph, not the other way around — can be requested to
         /// draw() from the gesture handlers below without creating a cycle.
         weak var metalView: MTKView?
+        /// The 100% button's bridge, if the owner passed one in — see
+        /// `MetalCanvasView.zoomModel`. Not weak: nothing on this object
+        /// retains the coordinator back (its `resetAction` closure only
+        /// captures it weakly), so there's no cycle to worry about.
+        var zoomModel: CanvasZoomModel?
         /// The second drag recognizer, set up in `makeNSView` to fire only
         /// on middle-button drags. `handlePan` checks gesture identity
         /// against this to tell a middle-button drag apart from a
@@ -661,6 +687,59 @@ struct MetalCanvasView: NSViewRepresentable {
 
         private func clampZoomDistance(_ camera: Camera) {
             camera.distance = clampedDistance(camera.distance)
+        }
+
+        // MARK: - True-to-life zoom (100% button)
+
+        /// Points-per-millimeter for the physical screen this canvas is on
+        /// right now — see `NSScreen.trueToLifeZoomScale`. Falls back to
+        /// that same extension's own 72dpi/25.4mm-per-inch default if the
+        /// view isn't in a window yet (e.g. the very first frame).
+        private func truePointsPerMM() -> CGFloat {
+            guard let window = metalView?.window else {
+                return 72.0 / 25.4
+            }
+            return (window.screen ?? NSScreen.main)?.trueToLifeZoomScale(in: window) ?? 72.0 / 25.4
+        }
+
+        /// Refreshes `zoomModel.percent` from the camera's current
+        /// `distance` and this view's own point size — 100 means the
+        /// orthographic projection currently renders 1 mm of world space as
+        /// 1 physical mm on screen. Called after every frame `MetalRenderer`
+        /// draws (see `onFrameRendered`), so this stays current through
+        /// interactions, window resizes/screen moves, and the one-time
+        /// initial auto-fit alike, without needing a call at each of those
+        /// sites individually.
+        func updateZoomPercent() {
+            guard let zoomModel, let camera = renderer?.camera, let view = metalView,
+                  view.bounds.height > 0 else {
+                return
+            }
+            let pointsPerWorldUnit = Float(view.bounds.height) / (2 * camera.distance * tan(camera.fov * 0.5))
+            let truePointsPerWorldUnit = Float(truePointsPerMM())
+            guard truePointsPerWorldUnit > 0 else {
+                return
+            }
+            zoomModel.updatePercent(Double(pointsPerWorldUnit / truePointsPerWorldUnit) * 100)
+        }
+
+        /// Sets `camera.distance` so 1 mm of world space renders as 1
+        /// physical mm on screen — the inverse of the measurement
+        /// `updateZoomPercent` makes. Installed as `zoomModel.resetAction`
+        /// in `makeNSView`; the triggered `draw()` below reports the result
+        /// back through `onFrameRendered` → `updateZoomPercent`, so this
+        /// doesn't need to update `zoomModel` itself.
+        func resetToTrueToLife() {
+            guard let camera = renderer?.camera, let view = metalView, view.bounds.height > 0 else {
+                return
+            }
+            let truePointsPerWorldUnit = Float(truePointsPerMM())
+            guard truePointsPerWorldUnit > 0 else {
+                return
+            }
+            let newDistance = Float(view.bounds.height) / (2 * tan(camera.fov * 0.5) * truePointsPerWorldUnit)
+            camera.distance = clampedDistance(newDistance)
+            metalView?.draw()
         }
     }
 }

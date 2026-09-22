@@ -39,8 +39,15 @@ struct CAMView: View {
             if $camModel.canvasState.objects.isEmpty {
                 emptyView
             } else {
-                CAM_Metal_View(canvasState: camModel.canvasState)
+                CAM_Metal_View(canvasState: camModel.canvasState, zoomModel: camModel.canvasZoomModel)
                     .id(ObjectIdentifier(camModel.canvasState))
+
+                // Centered at the bottom of the canvas, above everything else.
+                VStack {
+                    Spacer()
+                    CanvasZoomButton(zoomModel: camModel.canvasZoomModel)
+                        .padding(.bottom, 16)
+                }
 
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right

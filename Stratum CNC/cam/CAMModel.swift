@@ -27,6 +27,12 @@ class CAMModel: ObservableObject {
     @Published var showingFilePicker = false
     @Published var canvasState = D2_CanvasState()
 
+    /// Bridges the canvas's 100% button to `CAM_Metal_View`'s
+    /// `MetalCanvasView` — see `CanvasZoomModel`. Unrelated to the legacy
+    /// `canvasZoomScale`/`trueToLifeScale` below, which belonged to the old
+    /// CoreAnimation 2D canvas's own `CanvasZoomToolbar`.
+    let canvasZoomModel = CanvasZoomModel()
+
     // ---- TEMPORARY TOOLPATH EDITING ----
     @Published var toolpaths: [ToolpathData] = []
 

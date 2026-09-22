@@ -531,7 +531,8 @@ private struct CanvasSection: View {
                             xyOffset: scene.xyOffset,
                             stockColor: scene.stockColor,
                             heightmapMesh: scene.heightmapMesh,
-                            clearColor: viewportClearColor)
+                            clearColor: viewportClearColor,
+                            zoomModel: scene.zoomModel)
             .cornerRadius(8)
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
@@ -550,29 +551,33 @@ private struct CanvasSection: View {
                 }
             )
             .overlay(alignment: .topTrailing) {
-                HStack {
-                    Picker("", selection: $scene.renderMode) {
-                        ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
-                            Image(systemName: mode.systemImage)
-                                .help(mode.label)
-                                .tag(mode)
-                        }
-                    }
-                    .frame(width: 80)
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                VStack(alignment: .trailing, spacing: 6) {
+                    CanvasZoomButton(zoomModel: scene.zoomModel)
 
-                    Button {
-                        isShowingCanvasControlsSettings = true
-                    } label: {
-                        Image(systemName: "computermouse")
+                    HStack {
+                        Picker("", selection: $scene.renderMode) {
+                            ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
+                                Image(systemName: mode.systemImage)
+                                    .help(mode.label)
+                                    .tag(mode)
+                            }
+                        }
+                        .frame(width: 80)
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+
+                        Button {
+                            isShowingCanvasControlsSettings = true
+                        } label: {
+                            Image(systemName: "computermouse")
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 8)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 8)
+                    .padding(2)
+                    .background(.gray)
+                    .cornerRadius(8)
                 }
-                .padding(2)
-                .background(.gray)
-                .cornerRadius(8)
                 .padding(8)
             }
 

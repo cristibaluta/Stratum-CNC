@@ -154,6 +154,15 @@ class MetalRenderer: NSObject {
     var camera = Camera()
     private var renderBatches: [RenderBatch] = []
 
+    /// Fired at the end of every `draw(in:)` — interaction-triggered,
+    /// resize-triggered (`drawableSizeWillChange`), or the one-time initial
+    /// auto-fit (`attemptInitialFit`). `MetalCanvasView.Coordinator` uses
+    /// this single hook to keep `CanvasZoomModel.percent` current rather than
+    /// re-deriving "did zoom just change" at each individual call site: a
+    /// frame only ever gets drawn here when something worth re-measuring —
+    /// `camera.distance` or the view's own point size — could have moved.
+    var onFrameRendered: (() -> Void)?
+
     /// Which draw path `draw(in:)` takes this frame. Flipping this alone is
     /// enough to switch renderers — see `CanvasRenderMode`. M4 is what wires
     /// this to a `CanvasSceneModel` published property and an actual UI
@@ -744,6 +753,8 @@ extension MetalRenderer: MTKViewDelegate {
             commandBuffer.present(drawable)
         }
         commandBuffer.commit()
+
+        onFrameRendered?()
     }
 }
 

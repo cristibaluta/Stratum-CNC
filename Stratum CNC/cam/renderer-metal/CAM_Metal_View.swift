@@ -10,17 +10,20 @@ import SwiftUI
 struct CAM_Metal_View: View {
 
     @StateObject private var scene: CAMSceneModel
+    let zoomModel: CanvasZoomModel
     @Environment(\.colorScheme) private var colorScheme
 
-    init(canvasState: D2_CanvasState) {
+    init(canvasState: D2_CanvasState, zoomModel: CanvasZoomModel) {
         _scene = StateObject(wrappedValue: CAMSceneModel(canvasState: canvasState))
+        self.zoomModel = zoomModel
     }
 
     var body: some View {
         MetalCanvasView(objects: .constant(scene.renderObjects),
                         interactionMode: .locked2D,
                         clearColor: scene.backgroundColor,
-                        pointerHandler: scene.interaction)
+                        pointerHandler: scene.interaction,
+                        zoomModel: zoomModel)
             .onAppear {
                 scene.setColorScheme(colorScheme)
             }

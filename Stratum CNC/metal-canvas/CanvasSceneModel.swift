@@ -28,6 +28,13 @@ class CanvasSceneModel: ObservableObject {
     /// types here — MetalRenderer is the only thing that turns this into GPU buffers.
     @Published var renderObjects: [RenderObject] = RenderObject.defaultScene()
 
+    /// Bridges the canvas's 100% button to `MetalCanvasView` — see
+    /// `CanvasZoomModel`. Lives here (rather than on `ControllerModel` or
+    /// `CanvasSection`) so `CanvasSection` has it to hand to both the button
+    /// and the canvas without any extra plumbing, the same way `interaction`
+    /// lives on `CAMSceneModel` for CAM's canvas.
+    let zoomModel = CanvasZoomModel()
+
     /// Diameter of the tool drawn on the canvas when no `ToolSpec` is
     /// assigned yet (see `updateTool`), in millimeters — a common 1/8" end
     /// mill. Once a spec is known, its real diameter and shape are used
