@@ -399,6 +399,23 @@ private struct CanvasSection: View {
     let isStockVisible: Binding<Bool>
     @Binding var isShowingCanvasControlsSettings: Bool
 
+    /// So the 3D viewport's background follows the app-wide day/night
+    /// switch (see `ContentView`) instead of always being the renderer's
+    /// hardcoded dark gray — same idea as `CAMSceneModel.backgroundColor`,
+    /// just without needing a full rebuild since nothing else here is
+    /// appearance-dependent.
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Background clear color for the controller's Metal viewport. Dark
+    /// mode keeps the renderer's original hardcoded gray (`MetalRenderer`'s
+    /// default `MTLClearColor`) so existing dark-mode users see no change;
+    /// light mode gets a lighter, matching-ish gray instead of staying dark.
+    private var viewportClearColor: SIMD4<Float> {
+        colorScheme == .dark
+            ? SIMD4<Float>(0.2, 0.2, 0.2, 1)
+            : SIMD4<Float>(0.85, 0.85, 0.85, 1)
+    }
+
     /// Scroll movement that hasn't yet added up to a whole line. Fine
     /// scrolling moves the scrubber by well under a line per event, and
     /// rounding each event on its own would drop all of it — the scrubber
@@ -513,8 +530,13 @@ private struct CanvasSection: View {
                             renderMode: scene.renderMode,
                             xyOffset: scene.xyOffset,
                             stockColor: scene.stockColor,
-                            heightmapMesh: scene.heightmapMesh)
+                            heightmapMesh: scene.heightmapMesh,
+                            clearColor: viewportClearColor)
             .cornerRadius(8)
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray, lineWidth: 1)
+            }
             .overlay {
                 // The carve runs on a background task; the old surface
                 // stays visible until the new one lands. Wireframe mode

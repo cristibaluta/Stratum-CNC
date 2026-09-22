@@ -100,9 +100,11 @@ struct MetalCanvasView: NSViewRepresentable {
     var heightmapMesh: HeightmapMesh?
 
     /// Overrides the renderer's default dark-gray clear color when non-nil.
-    /// The controller leaves this `nil` and looks exactly as before; CAM's
-    /// canvas passes the window's own background so its (appearance-aware)
-    /// path colors keep their contrast in both light and dark mode.
+    /// Both canvases pass an appearance-aware color now: CAM passes the
+    /// window's own background so its path colors keep their contrast in
+    /// both light and dark mode; the controller passes a color that tracks
+    /// the app-wide day/night switch (see `ControllerView.CanvasSection`)
+    /// while keeping its original dark-gray look in dark mode.
     /// Applied in `updateNSView`, so changing it just needs a redraw.
     var clearColor: SIMD4<Float>? = nil
 
