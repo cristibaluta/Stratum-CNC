@@ -131,21 +131,12 @@ struct PanelStockMaterial: View {
     }
 
     private func dimensionField(label: String, showUnits: Bool = false, value: Binding<Double>) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(" \(label)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                TextField(label, value: value, format: .number.precision(.fractionLength(0...3)))
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 50)
-
-                if showUnits {
-                    Text("mm")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        HStack {
+            NumberField(title: label, value: value, suffix: "")
+            if showUnits {
+                Text("mm")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

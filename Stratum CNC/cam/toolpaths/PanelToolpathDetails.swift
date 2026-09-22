@@ -28,8 +28,10 @@ struct PanelToolpathDetails: View {
                 VStack(spacing: 8) {
 
                     HStack {
-                        Text(toolpath.name)
+                        TextField("", text: $toolpath.name)
+                            .textFieldStyle(.plain)
                             .font(.system(size: 15, weight: .semibold))
+                            .background(.background)
                         Spacer()
                         doneButton
                     }

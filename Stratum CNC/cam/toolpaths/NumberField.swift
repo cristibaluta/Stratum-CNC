@@ -28,8 +28,8 @@ struct NumberField: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 8)
-            .frame(height: 30)
-            .background(.background)
+            .frame(height: 28)
+            .background(Color(.secondarySystemFill))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
@@ -55,8 +55,8 @@ struct IntField: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 8)
-            .frame(height: 30)
-            .background(.background)
+            .frame(height: 28)
+            .background(Color(.secondarySystemFill))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }

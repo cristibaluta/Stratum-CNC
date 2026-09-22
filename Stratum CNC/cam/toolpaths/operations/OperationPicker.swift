@@ -32,7 +32,7 @@ struct OperationPicker: View {
                 }
                 .padding(.horizontal, 8)
                 .frame(height: 34)
-                .background(.background)
+                .background(Color(.secondarySystemFill))
                 .clipShape(RoundedRectangle(cornerRadius: 5))
             }
             .buttonStyle(.plain)
