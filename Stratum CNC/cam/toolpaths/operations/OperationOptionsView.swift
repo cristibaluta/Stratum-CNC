@@ -59,7 +59,7 @@ struct OperationOptionsView: View {
         case .pocket:
             VStack(spacing: 8) {
                 HStack(spacing: 8) {
-                    EnumMenuPicker(title: "PATTERN", selection: $toolpath.operation.pocketPattern)
+                    PatternPicker(pattern: $toolpath.operation.pocketPattern)
                     directionPicker
                 }
                 switch toolpath.operation.pocketPattern {
@@ -160,7 +160,7 @@ struct OperationOptionsView: View {
     }
 
     private var directionPicker: some View {
-        EnumMenuPicker(title: "DIRECTION", selection: $toolpath.operation.direction)
+        DirectionPicker(direction: $toolpath.operation.direction)
     }
 
     /// Ramping gets its own line, since it applies across very different operations.
