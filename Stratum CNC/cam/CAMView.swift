@@ -33,12 +33,6 @@ struct CAMView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var projectModel: ProjectModel
 
-    /// Forces the canvas's own colors (background, path colors — see
-    /// `CAMSceneModel.setColorScheme`) to dark, independent of the Mac's
-    /// system appearance. Persisted per-user, not per-project: it's a
-    /// viewing preference, like the controller's canvas always being dark.
-    @AppStorage("cam.canvasDarkMode") private var isCanvasDarkMode = false
-
     var body: some View {
         let _ = Self._printChanges()
         ZStack {
@@ -47,7 +41,6 @@ struct CAMView: View {
             } else {
                 CAM_Metal_View(canvasState: camModel.canvasState)
                     .id(ObjectIdentifier(camModel.canvasState))
-                    .preferredColorScheme(isCanvasDarkMode ? .dark : nil)
 
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right
@@ -82,12 +75,6 @@ struct CAMView: View {
                     .padding(16)
                     .frame(maxHeight: .infinity, alignment: .top)
                 }
-            }
-        }
-        .overlay(alignment: .bottomLeading) {
-            if !$camModel.canvasState.objects.isEmpty {
-                canvasDarkModeToggle
-                    .padding(16)
             }
         }
         .onAppear {
@@ -243,23 +230,6 @@ struct CAMView: View {
         )
     }
 
-    /// Sun/moon toggle that flips `isCanvasDarkMode` — forces the canvas's
-    /// own colors dark independent of the Mac's system appearance (see the
-    /// property's doc comment for why).
-    private var canvasDarkModeToggle: some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.15)) {
-                isCanvasDarkMode.toggle()
-            }
-        } label: {
-            Image(systemName: isCanvasDarkMode ? "moon.fill" : "sun.max.fill")
-                .font(.system(size: 13, weight: .medium))
-                .frame(width: 28, height: 28)
-        }
-        .buttonStyle(.plain)
-        .background(.regularMaterial, in: Circle())
-        .help(isCanvasDarkMode ? "Switch canvas to light mode" : "Switch canvas to dark mode")
-    }
 }
 
 /// A vertical ScrollView that is only as tall as its content — up to whatever

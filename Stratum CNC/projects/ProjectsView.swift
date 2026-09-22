@@ -100,6 +100,9 @@ struct ProjectsView: View {
                     Label("Refresh Projects", systemImage: "arrow.trianglehead.clockwise.rotate.90")
                 }
             }
+            ToolbarItemGroup(placement: .primaryAction) {
+                AppearanceToggle(isDarkMode: $appModel.isDarkMode)
+            }
         }
         .sheet(isPresented: $showingNewProject) {
             NewProjectSheet { name in

@@ -66,6 +66,12 @@ struct ProjectView: View {
                     }
                 }
             }
+            // Present on both the CAM and Controller tabs, since this
+            // toolbar is shared by the whole ProjectView regardless of
+            // `activeTab` — one switch for the whole app's appearance.
+            ToolbarItemGroup(placement: .primaryAction) {
+                AppearanceToggle(isDarkMode: $appModel.isDarkMode)
+            }
         }
         .navigationTitle(projectModel.project.name)
         .navigationSubtitle("Status...")
