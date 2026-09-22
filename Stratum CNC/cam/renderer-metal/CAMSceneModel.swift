@@ -27,15 +27,17 @@ final class CAMSceneModel: ObservableObject {
     /// per path alongside its RenderObject").
     private(set) var renderPaths: [D2_RenderPath] = []
 
-    /// Fixed look for the non-path objects. Colors are muted on purpose:
-    /// the ruler must not be orange (that's the "picked" color) and the
-    /// stock shouldn't out-shout the shapes. Visual parity with the
-    /// CoreAnimation canvas (fill tint, hatch) is the plan's step 5.
+    /// Fixed look for the non-path objects. The ruler stays a muted fixed
+    /// gray on purpose (it must not be orange, that's the "picked" color),
+    /// but the stock box's color now comes from the selected stock
+    /// material itself — see `rebuild()` — so it matches the same material
+    /// swatch the controller's 3D stock and `StockPreviewView` use
+    /// (`StockMaterialType.surfaceColor`), rather than one fixed tint no
+    /// matter what material is picked.
     enum Style {
         /// Same length `D2_CanvasRenderer` gives its `RulerShapeLayer`.
         static let rulerLength: Float = 200
         static let rulerColor = SIMD4<Float>(0.55, 0.55, 0.55, 1)
-        static let stockColor = SIMD4<Float>(0.5, 0.5, 0.62, 1)
     }
 
     /// Mouse handling for this scene: hit-tests against `renderPaths` and
@@ -134,7 +136,7 @@ final class CAMSceneModel: ObservableObject {
         }
         objects.append(.ruler(z: 0, length: Style.rulerLength, color: Style.rulerColor))
         if canvasState.isStockVisible, let stock = canvasState.stock {
-            objects.append(.stockBox(for: stock, color: Style.stockColor))
+            objects.append(.stockBox(for: stock, color: stock.material.surfaceColor))
         }
 
         renderPaths = paths

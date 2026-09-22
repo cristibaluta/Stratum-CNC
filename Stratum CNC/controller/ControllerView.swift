@@ -409,11 +409,11 @@ private struct CanvasSection: View {
     /// Background clear color for the controller's Metal viewport. Dark
     /// mode keeps the renderer's original hardcoded gray (`MetalRenderer`'s
     /// default `MTLClearColor`) so existing dark-mode users see no change;
-    /// light mode gets a lighter, matching-ish gray instead of staying dark.
+    /// light mode is pure white.
     private var viewportClearColor: SIMD4<Float> {
         colorScheme == .dark
             ? SIMD4<Float>(0.2, 0.2, 0.2, 1)
-            : SIMD4<Float>(0.85, 0.85, 0.85, 1)
+            : SIMD4<Float>(1, 1, 1, 1)
     }
 
     /// Scroll movement that hasn't yet added up to a whole line. Fine
