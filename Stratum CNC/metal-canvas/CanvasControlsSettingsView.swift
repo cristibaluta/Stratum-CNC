@@ -7,16 +7,6 @@
 
 import SwiftUI
 
-/// Lets the user reassign what each mouse input does on the 3D canvas —
-/// orbit, pan, zoom, snap to a standard view, or nothing — one row per input
-/// (plain drag, Shift+drag, middle-click drag, scroll, Shift+scroll,
-/// Option+scroll). Reads and writes
-/// `CanvasInputSettings.shared` directly, so a change here reaches the
-/// canvas immediately; there's no separate "Apply" step.
-///
-/// Self-contained on purpose: presented as a sheet from `ControllerView`'s
-/// toolbar today, but it doesn't assume that — drop it into a `Settings { }`
-/// scene instead (for the standard Cmd+, window) and it works unchanged.
 struct CanvasControlsSettingsView: View {
     @ObservedObject private var settings = CanvasInputSettings.shared
     @Environment(\.dismiss) private var dismiss

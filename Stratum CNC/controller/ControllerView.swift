@@ -552,8 +552,6 @@ private struct CanvasSection: View {
             )
             .overlay(alignment: .topTrailing) {
                 VStack(alignment: .trailing, spacing: 6) {
-                    CanvasZoomButton(zoomModel: scene.zoomModel)
-
                     HStack {
                         Picker("", selection: $scene.renderMode) {
                             ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
@@ -566,6 +564,9 @@ private struct CanvasSection: View {
                         .pickerStyle(.segmented)
                         .labelsHidden()
 
+                        Divider()
+                            .frame(height: 18)
+
                         Button {
                             isShowingCanvasControlsSettings = true
                         } label: {
@@ -577,6 +578,8 @@ private struct CanvasSection: View {
                     .padding(2)
                     .background(.gray)
                     .cornerRadius(8)
+
+                    CanvasZoomButton(zoomModel: scene.zoomModel)
                 }
                 .padding(8)
             }

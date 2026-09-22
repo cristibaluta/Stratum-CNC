@@ -173,6 +173,12 @@ struct OperationOptionsView: View {
             if toolpath.ramping.type != .none {
                 NumberField(title: "RAMP ANGLE", value: $toolpath.ramping.angle, suffix: "°")
             }
+            // Feed while the tool is going down: along the ramp if one is
+            // selected, otherwise it's how fast the tool plunges straight in.
+            NumberField(title: "RAMP FEED", value: $toolpath.plungeRate, suffix: "mm/min")
+                .help(toolpath.ramping.enabled && toolpath.ramping.type != .none
+                      ? "Feed rate along the ramp entry."
+                      : "No ramping selected — used as the plunge feed rate.")
         }
     }
 

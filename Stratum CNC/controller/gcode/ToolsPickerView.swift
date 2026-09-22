@@ -25,7 +25,7 @@ struct ToolsPickerView: View {
     var activeTool: Int? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 4) {
             ForEach(tools, id: \.self) { tool in
 
                 HStack(alignment: .center, spacing: 2) {
