@@ -4,17 +4,6 @@
 //
 //  Created by Cristian Baluta on 21.09.2026.
 //
-//  The CAM counterpart of `CanvasSceneModel`, deliberately much smaller: it
-//  owns nothing but `renderObjects`, rebuilt from a `D2_CanvasState`
-//  snapshot whenever that state changes. `CanvasSceneModel` is
-//  controller-specific (heightmap, tool, scrub state) and CAM doesn't go
-//  through it. This is the "caller decides which default objects go in"
-//  half of the plan's workstream A: CAM asks for stock + ruler only, never
-//  the controller's work bed / anchor / axes.
-//
-//  Step 3 of the plan's suggested sequencing — no picking or mouse
-//  interaction yet (steps 4+), so this only needs to *draw*.
-//
 
 import Foundation
 import Combine

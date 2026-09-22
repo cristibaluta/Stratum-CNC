@@ -9,12 +9,8 @@
 /* Begin PBXBuildFile section */
 		560F75753052662B0017EE04 /* iOverlay in Frameworks */ = {isa = PBXBuildFile; productRef = 560F75743052662B0017EE04 /* iOverlay */; };
 		560F78F4305336B90017EE04 /* StratumCAM in Frameworks */ = {isa = PBXBuildFile; productRef = 560F78F3305336B90017EE04 /* StratumCAM */; };
-		5679E7B430389CC800B08A35 /* MeshIO in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B330389CC800B08A35 /* MeshIO */; };
-		5679E7B630389CC800B08A35 /* OCCTSwiftIO in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B530389CC800B08A35 /* OCCTSwiftIO */; };
-		5679E7B930389D8B00B08A35 /* OCCTSwiftViewport in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7B830389D8B00B08A35 /* OCCTSwiftViewport */; };
-		5679E7BC30389DE400B08A35 /* OCCTSwiftTools in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E7BB30389DE400B08A35 /* OCCTSwiftTools */; };
 		5679E83F303C292E00B08A35 /* PocketSVG in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E83E303C292E00B08A35 /* PocketSVG */; };
-		56CEA0923035EC36008167CA /* OCCTSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 56CEA0913035EC36008167CA /* OCCTSwift */; };
+		56BEE6EE30624B2000097010 /* Zip in Frameworks */ = {isa = PBXBuildFile; productRef = 56BEE6ED30624B2000097010 /* Zip */; };
 		6D0235C9304D268A004AE6F8 /* SwiftDXF in Frameworks */ = {isa = PBXBuildFile; productRef = 6D0235C8304D268A004AE6F8 /* SwiftDXF */; };
 /* End PBXBuildFile section */
 
@@ -59,15 +55,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				56CEA0923035EC36008167CA /* OCCTSwift in Frameworks */,
 				560F78F4305336B90017EE04 /* StratumCAM in Frameworks */,
 				6D0235C9304D268A004AE6F8 /* SwiftDXF in Frameworks */,
-				5679E7B430389CC800B08A35 /* MeshIO in Frameworks */,
+				56BEE6EE30624B2000097010 /* Zip in Frameworks */,
 				560F75753052662B0017EE04 /* iOverlay in Frameworks */,
-				5679E7BC30389DE400B08A35 /* OCCTSwiftTools in Frameworks */,
 				5679E83F303C292E00B08A35 /* PocketSVG in Frameworks */,
-				5679E7B630389CC800B08A35 /* OCCTSwiftIO in Frameworks */,
-				5679E7B930389D8B00B08A35 /* OCCTSwiftViewport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,15 +136,11 @@
 			);
 			name = "Stratum CNC";
 			packageProductDependencies = (
-				56CEA0913035EC36008167CA /* OCCTSwift */,
-				5679E7B330389CC800B08A35 /* MeshIO */,
-				5679E7B530389CC800B08A35 /* OCCTSwiftIO */,
-				5679E7B830389D8B00B08A35 /* OCCTSwiftViewport */,
-				5679E7BB30389DE400B08A35 /* OCCTSwiftTools */,
 				5679E83E303C292E00B08A35 /* PocketSVG */,
 				6D0235C8304D268A004AE6F8 /* SwiftDXF */,
 				560F75743052662B0017EE04 /* iOverlay */,
 				560F78F3305336B90017EE04 /* StratumCAM */,
+				56BEE6ED30624B2000097010 /* Zip */,
 			);
 			productName = "MakeraStudio Lite";
 			productReference = 56CEA04D30356265008167CA /* Stratum CNC.app */;
@@ -195,6 +183,7 @@
 				5679E83D303C292E00B08A35 /* XCRemoteSwiftPackageReference "PocketSVG" */,
 				6D0235C7304D268A004AE6F8 /* XCRemoteSwiftPackageReference "SwiftDXF" */,
 				560F75733052662B0017EE04 /* XCRemoteSwiftPackageReference "iOverlay" */,
+				56BEE6EC30624B2000097010 /* XCRemoteSwiftPackageReference "Zip" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 56CEA04E30356265008167CA /* Products */;
@@ -566,6 +555,14 @@
 				minimumVersion = 3.2.0;
 			};
 		};
+		56BEE6EC30624B2000097010 /* XCRemoteSwiftPackageReference "Zip" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tomasf/Zip.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.1.2;
+			};
+		};
 		56CEA0903035EC36008167CA /* XCRemoteSwiftPackageReference "OCCTSwift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/SecondMouseAU/OCCTSwift.git";
@@ -594,35 +591,15 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = StratumCAM;
 		};
-		5679E7B330389CC800B08A35 /* MeshIO */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5679E7B230389CC800B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftIO" */;
-			productName = MeshIO;
-		};
-		5679E7B530389CC800B08A35 /* OCCTSwiftIO */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5679E7B230389CC800B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftIO" */;
-			productName = OCCTSwiftIO;
-		};
-		5679E7B830389D8B00B08A35 /* OCCTSwiftViewport */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5679E7B730389D8B00B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftViewport" */;
-			productName = OCCTSwiftViewport;
-		};
-		5679E7BB30389DE400B08A35 /* OCCTSwiftTools */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 5679E7BA30389DE400B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftTools" */;
-			productName = OCCTSwiftTools;
-		};
 		5679E83E303C292E00B08A35 /* PocketSVG */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 5679E83D303C292E00B08A35 /* XCRemoteSwiftPackageReference "PocketSVG" */;
 			productName = PocketSVG;
 		};
-		56CEA0913035EC36008167CA /* OCCTSwift */ = {
+		56BEE6ED30624B2000097010 /* Zip */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 56CEA0903035EC36008167CA /* XCRemoteSwiftPackageReference "OCCTSwift" */;
-			productName = OCCTSwift;
+			package = 56BEE6EC30624B2000097010 /* XCRemoteSwiftPackageReference "Zip" */;
+			productName = Zip;
 		};
 		6D0235C8304D268A004AE6F8 /* SwiftDXF */ = {
 			isa = XCSwiftPackageProductDependency;

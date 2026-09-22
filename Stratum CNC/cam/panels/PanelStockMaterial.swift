@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct MaterialPanelView: View {
+struct PanelStockMaterial: View {
 
     @Binding var stock: StockMaterial
     @Binding var isStockVisible: Bool

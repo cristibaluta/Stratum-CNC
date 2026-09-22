@@ -23,8 +23,6 @@ struct ToolpathCellView: View {
     /// Builds the toolpaths from the selected shapes.
     var onGenerate: () -> Void = {}
 
-    @State private var expanded = true
-
     var body: some View {
         VStack(spacing: 0) {
 
@@ -40,18 +38,10 @@ struct ToolpathCellView: View {
 
                     shapesLabel
 
-                    Button {
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            expanded.toggle()
-                        }
-                    } label: {
-                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .buttonStyle(.plain)
-
                     doneButton
                 }
+
+                Divider()
 
                 HStack(spacing: 8) {
 
@@ -61,11 +51,8 @@ struct ToolpathCellView: View {
                     // Tool
                     ToolPicker(tool: $toolpath.tool)
 
-                    // Z range (a counterbore has its own depth instead of an End Z)
-                    NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
-                    if toolpath.operation.kind.usesEndZ {
-                        NumberField(title: "END Z", value: $toolpath.endZ, suffix: "mm")
-                    }
+                    // Feed
+                    NumberField(title: "FEED", value: $toolpath.feedRate, suffix: "mm/min")
                 }
 
                 // Side, direction, entry, diameters… depending on the operation
@@ -76,26 +63,26 @@ struct ToolpathCellView: View {
 
             // MARK: Expanded
 
-            if expanded {
-                Divider()
+            Divider()
 
-                VStack(spacing: 10) {
-                    HStack(spacing: 10) {
-                        NumberField(title: "FEED", value: $toolpath.feedRate, suffix: "mm/min")
-                        IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
+            VStack(spacing: 10) {
+                IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
+                HStack(spacing: 10) {
+                    // Z range (a counterbore has its own depth instead of an End Z)
+                    NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
+                    if toolpath.operation.kind.usesEndZ {
+                        NumberField(title: "END Z", value: $toolpath.endZ, suffix: "mm")
                     }
-                    HStack(spacing: 10) {
-                        if toolpath.operation.kind.usesStepdown {
-                            NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
-                        }
-                        if toolpath.operation.kind.usesStepover {
-                            NumberField(title: "STEPOVER", value: $toolpath.stepOver, suffix: "mm")
-                        }
-                        NumberField(title: "SAFE Z", value: $toolpath.safeZ, suffix: "mm")
+                    if toolpath.operation.kind.usesStepdown {
+                        NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
                     }
+                    if toolpath.operation.kind.usesStepover {
+                        NumberField(title: "STEPOVER", value: $toolpath.stepOver, suffix: "mm")
+                    }
+                    NumberField(title: "SAFE Z", value: $toolpath.safeZ, suffix: "mm")
                 }
-                .padding(10)
             }
+            .padding(10)
 
             // MARK: Generate
 

@@ -45,13 +45,6 @@ struct CAMView: View {
             if $camModel.canvasState.objects.isEmpty {
                 emptyView
             } else {
-                // TODO: This view should be swapable with a 3D view depending on the first open file
-                // If possible can be only one view for 2D but a converter will generate the NSBezierPaths from any input file
-                // `.id` so a different `D2_CanvasState` instance gets a fresh
-                // scene model instead of one still observing the old state.
-                // `.preferredColorScheme` here (not higher up the ZStack) scopes
-                // the override to just the canvas — the inspector/material
-                // panels keep following the system appearance as normal.
                 CAM_Metal_View(canvasState: camModel.canvasState)
                     .id(ObjectIdentifier(camModel.canvasState))
                     .preferredColorScheme(isCanvasDarkMode ? .dark : nil)
@@ -72,21 +65,21 @@ struct CAMView: View {
 //                        Spacer()
 //                    }
                     Spacer()
-                    VStack(spacing: 16) {
-                        MaterialPanelView(stock: $camModel.selectedStockMaterial,
+                    VStack(alignment: .trailing, spacing: 16) {
+                        PanelStockMaterial(stock: $camModel.selectedStockMaterial,
                                           isStockVisible: stockVisibleBinding,
-                                          isCompact: false)
+                                          isCompact: true)
                             .background(.background)// Without a background the canvas is displayed above the GroupBox background
+                            .frame(width: 250)
                         // Only while a toolpath is selected in the list
                         if let toolpath = selectedToolpath {
                             toolpathSettingsPanel(for: toolpath)
                                 .background(.background)// Without a background the canvas is displayed above the GroupBox background
                                 .transition(.opacity)
+                                .frame(width: 400)
                         }
                     }
-                    .frame(width: 500)
                     .padding(16)
-                    // The settings panel only takes the height it needs, so pin the column to the top
                     .frame(maxHeight: .infinity, alignment: .top)
                 }
             }
@@ -98,8 +91,6 @@ struct CAMView: View {
             }
         }
         .onAppear {
-            // Establish the canvas's copy of stock visibility from the
-            // persisted value the first time this screen appears.
             camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
         .fileImporter(isPresented: $camModel.showingFilePicker,
@@ -159,7 +150,7 @@ struct CAMView: View {
     }
 
     private var inspectorPanel: some View {
-        ObjectsInspectorView(
+        PanelObjectsInspector(
             elements: camModel.canvasState.objects,
             selectedID: camModel.canvasState.selectedObjectIDs.first,
             onSelectionChanged: { id in
@@ -236,11 +227,7 @@ struct CAMView: View {
                                  onGenerate: {
                                      camModel.generateToolpaths(for: toolpath.id)
                                  })
-                    // One cell instance is reused for whichever toolpath is selected;
-                    // a fresh identity keeps its @State (expanded, field text) from
-                    // leaking from one toolpath to the next.
                     .id(toolpath.id)
-                    .padding(8)
             }
         }
     }

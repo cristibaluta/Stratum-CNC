@@ -15,7 +15,7 @@ enum Property: String {
     case rotation
 }
 
-struct ObjectsInspectorView: View {
+struct PanelObjectsInspector: View {
 
     let elements: [D2_Object]
     let selectedID: UUID?
@@ -33,8 +33,10 @@ struct ObjectsInspectorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             objectsSection
-            Divider()
-            propertiesSection
+            if selectedID != nil {
+                Divider()
+                propertiesSection
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -62,7 +64,7 @@ struct ObjectsInspectorView: View {
             }
 
             if elements.isEmpty {
-                Text("No SVG objects")
+                Text("No object imported!")
                     .foregroundStyle(.secondary)
                     .font(.callout)
                     .padding(.vertical, 2)

@@ -1,5 +1,4 @@
 {
-  "originHash" : "4ec7987a429efd40c9ab131e69b836fcfbdad0f8c8b5ad8f1b435e9f30a7e40d",
   "pins" : [
     {
       "identity" : "ifixfloat",
@@ -61,7 +60,7 @@
       "location" : "https://github.com/SecondMouseAU/OCCTSwiftIO.git",
       "state" : {
         "branch" : "main",
-        "revision" : "5a9b50f28aa0737075ef2db13f80bdb85f186036"
+        "revision" : "362fd5d37d3d04d2474e16f6732589474e25c3c8"
       }
     },
     {
@@ -155,5 +154,5 @@
       }
     }
   ],
-  "version" : 3
+  "version" : 2
 }
