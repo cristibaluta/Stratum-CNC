@@ -191,7 +191,7 @@ struct OperationOptionsView: View {
 
 // MARK: - Reusable controls
 
-/// A titled menu for any string-backed enum. Same look as `ContourPicker`.
+/// A titled menu for any string-backed enum.
 struct EnumMenuPicker<Value: Hashable & CaseIterable & RawRepresentable>: View where Value.RawValue == String {
     let title: String
     @Binding var selection: Value
