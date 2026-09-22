@@ -188,7 +188,7 @@ struct OperationOptionsView: View {
     /// next to the button — bound to the same `toolpath.ramping.angle` the popover
     /// edits, so the two always agree.
     private var rampingRow: some View {
-        HStack(spacing: 8) {
+        row {
             rampingButton
             if toolpath.ramping.type != .none {
                 NumberField(title: "RAMP ANGLE", value: $toolpath.ramping.angle, suffix: "°")
@@ -203,7 +203,7 @@ struct OperationOptionsView: View {
     }
 
     private var rampingButton: some View {
-        RampingButton(ramping: toolpath.ramping) {
+        RampingButton(ramping: $toolpath.ramping, expanded: expanded) {
             showRampEditor = true
         }
         .popover(isPresented: $showRampEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {

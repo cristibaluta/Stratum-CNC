@@ -8,10 +8,13 @@
 import SwiftUI
 
 /// Same look as `OperationPicker` / `ContourPicker`: an icon + label + chevron
-/// that opens the ramping editor. The editor itself is unchanged — this file
-/// only draws the trigger.
+/// that opens the ramping editor. In its expanded form the ramp type is chosen
+/// directly as a row of tiles instead — the angle/length, return path, spiral
+/// direction and live visualization stay behind the editor button either way,
+/// since they don't fit inline without crowding the rest of the row.
 struct RampingButton: View {
-    let ramping: RampingSettings
+    @Binding var ramping: RampingSettings
+    var expanded: Bool = false
     let action: () -> Void
 
     private var shownType: RampType { ramping.enabled ? ramping.type : .none }
@@ -23,23 +26,81 @@ struct RampingButton: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
 
-            Button(action: action) {
-                HStack(spacing: 5) {
-                    RampTypeGlyph(type: shownType, tint: ramping.enabled ? .primary : .secondary)
-                        .frame(width: 18, height: 14)
-
-                    Text(ramping.enabled ? ramping.type.rawValue : "Off")
-                        .fontWeight(.semibold)
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8))
+            if expanded {
+                HStack(spacing: 6) {
+                    ForEach(RampType.allCases, id: \.self) { candidate in
+                        tile(for: candidate)
+                    }
+                    editorButton
                 }
-                .padding(.horizontal, 8)
-                .frame(height: 34)
-                .background(Color(.secondarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
+            } else {
+                Button(action: action) {
+                    HStack(spacing: 5) {
+                        RampTypeGlyph(type: shownType, tint: ramping.enabled ? .primary : .secondary)
+                            .frame(width: 18, height: 14)
+
+                        Text(ramping.enabled ? ramping.type.rawValue : "Off")
+                            .fontWeight(.semibold)
+
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8))
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(height: 34)
+                    .background(Color(.secondarySystemFill))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: Expanded
+
+    private func tile(for candidate: RampType) -> some View {
+        let isSelected = candidate == ramping.type
+
+        return Button {
+            ramping.type = candidate
+        } label: {
+            VStack(spacing: 4) {
+                RampTypeTileGlyph(type: candidate, tint: isSelected ? Color.accentColor : .secondary)
+                    .frame(width: 30, height: 22)
+
+                Text(candidate.rawValue)
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(width: 70, height: 56)
+            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+            .foregroundStyle(isSelected ? Color.accentColor : .primary)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .help(candidate.rampSelectionHint)
+    }
+
+    /// Opens the full editor — angle/length, return path, spiral direction and
+    /// the live diagram — for whichever type is already selected above.
+    private var editorButton: some View {
+        Button(action: action) {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 12))
+                .frame(width: 26, height: 56)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("Ramp angle, length, return path and spiral direction")
+    }
+}
+
+private extension RampType {
+    var rampSelectionHint: String {
+        switch self {
+            case .none:   return "The tool plunges straight down."
+            case .linear: return "The tool descends at an angle before cutting."
+            case .helix:  return "The tool spirals down to depth."
         }
     }
 }
@@ -99,7 +160,77 @@ private struct RampTypeGlyph: View {
     }
 }
 
+/// Tile-sized artwork for the expanded ramp picker: a part boundary against the
+/// entry path, same convention as `ContourTypeGlyph` / `DirectionGlyph` /
+/// `PatternGlyph` — separate from `RampTypeGlyph` above, which is drawn for the
+/// much smaller compact trigger and doesn't carry a boundary at that size.
+private struct RampTypeTileGlyph: View {
+    let type: RampType
+    var tint: Color = .primary
+
+    private let partInset: CGFloat = 2
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 2)
+                .inset(by: partInset)
+                .stroke(Color.secondary.opacity(0.5), lineWidth: 1.1)
+
+            GeometryReader { proxy in
+                entryPath(in: proxy.size)
+                    .stroke(tint, style: StrokeStyle(lineWidth: 1.25, lineCap: .round, dash: [2, 1.6]))
+            }
+        }
+    }
+
+    private func entryPath(in size: CGSize) -> Path {
+        let rect = CGRect(origin: .zero, size: size).insetBy(dx: partInset + 4, dy: partInset + 3)
+        switch type {
+            case .none:   return plungePath(in: rect)
+            case .linear: return linearPath(in: rect)
+            case .helix:  return helixPath(in: rect)
+        }
+    }
+
+    /// Straight down, no ramp.
+    private func plungePath(in rect: CGRect) -> Path {
+        var path = Path()
+        let x = rect.midX
+        path.move(to: CGPoint(x: x, y: rect.minY))
+        path.addLine(to: CGPoint(x: x, y: rect.maxY))
+        return path
+    }
+
+    /// A straight diagonal ramp down to the floor.
+    private func linearPath(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return path
+    }
+
+    /// A tightening spiral down to the floor, seen from the side as nested arcs.
+    private func helixPath(in rect: CGRect) -> Path {
+        var path = Path()
+        let turns = 3
+        let step = rect.height / CGFloat(turns * 2)
+        for i in 0..<(turns * 2) {
+            let y0 = rect.minY + CGFloat(i) * step
+            let y1 = y0 + step
+            let x0 = i.isMultiple(of: 2) ? rect.minX : rect.maxX
+            let x1 = i.isMultiple(of: 2) ? rect.maxX : rect.minX
+            if i == 0 {
+                path.move(to: CGPoint(x: x0, y: y0))
+            }
+            path.addQuadCurve(to: CGPoint(x: x1, y: y1),
+                               control: CGPoint(x: i.isMultiple(of: 2) ? rect.maxX : rect.minX, y: (y0 + y1) / 2))
+        }
+        return path
+    }
+}
+
 #Preview {
-    RampingButton(ramping: RampingSettings(enabled: true, type: .helix, angle: 3, length: 10)) {}
+    @Previewable @State var ramping = RampingSettings(enabled: true, type: .helix, angle: 3, length: 10)
+    RampingButton(ramping: $ramping) {}
         .padding()
 }
