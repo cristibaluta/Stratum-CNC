@@ -22,6 +22,12 @@ struct PanelToolpathDetails: View {
     var onGenerate: () -> Void = {}
     var onDone: () -> Void = {}
 
+    /// Expanded lays every picker's options directly in the view instead of behind
+    /// a dropdown or a popover — quicker to scan and to change, at the cost of
+    /// height. Operation stays a popover either way: its grid of every operation
+    /// is too large to sit inline without pushing everything else off screen.
+    @State private var isExpanded = false
+
     var body: some View {
         GroupBox("TOOLPATH") {
             VStack(spacing: 0) {
@@ -33,22 +39,23 @@ struct PanelToolpathDetails: View {
                             .font(.system(size: 15, weight: .semibold))
                             .background(.background)
                         Spacer()
+                        expandToggle
                         doneButton
                     }
 
                     Divider()
 
                     HStack(spacing: 8) {
-                        // What the toolpath does
+                        // What the toolpath does — always a dropdown, the grid is too large to inline
                         OperationPicker(kind: $toolpath.operation.kind)
                         // Tool
-                        ToolPicker(tool: $toolpath.tool)
+                        ToolPicker(tool: $toolpath.tool, expanded: isExpanded)
                         // Feed
                         NumberField(title: "FEED", value: $toolpath.feedRate, suffix: "mm/min")
                     }
 
                     // Side, direction, entry, diameters… depending on the operation
-                    OperationOptionsView(toolpath: $toolpath)
+                    OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -176,6 +183,24 @@ struct PanelToolpathDetails: View {
             case 1: return "1 shape selected"
             default: return "\(toolpath.targets.count) shapes selected"
         }
+    }
+
+    /// Toggles between the compact layout (dropdowns/popovers/menus) and the
+    /// expanded one (every option laid out directly in the view).
+    private var expandToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 11, weight: .semibold))
+                .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                .frame(width: 22, height: 22)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(isExpanded ? "Collapse to dropdowns" : "Expand — show all options directly")
     }
 
     /// Esc does the same.

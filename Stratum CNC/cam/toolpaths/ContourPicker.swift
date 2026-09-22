@@ -11,6 +11,10 @@ import SwiftUI
 struct ContourPicker: View {
     @Binding var selection: ContourType
 
+    /// When true, the options are laid out directly in the view instead of
+    /// behind a button + popover.
+    var expanded: Bool = false
+
     @State private var isPresented = false
 
     var body: some View {
@@ -19,28 +23,32 @@ struct ContourPicker: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
 
-            Button {
-                isPresented.toggle()
-            } label: {
-                HStack(spacing: 5) {
-                    ContourTypeGlyph(type: selection)
-                        .frame(width: 18, height: 14)
+            if expanded {
+                ContourGridPicker(selection: $selection, isPresented: .constant(false))
+            } else {
+                Button {
+                    isPresented.toggle()
+                } label: {
+                    HStack(spacing: 5) {
+                        ContourTypeGlyph(type: selection)
+                            .frame(width: 18, height: 14)
 
-                    Text(selection.rawValue)
-                        .fontWeight(.semibold)
+                        Text(selection.rawValue)
+                            .fontWeight(.semibold)
 
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8))
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(height: 34)
+                    .background(Color(.secondarySystemFill))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
                 }
-                .padding(.horizontal, 8)
-                .frame(height: 34)
-                .background(Color(.secondarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-            }
-            .buttonStyle(.plain)
-            .help(selection.selectionHint)
-            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                ContourGridPicker(selection: $selection, isPresented: $isPresented)
+                .buttonStyle(.plain)
+                .help(selection.selectionHint)
+                .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+                    ContourGridPicker(selection: $selection, isPresented: $isPresented)
+                }
             }
         }
     }

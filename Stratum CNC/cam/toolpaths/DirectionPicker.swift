@@ -20,6 +20,10 @@ import SwiftUI
 struct DirectionPicker: View {
     @Binding var direction: CutDirectionOption
 
+    /// When true, the options are laid out directly in the view instead of
+    /// behind a button + popover.
+    var expanded: Bool = false
+
     @State private var isPresented = false
 
     var body: some View {
@@ -28,28 +32,32 @@ struct DirectionPicker: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
 
-            Button {
-                isPresented.toggle()
-            } label: {
-                HStack(spacing: 5) {
-                    DirectionGlyph(direction: direction)
-                        .frame(width: 18, height: 14)
+            if expanded {
+                DirectionGridPicker(direction: $direction, isPresented: .constant(false))
+            } else {
+                Button {
+                    isPresented.toggle()
+                } label: {
+                    HStack(spacing: 5) {
+                        DirectionGlyph(direction: direction)
+                            .frame(width: 18, height: 14)
 
-                    Text(direction.rawValue)
-                        .fontWeight(.semibold)
+                        Text(direction.rawValue)
+                            .fontWeight(.semibold)
 
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8))
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(height: 34)
+                    .background(Color(.secondarySystemFill))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
                 }
-                .padding(.horizontal, 8)
-                .frame(height: 34)
-                .background(Color(.secondarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-            }
-            .buttonStyle(.plain)
-            .help(direction.selectionHint)
-            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                DirectionGridPicker(direction: $direction, isPresented: $isPresented)
+                .buttonStyle(.plain)
+                .help(direction.selectionHint)
+                .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+                    DirectionGridPicker(direction: $direction, isPresented: $isPresented)
+                }
             }
         }
     }

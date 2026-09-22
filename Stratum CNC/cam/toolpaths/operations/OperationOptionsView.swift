@@ -11,6 +11,10 @@ import SwiftUI
 struct OperationOptionsView: View {
     @Binding var toolpath: ToolpathData
 
+    /// When true, every picker below lays its options out directly in the
+    /// view instead of behind a button + popover or a menu.
+    var expanded: Bool = false
+
     @State private var showRampEditor = false
 
     private var kind: OperationKind { toolpath.operation.kind }
@@ -49,8 +53,8 @@ struct OperationOptionsView: View {
 
         case .contour:
             VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    ContourPicker(selection: $toolpath.contour)
+                row {
+                    ContourPicker(selection: $toolpath.contour, expanded: expanded)
                     directionPicker
                 }
                 rampingRow
@@ -58,14 +62,14 @@ struct OperationOptionsView: View {
 
         case .pocket:
             VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    PatternPicker(pattern: $toolpath.operation.pocketPattern)
+                row {
+                    PatternPicker(pattern: $toolpath.operation.pocketPattern, expanded: expanded)
                     directionPicker
                 }
                 switch toolpath.operation.pocketPattern {
                 case .spiral:
                     HStack(spacing: 8) {
-                        EnumMenuPicker(title: "SPIRAL", selection: $toolpath.operation.pocketSpiral)
+                        EnumMenuPicker(title: "SPIRAL", selection: $toolpath.operation.pocketSpiral, expanded: expanded)
                     }
                 case .trochoidal:
                     HStack(spacing: 8) {
@@ -78,15 +82,15 @@ struct OperationOptionsView: View {
             }
 
         case .facing:
-            HStack(spacing: 8) {
+            row {
                 directionPicker
                 NumberField(title: "EXTENSION", value: $toolpath.operation.facingExtension, suffix: "mm")
             }
 
         case .slotting:
             VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource)
+                row {
+                    EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource, expanded: expanded)
                     NumberField(title: "DEPTH / PASS", value: $toolpath.operation.slotDepthPerPass, suffix: "mm")
                 }
                 rampingRow
@@ -136,17 +140,17 @@ struct OperationOptionsView: View {
                     NumberField(title: "THREAD Ø", value: $toolpath.operation.threadTargetDiameter, suffix: "mm")
                     IntField(title: "RADIAL PASSES", value: $toolpath.operation.threadRadialPasses, suffix: "")
                 }
-                HStack(spacing: 8) {
+                row {
                     ToggleField(title: "INTERNAL", isOn: $toolpath.operation.threadIsInternal)
-                    EnumMenuPicker(title: "HANDEDNESS", selection: $toolpath.operation.threadHandedness)
+                    EnumMenuPicker(title: "HANDEDNESS", selection: $toolpath.operation.threadHandedness, expanded: expanded)
                 }
             }
 
         case .chamfer:
             VStack(spacing: 8) {
-                HStack(spacing: 8) {
+                row {
                     NumberField(title: "WIDTH", value: $toolpath.operation.chamferWidth, suffix: "mm")
-                    EnumMenuPicker(title: "SIDE", selection: $toolpath.operation.chamferSide)
+                    EnumMenuPicker(title: "SIDE", selection: $toolpath.operation.chamferSide, expanded: expanded)
                     directionPicker
                 }
                 HStack(spacing: 8) {
@@ -160,7 +164,23 @@ struct OperationOptionsView: View {
     }
 
     private var directionPicker: some View {
-        DirectionPicker(direction: $toolpath.operation.direction)
+        DirectionPicker(direction: $toolpath.operation.direction, expanded: expanded)
+    }
+
+    /// A row of controls, side by side when compact. Expanded pickers need
+    /// their full width to lay out their options directly, so the same row
+    /// stacks vertically once expanded.
+    @ViewBuilder
+    private func row<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if expanded {
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+            }
+        } else {
+            HStack(spacing: 8) {
+                content()
+            }
+        }
     }
 
     /// Ramping gets its own line, since it applies across very different operations.
@@ -197,25 +217,52 @@ struct OperationOptionsView: View {
 
 // MARK: - Reusable controls
 
-/// A titled menu for any string-backed enum.
+/// A titled menu for any string-backed enum. In its expanded form, every
+/// case is laid out as a row of pill buttons instead of behind a menu.
 struct EnumMenuPicker<Value: Hashable & CaseIterable & RawRepresentable>: View where Value.RawValue == String {
     let title: String
     @Binding var selection: Value
+    var expanded: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(title)
                 .font(.system(size: 9))
 
-            Picker("", selection: $selection) {
-                ForEach(Array(Value.allCases), id: \.self) {
-                    Text($0.rawValue)
-                        .tag($0)
+            if expanded {
+                HStack(spacing: 6) {
+                    ForEach(Array(Value.allCases), id: \.self) { option in
+                        pill(for: option)
+                    }
                 }
+            } else {
+                Picker("", selection: $selection) {
+                    ForEach(Array(Value.allCases), id: \.self) {
+                        Text($0.rawValue)
+                            .tag($0)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(height: 30)
             }
-            .pickerStyle(.menu)
-            .frame(height: 30)
         }
+    }
+
+    private func pill(for option: Value) -> some View {
+        let isSelected = option == selection
+
+        return Button {
+            selection = option
+        } label: {
+            Text(option.rawValue)
+                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(isSelected ? Color.accentColor.opacity(0.15) : Color(.secondarySystemFill))
+                .foregroundStyle(isSelected ? Color.accentColor : .primary)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
     }
 }
 
