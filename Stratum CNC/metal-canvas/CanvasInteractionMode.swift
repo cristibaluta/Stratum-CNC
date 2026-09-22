@@ -23,12 +23,15 @@ enum CanvasInteractionMode {
     case free3D
 
     /// A 2D vector view (CAM's shapes-and-toolpaths canvas): the camera is
-    /// locked to `StandardView.top` and never orbits, the orientation cube
-    /// is hidden (there's only one face to be oriented to), and every drag
-    /// or scroll pans regardless of which button or modifier produced it —
-    /// pinch still zooms, same as `.free3D`. This bypasses
-    /// `CanvasInputSettings` entirely: that panel's reassignable mapping
-    /// exists for a free-orbiting 3D view, and doesn't apply to a locked
-    /// top-down one.
+    /// locked to `StandardView.top` and never orbits, and the orientation
+    /// cube is hidden (there's only one face to be oriented to). Every other
+    /// input is mapped through `CanvasInputSettings.shared` exactly like
+    /// `.free3D` — reassigning Scroll, Drag, etc. in
+    /// `CanvasControlsSettingsView` affects both canvases the same way — but
+    /// `Orbit` and `Snap to Face` are the two actions that would tilt the
+    /// view off `.top`, so `MetalCanvasView.Coordinator` treats them as a
+    /// no-op here rather than breaking the "always top-down" guarantee CAM's
+    /// hit-testing and selection overlay rely on. Pinch still zooms, same as
+    /// `.free3D`.
     case locked2D
 }

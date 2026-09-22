@@ -284,33 +284,36 @@ struct MetalCanvasView: NSViewRepresentable {
             }
             let translation = gesture.translation(in: gesture.view)
 
-            // Locked 2D (CAM): every drag pans, full stop — see
-            // `CanvasInteractionMode.locked2D`. Free 3D (controller): which
-            // physical input this drag is decides the right entry of
-            // CanvasInputSettings. Shift+left-drag and a plain left-drag
-            // are told apart by the modifier flag; middle-button drag is
-            // its own recognizer (see `middleDragGesture`), never this one
-            // with the modifier held.
-            let action: CanvasControlAction
-            if parent.interactionMode == .locked2D {
-                action = .pan
+            // Which physical input this drag is decides the right entry of
+            // CanvasInputSettings — same lookup for Locked 2D (CAM) and Free
+            // 3D (controller) now, so reassigning a mapping in
+            // CanvasControlsSettingsView affects both canvases identically.
+            // Shift+left-drag and a plain left-drag are told apart by the
+            // modifier flag; middle-button drag is its own recognizer (see
+            // `middleDragGesture`), never this one with the modifier held.
+            let trigger: CanvasInputTrigger
+            if gesture === middleDragGesture {
+                trigger = .middleButton
+            } else if NSEvent.modifierFlags.contains(.shift) {
+                trigger = .modified
             } else {
-                let trigger: CanvasInputTrigger
-                if gesture === middleDragGesture {
-                    trigger = .middleButton
-                } else if NSEvent.modifierFlags.contains(.shift) {
-                    trigger = .modified
-                } else {
-                    trigger = .primary
-                }
-                // Reassigning a trigger in CanvasControlsSettingsView takes
-                // effect immediately since this looks the mapping up fresh
-                // on every drag rather than caching it.
-                action = CanvasInputSettings.shared.action(for: trigger)
+                trigger = .primary
             }
+            // Reassigning a trigger in CanvasControlsSettingsView takes
+            // effect immediately since this looks the mapping up fresh
+            // on every drag rather than caching it.
+            let action = CanvasInputSettings.shared.action(for: trigger)
 
             switch action {
             case .orbit:
+                // Locked 2D (CAM) is pinned to `.top` and never orbits —
+                // see `CanvasInteractionMode.locked2D` — so an input
+                // mapped to Orbit simply does nothing there rather than
+                // tilting a view the rest of CAM (hit-testing, the
+                // selection overlay) assumes stays top-down.
+                guard parent.interactionMode == .free3D else {
+                    break
+                }
                 performOrbit(translation: translation)
             case .pan:
                 performPan(translation: translation)
@@ -473,30 +476,23 @@ struct MetalCanvasView: NSViewRepresentable {
         }
 
         func handleScroll(_ event: NSEvent) {
-            // Locked 2D (CAM): every scroll pans, regardless of modifiers —
-            // same as `handlePan` above, and matching the old CoreAnimation
-            // 2D canvas's `scrollWheel`, which never distinguished a
-            // modified scroll from a plain one either. Free 3D
-            // (controller): reassigning Scroll / Shift + Scroll / Option +
-            // Scroll in CanvasControlsSettingsView takes effect immediately
-            // since this looks the mapping up fresh on every scroll event
-            // rather than caching it. Modifiers are read from the event
-            // itself (not `NSEvent.modifierFlags`) so they reflect the
-            // state at the moment this scroll was generated.
-            let action: CanvasControlAction
-            if parent.interactionMode == .locked2D {
-                action = .pan
+            // Same CanvasInputSettings lookup for Locked 2D (CAM) and Free
+            // 3D (controller) now: reassigning Scroll / Shift + Scroll /
+            // Option + Scroll in CanvasControlsSettingsView takes effect
+            // immediately, on both canvases, since this looks the mapping
+            // up fresh on every scroll event rather than caching it.
+            // Modifiers are read from the event itself (not
+            // `NSEvent.modifierFlags`) so they reflect the state at the
+            // moment this scroll was generated.
+            let trigger: CanvasInputTrigger
+            if event.modifierFlags.contains(.option) {
+                trigger = .optionScroll
+            } else if event.modifierFlags.contains(.shift) {
+                trigger = .modifiedScroll
             } else {
-                let trigger: CanvasInputTrigger
-                if event.modifierFlags.contains(.option) {
-                    trigger = .optionScroll
-                } else if event.modifierFlags.contains(.shift) {
-                    trigger = .modifiedScroll
-                } else {
-                    trigger = .scroll
-                }
-                action = CanvasInputSettings.shared.action(for: trigger)
+                trigger = .scroll
             }
+            let action = CanvasInputSettings.shared.action(for: trigger)
             switch action {
             case .zoom:
                 if event.hasPreciseScrollingDeltas {
@@ -509,10 +505,21 @@ struct MetalCanvasView: NSViewRepresentable {
             case .zoomToCursor:
                 performCursorZoom(event: event)
             case .orbit:
+                // Locked 2D (CAM) never orbits — see the same guard and
+                // doc comment in `handlePan` above.
+                guard parent.interactionMode == .free3D else {
+                    break
+                }
                 performOrbit(translation: scrollTranslation(event))
             case .pan:
                 performPan(translation: scrollTranslation(event))
             case .snapToFace:
+                // Snapping to a standard view (front/back/left/right) would
+                // tip Locked 2D off the top-down view it's pinned to — same
+                // reasoning as `.orbit` above.
+                guard parent.interactionMode == .free3D else {
+                    break
+                }
                 performViewSnap(event)
             case .none:
                 break
