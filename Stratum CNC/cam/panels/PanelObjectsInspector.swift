@@ -21,6 +21,7 @@ struct PanelObjectsInspector: View {
     let selectedID: UUID?
 
     var onSelectionChanged: ((UUID) -> Void)?
+    var onToggleVisibility: ((UUID) -> Void)?
     var onValueChanged: ((UUID, Property, CGFloat) -> Void)?
     var onNudge: ((UUID, Property, CGFloat) -> Void)?
     var onScale: ((UUID, Int) -> Void)?
@@ -83,20 +84,22 @@ struct PanelObjectsInspector: View {
     private func objectRow(_ object: D2_Object) -> some View {
         HStack(spacing: 4) {
             Button {
+                onToggleVisibility?(object.id)
+            } label: {
+                Image(systemName: object.isVisible ? "eye" : "eye.slash")
+                    .frame(width: 20)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(object.isVisible ? Color.secondary : Color.secondary.opacity(0.5))
+            .help(object.isVisible ? "Hide from canvas" : "Show on canvas")
+
+            Button {
                 onSelectionChanged?(object.id)
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: object.id == selectedID
-                          ? "checkmark.circle.fill"
-                          : "circle")
-                    .foregroundStyle(object.id == selectedID ? .red : .secondary)
-
-                    Text(object.name)
-                        .lineLimit(1)
-
-                    Spacer()
-                }
-                .contentShape(Rectangle())
+                Text(object.name)
+                    .lineLimit(1)
+                    .opacity(object.isVisible ? 1 : 0.5)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }

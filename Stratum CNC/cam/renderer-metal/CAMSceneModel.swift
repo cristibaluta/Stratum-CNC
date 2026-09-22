@@ -114,7 +114,8 @@ final class CAMSceneModel: ObservableObject {
             // as `D2_ObjectNode`).
             let boxColor = Self.rgba(NSColor.systemRed)
             let handleColor = Self.rgba(NSColor.systemOrange)
-            for object in canvasState.objects where canvasState.selectedObjectIDs.contains(object.id) {
+            for object in canvasState.objects
+                where canvasState.selectedObjectIDs.contains(object.id) && object.isVisible {
                 overlay.append(contentsOf: CAMSelectionOverlay.renderObjects(for: object,
                                                                              boxColor: boxColor,
                                                                              handleColor: handleColor))

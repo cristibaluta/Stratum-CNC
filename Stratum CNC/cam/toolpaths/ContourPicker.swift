@@ -23,8 +23,6 @@ struct ContourPicker: View {
             }
             .pickerStyle(.menu)
             .frame(height: 30)
-//            .background(.background)
-//            .clipShape(RoundedRectangle(cornerRadius: 5))
         }
     }
 }

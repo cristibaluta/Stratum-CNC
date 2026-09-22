@@ -75,6 +75,7 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
 
         if let selectedObjectID = canvasState.selectedObjectIDs.first,
            let object = canvasState.object(withID: selectedObjectID),
+           object.isVisible,
            isRotationCenterHit(event, object: object) {
             canvasState.selectObject(selectedObjectID)
             dragMode = .moveObject(selectedObjectID)

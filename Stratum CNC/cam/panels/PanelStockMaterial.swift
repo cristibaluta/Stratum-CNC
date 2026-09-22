@@ -17,7 +17,7 @@ struct PanelStockMaterial: View {
 
     var body: some View {
         GroupBox("MATERIAL") {
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     if !isCompact {
                         visibilityButton
@@ -47,17 +47,9 @@ struct PanelStockMaterial: View {
                         }
                     }
                     .labelsHidden()
-
-                    Divider().frame(height: 20)
-
-                    if !isCompact {
-                        dimensionsRow
-                    }
                 }
-                if isCompact {
-                    HStack {
-                        dimensionsRow
-                    }
+                HStack {
+                    dimensionsRow
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -88,15 +80,15 @@ struct PanelStockMaterial: View {
     private var dimensionsRow: some View {
         switch stock.geometry {
             case .rectangular(let length, let width, let height):
-                dimensionField(label: "L", value: Binding(
+                dimensionField(label: "L(x)", value: Binding(
                     get: { length },
                     set: { stock.geometry = .rectangular(width: $0, height: width, depth: height) }
                 ))
-                dimensionField(label: "l", value: Binding(
+                dimensionField(label: "l(y)", value: Binding(
                     get: { width },
                     set: { stock.geometry = .rectangular(width: length, height: $0, depth: height) }
                 ))
-                dimensionField(label: "h", showUnits: true, value: Binding(
+                dimensionField(label: "h(z)", showUnits: true, value: Binding(
                     get: { height },
                     set: { stock.geometry = .rectangular(width: length, height: width, depth: $0) }
                 ))
@@ -106,7 +98,7 @@ struct PanelStockMaterial: View {
                     get: { diameter },
                     set: { stock.geometry = .cylindrical(diameter: $0, length: length) }
                 ))
-                dimensionField(label: "h", showUnits: true, value: Binding(
+                dimensionField(label: "h(z)", showUnits: true, value: Binding(
                     get: { length },
                     set: { stock.geometry = .cylindrical(diameter: diameter, length: $0) }
                 ))
@@ -120,7 +112,7 @@ struct PanelStockMaterial: View {
                     get: { innerDiameter },
                     set: { stock.geometry = .disk(outerDiameter: outerDiameter, innerDiameter: $0, depth: height) }
                 ))
-                dimensionField(label: "h", showUnits: true, value: Binding(
+                dimensionField(label: "h(z)", showUnits: true, value: Binding(
                     get: { height },
                     set: { stock.geometry = .disk(outerDiameter: outerDiameter, innerDiameter: innerDiameter, depth: $0) }
                 ))
@@ -129,52 +121,31 @@ struct PanelStockMaterial: View {
 
     private func defaultGeometry(for shape: StockGeometry) -> StockGeometry {
         switch shape {
-        case .rectangular:
-            return .rectangular(width: 100, height: 100, depth: 10)
-        case .cylindrical:
-            return .cylindrical(diameter: 100, length: 10)
-        case .disk:
-            return .disk(outerDiameter: 80, innerDiameter: 20, depth: 13)
+            case .rectangular:
+                return .rectangular(width: 100, height: 100, depth: 10)
+            case .cylindrical:
+                return .cylindrical(diameter: 100, length: 10)
+            case .disk:
+                return .disk(outerDiameter: 80, innerDiameter: 20, depth: 1.3)
         }
     }
 
     private func dimensionField(label: String, showUnits: Bool = false, value: Binding<Double>) -> some View {
-        Group {
-            if isCompact {
-                VStack(alignment: .center) {
-                    Text(label)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(" \(label)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                TextField(label, value: value, format: .number.precision(.fractionLength(0...3)))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 50)
+
+                if showUnits {
+                    Text("mm")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    HStack {
-                        TextField(label, value: value, format: .number.precision(.fractionLength(0...3)))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 50)
-
-                        if showUnits {
-                            Text("mm")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
                 }
-            } else {
-                HStack(spacing: 4) {
-                    Text(label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    TextField(label, value: value, format: .number.precision(.fractionLength(0...3)))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 50)
-
-                    if showUnits {
-                        Text("mm")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .fixedSize(horizontal: true, vertical: false)
             }
         }
     }

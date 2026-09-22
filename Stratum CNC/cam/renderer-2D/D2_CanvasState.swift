@@ -297,6 +297,18 @@ final class D2_CanvasState: ObservableObject, Equatable {
         onObjectsChanged?()
     }
 
+    /// Used by the inspector's eye toggle. Deliberately does NOT call
+    /// `onObjectsChanged` — that callback discards every generated
+    /// toolpath, on the assumption that geometry just changed (see
+    /// `CAMModel.init`'s `discardGenerations()`), which visibility never
+    /// does. `objectWillChange.send()` alone is enough to repaint the
+    /// canvas and refresh the inspector's eye icon.
+    func toggleObjectVisibility(_ objectID: UUID) {
+        guard let object = object(withID: objectID) else { return }
+        objectWillChange.send()
+        object.isVisible.toggle()
+    }
+
     /// Applies a previously-saved position/width/rotation to an object.
     /// Used only when restoring a project from disk on load, to put an
     /// object back where the user left it. Deliberately does NOT invoke

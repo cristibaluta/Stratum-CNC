@@ -172,6 +172,9 @@ struct CAMView: View {
             onSelectionChanged: { id in
                 camModel.canvasState.selectObject(id)
             },
+            onToggleVisibility: { id in
+                camModel.canvasState.toggleObjectVisibility(id)
+            },
             onValueChanged: { id, property, value in
                 camModel.canvasState.setValue(value, for: property, objectID: id)
             },

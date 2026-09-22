@@ -64,15 +64,21 @@ enum D2_RenderObjectBuilder {
 
     // MARK: Vector objects
 
-    /// Every path of every object in `state`, colored for its current
-    /// selection/picking state. The whole scene's vector geometry, in one
-    /// call.
+    /// Every path of every *visible* object in `state`, colored for its
+    /// current selection/picking state. The whole scene's vector geometry,
+    /// in one call. A hidden object (`D2_Object.isVisible == false` — the
+    /// inspector's eye toggle) contributes nothing: no `D2_RenderPath`
+    /// means nothing drawn *and* nothing for `CAMCanvasInteraction` to hit,
+    /// so hiding an object also takes it out of click-selection.
     static func renderPaths(for state: D2_CanvasState) -> [D2_RenderPath] {
-        state.objects.flatMap { object in
-            renderPaths(for: object,
-                       objectSelected: state.selectedObjectIDs.contains(object.id),
-                       selectedPathIndexes: state.selectedPathIndices(for: object),
-                       pickedPathIndexes: state.pickedPathIndices(for: object))
+        state.objects.flatMap { object -> [D2_RenderPath] in
+            guard object.isVisible else {
+                return []
+            }
+            return renderPaths(for: object,
+                               objectSelected: state.selectedObjectIDs.contains(object.id),
+                               selectedPathIndexes: state.selectedPathIndices(for: object),
+                               pickedPathIndexes: state.pickedPathIndices(for: object))
         }
     }
 
