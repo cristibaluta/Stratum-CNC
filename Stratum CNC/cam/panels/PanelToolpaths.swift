@@ -7,17 +7,10 @@
 
 import SwiftUI
 
-/// The compact list of toolpaths that sits under the objects panel (top-left).
-/// One row per toolpath: an eye (show/hide the generated result on the canvas)
-/// and the name. Delete is in the row's context menu (right-click).
-/// Clicking a row opens that toolpath's settings in the panel on the right
-/// (see CAMView); clicking it again closes them.
-/// Rows can be dragged to reorder.
-struct ToolpathListView: View {
+struct PanelToolpaths: View {
 
     @Binding var toolpaths: [ToolpathData]
     let selectedID: UUID?
-    /// Toolpaths whose generated result is hidden on the canvas.
     var hiddenIDs: Set<UUID> = []
 
     var onSelect: ((UUID) -> Void)?
@@ -26,8 +19,6 @@ struct ToolpathListView: View {
     var onAdd: (() -> Void)?
 
     @State private var draggedToolpath: ToolpathData?
-
-    // MARK: - Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -46,6 +37,8 @@ struct ToolpathListView: View {
                 .foregroundStyle(.secondary)
                 .help("Add a toolpath")
             }
+
+            Divider()
 
             if toolpaths.isEmpty {
                 Text("No toolpaths")
@@ -113,7 +106,7 @@ struct ToolpathListView: View {
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 4)
-        .background(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+        .background(isSelected ? Color.accentColor.opacity(0.3) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .contextMenu {
             Button(role: .destructive) {

@@ -63,6 +63,8 @@ struct PanelObjectsInspector: View {
                 .foregroundStyle(.secondary)
             }
 
+            Divider()
+
             if elements.isEmpty {
                 Text("No object imported!")
                     .foregroundStyle(.secondary)
@@ -97,19 +99,18 @@ struct PanelObjectsInspector: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
-            Button {
-                onDelete?(object.id)
-            } label: {
-                Image(systemName: "trash")
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
         .padding(.horizontal, 4)
-        .background(object.id == selectedID ? Color.accentColor.opacity(0.12) : Color.clear)
+        .background(object.id == selectedID ? Color.accentColor.opacity(0.2) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 4))
+        .contextMenu {
+            Button(role: .destructive) {
+                onDelete?(object.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
     }
 
     // MARK: - Properties

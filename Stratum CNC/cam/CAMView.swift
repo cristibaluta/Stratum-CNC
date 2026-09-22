@@ -187,7 +187,7 @@ struct CAMView: View {
     }
 
     private var toolpathListPanel: some View {
-        ToolpathListView(
+        PanelToolpaths(
             toolpaths: $camModel.toolpaths,
             selectedID: camModel.selectedToolpathID,
             hiddenIDs: camModel.hiddenToolpathIDs,
@@ -213,23 +213,20 @@ struct CAMView: View {
     }
 
     private func toolpathSettingsPanel(for toolpath: ToolpathData) -> some View {
-        GroupBox("TOOLPATH") {
-            FittingScrollView {
-                ToolpathCellView(toolpath: binding(for: toolpath),
-                                 isPicking: camModel.pickingToolpathID == toolpath.id,
-                                 onDone: {
-                                     withAnimation(.easeOut(duration: 0.15)) {
-                                         camModel.selectedToolpathID = nil
-                                     }
-                                 },
-                                 generation: camModel.generations[toolpath.id],
-                                 isGenerating: camModel.generatingIDs.contains(toolpath.id),
-                                 onGenerate: {
-                                     camModel.generateToolpaths(for: toolpath.id)
-                                 })
-                    .id(toolpath.id)
-            }
-        }
+        PanelToolpathDetails(toolpath: binding(for: toolpath),
+                             isPicking: camModel.pickingToolpathID == toolpath.id,
+                             generation: camModel.generations[toolpath.id],
+                             isGenerating: camModel.generatingIDs.contains(toolpath.id),
+                             onGenerate: {
+                                 camModel.generateToolpaths(for: toolpath.id)
+                             },
+                             onDone: {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    camModel.selectedToolpathID = nil
+                                }
+                             }
+        )
+        .id(toolpath.id)
     }
 
     /// Edits go straight into `camModel.toolpaths`, looked up by id (not index)
@@ -269,28 +266,28 @@ struct CAMView: View {
 /// height it's offered, beyond which it scrolls. A plain ScrollView always grabs
 /// all the space it's given, which would turn the settings panel into a
 /// full-height slab even for a short toolpath.
-private struct FittingScrollView<Content: View>: View {
-
-    private let content: Content
-    @State private var contentHeight: CGFloat?
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        ScrollView {
-            content
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .onChange(of: proxy.size.height, initial: true) { _, height in
-                                contentHeight = height
-                            }
-                    }
-                )
-        }
-        // Until the content has been measured, take what's offered
-        .frame(maxHeight: contentHeight ?? .infinity)
-    }
-}
+//private struct FittingScrollView<Content: View>: View {
+//
+//    private let content: Content
+//    @State private var contentHeight: CGFloat?
+//
+//    init(@ViewBuilder content: () -> Content) {
+//        self.content = content()
+//    }
+//
+//    var body: some View {
+//        ScrollView {
+//            content
+//                .background(
+//                    GeometryReader { proxy in
+//                        Color.clear
+//                            .onChange(of: proxy.size.height, initial: true) { _, height in
+//                                contentHeight = height
+//                            }
+//                    }
+//                )
+//        }
+//        // Until the content has been measured, take what's offered
+//        .frame(maxHeight: contentHeight ?? .infinity)
+//    }
+//}

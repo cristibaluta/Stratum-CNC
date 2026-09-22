@@ -37,56 +37,56 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
 
     var title: String {
         switch self {
-        case .contour:       return "Contour"
-        case .pocket:        return "Pocket"
-        case .facing:        return "Facing"
-        case .slotting:      return "Slot"
-        case .engrave:       return "Engrave"
-        case .drilling:      return "Drill"
-        case .counterbore:   return "Counterbore"
-        case .boring:        return "Bore"
-        case .threadMilling: return "Thread mill"
-        case .chamfer:       return "Chamfer"
+            case .contour:       return "Contour"
+            case .pocket:        return "Pocket"
+            case .facing:        return "Facing"
+            case .slotting:      return "Slot"
+            case .engrave:       return "Engrave"
+            case .drilling:      return "Drill"
+            case .counterbore:   return "Counterbore"
+            case .boring:        return "Bore"
+            case .threadMilling: return "Thread mill"
+            case .chamfer:       return "Chamfer"
         }
     }
 
     /// SF Symbol shown next to the title in the picker.
     var symbol: String {
         switch self {
-        case .contour:       return "square.dashed"
-        case .pocket:        return "square.inset.filled"
-        case .facing:        return "rectangle.compress.vertical"
-        case .slotting:      return "capsule"
-        case .engrave:       return "pencil.tip"
-        case .drilling:      return "smallcircle.filled.circle"
-        case .counterbore:   return "circle.circle"
-        case .boring:        return "circle.dashed"
-        case .threadMilling: return "screwdriver"
-        case .chamfer:       return "diamond"
+            case .contour:       return "square.dashed"
+            case .pocket:        return "square.inset.filled"
+            case .facing:        return "rectangle.compress.vertical"
+            case .slotting:      return "capsule"
+            case .engrave:       return "pencil.tip"
+            case .drilling:      return "smallcircle.filled.circle"
+            case .counterbore:   return "circle.circle"
+            case .boring:        return "circle.dashed"
+            case .threadMilling: return "screwdriver"
+            case .chamfer:       return "diamond"
         }
     }
 
     /// What to select on the canvas for this operation.
     var selectionHint: String? {
         switch self {
-        case .contour:
-            return nil
-        case .pocket:
-            return "Select closed shapes to clear."
-        case .facing:
-            return "Covers the bounding box of the selection — select the finished part's outline."
-        case .slotting:
-            return nil   // depends on the slot source, see OperationOptionsView
-        case .engrave:
-            return "Follows the selected lines and text."
-        case .drilling:
-            return "Drills at a selected point or circle, or at the centre of any closed shape."
-        case .counterbore, .boring:
-            return "Select a point or a closed circle per hole (DXF and drill-file circles work; SVG circles are stored as lines and aren't recognised)."
-        case .threadMilling:
-            return "Select the existing hole as a closed circle (DXF and drill-file circles work; SVG circles aren't recognised)."
-        case .chamfer:
-            return "Bevels the selected edges. Needs a V-bit, unless you give an explicit depth."
+            case .contour:
+                return nil
+            case .pocket:
+                return "Select closed shapes to clear."
+            case .facing:
+                return "Covers the bounding box of the selection — select the finished part's outline."
+            case .slotting:
+                return nil   // depends on the slot source, see OperationOptionsView
+            case .engrave:
+                return "Follows the selected lines and text."
+            case .drilling:
+                return "Drills at a selected point or circle, or at the centre of any closed shape."
+            case .counterbore, .boring:
+                return "Select a point or a closed circle per hole (DXF and drill-file circles work; SVG circles are stored as lines and aren't recognised)."
+            case .threadMilling:
+                return "Select the existing hole as a closed circle (DXF and drill-file circles work; SVG circles aren't recognised)."
+            case .chamfer:
+                return "Bevels the selected edges. Needs a V-bit, unless you give an explicit depth."
         }
     }
 
@@ -96,15 +96,15 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
     /// chamfering are a single pass; a slot has its own depth per pass; a thread steps by its pitch.
     var usesStepdown: Bool {
         switch self {
-        case .contour, .pocket, .engrave, .counterbore: return true
-        default: return false
+            case .contour, .pocket, .engrave, .counterbore: return true
+            default: return false
         }
     }
 
     var usesStepover: Bool {
         switch self {
-        case .pocket, .counterbore: return true
-        default: return false
+            case .pocket, .counterbore: return true
+            default: return false
         }
     }
 
@@ -112,8 +112,8 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
     /// V-bit's angle, so the general End Z field is hidden for them.
     var usesEndZ: Bool {
         switch self {
-        case .counterbore, .chamfer: return false
-        default: return true
+            case .counterbore, .chamfer: return false
+            default: return true
         }
     }
 }
