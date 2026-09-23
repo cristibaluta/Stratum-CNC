@@ -37,7 +37,7 @@ struct PanelToolpathDetails: View {
                 Divider()
                 rowOperationOptions
                 Divider().background(.orange.opacity(0.5))
-                rowSpindle
+                rowTool
                 Divider()
                 rowZ
                 Divider().background(.orange.opacity(0.5))
@@ -72,11 +72,25 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowOperation: some View {
-        HStack(alignment: .top, spacing: 8) {
+        HStack(alignment: .bottom, spacing: 16) {
             OperationPicker(kind: $toolpath.operation.kind)
-            ToolPicker(tool: $toolpath.tool)
-            NumberField(title: "FEED", value: $toolpath.feedRate, suffix: "mm/min")
+            Text(hint)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var hint: String {
+        if toolpath.operation.kind == .slotting {
+            switch toolpath.operation.slotSource {
+            case .outline:
+                return "Select the slot's outline: a closed, straight-sided rectangle exactly as wide as the tool."
+            case .centerline:
+                return "Select the line the tool centre follows; the slot is as wide as the tool."
+            }
+        }
+        return toolpath.operation.kind.selectionHint ?? ""
     }
 
     @ViewBuilder
@@ -93,8 +107,15 @@ struct PanelToolpathDetails: View {
     }
 
     @ViewBuilder
-    private var rowSpindle: some View {
-        IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
+    private var rowTool: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ToolPicker(tool: $toolpath.tool)
+            Divider()
+            HStack(spacing: 8) {
+                IntField(title: "SPINDLE SPEED", value: $toolpath.spindleRPM, suffix: "RPM")
+                NumberField(title: "FEED RATE", value: $toolpath.feedRate, suffix: "mm/min")
+            }
+        }
     }
 
     @ViewBuilder

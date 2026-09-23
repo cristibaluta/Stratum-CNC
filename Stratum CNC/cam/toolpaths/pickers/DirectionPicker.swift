@@ -5,14 +5,6 @@
 //  Created by Cristian Baluta on 22.09.2026.
 //
 
-
-//
-//  DirectionPicker.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 24.08.2026.
-//
-
 import SwiftUI
 
 /// Chooses which way the tool cuts relative to its rotation. Same look as
@@ -52,6 +44,11 @@ struct DirectionPicker: View {
                     .frame(height: 34)
                     .background(Color(.secondarySystemFill))
                     .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(direction.selectionHint)

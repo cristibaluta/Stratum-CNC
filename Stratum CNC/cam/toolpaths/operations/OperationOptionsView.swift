@@ -18,47 +18,14 @@ struct OperationOptionsView: View {
 
     @State private var showRampEditor = false
 
-    private var kind: OperationKind { toolpath.operation.kind }
+    private var kind: OperationKind {
+        toolpath.operation.kind
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-
-            options
-
-            if let hint {
-                Text(hint)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private var hint: String? {
-        if kind == .slotting {
-            switch toolpath.operation.slotSource {
-            case .outline:
-                return "Select the slot's outline: a closed, straight-sided rectangle exactly as wide as the tool."
-            case .centerline:
-                return "Select the line the tool centre follows; the slot is as wide as the tool."
-            }
-        }
-        return kind.selectionHint
-    }
-
-    // MARK: Per-operation controls
-
-    /// The fields come straight from `SC.MachiningOperation.formFields`, so which controls
-    /// an operation has -- and their labels, ranges and nesting -- is defined there, not here.
-    /// Edits flow back through `ToolpathData.machiningOperation`.
-    @ViewBuilder
-    private var options: some View {
         let fields = toolpath.machiningOperation.formFields { toolpath.machiningOperation = $0 }
 
         VStack(alignment: .leading, spacing: 8) {
-
-            // What the selected shape means isn't part of the engine's operation: the
-            // app turns a slot outline into the centre line the engine wants.
             if kind == .slotting {
                 EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource, expanded: expanded)
             }

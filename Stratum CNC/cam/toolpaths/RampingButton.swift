@@ -49,6 +49,11 @@ struct RampingButton: View {
                     .frame(height: 34)
                     .background(Color(.secondarySystemFill))
                     .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
