@@ -142,13 +142,6 @@ struct ControllerView: View {
                                 highlightedLine: gCodeModel.scrubLine,
                                 onLineSelected: scrubTo,
                                 onPlay: {
-                                    // Opens the pre-run review sheet — or,
-                                    // if nothing's connected yet, prompts to
-                                    // pick and connect a machine first;
-                                    // `MachineConnectSheet` hands off to the
-                                    // review sheet itself once that lands.
-                                    // Either way its own "Start Job" button
-                                    // is what actually calls `uploadJob`.
                                     if model.connection.isConnected {
                                         model.isShowingRunReview = true
                                     } else {

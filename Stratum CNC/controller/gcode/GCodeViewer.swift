@@ -57,24 +57,15 @@ struct GCodeViewer: View {
     /// works out which of the two applies.
     var onStop: (() -> Void)? = nil
 
-    /// Cached result of `GCodeToolpathAnalyzer.analyze`. This used to be a
-    /// computed property, which ran the analyzer — two `NSRegularExpression`
-    /// passes over every line in the file — from scratch on every read, and
-    /// it's read 3 times in `body` below. Worse, `body` re-evaluates on
-    /// *any* `GCodeStore` publish, which includes `scrubLine`/`requestedLine`
-    /// changing on every single scrub-slider tick. So dragging the scrubber
-    /// was re-running a full-file regex scan, up to 3x, per tick — on a
-    /// large file that's almost certainly the dominant cost, well above
-    /// anything happening on the Metal side. Recomputed only when the
-    /// file's lines actually change (`refreshToolpaths`), not on scrub.
     @State private var toolpaths: [GCodeToolpath] = []
 
     var body: some View {
         VStack(spacing: 4) {
             toolpathsView
-                .background(Color(.white))
                 .frame(height: 200)
-            GCodeTableView(document: model.document, highlightedLine: machineLine ?? highlightedLine, requestedLine: model.requestedLine, onLineSelected: onLineSelected)
+            GCodeTableView(document: model.document,
+                           highlightedLine: machineLine ?? highlightedLine,
+                           requestedLine: model.requestedLine, onLineSelected: onLineSelected)
             jobProgress
             commandBar
                 .frame(height: 36)
