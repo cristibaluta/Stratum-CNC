@@ -16,8 +16,9 @@ import StratumCAM
 struct ParameterFieldsView: View {
     let fields: [SC.ParameterField]
 
-    /// Lays choices out as a row of pills instead of a menu (same meaning as
-    /// `OperationOptionsView.expanded`).
+    /// Kept for callers that still pass it (e.g. `OperationOptionsView`'s compact/expanded
+    /// toggle for its own dedicated pickers) -- no longer changes how `ChoiceControl`
+    /// renders, since every choice field is now the native pull-down menu at all times.
     var expanded: Bool = false
 
     /// Field ids the app doesn't offer (yet). Matched at every nesting depth.
@@ -87,11 +88,10 @@ struct ParameterFieldsView: View {
 
     private func isLeaf(_ field: SC.ParameterField) -> Bool {
         switch field {
-            case .double, .int, .bool:
+            case .double, .int, .bool, .choice:
+                // The picker is compact like every other simple field now, so it
+                // always flows in the wrapping grid alongside them.
                 return true
-            case .choice:
-                // Pills need the full width; a menu is as small as a number field.
-                return !expanded
             default:
                 return false
         }
@@ -177,6 +177,15 @@ struct ParameterFieldsView: View {
                     }
                 }
 
+            case .row(let f):
+                // Unlike the wrapping "leaves" grid, this HStack never wraps --
+                // the fields it holds (e.g. diameter + pitch) always sit on one row.
+                HStack(alignment: .top, spacing: 8) {
+                    ForEach(f.fields) { field in
+                        leafView(field)
+                    }
+                }
+
             case .list(let f):
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -240,8 +249,8 @@ struct ParameterFieldsView: View {
 
 // MARK: - Choice
 
-/// A titled choice between string-identified options: a menu when compact, a row of pills
-/// when expanded. Same look as `EnumMenuPicker`, which needs a Swift enum to drive it.
+/// A titled choice between string-identified options, styled as a native macOS pull-down
+/// menu at all times (same look as `ToolPicker`'s) -- never as a row of pills.
 struct ChoiceControl: View {
     let title: String
     let options: [SC.ParameterField.ChoiceField.Option]
@@ -254,39 +263,35 @@ struct ChoiceControl: View {
             Text(title)
                 .font(.system(size: 9))
 
-            if expanded {
-                HStack(spacing: 6) {
-                    ForEach(options) { option in
-                        pill(for: option)
+            Menu {
+                ForEach(options) { option in
+                    Button {
+                        onSelect(option.id)
+                    } label: {
+                        if option.id == selectedID {
+                            Label(option.label, systemImage: "checkmark")
+                        } else {
+                            Text(option.label)
+                        }
                     }
                 }
-            } else {
-                Picker("", selection: Binding(get: { selectedID }, set: { onSelect($0) })) {
-                    ForEach(options) { option in
-                        Text(option.label)
-                            .tag(option.id)
-                    }
+            } label: {
+                HStack(spacing: 5) {
+                    Text(selectedLabel)
+                        .fontWeight(.semibold)
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8))
                 }
-                .pickerStyle(.menu)
-                .frame(height: 30)
+                .padding(.horizontal, 8)
+                .frame(height: 34)
+                .background(.background)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
             }
         }
     }
 
-    private func pill(for option: SC.ParameterField.ChoiceField.Option) -> some View {
-        let isSelected = option.id == selectedID
-
-        return Button {
-            onSelect(option.id)
-        } label: {
-            Text(option.label)
-                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .padding(.horizontal, 10)
-                .frame(height: 30)
-                .background(isSelected ? Color.accentColor.opacity(0.15) : Color(.secondarySystemFill))
-                .foregroundStyle(isSelected ? Color.accentColor : .primary)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
+    private var selectedLabel: String {
+        options.first(where: { $0.id == selectedID })?.label ?? ""
     }
 }

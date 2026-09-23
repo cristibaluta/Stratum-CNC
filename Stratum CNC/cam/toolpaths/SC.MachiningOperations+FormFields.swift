@@ -44,11 +44,29 @@ extension SC.MachiningOperation {
 
             case .threadMilling(let pitch, let isInternal, let direction, let radialPasses, let targetDiameter):
                 return [
-                    .double(.init(id: "threadMilling.pitch", label: "Pitch", unit: "mm",
-                                  range: 0.1...10.0, value: pitch, onChange: {
-                        onChange(.threadMilling(pitch: $0, isInternal: isInternal, direction: direction,
-                                                 radialPasses: radialPasses, targetDiameter: targetDiameter))
+                    // Picking a preset here sets diameter + pitch together below; the
+                    // dropdown itself has no stored state -- its selection is just
+                    // whichever preset the current diameter/pitch pair matches, "Custom"
+                    // otherwise, so hand-editing either field updates it automatically.
+                    .choice(SC.standardThreadChoice(id: "threadMilling.standard",
+                                                     diameter: targetDiameter,
+                                                     pitch: pitch,
+                                                     onSelect: { thread in
+                        onChange(.threadMilling(pitch: thread.pitch, isInternal: isInternal, direction: direction,
+                                                 radialPasses: radialPasses, targetDiameter: thread.diameter))
                     })),
+                    .row(.init(id: "threadMilling.diameterPitch", fields: [
+                        .double(.init(id: "threadMilling.targetDiameter", label: "Target Diameter", unit: "mm",
+                                      range: 0.5...200.0, value: targetDiameter, onChange: {
+                            onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: direction,
+                                                     radialPasses: radialPasses, targetDiameter: $0))
+                        })),
+                        .double(.init(id: "threadMilling.pitch", label: "Pitch", unit: "mm",
+                                      range: 0.1...10.0, value: pitch, onChange: {
+                            onChange(.threadMilling(pitch: $0, isInternal: isInternal, direction: direction,
+                                                     radialPasses: radialPasses, targetDiameter: targetDiameter))
+                        }))
+                    ])),
                     .bool(.init(id: "threadMilling.isInternal", label: "Internal Thread", value: isInternal, onChange: {
                         onChange(.threadMilling(pitch: pitch, isInternal: $0, direction: direction,
                                                  radialPasses: radialPasses, targetDiameter: targetDiameter))
@@ -62,11 +80,6 @@ extension SC.MachiningOperation {
                                range: 1...6, value: radialPasses, onChange: {
                         onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: direction,
                                                  radialPasses: $0, targetDiameter: targetDiameter))
-                    })),
-                    .double(.init(id: "threadMilling.targetDiameter", label: "Target Diameter", unit: "mm",
-                                  range: 0.5...200.0, value: targetDiameter, onChange: {
-                        onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: direction,
-                                                 radialPasses: radialPasses, targetDiameter: $0))
                     }))
                 ]
 

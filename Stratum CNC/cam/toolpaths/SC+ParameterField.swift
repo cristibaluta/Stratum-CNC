@@ -29,6 +29,7 @@ extension SC {
         case group(GroupField)
         case optionalGroup(OptionalGroupField)
         case list(ListField)
+        case row(RowField)
 
         public var id: String {
             switch self {
@@ -41,6 +42,7 @@ extension SC {
                 case .group(let f): return f.id
                 case .optionalGroup(let f): return f.id
                 case .list(let f): return f.id
+                case .row(let f): return f.id
             }
         }
     }
@@ -137,6 +139,15 @@ extension SC.ParameterField {
         public var isPresent: Bool
         public var fields: [SC.ParameterField]
         public var onToggle: (Bool) -> Void
+    }
+
+    /// A fixed set of simple fields (`double`/`int`/`bool`/`choice`) that must
+    /// always be laid out side by side on one row, unlike the leaf fields
+    /// above which are free to wrap onto separate rows when the panel is
+    /// narrow -- e.g. thread milling's diameter and pitch.
+    public struct RowField: Identifiable {
+        public var id: String
+        public var fields: [SC.ParameterField]
     }
 
     /// A homogeneous collection the user can add to / remove from, e.g.
