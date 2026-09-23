@@ -155,6 +155,7 @@ enum SlotSource: String, CaseIterable, Codable, Hashable {
 enum ChamferSide: String, CaseIterable, Codable, Hashable {
     case outside = "Outside"
     case inside = "Inside"
+    case onContour = "On contour"
 }
 
 // MARK: - Options

@@ -287,7 +287,10 @@ private extension ToolpathGenerator {
     /// slot patterns `.trochoidal`/`.adaptive` and `EntryStrategy.fromOpenEnd` (they only make
     /// sense for slot outlines open at one or both ends, which the app doesn't derive yet), and
     /// lead-in/out and holding tabs on contours.
-    static func makeOperation(from toolpath: ToolpathData) -> SC.MachiningOperation {
+    ///
+    /// Internal (unlike the rest of this extension) because `ToolpathData.machiningOperation`
+    /// reads it to build the form.
+    internal static func makeOperation(from toolpath: ToolpathData) -> SC.MachiningOperation {
         let options = toolpath.operation
         let direction = makeDirection(from: options.direction)
         let entry = makeEntry(from: toolpath.ramping)
@@ -349,9 +352,15 @@ private extension ToolpathGenerator {
                                   targetDiameter: options.threadTargetDiameter)
 
         case .chamfer:
+            let side: SC.CutSide
+            switch options.chamferSide {
+            case .outside:   side = .outside
+            case .inside:    side = .inside
+            case .onContour: side = .onContour
+            }
             let params = SC.ChamferParams(width: options.chamferWidth,
                                           depth: options.chamferUsesDepth ? options.chamferDepth : nil,
-                                          side: options.chamferSide == .outside ? .outside : .inside,
+                                          side: side,
                                           direction: direction)
             return .chamfer(params: params)
         }

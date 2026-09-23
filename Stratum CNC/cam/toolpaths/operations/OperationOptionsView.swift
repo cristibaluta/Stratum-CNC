@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 struct OperationOptionsView: View {
     @Binding var toolpath: ToolpathData
@@ -47,128 +48,33 @@ struct OperationOptionsView: View {
 
     // MARK: Per-operation controls
 
+    /// The fields come straight from `SC.MachiningOperation.formFields`, so which controls
+    /// an operation has -- and their labels, ranges and nesting -- is defined there, not here.
+    /// Edits flow back through `ToolpathData.machiningOperation`.
     @ViewBuilder
     private var options: some View {
-        switch kind {
+        let fields = toolpath.machiningOperation.formFields { toolpath.machiningOperation = $0 }
 
-        case .contour:
-            VStack(alignment: .leading, spacing: 8) {
-                row {
-                    ContourPicker(selection: $toolpath.contour, expanded: expanded)
-                    directionPicker
-                }
+        VStack(alignment: .leading, spacing: 8) {
+
+            // What the selected shape means isn't part of the engine's operation: the
+            // app turns a slot outline into the centre line the engine wants.
+            if kind == .slotting {
+                EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource, expanded: expanded)
+            }
+
+            ParameterFieldsView(fields: fields,
+                                expanded: expanded,
+                                hiddenFieldIDs: kind.hiddenFieldIDs,
+                                hiddenCaseIDs: OperationKind.hiddenCaseIDs)
+
+            // The entry strategy keeps its dedicated editor (angle/length preview, helix
+            // diagram), but whether an operation has one is still up to `formFields`.
+            if fields.contains(where: { $0.id == "entry" }) {
                 Divider()
                 rampingRow
-            }
-
-        case .pocket:
-            VStack(alignment: .leading, spacing: 8) {
-                row {
-                    PatternPicker(pattern: $toolpath.operation.pocketPattern, expanded: expanded)
-                    directionPicker
-                }
-                switch toolpath.operation.pocketPattern {
-                    case .spiral:
-                        HStack(spacing: 8) {
-                            EnumMenuPicker(title: "SPIRAL", selection: $toolpath.operation.pocketSpiral, expanded: expanded)
-                        }
-                    case .trochoidal:
-                        HStack(spacing: 8) {
-                            NumberField(title: "LOOP PITCH", value: $toolpath.operation.pocketTrochoidalPitch, suffix: "% radius")
-                        }
-                    case .offset, .raster:
-                        EmptyView()
-                }
-                Divider()
-                rampingRow
-            }
-
-        case .facing:
-            row {
-                directionPicker
-                NumberField(title: "EXTENSION", value: $toolpath.operation.facingExtension, suffix: "mm")
-            }
-
-        case .slotting:
-            VStack(alignment: .leading, spacing: 8) {
-                row {
-                    EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource, expanded: expanded)
-                    NumberField(title: "DEPTH / PASS", value: $toolpath.operation.slotDepthPerPass, suffix: "mm")
-                }
-                Divider()
-                rampingRow
-            }
-
-        case .engrave:
-            EmptyView()
-
-        case .drilling:
-            HStack(spacing: 8) {
-                ToggleField(title: "PECKING", isOn: $toolpath.operation.drillUsesPecking)
-                if toolpath.operation.drillUsesPecking {
-                    NumberField(title: "PECK DEPTH", value: $toolpath.operation.drillPeckDepth, suffix: "mm")
-                }
-            }
-
-        case .counterbore:
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    NumberField(title: "DIAMETER", value: $toolpath.operation.counterboreDiameter, suffix: "mm")
-                    NumberField(title: "DEPTH", value: $toolpath.operation.counterboreDepth, suffix: "mm")
-                }
-                HStack(spacing: 8) {
-                    directionPicker
-                }
-                Divider()
-                rampingRow
-            }
-
-        case .boring:
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    NumberField(title: "FINISHED Ø", value: $toolpath.operation.boreTargetDiameter, suffix: "mm")
-                    ToggleField(title: "SHIFT RETRACT", isOn: $toolpath.operation.boreShiftRetract)
-                }
-                HStack(spacing: 8) {
-                    ToggleField(title: "DWELL", isOn: $toolpath.operation.boreUsesDwell)
-                    if toolpath.operation.boreUsesDwell {
-                        NumberField(title: "DWELL TIME", value: $toolpath.operation.boreDwellTime, suffix: "s")
-                    }
-                }
-            }
-
-        case .threadMilling:
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    NumberField(title: "PITCH", value: $toolpath.operation.threadPitch, suffix: "mm")
-                    NumberField(title: "THREAD Ø", value: $toolpath.operation.threadTargetDiameter, suffix: "mm")
-                    IntField(title: "RADIAL PASSES", value: $toolpath.operation.threadRadialPasses, suffix: "")
-                }
-                row {
-                    ToggleField(title: "INTERNAL", isOn: $toolpath.operation.threadIsInternal)
-                    EnumMenuPicker(title: "HANDEDNESS", selection: $toolpath.operation.threadHandedness, expanded: expanded)
-                }
-            }
-
-        case .chamfer:
-            VStack(alignment: .leading, spacing: 8) {
-                row {
-                    NumberField(title: "WIDTH", value: $toolpath.operation.chamferWidth, suffix: "mm")
-                    EnumMenuPicker(title: "SIDE", selection: $toolpath.operation.chamferSide, expanded: expanded)
-                    directionPicker
-                }
-                HStack(spacing: 8) {
-                    ToggleField(title: "FIXED DEPTH", isOn: $toolpath.operation.chamferUsesDepth)
-                    if toolpath.operation.chamferUsesDepth {
-                        NumberField(title: "DEPTH", value: $toolpath.operation.chamferDepth, suffix: "mm")
-                    }
-                }
             }
         }
-    }
-
-    private var directionPicker: some View {
-        DirectionPicker(direction: $toolpath.operation.direction, expanded: expanded)
     }
 
     /// A row of controls, side by side when compact. Expanded pickers need
@@ -218,6 +124,35 @@ struct OperationOptionsView: View {
                 .frame(width: 600)
         }
     }
+}
+
+// MARK: - What the app doesn't offer (yet)
+
+private extension OperationKind {
+
+    /// `formFields` describes everything the engine can take. These parts have no home in
+    /// `ToolpathData` yet, or are covered by another control.
+    var hiddenFieldIDs: Set<String> {
+        switch self {
+        case .contour:
+            // Lead-in/out and tabs aren't stored on the toolpath.
+            return ["entry", "contour.leadIn", "contour.leadOut", "contour.tabs"]
+        case .pocket:
+            // The pocket ignores the trochoidal loop radius (see makePocketPattern).
+            return ["entry", "pattern.trochoidal.loopRadius"]
+        case .slotting:
+            // Only `.raster` makes sense until open-ended slots are derived.
+            return ["entry", "pattern"]
+        case .counterbore:
+            return ["entry"]
+        default:
+            return []
+        }
+    }
+
+    /// `.adaptive` pockets crash the engine (`fatalError`), `.fromOpenEnd` entry needs an
+    /// open slot outline.
+    static let hiddenCaseIDs: Set<String> = ["adaptive", "fromOpenEnd"]
 }
 
 // MARK: - Reusable controls

@@ -30,19 +30,17 @@ struct PanelToolpathDetails: View {
 
     var body: some View {
         GroupBox("TOOLPATH") {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 16) {
                 rowHeader
-                Divider()
+                Divider().background(.orange.opacity(0.5))
                 rowOperation
                 Divider()
                 rowOperationOptions
-                Divider()
-                rowDirection
-                Divider()
-                rowRamping
+                Divider().background(.orange.opacity(0.5))
+                rowSpindle
                 Divider()
                 rowZ
-                Divider()
+                Divider().background(.orange.opacity(0.5))
                 rowFooter
             }
             .padding(16)
@@ -83,8 +81,9 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowOperationOptions: some View {
-        VStack(alignment: .leading) {
-            // Side, direction, entry, diameters… depending on the operation
+        VStack(alignment: .leading, spacing: 8) {
+            // Side, direction, entry, diameters… whatever SC.MachiningOperation.formFields
+            // defines for the chosen operation
             OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if toolpath.operation.kind.usesStepover {
@@ -94,11 +93,7 @@ struct PanelToolpathDetails: View {
     }
 
     @ViewBuilder
-    private var rowDirection: some View {
-    }
-
-    @ViewBuilder
-    private var rowRamping: some View {
+    private var rowSpindle: some View {
         IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
     }
 
