@@ -240,6 +240,9 @@ struct CAMView: View {
 
     private func toolpathSettingsPanel(for toolpath: ToolpathData) -> some View {
         PanelToolpathDetails(toolpath: binding(for: toolpath),
+                             siblingNames: Set(camModel.toolpaths
+                                 .filter { $0.id != toolpath.id }
+                                 .map(\.name)),
                              isPicking: camModel.pickingToolpathID == toolpath.id,
                              generation: camModel.generations[toolpath.id],
                              isGenerating: camModel.generatingIDs.contains(toolpath.id),

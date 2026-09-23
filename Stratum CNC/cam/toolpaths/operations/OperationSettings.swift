@@ -70,11 +70,11 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
     var selectionHint: String? {
         switch self {
             case .contour:
-                return nil
+                return "Select contour to detach the part from the stock material."
             case .pocket:
-                return "Select closed shapes to clear."
+                return "Select closed shapes to clear inside."
             case .facing:
-                return "Covers the bounding box of the selection — select the finished part's outline."
+                return "Covers the bounding box of the selection."
             case .slotting:
                 return nil   // depends on the slot source, see OperationOptionsView
             case .engrave:
@@ -82,11 +82,11 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .drilling:
                 return "Drills at a selected point or circle, or at the centre of any closed shape."
             case .counterbore, .boring:
-                return "Select a point or a closed circle per hole (DXF and drill-file circles work; SVG circles are stored as lines and aren't recognised)."
+                return "Select a point or a closed circle."
             case .threadMilling:
-                return "Select the existing hole as a closed circle (DXF and drill-file circles work; SVG circles aren't recognised)."
+                return "Select and existing hole. Needs a threading bit."
             case .chamfer:
-                return "Bevels the selected edges. Needs a V-bit, unless you give an explicit depth."
+                return "Bevels the selected edges. Needs a V-bit."
         }
     }
 
@@ -115,6 +115,18 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .counterbore, .chamfer: return false
             default: return true
         }
+    }
+
+    /// "<Title> N" with the lowest free N among `existingNames`, so auto-generated
+    /// toolpath names stay distinguishable within their own operation category
+    /// (`Contour 1`, `Contour 2`, `Pocket 1`, ...) instead of sharing one counter
+    /// across every kind of operation.
+    func nextName(among existingNames: Set<String>) -> String {
+        var number = 1
+        while existingNames.contains("\(title) \(number)") {
+            number += 1
+        }
+        return "\(title) \(number)"
     }
 }
 
@@ -207,11 +219,11 @@ struct OperationSettings: Codable, Hashable {
     var chamferSide: ChamferSide = .outside
 
     // Thread mill
-    var threadPitch: Double = 1
+    var threadTargetDiameter: Double = 3
+    var threadPitch: Double = 0.5
+    var threadRadialPasses: Int = 3
     var threadIsInternal: Bool = true
     var threadHandedness: ThreadHandedness = .rightHand
-    var threadRadialPasses: Int = 2
-    var threadTargetDiameter: Double = 6
 
     private enum CodingKeys: String, CodingKey {
         case kind, direction

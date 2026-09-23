@@ -140,7 +140,10 @@ class CAMModel: ObservableObject {
     func addToolpath() {
         var toolpath = toolpaths.last ?? Self.defaultToolpath()
         toolpath.id = UUID()
-        toolpath.name = nextToolpathName()
+        // A fresh copy hasn't been renamed by hand yet, whatever the toolpath
+        // it was copied from -- it gets its own auto name for its operation.
+        toolpath.isNameCustom = false
+        toolpath.name = toolpath.operation.kind.nextName(among: Set(toolpaths.map(\.name)))
         // Copy the settings, not the shapes: the new toolpath starts with nothing selected
         toolpath.targets = []
         toolpaths.append(toolpath)
@@ -183,20 +186,9 @@ class CAMModel: ObservableObject {
         }
     }
 
-    /// "Toolpath N" with the lowest free N past the current count, so names in
-    /// the list stay distinguishable (there is no rename UI yet).
-    private func nextToolpathName() -> String {
-        let existing = Set(toolpaths.map(\.name))
-        var number = toolpaths.count + 1
-        while existing.contains("Toolpath \(number)") {
-            number += 1
-        }
-        return "Toolpath \(number)"
-    }
-
     private static func defaultToolpath() -> ToolpathData {
         ToolpathData(id: UUID(),
-                     name: "Toolpath 1",
+                     name: "Contour 1",
                      tool: Tool(id: UUID(),
                                 name: "3.175mm",
                                 shankDiameter: 3.175,

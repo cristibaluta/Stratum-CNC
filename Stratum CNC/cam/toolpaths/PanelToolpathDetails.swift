@@ -10,6 +10,10 @@ import SwiftUI
 struct PanelToolpathDetails: View {
     @Binding var toolpath: ToolpathData
 
+    /// Every other toolpath's current name, so the auto-generated name for this
+    /// one (see `operationKindBinding`) picks a number that isn't already taken.
+    var siblingNames: Set<String> = []
+
     /// True while the canvas is picking shapes for this toolpath. That's the case
     /// whenever the cell is open: clicking a shape on the canvas adds/removes it.
     var isPicking: Bool = false
@@ -29,7 +33,7 @@ struct PanelToolpathDetails: View {
     @State private var isExpanded = true
 
     var body: some View {
-        GroupBox("TOOLPATH") {
+        GroupBox("TOOLPATH PARAMS") {
             VStack(alignment: .leading, spacing: 16) {
                 rowHeader
                 Divider().background(.orange.opacity(0.5))
@@ -60,7 +64,15 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowHeader: some View {
         HStack {
-            TextField("", text: $toolpath.name)
+            // Typing here is what makes a name "custom" -- from then on it stops
+            // following the operation (see `operationKindBinding`).
+            TextField("", text: Binding(
+                get: { toolpath.name },
+                set: {
+                    toolpath.name = $0
+                    toolpath.isNameCustom = true
+                }
+            ))
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
                 .background(.background)
@@ -73,12 +85,27 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowOperation: some View {
         HStack(alignment: .bottom, spacing: 16) {
-            OperationPicker(kind: $toolpath.operation.kind)
+            OperationPicker(kind: operationKindBinding)
             Text(hint)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// Changing the operation also renames the toolpath to match -- "Contour 1",
+    /// "Pocket 1", ... -- but only while the name is still the auto-generated one;
+    /// once the user has typed their own title it stops following the operation.
+    private var operationKindBinding: Binding<OperationKind> {
+        Binding(
+            get: { toolpath.operation.kind },
+            set: { newKind in
+                toolpath.operation.kind = newKind
+                if !toolpath.isNameCustom {
+                    toolpath.name = newKind.nextName(among: siblingNames)
+                }
+            }
+        )
     }
 
     private var hint: String {

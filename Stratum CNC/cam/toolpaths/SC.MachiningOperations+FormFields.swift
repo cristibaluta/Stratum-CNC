@@ -44,17 +44,23 @@ extension SC.MachiningOperation {
 
             case .threadMilling(let pitch, let isInternal, let direction, let radialPasses, let targetDiameter):
                 return [
-                    // Picking a preset here sets diameter + pitch together below; the
-                    // dropdown itself has no stored state -- its selection is just
-                    // whichever preset the current diameter/pitch pair matches, "Custom"
-                    // otherwise, so hand-editing either field updates it automatically.
-                    .choice(SC.standardThreadChoice(id: "threadMilling.standard",
-                                                     diameter: targetDiameter,
-                                                     pitch: pitch,
-                                                     onSelect: { thread in
-                        onChange(.threadMilling(pitch: thread.pitch, isInternal: isInternal, direction: direction,
-                                                 radialPasses: radialPasses, targetDiameter: thread.diameter))
-                    })),
+                    .row(.init(id: "threadMilling.params", fields: [
+                        .choice(SC.standardThreadChoice(id: "threadMilling.standard",
+                                                         diameter: targetDiameter,
+                                                         pitch: pitch,
+                                                         onSelect: { thread in
+                            onChange(.threadMilling(pitch: thread.pitch, isInternal: isInternal, direction: direction,
+                                                     radialPasses: radialPasses, targetDiameter: thread.diameter))
+                        })),
+                        .choice(SC.threadDirectionChoice(id: "threadMilling.direction", current: direction, onChange: {
+                            onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: $0,
+                                                     radialPasses: radialPasses, targetDiameter: targetDiameter))
+                        })),
+                        .bool(.init(id: "threadMilling.isInternal", label: "Internal", value: isInternal, onChange: {
+                            onChange(.threadMilling(pitch: pitch, isInternal: $0, direction: direction,
+                                                     radialPasses: radialPasses, targetDiameter: targetDiameter))
+                        }))
+                    ])),
                     .row(.init(id: "threadMilling.diameterPitch", fields: [
                         .double(.init(id: "threadMilling.targetDiameter", label: "Target Diameter", unit: "mm",
                                       range: 0.5...200.0, value: targetDiameter, onChange: {
@@ -65,22 +71,14 @@ extension SC.MachiningOperation {
                                       range: 0.1...10.0, value: pitch, onChange: {
                             onChange(.threadMilling(pitch: $0, isInternal: isInternal, direction: direction,
                                                      radialPasses: radialPasses, targetDiameter: targetDiameter))
+                        })),
+                        // Must be >= 1; the last pass always lands exactly on targetDiameter.
+                        .int(.init(id: "threadMilling.radialPasses", label: "Radial Passes",
+                                   range: 1...6, value: radialPasses, onChange: {
+                            onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: direction,
+                                                     radialPasses: $0, targetDiameter: targetDiameter))
                         }))
-                    ])),
-                    .bool(.init(id: "threadMilling.isInternal", label: "Internal Thread", value: isInternal, onChange: {
-                        onChange(.threadMilling(pitch: pitch, isInternal: $0, direction: direction,
-                                                 radialPasses: radialPasses, targetDiameter: targetDiameter))
-                    })),
-                    .choice(SC.threadDirectionChoice(id: "threadMilling.direction", current: direction, onChange: {
-                        onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: $0,
-                                                 radialPasses: radialPasses, targetDiameter: targetDiameter))
-                    })),
-                    // Must be >= 1; the last pass always lands exactly on targetDiameter.
-                    .int(.init(id: "threadMilling.radialPasses", label: "Radial Passes",
-                               range: 1...6, value: radialPasses, onChange: {
-                        onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: direction,
-                                                 radialPasses: $0, targetDiameter: targetDiameter))
-                    }))
+                    ]))
                 ]
 
             case .engrave:
