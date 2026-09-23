@@ -63,10 +63,25 @@ struct OperationOptionsView: View {
                 EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource, expanded: expanded)
             }
 
+            // Which side of the boundary the tool follows -- same glyph-based picker
+            // for both, since `ContourPicker` is generic over `CutSideOption`.
+            if kind == .contour {
+                ContourPicker(selection: $toolpath.contour, title: "CONTOUR", expanded: expanded)
+            } else if kind == .chamfer {
+                ContourPicker(selection: $toolpath.operation.chamferSide, expanded: expanded)
+            }
+
             ParameterFieldsView(fields: fields,
                                 expanded: expanded,
                                 hiddenFieldIDs: kind.hiddenFieldIDs,
                                 hiddenCaseIDs: OperationKind.hiddenCaseIDs)
+
+            // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
+            // `ContourTypeGlyph`), same idea as the entry strategy below.
+            if kind == .pocket {
+                Divider()
+                patternRow
+            }
 
             // The entry strategy keeps its dedicated editor (angle/length preview, helix
             // diagram), but whether an operation has one is still up to `formFields`.
@@ -124,6 +139,30 @@ struct OperationOptionsView: View {
                 .frame(width: 600)
         }
     }
+
+    /// Same picker `PatternPicker` already offers elsewhere: a glyph per pattern (rings,
+    /// scanlines, spiral, loops) instead of the generic engine field's text-only menu.
+    private var patternRow: some View {
+        row {
+            PatternPicker(pattern: $toolpath.operation.pocketPattern, expanded: expanded)
+            patternDetail
+        }
+    }
+
+    /// The one extra control a pattern needs, if any -- which way a spiral winds in,
+    /// or how tightly a trochoidal loop steps forward. Both are only stored on
+    /// `OperationSettings`, not exposed by the generic form once `pattern` is hidden.
+    @ViewBuilder
+    private var patternDetail: some View {
+        switch toolpath.operation.pocketPattern {
+            case .spiral:
+                EnumMenuPicker(title: "SPIRAL DIRECTION", selection: $toolpath.operation.pocketSpiral, expanded: expanded)
+            case .trochoidal:
+                NumberField(title: "LOOP PITCH", value: $toolpath.operation.pocketTrochoidalPitch, suffix: "% radius")
+            case .offset, .raster:
+                EmptyView()
+        }
+    }
 }
 
 // MARK: - What the app doesn't offer (yet)
@@ -135,16 +174,22 @@ private extension OperationKind {
     var hiddenFieldIDs: Set<String> {
         switch self {
         case .contour:
-            // Lead-in/out and tabs aren't stored on the toolpath.
-            return ["entry", "contour.leadIn", "contour.leadOut", "contour.tabs"]
+            // The side gets its own dedicated `ContourPicker` row above; lead-in/out
+            // and tabs aren't stored on the toolpath.
+            return ["entry", "contour.side", "contour.leadIn", "contour.leadOut", "contour.tabs"]
         case .pocket:
-            // The pocket ignores the trochoidal loop radius (see makePocketPattern).
-            return ["entry", "pattern.trochoidal.loopRadius"]
+            // The clearing pattern gets its own dedicated row (`patternRow`) with icon
+            // glyphs, so the generic text-only field is hidden entirely, spiral direction
+            // and trochoidal pitch included.
+            return ["entry", "pattern"]
         case .slotting:
             // Only `.raster` makes sense until open-ended slots are derived.
             return ["entry", "pattern"]
         case .counterbore:
             return ["entry"]
+        case .chamfer:
+            // The side gets its own dedicated `ContourPicker` row above.
+            return ["chamfer.params.side"]
         default:
             return []
         }

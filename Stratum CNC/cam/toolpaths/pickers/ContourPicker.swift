@@ -7,9 +7,64 @@
 
 import SwiftUI
 
+/// Any "which side of the boundary" choice the glyph can draw: inside, outside, or
+/// straight along the line. `ContourType` (contour) and `ChamferSide` (chamfer) each
+/// spell the same three positions with their own case names, so `ContourPicker` and its
+/// glyph work from this instead of one concrete enum -- the icons are drawn once and
+/// reused wherever a "side" is picked.
+protocol CutSideOption: CaseIterable, Hashable, RawRepresentable where RawValue == String {
+    var position: CutSidePosition { get }
+    var selectionHint: String { get }
+}
+
+enum CutSidePosition {
+    case inside, outside, onLine
+}
+
+extension ContourType: CutSideOption {
+    var position: CutSidePosition {
+        switch self {
+            case .inside:  return .inside
+            case .outside: return .outside
+            case .outline: return .onLine
+        }
+    }
+
+    var selectionHint: String {
+        switch self {
+            case .outline: return "Tool centre follows the selected line exactly."
+            case .inside:  return "Tool stays inside the selected shape, offset by its radius."
+            case .outside: return "Tool stays outside the selected shape, offset by its radius."
+        }
+    }
+}
+
+extension ChamferSide: CutSideOption {
+    var position: CutSidePosition {
+        switch self {
+            case .inside:    return .inside
+            case .outside:   return .outside
+            case .onContour: return .onLine
+        }
+    }
+
+    var selectionHint: String {
+        switch self {
+            case .outside:   return "Bevels the outside edge of the selected shape."
+            case .inside:    return "Bevels the inside edge of the selected shape."
+            case .onContour: return "Bevels straight along the selected line."
+        }
+    }
+}
+
 /// Chooses which side of the selected shape the tool follows. Same look as `OperationPicker`.
-struct ContourPicker: View {
-    @Binding var selection: ContourType
+/// Generic so contour and chamfer -- the two operations with a side -- share one picker and
+/// one glyph instead of each drawing their own.
+struct ContourPicker<Value: CutSideOption>: View {
+    @Binding var selection: Value
+
+    /// Shown above the glyph button; "CONTOUR" for the contour operation, "SIDE" for chamfer.
+    var title: String = "SIDE"
 
     /// When true, the options are laid out directly in the view instead of
     /// behind a button + popover.
@@ -19,7 +74,7 @@ struct ContourPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("CONTOUR")
+            Text(title)
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
 
@@ -30,7 +85,7 @@ struct ContourPicker: View {
                     isPresented.toggle()
                 } label: {
                     HStack(spacing: 5) {
-                        ContourTypeGlyph(type: selection)
+                        ContourTypeGlyph(position: selection.position)
                             .frame(width: 18, height: 14)
 
                         Text(selection.rawValue)
@@ -54,10 +109,10 @@ struct ContourPicker: View {
     }
 }
 
-/// The tooltip-style popover content: every contour side, laid out as a row of
+/// The tooltip-style popover content: every side, laid out as a row of
 /// glyph + label tiles instead of `Menu`'s single vertical list.
-private struct ContourGridPicker: View {
-    @Binding var selection: ContourType
+private struct ContourGridPicker<Value: CutSideOption>: View {
+    @Binding var selection: Value
     @Binding var isPresented: Bool
 
     private let columns = [
@@ -69,7 +124,7 @@ private struct ContourGridPicker: View {
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 6) {
-            ForEach(ContourType.allCases, id: \.self) { option in
+            ForEach(Array(Value.allCases), id: \.self) { option in
                 tile(for: option)
             }
         }
@@ -77,7 +132,7 @@ private struct ContourGridPicker: View {
         .frame(width: CGFloat(columns.count) * tileSize.width + CGFloat(columns.count - 1) * 6 + 20)
     }
 
-    private func tile(for option: ContourType) -> some View {
+    private func tile(for option: Value) -> some View {
         let isSelected = option == selection
 
         return Button {
@@ -85,7 +140,7 @@ private struct ContourGridPicker: View {
             isPresented = false
         } label: {
             VStack(spacing: 4) {
-                ContourTypeGlyph(type: option, tint: isSelected ? Color.accentColor : .secondary)
+                ContourTypeGlyph(position: option.position, tint: isSelected ? Color.accentColor : .secondary)
                     .frame(width: 30, height: 22)
 
                 Text(option.rawValue)
@@ -107,7 +162,7 @@ private struct ContourGridPicker: View {
 /// A small drawing of the part's boundary (solid) against the tool's path (dashed),
 /// showing at a glance whether the tool runs inside, outside, or on the line.
 private struct ContourTypeGlyph: View {
-    let type: ContourType
+    let position: CutSidePosition
     var tint: Color = .primary
 
     /// How far the part boundary sits from the glyph's own frame, so the "outside"
@@ -127,36 +182,26 @@ private struct ContourTypeGlyph: View {
     }
 
     /// Positive pulls the path in from the boundary (inside), negative pushes it
-    /// out past the boundary (outside); zero traces the boundary itself (outline).
+    /// out past the boundary (outside); zero traces the boundary itself (on the line).
     private var pathOffset: CGFloat {
-        switch type {
-            case .outline: return 0
+        switch position {
+            case .onLine:  return 0
             case .inside:  return 3
             case .outside: return -3
         }
     }
 
     private var pathCornerRadius: CGFloat {
-        switch type {
-            case .outline: return 2.5
+        switch position {
+            case .onLine:  return 2.5
             case .inside:  return 1
             case .outside: return 4
         }
     }
 }
 
-private extension ContourType {
-    var selectionHint: String {
-        switch self {
-            case .outline: return "Tool centre follows the selected line exactly."
-            case .inside:  return "Tool stays inside the selected shape, offset by its radius."
-            case .outside: return "Tool stays outside the selected shape, offset by its radius."
-        }
-    }
-}
-
 #Preview {
     @Previewable @State var selection = ContourType.outline
-    ContourPicker(selection: $selection)
+    ContourPicker(selection: $selection, title: "CONTOUR")
         .padding()
 }
