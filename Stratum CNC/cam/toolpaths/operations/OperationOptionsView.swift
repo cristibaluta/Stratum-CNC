@@ -52,32 +52,34 @@ struct OperationOptionsView: View {
         switch kind {
 
         case .contour:
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 row {
                     ContourPicker(selection: $toolpath.contour, expanded: expanded)
                     directionPicker
                 }
+                Divider()
                 rampingRow
             }
 
         case .pocket:
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 row {
                     PatternPicker(pattern: $toolpath.operation.pocketPattern, expanded: expanded)
                     directionPicker
                 }
                 switch toolpath.operation.pocketPattern {
-                case .spiral:
-                    HStack(spacing: 8) {
-                        EnumMenuPicker(title: "SPIRAL", selection: $toolpath.operation.pocketSpiral, expanded: expanded)
-                    }
-                case .trochoidal:
-                    HStack(spacing: 8) {
-                        NumberField(title: "LOOP PITCH", value: $toolpath.operation.pocketTrochoidalPitch, suffix: "% radius")
-                    }
-                case .offset, .raster:
-                    EmptyView()
+                    case .spiral:
+                        HStack(spacing: 8) {
+                            EnumMenuPicker(title: "SPIRAL", selection: $toolpath.operation.pocketSpiral, expanded: expanded)
+                        }
+                    case .trochoidal:
+                        HStack(spacing: 8) {
+                            NumberField(title: "LOOP PITCH", value: $toolpath.operation.pocketTrochoidalPitch, suffix: "% radius")
+                        }
+                    case .offset, .raster:
+                        EmptyView()
                 }
+                Divider()
                 rampingRow
             }
 
@@ -88,11 +90,12 @@ struct OperationOptionsView: View {
             }
 
         case .slotting:
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 row {
                     EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource, expanded: expanded)
                     NumberField(title: "DEPTH / PASS", value: $toolpath.operation.slotDepthPerPass, suffix: "mm")
                 }
+                Divider()
                 rampingRow
             }
 
@@ -108,7 +111,7 @@ struct OperationOptionsView: View {
             }
 
         case .counterbore:
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     NumberField(title: "DIAMETER", value: $toolpath.operation.counterboreDiameter, suffix: "mm")
                     NumberField(title: "DEPTH", value: $toolpath.operation.counterboreDepth, suffix: "mm")
@@ -116,11 +119,12 @@ struct OperationOptionsView: View {
                 HStack(spacing: 8) {
                     directionPicker
                 }
+                Divider()
                 rampingRow
             }
 
         case .boring:
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     NumberField(title: "FINISHED Ø", value: $toolpath.operation.boreTargetDiameter, suffix: "mm")
                     ToggleField(title: "SHIFT RETRACT", isOn: $toolpath.operation.boreShiftRetract)
@@ -134,7 +138,7 @@ struct OperationOptionsView: View {
             }
 
         case .threadMilling:
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     NumberField(title: "PITCH", value: $toolpath.operation.threadPitch, suffix: "mm")
                     NumberField(title: "THREAD Ø", value: $toolpath.operation.threadTargetDiameter, suffix: "mm")
@@ -147,7 +151,7 @@ struct OperationOptionsView: View {
             }
 
         case .chamfer:
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
                 row {
                     NumberField(title: "WIDTH", value: $toolpath.operation.chamferWidth, suffix: "mm")
                     EnumMenuPicker(title: "SIDE", selection: $toolpath.operation.chamferSide, expanded: expanded)
@@ -190,15 +194,16 @@ struct OperationOptionsView: View {
     private var rampingRow: some View {
         row {
             rampingButton
-            if toolpath.ramping.type != .none {
-                NumberField(title: "RAMP ANGLE", value: $toolpath.ramping.angle, suffix: "°")
+            HStack {
+                if toolpath.ramping.type != .none {
+                    NumberField(title: "RAMP ANGLE", value: $toolpath.ramping.angle, suffix: "°")
+                }
+
+                NumberField(title: "RAMP FEED", value: $toolpath.plungeRate, suffix: "mm/min")
+                    .help(toolpath.ramping.enabled && toolpath.ramping.type != .none
+                          ? "Feed rate along the ramp entry."
+                          : "No ramping selected — used as the plunge feed rate.")
             }
-            // Feed while the tool is going down: along the ramp if one is
-            // selected, otherwise it's how fast the tool plunges straight in.
-            NumberField(title: "RAMP FEED", value: $toolpath.plungeRate, suffix: "mm/min")
-                .help(toolpath.ramping.enabled && toolpath.ramping.type != .none
-                      ? "Feed rate along the ramp entry."
-                      : "No ramping selected — used as the plunge feed rate.")
         }
     }
 

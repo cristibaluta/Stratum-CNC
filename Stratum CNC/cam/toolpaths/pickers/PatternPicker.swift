@@ -19,7 +19,7 @@ struct PatternPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("PATTERN")
+            Text("CLEARING PATTERN")
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
 
@@ -61,6 +61,8 @@ private struct PatternGridPicker: View {
     @Binding var isPresented: Bool
 
     private let columns = [
+        GridItem(.flexible(), spacing: 6),
+        GridItem(.flexible(), spacing: 6),
         GridItem(.flexible(), spacing: 6),
         GridItem(.flexible(), spacing: 6)
     ]

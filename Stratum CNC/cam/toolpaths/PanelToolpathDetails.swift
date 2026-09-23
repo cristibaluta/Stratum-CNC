@@ -26,81 +26,26 @@ struct PanelToolpathDetails: View {
     /// a dropdown or a popover — quicker to scan and to change, at the cost of
     /// height. Operation stays a popover either way: its grid of every operation
     /// is too large to sit inline without pushing everything else off screen.
-    @State private var isExpanded = false
+    @State private var isExpanded = true
 
     var body: some View {
         GroupBox("TOOLPATH") {
-            VStack(spacing: 0) {
-                VStack(spacing: 8) {
-
-                    HStack {
-                        TextField("", text: $toolpath.name)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 15, weight: .semibold))
-                            .background(.background)
-                        Spacer()
-                        expandToggle
-                        doneButton
-                    }
-
-                    Divider()
-
-                    HStack(spacing: 8) {
-                        // What the toolpath does — always a dropdown, the grid is too large to inline
-                        OperationPicker(kind: $toolpath.operation.kind)
-                        // Tool
-                        ToolPicker(tool: $toolpath.tool, expanded: isExpanded)
-                        // Feed
-                        NumberField(title: "FEED", value: $toolpath.feedRate, suffix: "mm/min")
-                    }
-
-                    // Side, direction, entry, diameters… depending on the operation
-                    OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                // MARK: Expanded
-
+            VStack(alignment: .leading, spacing: 8) {
+                rowHeader
                 Divider()
-
-                VStack(spacing: 10) {
-                    HStack {
-                        IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
-                        if toolpath.operation.kind.usesStepover {
-                            NumberField(title: "STEPOVER", value: $toolpath.stepOver, suffix: "mm")
-                        }
-                    }
-                    HStack(spacing: 10) {
-                        // Z range (a counterbore has its own depth instead of an End Z)
-                        NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
-                        if toolpath.operation.kind.usesEndZ {
-                            NumberField(title: "END Z", value: $toolpath.endZ, suffix: "mm")
-                        }
-                        if toolpath.operation.kind.usesStepdown {
-                            NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
-                        }
-                        NumberField(title: "SAFE Z", value: $toolpath.safeZ, suffix: "mm")
-                    }
-                }
-                .padding(10)
-
-                // MARK: Generate
-
+                rowOperation
                 Divider()
-
-                HStack {
-                    shapesLabel
-                    Divider()
-                        .frame(height: 20)
-                    Spacer()
-                    // We show generate only if we have selected shapes
-                    if !toolpath.targets.isEmpty {
-                        generateRow
-                    }
-                }
-                .frame(height: 36)
+                rowOperationOptions
+                Divider()
+                rowDirection
+                Divider()
+                rowRamping
+                Divider()
+                rowZ
+                Divider()
+                rowFooter
             }
-            .padding(10)
+            .padding(16)
             .overlay {
                 // Marks which toolpath the canvas clicks are going to
                 if isPicking {
@@ -114,29 +59,98 @@ struct PanelToolpathDetails: View {
 
     // MARK: Generate
 
-    private var generateRow: some View {
-        HStack(spacing: 10) {
-            generationStatus
-            Spacer(minLength: 8)
-            Button {
-                onGenerate()
-            } label: {
-                if isGenerating {
-                    HStack(spacing: 6) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Generating…")
-                            .font(.system(size: 12, weight: .medium))
+    @ViewBuilder
+    private var rowHeader: some View {
+        HStack {
+            TextField("", text: $toolpath.name)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15, weight: .semibold))
+                .background(.background)
+            Spacer()
+            expandToggle
+            doneButton
+        }
+    }
+
+    @ViewBuilder
+    private var rowOperation: some View {
+        HStack(alignment: .top, spacing: 8) {
+            OperationPicker(kind: $toolpath.operation.kind)
+            ToolPicker(tool: $toolpath.tool)
+            NumberField(title: "FEED", value: $toolpath.feedRate, suffix: "mm/min")
+        }
+    }
+
+    @ViewBuilder
+    private var rowOperationOptions: some View {
+        VStack(alignment: .leading) {
+            // Side, direction, entry, diameters… depending on the operation
+            OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if toolpath.operation.kind.usesStepover {
+                NumberField(title: "STEPOVER", value: $toolpath.stepOver, suffix: "mm")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var rowDirection: some View {
+    }
+
+    @ViewBuilder
+    private var rowRamping: some View {
+        IntField(title: "SPINDLE", value: $toolpath.spindleRPM, suffix: "RPM")
+    }
+
+    @ViewBuilder
+    private var rowZ: some View {
+        HStack(spacing: 8) {
+            // Z range (a counterbore has its own depth instead of an End Z)
+            NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
+            if toolpath.operation.kind.usesEndZ {
+                NumberField(title: "END Z", value: $toolpath.endZ, suffix: "mm")
+            }
+            if toolpath.operation.kind.usesStepdown {
+                NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
+            }
+            NumberField(title: "SAFE Z", value: $toolpath.safeZ, suffix: "mm")
+        }
+    }
+
+    @ViewBuilder
+    private var rowFooter: some View {
+        HStack {
+            shapesLabel
+            Spacer()
+            // We show generate only if we have selected shapes
+            if !toolpath.targets.isEmpty {
+                Divider()
+                    .frame(height: 20)
+                HStack(spacing: 8) {
+                    generationStatus
+                    Spacer(minLength: 8)
+                    Button {
+                        onGenerate()
+                    } label: {
+                        if isGenerating {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Generating…")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                        } else {
+                            Label("Generate", systemImage: "wand.and.stars")
+                                .font(.system(size: 12, weight: .medium))
+                        }
                     }
-                } else {
-                    Label("Generate", systemImage: "wand.and.stars")
-                        .font(.system(size: 12, weight: .medium))
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isGenerating)
+                    .help("Generate the toolpaths for the selected shapes")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(isGenerating)
-            .help("Generate the toolpaths for the selected shapes")
         }
+        .frame(height: 36)
     }
 
     @ViewBuilder

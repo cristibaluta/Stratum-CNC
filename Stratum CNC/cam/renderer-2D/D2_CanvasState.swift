@@ -254,7 +254,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
     }
 
     /// Used by the inspector's text fields (X, Y, Width, Height, Rotation).
-    func setValue(_ value: CGFloat, for property: Property, objectID: UUID) {
+    func setValue(_ value: CGFloat, for property: ObjectProperty, objectID: UUID) {
         guard let object = object(withID: objectID) else { return }
         objectWillChange.send()
         switch property {
@@ -268,7 +268,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
     }
 
     /// Used by the inspector's +1/-1 nudge buttons.
-    func nudge(_ objectID: UUID, property: Property, amount: CGFloat) {
+    func nudge(_ objectID: UUID, property: ObjectProperty, amount: CGFloat) {
         guard let object = object(withID: objectID) else { return }
         objectWillChange.send()
         switch property {

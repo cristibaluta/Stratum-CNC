@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-enum Property: String {
+enum ObjectProperty: String {
     case x
     case y
     case width
@@ -22,8 +22,8 @@ struct PanelObjectsInspector: View {
 
     var onSelectionChanged: ((UUID) -> Void)?
     var onToggleVisibility: ((UUID) -> Void)?
-    var onValueChanged: ((UUID, Property, CGFloat) -> Void)?
-    var onNudge: ((UUID, Property, CGFloat) -> Void)?
+    var onValueChanged: ((UUID, ObjectProperty, CGFloat) -> Void)?
+    var onNudge: ((UUID, ObjectProperty, CGFloat) -> Void)?
     var onScale: ((UUID, Int) -> Void)?
     var onRotate: ((UUID, CGFloat) -> Void)?
     var onAddNew: (() -> Void)?
@@ -33,6 +33,8 @@ struct PanelObjectsInspector: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            headerSection
+            Divider()
             objectsSection
             if selectedID != nil {
                 Divider()
@@ -47,25 +49,25 @@ struct PanelObjectsInspector: View {
 
     // MARK: - Objects
 
-    private var objectsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Objects")
-                    .font(.system(size: 13, weight: .bold))
+    private var headerSection: some View {
+        HStack {
+            Text("Objects")
+                .font(.system(size: 13, weight: .bold))
 
-                Spacer()
+            Spacer()
 
-                Button {
-                    onAddNew?()
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
+            Button {
+                onAddNew?()
+            } label: {
+                Image(systemName: "plus")
             }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+        }
+    }
 
-            Divider()
-
+    private var objectsSection: some View {
+        Group {
             if elements.isEmpty {
                 Text("No object imported!")
                     .foregroundStyle(.secondary)
@@ -123,32 +125,27 @@ struct PanelObjectsInspector: View {
             Text("Properties")
                 .font(.system(size: 13, weight: .bold))
 
-            if let selectedID, let object = elements.first(where: { $0.id == selectedID }) {
+            if let object = elements.first(where: { $0.id == selectedID }) {
 
                 positionRow(title: "X", value: object.position.x, property: .x, id: object.id)
                 positionRow(title: "Y", value: object.position.y, property: .y, id: object.id)
                 scaleRow(title: "Width", value: object.width, id: object.id)
                 heightRow(title: "Height", value: object.height, id: object.id)
                 rotationRow(value: object.rotationDegrees, id: object.id)
-
-            } else {
-                Text("Select an object")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
             }
         }
     }
 
     // MARK: - Position
 
-    private func positionRow(title: String, value: CGFloat, property: Property, id: UUID) -> some View {
+    private func positionRow(title: String, value: CGFloat, property: ObjectProperty, id: UUID) -> some View {
         HStack(spacing: 4) {
             rowLabel(title)
 
             NumberField2(value: value) { newValue in
                 onValueChanged?(id, property, newValue)
             }
-            .frame(width: 60)
+            .frame(width: 70)
 
             Text("mm")
                 .foregroundStyle(.secondary)
@@ -172,7 +169,7 @@ struct PanelObjectsInspector: View {
             NumberField2(value: value) { newValue in
                 onValueChanged?(id, .width, newValue)
             }
-            .frame(width: 60)
+            .frame(width: 70)
 
             Text("mm")
                 .foregroundStyle(.secondary)
@@ -196,7 +193,7 @@ struct PanelObjectsInspector: View {
             NumberField2(value: value) { newValue in
                 onValueChanged?(id, .height, newValue)
             }
-            .frame(width: 60)
+            .frame(width: 70)
 
             Text("mm")
                 .foregroundStyle(.secondary)
@@ -216,7 +213,7 @@ struct PanelObjectsInspector: View {
             NumberField2(value: value) { newValue in
                 onValueChanged?(id, .rotation, newValue)
             }
-            .frame(width: 60)
+            .frame(width: 70)
             SmallButton("−90°") {
                 // Preserving your original canvas rotation direction.
                 onRotate?(id, 90)
@@ -232,7 +229,7 @@ struct PanelObjectsInspector: View {
 
     private func rowLabel(_ title: String) -> some View {
         Text(title)
-            .frame(width: 60, alignment: .trailing)
+            .frame(width: 70, alignment: .trailing)
     }
 }
 
