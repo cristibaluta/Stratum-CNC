@@ -333,7 +333,8 @@ struct ControllerView: View {
                         .foregroundStyle(.secondary)
                     Button {
                         gCodeModel.generateGCode(from: camModel.toolpaths,
-                                                 generations: camModel.generations)
+                                                 generations: camModel.generations,
+                                                 stock: camModel.selectedStockMaterial)
                     } label: {
                         if gCodeModel.isGeneratingFromCAM {
                             ProgressView()

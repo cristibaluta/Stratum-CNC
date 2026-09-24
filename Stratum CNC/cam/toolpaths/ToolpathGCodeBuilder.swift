@@ -24,6 +24,7 @@ enum ToolpathGCodeBuilder {
     /// output is never mutated after it's generated.
     struct Section: @unchecked Sendable {
         let name: String
+        let tool: Tool
         let outputs: [SC.OutputToolpath]
         let settings: SC.MachineSettings
     }
@@ -95,6 +96,7 @@ enum ToolpathGCodeBuilder {
                     continue
                 }
                 plan.sections.append(Section(name: toolpath.name,
+                                             tool: toolpath.tool,
                                              outputs: outputs,
                                              settings: ToolpathGenerator.makeSettings(from: generation.source)))
             }
@@ -105,20 +107,25 @@ enum ToolpathGCodeBuilder {
     // MARK: Step 2 — the engine run
 
     /// One `SCGCodeEngine.generateGCode` call per toolpath, each with its own settings, joined
-    /// in order into a single program.
-    static func generate(_ sections: [Section]) -> String {
+    /// in order into a single program that starts with a Makera-style `;@MKR|…` header
+    /// (machine, stock, tools, time estimate, toolpath list).
+    static func generate(_ sections: [Section], stock: StockMaterial? = nil) -> String {
 
         let engine = SCGCodeEngine()
 
-        let programs = sections.map { section -> String in
+        let programs = sections.compactMap { section -> MakeraGCodeHeaderWriter.Section? in
             let gcode = engine.generateGCode(from: section.outputs, settings: section.settings)
-            return gcode.trimmingCharacters(in: .newlines)
+                .trimmingCharacters(in: .newlines)
+            guard !gcode.isEmpty else {
+                return nil
+            }
+            return MakeraGCodeHeaderWriter.Section(name: section.name, tool: section.tool, gcode: gcode)
         }
-        .filter { !$0.isEmpty }
 
         guard !programs.isEmpty else {
             return ""
         }
-        return programs.joined(separator: "\n") + "\n"
+        return MakeraGCodeHeaderWriter.program(sections: programs,
+                                               job: MakeraGCodeHeaderWriter.JobInfo(stock: stock))
     }
 }

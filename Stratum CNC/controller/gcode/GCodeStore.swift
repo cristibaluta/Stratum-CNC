@@ -161,7 +161,10 @@ class GCodeStore: ObservableObject {
     /// - Parameters:
     ///   - toolpaths: `CAMModel.toolpaths`, in list order.
     ///   - generations: `CAMModel.generations`, the engine output per toolpath id.
-    func generateGCode(from toolpaths: [ToolpathData], generations: [UUID: ToolpathGeneration]) {
+    ///   - stock: `CAMModel.selectedStockMaterial`, written into the program header.
+    func generateGCode(from toolpaths: [ToolpathData],
+                       generations: [UUID: ToolpathGeneration],
+                       stock: StockMaterial? = nil) {
         guard !isGeneratingFromCAM else {
             return
         }
@@ -179,7 +182,7 @@ class GCodeStore: ObservableObject {
         Task { [weak self] in
             // The engine can take a while on a big job; keep it off the main thread.
             let gcode = await Task.detached(priority: .userInitiated) {
-                ToolpathGCodeBuilder.generate(sections)
+                ToolpathGCodeBuilder.generate(sections, stock: stock)
             }.value
 
             self?.finishGeneratingFromCAM(gcode: gcode, plan: plan)
