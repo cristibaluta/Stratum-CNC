@@ -19,6 +19,7 @@
 //      G90 G21
 //      ;@MKR|TOOLPATH_START|toolpath_number=1
 //      ; T1-3.175*2*8mm Flat End(Metal)
+//      T1 M6
 //      …engine G-code for toolpath 1…
 //
 //  Pure string building — no shared state, safe on any thread.
@@ -99,6 +100,8 @@ enum MakeraGCodeHeaderWriter {
             lines.append(";@MKR|TOOLPATH_START|toolpath_number=\(index + 1)")
             let toolNumber = toolNumbers[section.tool.id] ?? 0
             lines.append("; T\(toolNumber)-\(clean(section.tool.name))")
+            // StratumCAM doesn't know the tool's number, so it can't write the change itself.
+            lines.append("T\(toolNumber) M6")
             lines.append(section.gcode)
         }
 
