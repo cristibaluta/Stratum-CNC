@@ -108,6 +108,7 @@ struct ContourPicker<Value: CutSideOption>: View {
                 .help(selection.selectionHint)
                 .popover(isPresented: $isPresented, arrowEdge: .bottom) {
                     ContourGridPicker(selection: $selection, isPresented: $isPresented)
+                        .padding(24)
                 }
             }
         }
@@ -120,24 +121,18 @@ private struct ContourGridPicker<Value: CutSideOption>: View {
     @Binding var selection: Value
     @Binding var isPresented: Bool
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6)
-    ]
     private let tileSize = CGSize(width: 70, height: 56)
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 6) {
+        HStack(spacing: 6) {
             ForEach(Array(Value.allCases), id: \.self) { option in
-                tile(for: option)
+                expandedButton(for: option)
             }
+            Spacer()
         }
-        .padding(10)
-        .frame(width: CGFloat(columns.count) * tileSize.width + CGFloat(columns.count - 1) * 6 + 20)
     }
 
-    private func tile(for option: Value) -> some View {
+    private func expandedButton(for option: Value) -> some View {
         let isSelected = option == selection
 
         return Button {
@@ -155,11 +150,15 @@ private struct ContourGridPicker<Value: CutSideOption>: View {
                     .minimumScaleFactor(0.75)
             }
             .frame(width: tileSize.width, height: tileSize.height)
-            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-            .foregroundStyle(isSelected ? Color.accentColor : .primary)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        .foregroundStyle(isSelected ? Color.accentColor : .primary)
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+        )
         .help(option.selectionHint)
     }
 }

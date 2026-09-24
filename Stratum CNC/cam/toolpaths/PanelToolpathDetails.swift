@@ -43,7 +43,8 @@ struct PanelToolpathDetails: View {
                 Divider().background(.orange.opacity(0.5))
                 rowTool
                 Divider()
-                rowZ
+                rowPasses
+                rowSafeZ
                 Divider().background(.orange.opacity(0.5))
                 rowFooter
             }
@@ -146,7 +147,7 @@ struct PanelToolpathDetails: View {
     }
 
     @ViewBuilder
-    private var rowZ: some View {
+    private var rowPasses: some View {
         HStack(spacing: 8) {
             // Z range (a counterbore has its own depth instead of an End Z)
             NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
@@ -156,7 +157,14 @@ struct PanelToolpathDetails: View {
             if toolpath.operation.kind.usesStepdown {
                 NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
             }
-            NumberField(title: "SAFE Z", value: $toolpath.safeZ, suffix: "mm")
+        }
+    }
+
+    @ViewBuilder
+    private var rowSafeZ: some View {
+        HStack(spacing: 8) {
+            NumberField(title: "CLEARANCE Z", value: $toolpath.startZ, suffix: "mm")
+            NumberField(title: "RETRACT Z", value: $toolpath.safeZ, suffix: "mm")
         }
     }
 

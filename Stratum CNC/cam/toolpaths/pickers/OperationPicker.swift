@@ -97,11 +97,13 @@ private struct OperationGridPicker: View {
                     .minimumScaleFactor(0.75)
             }
             .frame(width: tileSize.width, height: tileSize.height)
+            .contentShape(Rectangle())
             .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
             .foregroundStyle(isSelected ? Color.accentColor : .primary)
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .help(option.selectionHint ?? option.title)
     }
 }

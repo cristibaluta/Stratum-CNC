@@ -29,8 +29,9 @@ struct RampingButton: View {
             if expanded {
                 HStack(spacing: 6) {
                     ForEach(RampType.allCases, id: \.self) { candidate in
-                        tile(for: candidate)
+                        expandedButton(for: candidate)
                     }
+                    Spacer()
                     editorButton
                 }
             } else {
@@ -47,22 +48,22 @@ struct RampingButton: View {
                     }
                     .padding(.horizontal, 8)
                     .frame(height: 34)
-                    .background(Color(.secondarySystemFill))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
-                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .background(Color(.secondarySystemFill))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.primary.opacity(0.3), lineWidth: 1)
+                )
+                .contentShape(Rectangle())
             }
         }
     }
 
     // MARK: Expanded
 
-    private func tile(for candidate: RampType) -> some View {
+    private func expandedButton(for candidate: RampType) -> some View {
         let isSelected = candidate == ramping.type
 
         return Button {
@@ -78,11 +79,15 @@ struct RampingButton: View {
                     .minimumScaleFactor(0.75)
             }
             .frame(width: 70, height: 56)
-            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-            .foregroundStyle(isSelected ? Color.accentColor : .primary)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        .foregroundStyle(isSelected ? Color.accentColor : .primary)
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+        )
         .help(candidate.rampSelectionHint)
     }
 
@@ -176,15 +181,9 @@ private struct RampTypeTileGlyph: View {
     private let partInset: CGFloat = 2
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 2)
-                .inset(by: partInset)
-                .stroke(Color.secondary.opacity(0.5), lineWidth: 1.1)
-
-            GeometryReader { proxy in
-                entryPath(in: proxy.size)
-                    .stroke(tint, style: StrokeStyle(lineWidth: 1.25, lineCap: .round, dash: [2, 1.6]))
-            }
+        GeometryReader { proxy in
+            entryPath(in: proxy.size)
+                .stroke(tint, style: StrokeStyle(lineWidth: 1.25, lineCap: .round, dash: [2, 1.6]))
         }
     }
 
