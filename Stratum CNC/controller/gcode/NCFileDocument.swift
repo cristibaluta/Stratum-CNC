@@ -191,6 +191,9 @@ final class NCFileDocument: ObservableObject {
         rebuildVertexPrefixSums()
         recomputeTools()
         self.loadedHeader = code.header
+        // A program built in memory isn't backed by a file: drop whatever was loaded before.
+        self.fileURL = nil
+        self.lastError = nil
         self.fileName = "From CAM"
     }
 

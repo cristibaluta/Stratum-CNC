@@ -144,17 +144,66 @@ class GCodeStore: ObservableObject {
         return nil
     }
 
-    func generateGCode(for toolpath: ToolpathData, canvasState: D2_CanvasState) {
-        do {
-            let gcode = try ToolpathGCodeBuilder.generate(for: toolpath, canvasState: canvasState)
-            document.load(from: gcode)
-        } catch {
-            print("G-code generation failed: \(error.localizedDescription)")
-            // consider surfacing this in the UI, e.g. an @Published var lastError: String?
+    // MARK: - G-code from CAM toolpaths
+
+    /// True while the engine is turning CAM toolpaths into G-code (drives the button's spinner).
+    @Published private(set) var isGeneratingFromCAM = false
+
+    /// Something the person needs to know about the last "Use from CAM": either why nothing was
+    /// generated, or which toolpaths were left out of a program that was. `ControllerView` shows
+    /// it in an alert and clears it.
+    @Published var camImportMessage: String?
+
+    /// Builds a G-code program from the toolpaths generated in CAM and loads it as the current
+    /// document, exactly as if it had been opened from a file (canvas, heightmap, tool list and
+    /// the uploader all follow from `document`).
+    ///
+    /// - Parameters:
+    ///   - toolpaths: `CAMModel.toolpaths`, in list order.
+    ///   - generations: `CAMModel.generations`, the engine output per toolpath id.
+    func generateGCode(from toolpaths: [ToolpathData], generations: [UUID: ToolpathGeneration]) {
+        guard !isGeneratingFromCAM else {
+            return
+        }
+        camImportMessage = nil
+
+        let plan = ToolpathGCodeBuilder.plan(toolpaths: toolpaths, generations: generations)
+        guard !plan.sections.isEmpty else {
+            camImportMessage = plan.nothingToGenerateMessage
+            return
+        }
+
+        isGeneratingFromCAM = true
+        let sections = plan.sections
+
+        Task { [weak self] in
+            // The engine can take a while on a big job; keep it off the main thread.
+            let gcode = await Task.detached(priority: .userInitiated) {
+                ToolpathGCodeBuilder.generate(sections)
+            }.value
+
+            self?.finishGeneratingFromCAM(gcode: gcode, plan: plan)
         }
     }
 
+    private func finishGeneratingFromCAM(gcode: String, plan: ToolpathGCodeBuilder.Plan) {
+        isGeneratingFromCAM = false
 
+        guard !gcode.isEmpty else {
+            camImportMessage = "The G-code engine didn't produce any output for the generated toolpaths."
+            return
+        }
+
+        document.load(from: gcode)
+        // Same reset the file importer does when a new program replaces the old one.
+        selectedToolpathID = nil
+        requestedLine = nil
+        analyzedLineCount = -1
+
+        if !plan.skipped.isEmpty {
+            camImportMessage = plan.partialMessage
+        }
+    }
 
     /// Builds a plain-data `RenderObject` for a toolpath (or any point path).
     /// No `MTLDevice` involved — GCodeStore never touches Metal. MetalRenderer

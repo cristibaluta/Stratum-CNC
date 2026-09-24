@@ -134,6 +134,33 @@ enum ToolpathGenerator {
         return trimmed
     }
 
+    /// The machine settings (feeds, speeds, depth, safe heights) for one toolpath. Used both when
+    /// generating the toolpath and when turning its result into G-code, so the two always agree.
+    static func makeSettings(from toolpath: ToolpathData) -> SC.MachineSettings {
+        let diameter = Double(toolpath.tool.toolDiameter)
+
+        // The app stores stepover in mm, the library as a fraction of the tool diameter.
+        let stepoverFraction = diameter > 0 ? min(max(toolpath.stepOver / diameter, 0.1), 0.95) : 0.4
+
+        let cutting = SC.CuttingData(spindleSpeed: Double(toolpath.spindleRPM),
+                                     feedRate: toolpath.feedRate,
+                                     plungeRate: toolpath.plungeRate,
+                                     stepdown: toolpath.stepDown,
+                                     stepoverPercentage: stepoverFraction)
+
+        // The library measures depth down from the top of the stock (Z0).
+        // `startZ` is handled afterwards by `droppingPasses(above:from:)`.
+        // A counterbore has its own depth (and no End Z field); everything else cuts down to End Z.
+        let depth = toolpath.operation.kind == .counterbore
+            ? toolpath.operation.counterboreDepth
+            : toolpath.endZ
+
+        return SC.MachineSettings(cutting: cutting,
+                                  safeZ: toolpath.safeZ,
+                                  retractZ: min(1.0, toolpath.safeZ),
+                                  targetDepth: abs(depth))
+    }
+
     /// A message fit for showing under the Generate button. `operation` (the operation the
     /// error came from) lets a few generic engine errors say what actually went wrong.
     static func message(for error: Error, operation: OperationKind? = nil) -> String {
@@ -185,31 +212,6 @@ private extension ToolpathGenerator {
                              diameter: Double(tool.toolDiameter),
                              vAngle: vAngle,
                              fluteLength: Double(tool.length!))
-    }
-
-    static func makeSettings(from toolpath: ToolpathData) -> SC.MachineSettings {
-        let diameter = Double(toolpath.tool.toolDiameter)
-
-        // The app stores stepover in mm, the library as a fraction of the tool diameter.
-        let stepoverFraction = diameter > 0 ? min(max(toolpath.stepOver / diameter, 0.1), 0.95) : 0.4
-
-        let cutting = SC.CuttingData(spindleSpeed: Double(toolpath.spindleRPM),
-                                     feedRate: toolpath.feedRate,
-                                     plungeRate: toolpath.plungeRate,
-                                     stepdown: toolpath.stepDown,
-                                     stepoverPercentage: stepoverFraction)
-
-        // The library measures depth down from the top of the stock (Z0).
-        // `startZ` is handled afterwards by `droppingPasses(above:from:)`.
-        // A counterbore has its own depth (and no End Z field); everything else cuts down to End Z.
-        let depth = toolpath.operation.kind == .counterbore
-            ? toolpath.operation.counterboreDepth
-            : toolpath.endZ
-
-        return SC.MachineSettings(cutting: cutting,
-                                  safeZ: toolpath.safeZ,
-                                  retractZ: min(1.0, toolpath.safeZ),
-                                  targetDepth: abs(depth))
     }
 
     /// Rejects option values the engine can't work with, with a message the user can act on.

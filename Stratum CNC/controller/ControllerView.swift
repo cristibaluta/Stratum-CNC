@@ -280,6 +280,13 @@ struct ControllerView: View {
             }
         }
         .machineAlerts(model.alerts, onResume: model.resumeJob)
+        .alert("Use from CAM",
+               isPresented: Binding(get: { gCodeModel.camImportMessage != nil },
+                                    set: { if !$0 { gCodeModel.camImportMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(gCodeModel.camImportMessage ?? "")
+        }
         .fileImporter(isPresented: $model.isGCodeImporterPresented,
                       allowedContentTypes: gCodeModel.allowedContentTypes,
                       allowsMultipleSelection: false) { result in
@@ -325,14 +332,18 @@ struct ControllerView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button {
-                        // TODO: use toolpaths not paths
-//                        if let file = camModel.files.first {
-//                            gCodeModel.generateGCode(svgPaths: file.paths)
-//                        }
+                        gCodeModel.generateGCode(from: camModel.toolpaths,
+                                                 generations: camModel.generations)
                     } label: {
-                        Text("Use from CAM")
+                        if gCodeModel.isGeneratingFromCAM {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Use from CAM")
+                        }
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
                 }
 
                 Divider().frame(height: 40)
