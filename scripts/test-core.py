@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Run hardware-independent Swift tests without the external CAM packages."""
+import os
 from pathlib import Path
 import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+# The StratumLink package (controller/machine library) lives next to this repo.
+STRATUM_LINK = Path(os.environ.get('STRATUM_LINK', ROOT.parent / 'StratumLink'))
 SOURCES = [
     'projects/Project.swift',
     'projects/ProjectPaths.swift',
@@ -22,18 +25,13 @@ SOURCES = [
 
     'metal-canvas/HeightmapGrid.swift',
     'metal-canvas/ToolFootprint.swift',
-    'controller/gcode/GCodeUploader.swift',
-    'controller/connection/MakeraWireProtocol.swift',
-    'controller/gcode/GCodeJobRunner.swift',
     'controller/gcode/GCodeParser.swift',
-    'controller/gcode/GCodeBounds.swift',
     'controller/gcode/GCodeHeader.swift',
     'controller/gcode/ToolSpec.swift',
     'controller/gcode/MakeraHeaderParser.swift',
     'controller/gcode/FusionHeaderParser.swift',
     'controller/gcode/MakeraCAMHeaderParser.swift',
 
-    'controller/connection/MakeraFraming.swift',
     'stocks-lib/StocksStore.swift',
     'stocks-lib/StockLibrary.swift',
     'stocks-lib/StockMaterial.swift',
@@ -49,12 +47,13 @@ import PackageDescription
 let package = Package(
     name: "StratumCoreRegressionTests",
     platforms: [.macOS(.v15)],
+    dependencies: [.package(path: "{STRATUM_LINK}")],
     targets: [
-        .target(name: "Stratum_CNC"),
-        .testTarget(name: "CoreTests", dependencies: ["Stratum_CNC"])
+        .target(name: "Stratum_CNC", dependencies: [.product(name: "StratumLink", package: "StratumLink")]),
+        .testTarget(name: "CoreTests", dependencies: ["Stratum_CNC", .product(name: "StratumLink", package: "StratumLink")])
     ]
 )
-''')
+'''.replace('{STRATUM_LINK}', str(STRATUM_LINK)))
     sources = package / 'Sources/Stratum_CNC'
     tests = package / 'Tests/CoreTests'
     sources.mkdir(parents=True)

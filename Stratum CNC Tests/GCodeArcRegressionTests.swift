@@ -1,5 +1,6 @@
 import Testing
 @testable import Stratum_CNC
+import StratumLink
 
 struct GCodeArcRegressionTests {
     @Test(arguments: ["G2 I-5", "G3 I-5", "G2 I-5 J0", "G3 I-5 J0"])

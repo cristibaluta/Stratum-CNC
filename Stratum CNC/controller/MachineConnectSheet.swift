@@ -14,6 +14,7 @@
 //
 
 import SwiftUI
+import StratumLink
 
 /// Presented from `GCodeViewer`'s Play/"Send to Machine" button in place of
 /// `MachiningRunSheet` when nothing is connected yet — wraps `MachinesList`

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import StratumCAM
+import StratumLink
 
 /// Pre-run review sheet presented from `GCodeViewer`'s Play/"Send to
 /// Machine" button, before anything is actually uploaded to the machine.

@@ -30,6 +30,7 @@
 //
 
 import Foundation
+import StratumLink
 
 /// The eight directions a jog panel button or game controller input can hold.
 enum JogDirection: CaseIterable, Hashable {

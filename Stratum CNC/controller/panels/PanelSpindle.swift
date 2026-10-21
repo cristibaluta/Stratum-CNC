@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StratumLink
 
 struct PanelSpindle: View {
 

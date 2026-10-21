@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StratumLink
 
 /// Vacuum and cooling accessories (Roadmap 2.2) — three power-percentage
 /// controls (`CNC.internalVacuumOn`/`.spindleCoolingFanOn`/`.extendedPortOn`,

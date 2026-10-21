@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import StratumLink
 
 struct GCodeViewer: View {
 

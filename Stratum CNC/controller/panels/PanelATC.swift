@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StratumLink
 
 /// Manual controls for the automatic tool changer (Roadmap 2.1). Every
 /// command here — `CNC.toolChange`, `.automaticToolChangerHome`,

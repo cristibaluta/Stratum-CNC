@@ -8,6 +8,7 @@
 import SwiftUI
 import AppKit
 import simd
+import StratumLink
 
 /// Invisible helper that keeps the tool cylinder in sync with the machine's
 /// reported position. Needs its own `@ObservedObject` on `MachineConnection`
