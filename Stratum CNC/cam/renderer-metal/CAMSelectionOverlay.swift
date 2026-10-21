@@ -73,8 +73,10 @@ enum CAMSelectionOverlay {
             points.append(local(handleRadius * cos(a1), handleRadius * sin(a1)))
         }
 
-        points.append(local(-handleCrossSize, 0)); points.append(local(handleCrossSize, 0))
-        points.append(local(0, -handleCrossSize)); points.append(local(0, handleCrossSize))
+        points.append(local(-handleCrossSize, 0))
+        points.append(local(handleCrossSize, 0))
+        points.append(local(0, -handleCrossSize))
+        points.append(local(0, handleCrossSize))
 
         return RenderObject(points: points, color: color, primitive: .lineList)
     }

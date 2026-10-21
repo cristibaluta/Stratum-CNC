@@ -139,17 +139,36 @@ class CAMModel: ObservableObject {
 
     /// Appends a toolpath — same settings as the last one, or a default first
     /// one — and opens it in the settings panel.
-    func addToolpath() {
+    /// - Parameter targets: the shapes the new toolpath starts with. Settings are
+    ///   copied from the last toolpath, never its shapes, so the default is none.
+    func addToolpath(targets: [PathSelection] = []) {
         var toolpath = toolpaths.last ?? Self.defaultToolpath()
         toolpath.id = UUID()
         // A fresh copy hasn't been renamed by hand yet, whatever the toolpath
         // it was copied from -- it gets its own auto name for its operation.
         toolpath.isNameCustom = false
         toolpath.name = toolpath.operation.kind.nextName(among: Set(toolpaths.map(\.name)))
-        // Copy the settings, not the shapes: the new toolpath starts with nothing selected
-        toolpath.targets = []
+        toolpath.targets = targets
         toolpaths.append(toolpath)
+        // Opening it starts picking, seeded with `targets` (see `beginPicking`),
+        // which also clears the plain canvas selection they came from.
         selectedToolpathID = toolpath.id
+    }
+
+    /// The shapes selected with the mouse that a new toolpath could be built from.
+    /// Empty while a toolpath is open: the canvas is in picking mode then, and
+    /// clicks edit that toolpath's shapes instead of the plain selection.
+    var shapesForNewToolpath: [PathSelection] {
+        selectedToolpathID == nil ? canvasState.selectedPaths : []
+    }
+
+    /// "Add toolpath" from the canvas tooltip: a new toolpath that cuts the selected shapes.
+    func addToolpathFromSelection() {
+        let targets = shapesForNewToolpath
+        guard !targets.isEmpty else {
+            return
+        }
+        addToolpath(targets: targets)
     }
 
     /// Clicking a toolpath in the list opens it in the settings panel;
