@@ -41,7 +41,7 @@ struct MachiningRunSheet: View {
     /// reacts live if the connection drops while this sheet is already
     /// open — same reasoning as `GCodeViewer`/`MachineConnectSheet` observing
     /// it directly rather than through `ControllerModel`.
-    @ObservedObject var connection: MachineConnection
+    @ObservedObject var connection: SL.Connection
 
     @Environment(\.dismiss) private var dismiss
 

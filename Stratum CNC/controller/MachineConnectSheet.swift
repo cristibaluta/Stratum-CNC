@@ -39,7 +39,7 @@ struct MachineConnectSheet: View {
     /// reassigned, not when the connection's own `isConnected` flips. This
     /// view's whole job is to notice that flip, so it needs its own
     /// subscription to it.
-    @ObservedObject var connection: MachineConnection
+    @ObservedObject var connection: SL.Connection
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {

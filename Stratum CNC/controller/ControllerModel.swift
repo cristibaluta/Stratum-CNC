@@ -16,27 +16,27 @@ import AppKit
 /// The app-side model of the controller screen. The machine logic itself —
 /// connecting, uploading, origin/leveling/play sequencing, pause/suspend/
 /// resume/stop, and spotting alarms and tool changes — lives in
-/// `StratumLink.MachineSession`. This class only adds what belongs to the
-/// app: UserDefaults persistence, the canvas offset, the alert presentation,
-/// the MDI box and its history, jogging, and panel state.
+/// `SL.Session`. This class only adds what belongs to the app: UserDefaults
+/// persistence, the canvas offset, the alert presentation, the MDI box and
+/// its history, jogging, and panel state.
 @MainActor
 class ControllerModel: ObservableObject {
 
-    @Published var discovery = MachineDiscovery()
-    @Published var selectedMachine: MakeraMachine?
+    @Published var discovery = SL.Discovery()
+    @Published var selectedMachine: SL.MakeraMachine?
 
     /// The machine logic. Views reach its parts through the forwarding
     /// properties below.
-    let session: MachineSession
+    let session: SL.Session
 
-    var connection: MachineConnection { session.connection }
+    var connection: SL.Connection { session.connection }
 
     /// Owns streaming individual lines to the machine (MDI, jogging, small
     /// macros) — see its doc comment for why this isn't used for whole jobs.
-    var jobRunner: GCodeJobRunner { session.jobRunner }
+    var jobRunner: SL.JobRunner { session.jobRunner }
 
     /// Owns uploading a whole loaded G-code program to the machine's SD card.
-    var uploader: GCodeUploader { session.uploader }
+    var uploader: SL.Uploader { session.uploader }
 
     @Published var mdiInput = ""
     @Published var commandHistory: [String] = []
@@ -44,17 +44,12 @@ class ControllerModel: ObservableObject {
 
     @Published var selectedFeedOverride: Int = 100
     @Published var spindleRPM = "12000"
-    /// Tool number for the ATC panel's M6 button (Roadmap 2.1). String, not
-    /// Int, for the same reason as `spindleRPM` — it's a `TextField`
-    /// binding, and `Int(_:)` on the way out handles the empty/partial-entry
-    /// case rather than a formatter. Per `CNCCommand.toolChange`'s doc
-    /// comment: T0 is the wireless probe, T-1 is "none".
+    /// Tool number for the ATC panel's M6 button. String because it's a
+    /// `TextField` binding. T0 is the wireless probe, T-1 is "none".
     @Published var atcToolNumber = "1"
-    /// Power percentages for the internal vacuum (M801 S<n>), spindle
-    /// cooling fan (M811 S<n>) and extended port (M851 S<n>) — Roadmap 2.2.
-    /// String-backed `TextField` bindings, same reasoning as `spindleRPM`;
-    /// `PercentageBuilder.with(percent:)` clamps to 0...100 on the way out,
-    /// so an out-of-range or unparseable entry can't reach the machine.
+    /// Power percentages for the internal vacuum (M801), spindle cooling fan
+    /// (M811) and extended port (M851). String-backed `TextField` bindings;
+    /// the command builders clamp to 0...100.
     @Published var vacuumPercent = "100"
     @Published var coolingFanPercent = "100"
     @Published var extendedPortPercent = "100"
@@ -70,15 +65,13 @@ class ControllerModel: ObservableObject {
     // MARK: Alerts
 
     /// Tool changes, alarms, errors and lost connections, made hard to miss
-    /// (`MachineAlert.swift`). Observed by the view through `.machineAlerts`
-    /// rather than published from here, like `connection`'s own state.
+    /// (`MachineAlert.swift`). Observed by the view through `.machineAlerts`.
     let alerts = MachineAlertCenter()
 
     // MARK: Auto level before run
 
     /// When on, "Send to Machine" probes a `G32` grid over the program's
-    /// cutting area — after the origin is set and before `play`. Persisted,
-    /// because it's a workflow choice, not a per-job one.
+    /// cutting area before `play`. Persisted: a workflow choice.
     @Published var levelBeforeRun: Bool = UserDefaults.standard.bool(forKey: "levelBeforeRun") {
         didSet { UserDefaults.standard.set(levelBeforeRun, forKey: "levelBeforeRun") }
     }
@@ -92,31 +85,20 @@ class ControllerModel: ObservableObject {
     }
 
     /// When on, the pre-run macro also probes Z and zeroes the work Z
-    /// coordinate at the trigger point before `play`. Persisted like
-    /// `levelBeforeRun`, for the same reason.
+    /// coordinate before `play`. Persisted like `levelBeforeRun`.
     @Published var autoZBeforeRun: Bool = UserDefaults.standard.bool(forKey: "autoZBeforeRun") {
         didSet { UserDefaults.standard.set(autoZBeforeRun, forKey: "autoZBeforeRun") }
     }
 
-    /// Mirrors the M331/M332 "tie vacuum to spindle" mode (Roadmap 2.2).
-    /// There's no status field that reports this back, so this is only ever
-    /// what the app itself last commanded — not confirmed against the
-    /// machine's actual state, same caveat as `isLightOn`.
+    /// Mirrors the M331/M332 "tie vacuum to spindle" mode. Only ever what the
+    /// app itself last commanded — the machine doesn't report it back.
     @Published var autoVacuumEnabled: Bool = false
 
     /// Presented when Play/"Send to Machine" is tapped with nothing
-    /// connected — instead of `MachiningRunSheet` opening onto a review it
-    /// can't actually start, this opens first so the person can pick a
-    /// machine. `MachineConnectSheet` hands off to `isShowingRunReview`
-    /// itself the moment `connection.isConnected` goes true, so this is a
-    /// detour off the same start flow, not a dead end.
+    /// connected, so the person can pick a machine first.
     @Published var isShowingMachinePicker = false
 
-    /// Drives `MachiningRunSheet`, the pre-run review presented from
-    /// `GCodeViewer`'s Play/"Send to Machine" button. Replaces calling
-    /// `uploadJob` directly from the button: the sheet's own "Start Job"
-    /// button does that once the person has reviewed stock/origin/probe/
-    /// assist settings.
+    /// Drives `MachiningRunSheet`, the pre-run review.
     @Published var isShowingRunReview = false
 
     @Published var isGCodeImporterPresented = false
@@ -125,13 +107,10 @@ class ControllerModel: ObservableObject {
     @Published var terminalAutoScroll = true
 
     /// Canvas/render state, deliberately kept off `ControllerModel` itself —
-    /// see `CanvasSceneModel`'s doc comment for why: mutating it on every
-    /// scrub tick would otherwise re-render every panel that shares this
-    /// `ControllerModel` instance.
+    /// see `CanvasSceneModel`'s doc comment.
     let scene = CanvasSceneModel()
 
-    /// Speed of a held jog in mm/min (see `JogController`). Published so the
-    /// jog panel's picker can bind to it.
+    /// Speed of a held jog in mm/min (see `JogController`).
     @Published var holdJogFeed: Double = 750 {
         didSet {
             jogController.holdFeed = holdJogFeed
@@ -154,7 +133,7 @@ class ControllerModel: ObservableObject {
 
     init() {
         let savedPath = UserDefaults.standard.string(forKey: "lastUploadedRemotePath")
-        session = MachineSession(lastUploadedRemotePath: savedPath)
+        session = SL.Session(lastUploadedRemotePath: savedPath)
         lastUploadedRemotePath = savedPath
 
         session.onLastUploadedRemotePathChange = { [weak self] path in
@@ -180,7 +159,7 @@ class ControllerModel: ObservableObject {
     }
 
     /// Turns what the session reports into app behavior.
-    private func handle(_ event: MachineSessionEvent) {
+    private func handle(_ event: SL.SessionEvent) {
         switch event {
         case .alert(let alert):
             alerts.post(alert)
@@ -193,7 +172,7 @@ class ControllerModel: ObservableObject {
         }
     }
 
-    func sendCommand(_ command: CNCCommand) {
+    func sendCommand(_ command: SL.Command) {
         sendRawCommand(command.command)
     }
 
@@ -227,8 +206,7 @@ class ControllerModel: ObservableObject {
 
     /// A move requested from `PanelJog`. Kept as an explicit choice between
     /// relative and absolute because `G0` alone is always interpreted in
-    /// whatever distance mode the machine happens to be in (G90 by default),
-    /// so "move X by +0.1" and "go to X 0.1" can't share one command.
+    /// whatever distance mode the machine happens to be in.
     enum JogRequest {
         /// Move each given axis by this distance from where it is now
         /// (mm for X/Y/Z, degrees for A).
@@ -260,14 +238,14 @@ class ControllerModel: ObservableObject {
         jogController.stopAll()
     }
 
-    // MARK: - Job execution (see `MachineSession`)
+    // MARK: - Job execution (see `SL.Session`)
 
     /// Uploads `contents` to the machine's SD card as `fileName` and runs it.
     /// The canvas offset and the pre-run settings are captured now, so
     /// changing them while the file is still transferring can't change where
     /// the job that was just sent ends up.
     func uploadJob(fileName: String, contents: String) {
-        let options = MachineRunOptions(
+        let options = SL.RunOptions(
             originOffset: scene.xyOffset,
             levelBeforeRun: levelBeforeRun,
             levelGridPoints: levelGridPoints,
@@ -279,7 +257,7 @@ class ControllerModel: ObservableObject {
 
     /// The lines that put the job where the canvas shows it.
     func jobOriginCommands(for offset: SIMD2<Float>) -> [String] {
-        MachineSession.jobOriginCommands(for: offset)
+        SL.Session.jobOriginCommands(for: offset)
     }
 
     func cancelUpload() {
@@ -318,17 +296,17 @@ class ControllerModel: ObservableObject {
 
     // MARK: - Raw commands not modeled by CNCCommand
 
-    let homeCommand = MachineSession.homeCommand
-    let unlockCommand = MachineSession.unlockCommand
-    let statusCommand = MachineSession.statusCommand
-    let feedHoldCommand = MachineSession.feedHoldCommand
-    let resumeCommand = MachineSession.resumeCommand
-    let consoleResumeCommand = MachineSession.consoleResumeCommand
-    let consoleSuspendCommand = MachineSession.consoleSuspendCommand
-    let softResetCommand = MachineSession.softResetCommand
+    let homeCommand = SL.Session.homeCommand
+    let unlockCommand = SL.Session.unlockCommand
+    let statusCommand = SL.Session.statusCommand
+    let feedHoldCommand = SL.Session.feedHoldCommand
+    let resumeCommand = SL.Session.resumeCommand
+    let consoleResumeCommand = SL.Session.consoleResumeCommand
+    let consoleSuspendCommand = SL.Session.consoleSuspendCommand
+    let softResetCommand = SL.Session.softResetCommand
 
     func zeroCommand(x: Bool = false, y: Bool = false, z: Bool = false) -> String {
-        MachineSession.zeroCommand(x: x, y: y, z: z)
+        SL.Session.zeroCommand(x: x, y: y, z: z)
     }
 
     // MARK: - Sending Commands

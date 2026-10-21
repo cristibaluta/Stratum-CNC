@@ -18,10 +18,10 @@ struct GCodeViewer: View {
     /// observing `MachineConnection` directly instead of through
     /// `ControllerModel`. Real jobs go through here, not `GCodeJobRunner` —
     /// see `GCodeUploader`'s doc comment for why (Roadmap 1.2).
-    @ObservedObject var uploader: GCodeUploader
+    @ObservedObject var uploader: SL.Uploader
     /// Observed directly for the same reason as `uploader` above — used to
     /// disable "play" while there's nothing to send to.
-    @ObservedObject var connection: MachineConnection
+    @ObservedObject var connection: SL.Connection
     var highlightedLine: Int? = nil
     /// Forwarded straight to `GCodeTableView`'s `onLineSelected` — see there
     /// for what "selected" covers. `ControllerView` supplies the closure

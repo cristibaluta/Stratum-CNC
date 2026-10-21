@@ -10,7 +10,7 @@ import StratumLink
 
 struct PanelPosition: View {
 
-    @ObservedObject var connection: MachineConnection
+    @ObservedObject var connection: SL.Connection
 
     var body: some View {
         GroupBox("POSITION") {

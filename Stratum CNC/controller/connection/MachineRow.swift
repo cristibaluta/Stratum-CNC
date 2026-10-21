@@ -10,7 +10,7 @@ import StratumLink
 
 struct MachineRow: View {
 
-    let machine: MakeraMachine
+    let machine: SL.MakeraMachine
 
     var body: some View {
 

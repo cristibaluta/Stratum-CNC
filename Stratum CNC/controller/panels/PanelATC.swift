@@ -98,7 +98,7 @@ private struct ATCStatusOverrideView: View {
     var body: some View {
         DisclosureGroup("Manual ATC State (M497)", isExpanded: $isExpanded) {
             LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(ATCStatus.allCases, id: \.self) { status in
+                ForEach(SL.ATCStatus.allCases, id: \.self) { status in
                     Button(status.label) {
                         model.sendCommand(CNC.automaticToolChangeStatus.with(status: status))
                     }
@@ -111,7 +111,7 @@ private struct ATCStatusOverrideView: View {
     }
 }
 
-private extension ATCStatus {
+private extension SL.ATCStatus {
     /// Short button label — `CNCCommand.ATCStatus`'s own doc comment is the
     /// source for what each subcode means; this just renders it.
     var label: String {

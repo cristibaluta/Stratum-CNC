@@ -18,7 +18,7 @@ struct TerminalView: View {
     /// `isConnected` change, and new lines (a machine reply, a "jog
     /// ignored" note) only showed up once something unrelated, like focusing
     /// the text field, forced a redraw.
-    @ObservedObject var connection: MachineConnection
+    @ObservedObject var connection: SL.Connection
     @FocusState private var commandFieldFocused: Bool
 
     var body: some View {

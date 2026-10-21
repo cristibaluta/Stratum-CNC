@@ -69,8 +69,8 @@ struct PanelAccessories: View {
 private struct PowerRow: View {
     let title: String
     @Binding var percent: String
-    let onCommand: (Int) -> CNCCommand
-    let offCommand: CNCCommand
+    let onCommand: (Int) -> SL.Command
+    let offCommand: SL.Command
     @ObservedObject var model: ControllerModel
 
     var body: some View {

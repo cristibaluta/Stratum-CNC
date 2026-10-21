@@ -11,10 +11,10 @@ import StratumLink
 struct PaletteCommand: Identifiable {
     let id = UUID()
     let title: String
-    let command: CNCCommand?
+    let command: SL.Command?
     let rawCommand: String
 
-    init(title: String, command: CNCCommand) {
+    init(title: String, command: SL.Command) {
         self.title = title
         self.command = command
         self.rawCommand = command.command
