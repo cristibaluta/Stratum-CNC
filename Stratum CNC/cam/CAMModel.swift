@@ -78,6 +78,12 @@ class CAMModel: ObservableObject {
         }
     }
 
+    /// How generated toolpaths are drawn and previewed on this canvas: which passes
+    /// of each one. CAM's top-down canvas keeps one; a 3D scene would set
+    /// `.canvas3D` to keep them all. Read when a generation starts, so a change
+    /// applies from the next Generate, not to results already on screen.
+    var previewOptions: ToolpathPreviewOptions = .canvas2D
+
     /// Which generation the canvas is scrubbing right now (see `syncScrub`).
     private var scrubbedGenerationID: UUID?
 
@@ -307,14 +313,15 @@ class CAMModel: ObservableObject {
         let token = UUID()
         generationTokens[id] = token
         generatingIDs.insert(id)
+        let previewOptions = self.previewOptions
 
         Task { [weak self] in
             let computed = await Task.detached(priority: .userInitiated) { () -> ComputedGeneration in
                 do {
                     let outputs = try ToolpathGenerator.run(job)
                     let pathStart = PerfLog.now()
-                    let previewPath = ToolpathPathBuilder.path(for: outputs)
-                    let scrub = ToolpathPathBuilder.scrubData(for: outputs)
+                    let previewPath = ToolpathPathBuilder.path(for: outputs, options: previewOptions)
+                    let scrub = ToolpathPathBuilder.scrubData(for: outputs, options: previewOptions)
                     PerfLog.log("gen", "background work finished; preview path + scrub data took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
                     return ComputedGeneration(outcome: .success(outputs),
                                               previewPath: previewPath,

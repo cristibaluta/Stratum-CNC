@@ -10,6 +10,48 @@ import Foundation
 import CoreGraphics
 import StratumCAM
 
+/// Which passes of each generated toolpath a canvas preview draws.
+///
+/// A toolpath is a stack of passes, one per stepdown. Seen from above they are
+/// (nearly) the same line, so the 2D canvas gains nothing from drawing them all;
+/// a 3D view needs every one of them to show the depth. Only the preview
+/// follows this: the G-code is always posted from the full engine output.
+enum ToolpathPassSelection: Sendable {
+    /// Every pass.
+    case all
+    /// The shallowest pass of each toolpath.
+    case first
+    /// The deepest pass of each toolpath: the one that leaves the finished shape.
+    case last
+
+    /// The passes of `output` this selection keeps, in machining order.
+    /// The choice is made per `OutputToolpath`, so a job with several shapes
+    /// still previews every shape, each with one pass.
+    func passes(of output: SC.OutputToolpath) -> [SC.ToolpathPass] {
+        switch self {
+        case .all:
+            return output.passes
+        case .first:
+            return output.passes.first.map { [$0] } ?? []
+        case .last:
+            return output.passes.last.map { [$0] } ?? []
+        }
+    }
+}
+
+/// How a canvas draws and previews generated toolpaths. One per canvas
+/// (see `CAMModel.previewOptions`); applies to both the all-toolpaths overlay
+/// (`ToolpathPathBuilder.path`) and the scrub slider (`ToolpathPathBuilder.scrubData`).
+struct ToolpathPreviewOptions: Sendable {
+
+    var passes: ToolpathPassSelection
+
+    /// CAM's top-down canvas: one pass per toolpath.
+    static let canvas2D = ToolpathPreviewOptions(passes: .last)
+    /// For the 3D scene: every pass, so the depth shows.
+    static let canvas3D = ToolpathPreviewOptions(passes: .all)
+}
+
 enum ToolpathPathBuilder {
 
     /// Max distance between an arc and the straight chords approximating it (mm).
@@ -22,15 +64,17 @@ enum ToolpathPathBuilder {
     /// on a curve is well below a micron.
     private static let minSegment: Double = 0.02
 
-    /// Every pass of every toolpath as one path. Only cutting moves are drawn:
-    /// rapids are skipped, and so are pure Z moves (plunges/retracts), which
-    /// have no XY extent. Returns nil if there's nothing to draw.
+    /// The passes `options` selects of every toolpath, as one path. Only cutting
+    /// moves are drawn: rapids are skipped, and so are pure Z moves
+    /// (plunges/retracts), which have no XY extent. Returns nil if there's
+    /// nothing to draw.
     ///
     /// Seen from above, most passes of a profile cut are the same line at a
-    /// different depth (30 passes at 0.1 mm stepdown = 30 copies), so a pass
-    /// whose XY geometry was already drawn is skipped. That cuts the path —
-    /// and the cost of building and stroking it — by the pass count.
-    static func path(for outputs: [SC.OutputToolpath]) -> CGPath? {
+    /// different depth (30 passes at 0.1 mm stepdown = 30 copies), so when
+    /// several passes are selected, one whose XY geometry was already drawn is
+    /// skipped. That cuts the path — and the cost of building and stroking
+    /// it — by the pass count.
+    static func path(for outputs: [SC.OutputToolpath], options: ToolpathPreviewOptions) -> CGPath? {
 
         let t0 = PerfLog.now()
         var pen = Pen()
@@ -44,7 +88,7 @@ enum ToolpathPathBuilder {
         var drawnPassWaypointCounts: [Int] = []
 
         for output in outputs {
-            for pass in output.passes {
+            for pass in options.passes.passes(of: output) {
                 totalPasses += 1
                 guard drawnPasses.insert(signature(of: pass)).inserted else {
                     skippedPasses += 1
@@ -261,9 +305,10 @@ enum ToolpathPathBuilder {
 /// the first `vertexCount(afterStep: n)` points and puts the cutter at
 /// `toolPosition(afterStep: n)`.
 ///
-/// Unlike the all-toolpaths preview, nothing is deduplicated here: every pass
-/// is in it, in machining order, so the slider walks through them one by one
-/// even though from above they land on the same line.
+/// Unlike the all-toolpaths preview, nothing is deduplicated here: every
+/// selected pass (see `ToolpathPreviewOptions`) is in it, in machining order,
+/// so with several passes the slider walks through them one by one even
+/// though from above they land on the same line.
 struct ToolpathScrubData: Sendable {
 
     /// Cutting moves as disconnected pairs (start, end, start, end…), in world
@@ -291,9 +336,11 @@ struct ToolpathScrubData: Sendable {
 
 extension ToolpathPathBuilder {
 
-    /// Flattens `outputs` into scrub data, or nil if there is nothing to cut
-    /// (no waypoint, or no move with any XY extent).
-    static func scrubData(for outputs: [SC.OutputToolpath]) -> ToolpathScrubData? {
+    /// Flattens the passes `options` selects of `outputs` into scrub data, or nil
+    /// if there is nothing to cut (no waypoint, or no move with any XY extent).
+    /// Nothing is deduplicated: with several passes selected, the slider walks
+    /// through each of them.
+    static func scrubData(for outputs: [SC.OutputToolpath], options: ToolpathPreviewOptions) -> ToolpathScrubData? {
 
         var points: [SIMD3<Float>] = []
         var vertexCounts: [Int] = [0]
@@ -304,7 +351,7 @@ extension ToolpathPathBuilder {
         }
 
         for output in outputs {
-            for pass in output.passes {
+            for pass in options.passes.passes(of: output) {
                 // Like the preview path: a pass starts wherever its first waypoint is,
                 // no move is drawn from the end of the previous pass.
                 var current: CGPoint?
