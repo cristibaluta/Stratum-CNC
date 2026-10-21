@@ -249,3 +249,151 @@ enum ToolpathPathBuilder {
         }
     }
 }
+
+// MARK: - Scrubbing
+
+/// One generated toolpath, flattened for the CAM scrub slider (see
+/// `PanelToolpathDetails`). Built once, off the main thread, together with the
+/// preview path; scrubbing then only moves two numbers through it.
+///
+/// A *step* is one waypoint of the engine output — the CAM counterpart of one
+/// G-code line in the controller's scrubber. After `n` steps the canvas draws
+/// the first `vertexCount(afterStep: n)` points and puts the cutter at
+/// `toolPosition(afterStep: n)`.
+///
+/// Unlike the all-toolpaths preview, nothing is deduplicated here: every pass
+/// is in it, in machining order, so the slider walks through them one by one
+/// even though from above they land on the same line.
+struct ToolpathScrubData: Sendable {
+
+    /// Cutting moves as disconnected pairs (start, end, start, end…), in world
+    /// mm at z = 0, in machining order. Rapids and pure Z moves add nothing.
+    let points: [SIMD3<Float>]
+    /// `vertexCounts[n]` = how many of `points` are drawn after `n` steps.
+    /// `vertexCounts[0]` is 0, so it holds `stepCount + 1` entries.
+    let vertexCounts: [Int]
+    /// `toolPositions[n]` = where the tool is (XY) after `n` steps; index 0 is
+    /// where the first move starts. Same length as `vertexCounts`.
+    let toolPositions: [SIMD2<Float>]
+
+    var stepCount: Int {
+        vertexCounts.count - 1
+    }
+
+    func vertexCount(afterStep step: Int) -> Int {
+        vertexCounts[min(max(step, 0), stepCount)]
+    }
+
+    func toolPosition(afterStep step: Int) -> SIMD2<Float> {
+        toolPositions[min(max(step, 0), stepCount)]
+    }
+}
+
+extension ToolpathPathBuilder {
+
+    /// Flattens `outputs` into scrub data, or nil if there is nothing to cut
+    /// (no waypoint, or no move with any XY extent).
+    static func scrubData(for outputs: [SC.OutputToolpath]) -> ToolpathScrubData? {
+
+        var points: [SIMD3<Float>] = []
+        var vertexCounts: [Int] = [0]
+        var toolPositions: [SIMD2<Float>] = []
+
+        func simd(_ point: CGPoint) -> SIMD3<Float> {
+            SIMD3<Float>(Float(point.x), Float(point.y), 0)
+        }
+
+        for output in outputs {
+            for pass in output.passes {
+                // Like the preview path: a pass starts wherever its first waypoint is,
+                // no move is drawn from the end of the previous pass.
+                var current: CGPoint?
+
+                for waypoint in pass.waypoints {
+                    let target = CGPoint(x: waypoint.position.x, y: waypoint.position.y)
+                    guard target.x.isFinite, target.y.isFinite else {
+                        continue
+                    }
+                    let from = current ?? target
+                    if toolPositions.isEmpty {
+                        toolPositions.append(SIMD2<Float>(Float(from.x), Float(from.y)))
+                    }
+
+                    switch waypoint.motion {
+                    case .rapid:
+                        break
+
+                    case .linear:
+                        if hypot(target.x - from.x, target.y - from.y) > 1e-9 {
+                            points.append(simd(from))
+                            points.append(simd(target))
+                        }
+
+                    case .arcCW(let center):
+                        appendArc(from: from, to: target, center: center, isCCW: false, into: &points)
+
+                    case .arcCCW(let center):
+                        appendArc(from: from, to: target, center: center, isCCW: true, into: &points)
+                    }
+
+                    current = target
+                    vertexCounts.append(points.count)
+                    toolPositions.append(SIMD2<Float>(Float(target.x), Float(target.y)))
+                }
+            }
+        }
+
+        guard !points.isEmpty, vertexCounts.count > 1 else {
+            return nil
+        }
+        return ToolpathScrubData(points: points, vertexCounts: vertexCounts, toolPositions: toolPositions)
+    }
+
+    /// An arc as short chords, appended as line pairs. Same maths as `Pen.arc`
+    /// (sweep in the direction of travel, a zero sweep is a full circle), kept
+    /// separate so the preview path builder stays untouched.
+    private static func appendArc(from: CGPoint, to: CGPoint, center: CGPoint, isCCW: Bool,
+                                  into points: inout [SIMD3<Float>]) {
+
+        func simd(_ point: CGPoint) -> SIMD3<Float> {
+            SIMD3<Float>(Float(point.x), Float(point.y), 0)
+        }
+
+        let radius = hypot(from.x - center.x, from.y - center.y)
+        guard radius > 1e-9 else {
+            if hypot(to.x - from.x, to.y - from.y) > 1e-9 {
+                points.append(simd(from))
+                points.append(simd(to))
+            }
+            return
+        }
+
+        let startAngle = atan2(from.y - center.y, from.x - center.x)
+        let endAngle = atan2(to.y - center.y, to.x - center.x)
+
+        var sweep = (isCCW ? endAngle - startAngle : startAngle - endAngle)
+            .truncatingRemainder(dividingBy: 2 * .pi)
+        if sweep < 1e-9 {
+            sweep += 2 * .pi
+        }
+        let direction: Double = isCCW ? 1 : -1
+
+        let chordAngle = 2 * acos(max(-1, 1 - chordTolerance / radius))
+        let step = max(min(chordAngle, .pi / 8), 1e-3)
+        let steps = max(1, Int((sweep / step).rounded(.up)))
+
+        var previous = from
+        for i in 1...steps {
+            let next: CGPoint
+            if i == steps {
+                next = to
+            } else {
+                let angle = startAngle + direction * sweep * Double(i) / Double(steps)
+                next = CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
+            }
+            points.append(simd(previous))
+            points.append(simd(next))
+            previous = next
+        }
+    }
+}

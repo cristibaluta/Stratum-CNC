@@ -85,3 +85,47 @@ enum CAMSelectionOverlay {
         SIMD3<Float>(Float(point.x), Float(point.y), 0)
     }
 }
+
+/// What the toolpath scrubber puts on the canvas: the part of the toolpath cut
+/// so far, and the cutter where it is.
+enum CAMToolpathScrubOverlay {
+
+    /// Same blue as the all-toolpaths preview (`D2_RenderObjectBuilder.toolpathRenderObject`).
+    private static let pathColor = SIMD4<Float>(0.2, 0.5, 1.0, 1.0)
+    /// Same red as the controller's cutter.
+    private static let markerColor = SIMD4<Float>(0.9, 0.1, 0.1, 1.0)
+    private static let markerSegments = 32
+
+    /// The whole toolpath; the scrubber narrows what is drawn with
+    /// `visibleVertexCount`, so this is built once per generation.
+    /// Role `.toolpathCutting` is how the scene's fast path finds it again.
+    static func pathObject(for data: ToolpathScrubData) -> RenderObject {
+        RenderObject(role: .toolpathCutting, points: data.points, color: pathColor, primitive: .lineList)
+    }
+
+    /// The cutter seen from above: a ring of the tool's diameter and a cross
+    /// through its center. Role `.tool`, so the fast path swaps it in place.
+    static func marker(at position: SIMD2<Float>, diameter: Double) -> RenderObject {
+        // A hair-thin tool would vanish at any zoom
+        let radius = max(Float(max(diameter, 0) / 2), 0.25)
+
+        func point(_ dx: Float, _ dy: Float) -> SIMD3<Float> {
+            SIMD3<Float>(position.x + dx, position.y + dy, 0)
+        }
+
+        var points: [SIMD3<Float>] = []
+        points.reserveCapacity(markerSegments * 2 + 4)
+        for i in 0..<markerSegments {
+            let a0 = Float(i) / Float(markerSegments) * 2 * .pi
+            let a1 = Float(i + 1) / Float(markerSegments) * 2 * .pi
+            points.append(point(radius * cos(a0), radius * sin(a0)))
+            points.append(point(radius * cos(a1), radius * sin(a1)))
+        }
+        points.append(point(-radius, 0))
+        points.append(point(radius, 0))
+        points.append(point(0, -radius))
+        points.append(point(0, radius))
+
+        return RenderObject(role: .tool, points: points, color: markerColor, primitive: .lineList)
+    }
+}

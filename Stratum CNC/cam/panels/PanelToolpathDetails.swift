@@ -35,6 +35,9 @@ struct PanelToolpathDetails: View {
     var isGenerating: Bool = false
     /// Builds the toolpaths from the selected shapes.
     var onGenerate: () -> Void = {}
+    /// The preview slider moved to this step (0 = nothing cut yet, up to the generation's
+    /// `scrub.stepCount` = the whole toolpath). Fires on every tick of a drag.
+    var onScrub: (Int) -> Void = { _ in }
     var onDone: () -> Void = {}
 
     /// Expanded lays every picker's options directly in the view instead of behind
@@ -45,6 +48,10 @@ struct PanelToolpathDetails: View {
 
     /// What the last tool pick did to the cutting values, shown under the tool.
     @State private var presetNote: String?
+
+    /// Where the preview slider is; nil = at the end (the whole toolpath), which is where a
+    /// new result starts. Kept here rather than in the model so a drag only redraws this panel.
+    @State private var scrubStep: Int?
 
     var body: some View {
         GroupBox("TOOLPATH PARAMS") {
@@ -62,9 +69,15 @@ struct PanelToolpathDetails: View {
                 Divider().background(.orange.opacity(0.5))
                 rowFooter
                 generationStatus
+                rowScrub
             }
             .padding(16)
-            .onChange(of: toolpath.id) { _, _ in presetNote = nil }
+            .onChange(of: toolpath.id) { _, _ in
+                presetNote = nil
+                scrubStep = nil
+            }
+            // A new Generate starts its preview from the end again, like the canvas does
+            .onChange(of: generation?.id) { _, _ in scrubStep = nil }
             .overlay {
                 // Marks which toolpath the canvas clicks are going to
                 if isPicking {
@@ -254,6 +267,45 @@ struct PanelToolpathDetails: View {
                     .font(.system(size: 11))
                     .multilineTextAlignment(.trailing)
             }
+        }
+    }
+
+    /// Previews the generated toolpath on the canvas: only this toolpath is shown, drawn up
+    /// to the slider with the cutter at that point. One step is one move of the toolpath,
+    /// like one line in the controller's G-code slider. Only offered while the result
+    /// matches the settings (see `CAMModel.scrubbableGeneration`).
+    @ViewBuilder
+    private var rowScrub: some View {
+        if let generation,
+           generation.isCurrent(for: toolpath),
+           let scrub = generation.scrub,
+           scrub.stepCount > 0 {
+
+            let total = scrub.stepCount
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Label("PREVIEW", systemImage: "scope")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(scrubStep ?? total) / \(total)")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: Binding(
+                    get: { Double(scrubStep ?? total) },
+                    set: { newValue in
+                        let step = Int(newValue.rounded())
+                        guard step != (scrubStep ?? total) else {
+                            return
+                        }
+                        scrubStep = step
+                        onScrub(step)
+                    }
+                ), in: 0...Double(total))
+                .controlSize(.small)
+            }
+            .help("Scrub through the generated toolpath")
         }
     }
 

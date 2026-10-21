@@ -262,6 +262,9 @@ struct CAMView: View {
                              onGenerate: {
                                  camModel.generateToolpaths(for: toolpath.id)
                              },
+                             onScrub: { step in
+                                 camModel.setToolpathScrubStep(step)
+                             },
                              onDone: {
                                 withAnimation(.easeOut(duration: 0.15)) {
                                     camModel.selectedToolpathID = nil

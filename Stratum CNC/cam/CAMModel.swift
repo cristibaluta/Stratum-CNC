@@ -35,7 +35,11 @@ class CAMModel: ObservableObject {
 
     // ---- TEMPORARY TOOLPATH EDITING ----
     @Published var toolpaths: [ToolpathData] = [] {
-        didSet { onToolpathsChanged?(toolpaths) }
+        didSet {
+            onToolpathsChanged?(toolpaths)
+            // An edit can make the open toolpath's result outdated, which ends scrubbing
+            syncScrub()
+        }
     }
 
     /// The toolpath whose settings are open in the right-hand panel; nil closes the panel.
@@ -44,6 +48,7 @@ class CAMModel: ObservableObject {
     @Published var selectedToolpathID: UUID? {
         didSet {
             syncPickingWithSelection()
+            syncScrub()
         }
     }
 
@@ -67,9 +72,14 @@ class CAMModel: ObservableObject {
 
     @Published private(set) var generations: [UUID: ToolpathGeneration] = [:] {
         didSet {
+            // The preview below depends on whether something is being scrubbed, so sort that out first
+            syncScrub(refreshPreview: false)
             updateToolpathPreview()
         }
     }
+
+    /// Which generation the canvas is scrubbing right now (see `syncScrub`).
+    private var scrubbedGenerationID: UUID?
 
     // ---- CANVAS VIEWPORT STATE ----
     // Persisted between sessions. Not @Published: this is *reported* by the
@@ -304,11 +314,13 @@ class CAMModel: ObservableObject {
                     let outputs = try ToolpathGenerator.run(job)
                     let pathStart = PerfLog.now()
                     let previewPath = ToolpathPathBuilder.path(for: outputs)
-                    PerfLog.log("gen", "background work finished; preview path step took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
+                    let scrub = ToolpathPathBuilder.scrubData(for: outputs)
+                    PerfLog.log("gen", "background work finished; preview path + scrub data took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
                     return ComputedGeneration(outcome: .success(outputs),
-                                              previewPath: previewPath)
+                                              previewPath: previewPath,
+                                              scrub: scrub)
                 } catch {
-                    return ComputedGeneration(outcome: .failure(error), previewPath: nil)
+                    return ComputedGeneration(outcome: .failure(error), previewPath: nil, scrub: nil)
                 }
             }.value
 
@@ -332,7 +344,8 @@ class CAMModel: ObservableObject {
         hiddenToolpathIDs.remove(id)
         generations[id] = ToolpathGeneration(source: source,
                                              outcome: computed.outcome,
-                                             previewPath: computed.previewPath)
+                                             previewPath: computed.previewPath,
+                                             scrub: computed.scrub)
         PerfLog.log("gen", "◼ applied in \(PerfLog.fmt(PerfLog.ms(since: applyStart))) (state update + preview overlay); "
                     + "total click → applied: \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
     }
@@ -362,7 +375,9 @@ class CAMModel: ObservableObject {
         defer {
             PerfLog.log("gen", "updateToolpathPreview took \(PerfLog.fmt(PerfLog.ms(since: t0)))")
         }
-        let paths = toolpaths
+        // While one toolpath is being scrubbed, it is the only one on the canvas
+        // (the scrubber draws it); the rest come back when the panel closes.
+        let paths = canvasState.toolpathScrub != nil ? [] : toolpaths
             .filter { !hiddenToolpathIDs.contains($0.id) }
             .compactMap { generations[$0.id]?.previewPath }
 
@@ -376,6 +391,51 @@ class CAMModel: ObservableObject {
                 paths.forEach { combined.addPath($0) }
                 canvasState.setToolpathsPath(combined)
         }
+    }
+
+    // MARK: Toolpath scrubbing
+
+    /// The open toolpath's result, if it can be scrubbed: the last Generate worked,
+    /// cut something, and the toolpath still matches it (an outdated result would
+    /// be previewed with settings it no longer has).
+    private var scrubbableGeneration: ToolpathGeneration? {
+        guard let id = selectedToolpathID,
+              let toolpath = toolpaths.first(where: { $0.id == id }),
+              let generation = generations[id],
+              generation.scrub != nil,
+              generation.isCurrent(for: toolpath) else {
+            return nil
+        }
+        return generation
+    }
+
+    /// Keeps the canvas's scrub preview in step with the open toolpath: starts it
+    /// (at the end, i.e. the whole toolpath) when the open toolpath has a scrubbable
+    /// result, replaces it when a new one lands, and ends it when there is none.
+    /// A no-op while nothing changed, so it is cheap to call after any edit.
+    private func syncScrub(refreshPreview: Bool = true) {
+        let generation = scrubbableGeneration
+        guard generation?.id != scrubbedGenerationID else {
+            return
+        }
+        scrubbedGenerationID = generation?.id
+
+        if let generation, let data = generation.scrub {
+            canvasState.setToolpathScrub(D2_CanvasState.ToolpathScrub(id: generation.id,
+                                                                      data: data,
+                                                                      toolDiameter: generation.source.tool.toolDiameter,
+                                                                      step: data.stepCount))
+        } else {
+            canvasState.setToolpathScrub(nil)
+        }
+        if refreshPreview {
+            updateToolpathPreview()
+        }
+    }
+
+    /// The scrub slider in the toolpath panel moved. Called on every tick of a drag.
+    func setToolpathScrubStep(_ step: Int) {
+        canvasState.setToolpathScrubStep(step)
     }
 
     private func applyPickedPaths(_ paths: [PathSelection]) {
@@ -481,4 +541,5 @@ class CAMModel: ObservableObject {
 private struct ComputedGeneration: @unchecked Sendable {
     let outcome: Result<[SC.OutputToolpath], Error>
     let previewPath: CGPath?
+    let scrub: ToolpathScrubData?
 }

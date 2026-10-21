@@ -12,6 +12,10 @@ import StratumCAM
 /// the canvas objects.
 struct ToolpathGeneration {
 
+    /// Tells one run from the next, so the canvas and the panel's slider can tell
+    /// "same result, still being looked at" from "a new Generate replaced it".
+    let id = UUID()
+
     /// The settings the result was generated from, to tell when it's outdated.
     let source: ToolpathData
     let outcome: Result<[SC.OutputToolpath], Error>
@@ -19,6 +23,10 @@ struct ToolpathGeneration {
     /// The canvas overlay for this result, built off the main thread together
     /// with the engine run so showing it is cheap. Nil on failure.
     let previewPath: CGPath?
+
+    /// The same result flattened for the scrub slider (see `ToolpathScrubData`),
+    /// built together with `previewPath`. Nil on failure, or when nothing is cut.
+    var scrub: ToolpathScrubData? = nil
 
     var passCount: Int {
         guard case .success(let outputs) = outcome else { return 0 }

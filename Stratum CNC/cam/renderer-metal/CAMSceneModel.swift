@@ -56,7 +56,12 @@ final class CAMSceneModel: ObservableObject {
     private let canvasState: D2_CanvasState
     private var appearance: NSAppearance
     private var stateObserver: AnyCancellable?
+    private var scrubStepObserver: AnyCancellable?
     private var rebuildScheduled = false
+
+    /// The scrubbed toolpath's geometry, kept between rebuilds so its `RenderObject.id`
+    /// — and so its GPU buffer — survives them: only a new generation replaces it.
+    private var scrubPathCache: (id: UUID, object: RenderObject)?
 
     init(canvasState: D2_CanvasState, appearance: NSAppearance = NSApp.effectiveAppearance) {
         self.canvasState = canvasState
@@ -71,7 +76,27 @@ final class CAMSceneModel: ObservableObject {
                 self?.scheduleRebuild()
             }
 
+        // Moving the scrub slider doesn't rebuild anything (see `applyScrubStep`)
+        scrubStepObserver = canvasState.toolpathScrubStepChanged
+            .sink { [weak self] _ in
+                self?.applyScrubStep()
+            }
+
         rebuild()
+    }
+
+    /// The scrub slider moved: narrow the drawn part of the toolpath and move the
+    /// cutter. Mutates the existing objects by role instead of rebuilding the
+    /// scene, so a drag doesn't re-flatten every shape on the canvas.
+    private func applyScrubStep() {
+        guard let scrub = canvasState.toolpathScrub else {
+            return
+        }
+        // One assignment, so the canvas is told once per tick rather than twice
+        var objects = renderObjects
+        objects.settingVisibleVertexCount(scrub.visibleVertexCount, forRole: .toolpathCutting)
+        objects.updating(CAMToolpathScrubOverlay.marker(at: scrub.toolPosition, diameter: scrub.toolDiameter))
+        renderObjects = objects
     }
 
     /// The path colors (`labelColor` etc.) are dynamic and get baked into
@@ -127,18 +152,41 @@ final class CAMSceneModel: ObservableObject {
             }
         }
 
+        // The toolpath being scrubbed, if any: its cut-so-far line and the cutter marker.
+        var scrubPath: RenderObject?
+        var scrubMarker: RenderObject?
+        if let scrub = canvasState.toolpathScrub {
+            var object: RenderObject
+            if let cached = scrubPathCache, cached.id == scrub.id {
+                object = cached.object
+            } else {
+                object = CAMToolpathScrubOverlay.pathObject(for: scrub.data)
+                scrubPathCache = (id: scrub.id, object: object)
+            }
+            object.visibleVertexCount = scrub.visibleVertexCount
+            scrubPath = object
+            scrubMarker = CAMToolpathScrubOverlay.marker(at: scrub.toolPosition, diameter: scrub.toolDiameter)
+        } else {
+            scrubPathCache = nil
+        }
+
         // Order matters. The renderer's depth test is `.less` and all of
         // this is at z = 0, so where two lines coincide the one drawn
         // *first* wins. Selection overlay first (the handle must be on
         // top), then shapes (the thing being selected), then the toolpath
         // preview, then the ruler, then the stock outline.
-        var objects: [RenderObject] = overlay
-        objects.reserveCapacity(overlay.count + paths.count + 3)
+        // (The cutter marker goes first of all, so it is on top.)
+        var objects: [RenderObject] = scrubMarker.map { [$0] } ?? []
+        objects.append(contentsOf: overlay)
+        objects.reserveCapacity(objects.count + paths.count + 4)
         for path in paths where !path.renderObject.points.isEmpty {
             objects.append(path.renderObject)
         }
         if let toolpath {
             objects.append(toolpath)
+        }
+        if let scrubPath {
+            objects.append(scrubPath)
         }
         objects.append(.ruler(z: 0, length: Style.rulerLength, color: Style.rulerColor))
         if canvasState.isStockVisible, let stock = canvasState.stock {

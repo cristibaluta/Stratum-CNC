@@ -7,6 +7,8 @@
 
 import Foundation
 import CoreGraphics
+import Combine
+import simd
 
 /// Single source of truth for everything the 2D canvas, the objects inspector
 /// and the material panel need to agree on: the objects, the current
@@ -77,6 +79,57 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     func setToolpathsPath(_ path: CGPath?) {
         toolpathsPath = path
+    }
+
+    // MARK: Toolpath scrub preview
+    //
+    // The open toolpath's generated result, drawn up to the slider's position
+    // with the cutter at that spot. Installing/removing it is a structural
+    // change (the scene rebuilds, like any other); moving the slider is not: it
+    // goes through `toolpathScrubStepChanged` and the scene only narrows the
+    // draw count and moves the marker, so a drag stays cheap.
+
+    /// What is being scrubbed, and where.
+    struct ToolpathScrub {
+        /// The generation it comes from; the scene caches its GPU geometry by it.
+        let id: UUID
+        let data: ToolpathScrubData
+        let toolDiameter: Double
+        var step: Int
+
+        var visibleVertexCount: Int {
+            data.vertexCount(afterStep: step)
+        }
+
+        var toolPosition: SIMD2<Float> {
+            data.toolPosition(afterStep: step)
+        }
+    }
+
+    /// Nil when no toolpath is being scrubbed. Deliberately not `@Published`: see above.
+    private(set) var toolpathScrub: ToolpathScrub?
+
+    /// Fires after every `setToolpathScrubStep` that moved the slider.
+    let toolpathScrubStepChanged = PassthroughSubject<Void, Never>()
+
+    /// Starts, replaces or ends scrubbing. Rebuilds the scene.
+    func setToolpathScrub(_ scrub: ToolpathScrub?) {
+        objectWillChange.send()
+        toolpathScrub = scrub
+    }
+
+    /// Moves the slider. Cheap; does not rebuild the scene.
+    func setToolpathScrubStep(_ step: Int) {
+        guard var scrub = toolpathScrub else {
+            return
+        }
+        let clamped = min(max(step, 0), scrub.data.stepCount)
+        guard clamped != scrub.step else {
+            return
+        }
+        scrub.step = clamped
+        toolpathScrub = scrub
+        toolpathScrubStepChanged.send()
     }
 
     // MARK: Objects
