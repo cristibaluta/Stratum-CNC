@@ -99,11 +99,11 @@ struct MakeraHeaderParser: GCodeHeaderParser {
 
     private static func kind(forType type: String) -> ToolSpec.Kind? {
         let t = type.lowercased()
-        if t.contains("flat") || t.contains("end mill") {
-            return .endMill
-        }
         if t.contains("ball") {
             return .ballNose
+        }
+        if t.contains("flat") || t.contains("end mill") {
+            return .endMill
         }
         if t.contains("v-bit") || t.contains("v bit") || t.contains("vbit") || t.contains("chamfer") {
             return .vBit

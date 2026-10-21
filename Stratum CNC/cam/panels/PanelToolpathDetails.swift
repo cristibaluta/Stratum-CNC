@@ -198,8 +198,7 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowSafeZ: some View {
         HStack(spacing: 8) {
-            NumberField(title: "CLEARANCE Z", value: $toolpath.startZ, suffix: "mm")
-            NumberField(title: "RETRACT Z", value: $toolpath.safeZ, suffix: "mm")
+            NumberField(title: "CLEARANCE Z", value: $toolpath.safeZ, suffix: "mm")
         }
     }
 

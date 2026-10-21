@@ -7,6 +7,7 @@
 
 import Foundation
 import Observation
+import Combine
 
 enum ProjectError: Error {
     case projectNotFound
@@ -24,7 +25,12 @@ final class ProjectsStore: ObservableObject {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    init() {
+    private let documentsDirectory: URL
+    private var indexFile: URL { documentsDirectory.appendingPathComponent("projects.json") }
+    private var scratchDirectory: URL { documentsDirectory.appendingPathComponent(".stratum-scratch", isDirectory: true) }
+
+    init(documentsDirectory: URL = ProjectPaths.appDocuments) {
+        self.documentsDirectory = documentsDirectory
         self.encoder = JSONEncoder()
         self.decoder = JSONDecoder()
 
@@ -38,13 +44,13 @@ final class ProjectsStore: ObservableObject {
     // MARK: - Loading
 
     func loadProjects() {
-        guard FileManager.default.fileExists(atPath: ProjectPaths.projectsIndexFile.path) else {
+        guard FileManager.default.fileExists(atPath: indexFile.path) else {
             projects = []
             return
         }
 
         do {
-            let data = try Data(contentsOf: ProjectPaths.projectsIndexFile)
+            let data = try Data(contentsOf: indexFile)
             projects = try decoder.decode([Project].self, from: data)
 
             projects.sort {
@@ -57,7 +63,8 @@ final class ProjectsStore: ObservableObject {
     }
 
     func open(_ project: Project) {
-        guard let paths = try? ProjectPaths(project: project) else {
+        guard saveActiveProject() else { return }
+        guard let paths = try? ProjectPaths(project: project, documentsDirectory: documentsDirectory) else {
             return
         }
         activeProject = project
@@ -65,19 +72,32 @@ final class ProjectsStore: ObservableObject {
     }
 
     func openZombieProject() {
-        // TODO: on second open, it does not load the previous data because project.json is recreated
-        let project: Project = (try? createProject(name: "Untitled", isZombie: true)) ?? Project(name: "Untitled")
-        guard let paths = try? ProjectPaths(project: project) else {
-            return
+        guard saveActiveProject() else { return }
+        do {
+            let project = try createProject(name: "Untitled", isZombie: true)
+            let paths = try ProjectPaths(project: project, documentsDirectory: scratchDirectory)
+            activeProject = project
+            activeProjectModel = ProjectModel(project: project, paths: paths)
+        } catch {
+            print("Failed to open scratch project: \(error)")
         }
-        activeProject = project
-        activeProjectModel = ProjectModel(project: project, paths: paths)
     }
 
     func close() {
-        // If project is unsaved, save it or ask if to save it
+        guard saveActiveProject() else { return }
         activeProject = nil
         activeProjectModel = nil
+    }
+
+    @discardableResult
+    func saveActiveProject() -> Bool {
+        do {
+            try activeProjectModel?.save()
+            return true
+        } catch {
+            print("Failed to save project: \(error)")
+            return false
+        }
     }
 
     // MARK: - Creation
@@ -86,14 +106,22 @@ final class ProjectsStore: ObservableObject {
     func createProject(name: String, isZombie: Bool = false) throws -> Project {
 
         // Check if project already exist
-        guard projects.first(where: { $0.name.lowercased() == name.lowercased() }) == nil else {
+        guard isZombie || projects.first(where: { $0.name.lowercased() == name.lowercased() }) == nil else {
             throw ProjectError.projectAlreadyExists
         }
 
         let project = Project(name: name)
 
-        guard let paths = try? ProjectPaths(project: project) else {
-            throw ProjectError.projectNotFound
+        let paths = try ProjectPaths(project: project, documentsDirectory: isZombie ? scratchDirectory : documentsDirectory)
+        if isZombie {
+            // Preserve old unlisted scratch projects, but never adopt a saved project named Untitled.
+            let legacy = try ProjectPaths(project: project, documentsDirectory: documentsDirectory)
+            if !FileManager.default.fileExists(atPath: paths.projectDirectory.path),
+               !projects.contains(where: { $0.name.lowercased() == name.lowercased() }),
+               FileManager.default.fileExists(atPath: legacy.projectMetadata.path) {
+                try FileManager.default.copyItem(at: legacy.projectDirectory, to: paths.projectDirectory)
+            }
+            if FileManager.default.fileExists(atPath: paths.projectMetadata.path) { return project }
         }
 
         let lastUsedGeometry = StockGeometry.rectangular(width: 100, height: 100, depth: 10)
@@ -108,7 +136,7 @@ final class ProjectsStore: ObservableObject {
         // Create supporting directories and files
         try FileManager.default.createDirectory(at: paths.projectDirectory, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: paths.assetsDirectory, withIntermediateDirectories: true)
-        try saveProjectMetadata(projectData, in: project)
+        try saveProjectMetadata(projectData, at: paths)
 
         guard !isZombie else {
             return project
@@ -136,7 +164,7 @@ final class ProjectsStore: ObservableObject {
     // MARK: - Delete
 
     func delete(_ project: Project) throws {
-        guard let paths = try? ProjectPaths(project: project) else {
+        guard let paths = try? ProjectPaths(project: project, documentsDirectory: documentsDirectory) else {
             return
         }
         let directory = paths.projectDirectory
@@ -155,7 +183,7 @@ final class ProjectsStore: ObservableObject {
     // MARK: - Preview
 
     func previewURL(for project: Project) -> URL {
-        guard let paths = try? ProjectPaths(project: project) else {
+        guard let paths = try? ProjectPaths(project: project, documentsDirectory: documentsDirectory) else {
             return URL(fileURLWithPath: "")
         }
         return paths.preview
@@ -163,16 +191,13 @@ final class ProjectsStore: ObservableObject {
 
     // MARK: - Persistence
 
-    private func saveProjectMetadata(_ projectData: ProjectData, in project: Project) throws {
-        guard let paths = try? ProjectPaths(project: project) else {
-            return
-        }
+    private func saveProjectMetadata(_ projectData: ProjectData, at paths: ProjectPaths) throws {
         let data = try encoder.encode(projectData)
         try data.write(to: paths.projectMetadata, options: .atomic)
     }
 
     private func saveIndex() throws {
         let data = try encoder.encode(projects)
-        try data.write(to: ProjectPaths.projectsIndexFile, options: .atomic)
+        try data.write(to: indexFile, options: .atomic)
     }
 }

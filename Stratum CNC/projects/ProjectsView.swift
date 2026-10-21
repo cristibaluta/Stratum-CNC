@@ -12,8 +12,6 @@ struct ProjectsView: View {
     @ObservedObject var appModel: AppModel
     @ObservedObject var projectsStore: ProjectsStore
 
-    @State private var showingNewProject = false
-
     private let columns = [
         GridItem(.adaptive(minimum: 280, maximum: 420), spacing: 20)
     ]
@@ -25,7 +23,7 @@ struct ProjectsView: View {
 
                     ZStack {
                         NewProjectCard {
-                            showingNewProject = true
+                            appModel.showingNewProject = true
                         }
                         VStack {
                             Spacer()
@@ -89,7 +87,7 @@ struct ProjectsView: View {
             }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
-                    showingNewProject = true
+                    appModel.showingNewProject = true
                 } label: {
                     Label("New Project", systemImage: "plus")
                 }
@@ -103,20 +101,6 @@ struct ProjectsView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 AppearanceToggle(isDarkMode: $appModel.isDarkMode)
             }
-        }
-        .sheet(isPresented: $showingNewProject) {
-            NewProjectSheet { name in
-                createProject(name: name)
-            }
-        }
-    }
-
-    private func createProject(name: String) {
-        do {
-            let project = try projectsStore.createProject(name: name)
-            open(project)
-        } catch {
-            print("Failed to create project: \(error)")
         }
     }
 

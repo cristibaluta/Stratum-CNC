@@ -18,6 +18,8 @@ struct GCodeToolpathAnalyzer {
     static func analyze(_ lines: [(id: Int, text: String)]) -> [GCodeToolpath] {
         var result: [GCodeToolpath] = []
         var currentTool: Int?
+        var pendingTool: Int?
+        var modalMotion: Int?
         var currentOperation = "Motion"
         var currentStart: Int?
         var currentEnd: Int?
@@ -56,48 +58,40 @@ struct GCodeToolpathAnalyzer {
             let codes = extractCodes(from: text)
 
             // Tool changes define a hard boundary between machining tools.
-            if let tool = extractToolNumber(from: text), containsM6(codes) {
+            if let tool = extractToolNumber(from: text) { pendingTool = tool }
+            if containsM6(codes), let tool = pendingTool {
                 finishCurrent()
                 currentTool = tool
                 currentOperation = "Tool \(tool)"
-                continue
             }
 
-            // Explicit drilling cycles are treated as their own operation.
-            if let cycle = drillingCycle(in: codes) {
-                if currentKind != .drilling {
-                    finishCurrent()
-                    currentOperation = "Drilling (G\(cycle))"
-                    currentKind = .drilling
-                }
-                if currentStart == nil { currentStart = line.id }
-                currentEnd = line.id
-                motionCount += 1
-                continue
-            }
-
-            // Cancelled canned cycle: close the drilling group.
-            if containsCode(0, in: codes, letter: "G"), currentKind == .drilling {
+            if containsCode(80, in: codes, letter: "G") {
                 finishCurrent()
+                modalMotion = nil
+            }
+            if let motion = motionCode(in: codes) ?? drillingCycle(in: codes) {
+                modalMotion = motion
             }
 
-            if let motion = motionCode(in: codes) {
-                let kind: OperationKind = motion == 0 ? .rapid : .cutting
-
-                // Split when the semantic motion type changes, while keeping
-                // consecutive cutting moves together as one toolpath.
-                if currentKind != kind {
-                    finishCurrent()
-                    currentKind = kind
-                    currentOperation = kind == .rapid ? "Rapid" : "Cutting"
-                }
-
-                // Rapid moves are useful for context but are not called a
-                // machining toolpath unless they contain an actual move.
-                if currentStart == nil { currentStart = line.id }
-                currentEnd = line.id
-                motionCount += 1
+            // A modal command alone does not move. Subsequent coordinate-only
+            // blocks do, including repeated holes in a canned drilling cycle.
+            let hasAxes = text.range(of: #"(?i)[XYZ]\s*[-+]?(?:\d|\.)"#,
+                                     options: .regularExpression) != nil
+            let hasCenter = text.range(of: #"(?i)[IJ]\s*[-+]?(?:\d|\.)"#,
+                                       options: .regularExpression) != nil
+            guard let motion = modalMotion,
+                  hasAxes || ([2, 3].contains(motion) && hasCenter) else { continue }
+            let kind: OperationKind = (81...89).contains(motion) ? .drilling
+                : (motion == 0 ? .rapid : .cutting)
+            if currentKind != kind {
+                finishCurrent()
+                currentKind = kind
+                currentOperation = kind == .drilling ? "Drilling (G\(motion))"
+                    : (kind == .rapid ? "Rapid" : "Cutting")
             }
+            if currentStart == nil { currentStart = line.id }
+            currentEnd = line.id
+            motionCount += 1
         }
 
         finishCurrent()
@@ -138,8 +132,9 @@ struct GCodeToolpathAnalyzer {
             guard match.numberOfRanges >= 3,
                   let letterRange = Range(match.range(at: 1), in: text),
                   let valueRange = Range(match.range(at: 2), in: text),
-                  let value = Double(text[valueRange]) else { return nil }
-            return (String(text[letterRange]).uppercased(), Int(value))
+                  let value = Double(text[valueRange]),
+                  let code = Int(exactly: value) else { return nil }
+            return (String(text[letterRange]).uppercased(), code)
         }
     }
 

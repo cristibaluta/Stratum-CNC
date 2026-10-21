@@ -16,15 +16,20 @@ final class MachineDiscovery: ObservableObject {
     @Published var lastError: String?
 
     /// Port the Carvera firmware broadcasts discovery packets on.
-    private let discoveryPort: NWEndpoint.Port = 3333
+    private let discoveryPort: NWEndpoint.Port
 
+    private var scanID = UUID()
     private var listener: NWListener?
     /// Keep open connections alive so we keep receiving from each sender.
     private var activeConnections: [NWConnection] = []
 
+    init(port: NWEndpoint.Port = 3333) {
+        discoveryPort = port
+    }
+
     func startScanning() {
         stopScanning()
-//        machines = []
+        let scanID = self.scanID
         lastError = nil
 
         let params = NWParameters.udp
@@ -37,14 +42,15 @@ final class MachineDiscovery: ObservableObject {
 
             listener.stateUpdateHandler = { [weak self] state in
                 Task { @MainActor in
+                    guard let self, self.scanID == scanID else { return }
                     switch state {
                     case .ready:
-                        self?.isScanning = true
+                        self.isScanning = true
                     case .failed(let error):
-                        self?.lastError = "Discovery listener failed: \(error.localizedDescription)"
-                        self?.isScanning = false
+                        self.lastError = "Discovery listener failed: \(error.localizedDescription)"
+                        self.isScanning = false
                     case .cancelled:
-                        self?.isScanning = false
+                        self.isScanning = false
                     default:
                         break
                     }
@@ -53,7 +59,11 @@ final class MachineDiscovery: ObservableObject {
 
             listener.newConnectionHandler = { [weak self] connection in
                 Task { @MainActor in
-                    self?.accept(connection: connection)
+                    guard let self, self.scanID == scanID else {
+                        connection.cancel()
+                        return
+                    }
+                    self.accept(connection: connection)
                 }
             }
 
@@ -65,6 +75,7 @@ final class MachineDiscovery: ObservableObject {
     }
 
     func stopScanning() {
+        scanID = UUID()
         listener?.cancel()
         listener = nil
         activeConnections.forEach { $0.cancel() }
@@ -95,19 +106,19 @@ final class MachineDiscovery: ObservableObject {
     }
 
     private func receiveNext(on connection: NWConnection) {
+        let scanID = self.scanID
+        guard activeConnections.contains(where: { $0 === connection }) else { return }
         connection.receiveMessage { [weak self] data, _, isComplete, error in
-            guard let self else { return }
-
-            if let data, let text = String(data: data, encoding: .utf8) {
-                Task { @MainActor in
+            Task { @MainActor in
+                guard let self, self.scanID == scanID else { return }
+                if let data, let text = String(data: data, encoding: .utf8) {
                     self.parseAndStore(text)
                 }
-            }
-
-            if error == nil {
-                // Keep listening for more broadcasts from this same sender.
-                Task { @MainActor in
+                if error == nil {
                     self.receiveNext(on: connection)
+                } else {
+                    connection.cancel()
+                    self.activeConnections.removeAll { $0 === connection }
                 }
             }
         }

@@ -192,6 +192,11 @@ class CanvasSceneModel: ObservableObject {
     /// this whenever `GCodeStore.document.toolpathSegments` changes, so the
     /// canvas always shows the currently loaded program.
     func updateToolpath(_ segments: [ToolpathSegment]) {
+        // Cached heights belong to the old program, even when stock, tool,
+        // offset, and segment count happen to match the replacement program.
+        stopHeightmapWork()
+        heightmapCarveCache = nil
+        heightmapMesh = nil
         renderObjects.replacing(roles: [.toolpathRapid, .toolpathCutting],
                                 with: RenderObject.toolpath(from: segments))
     }

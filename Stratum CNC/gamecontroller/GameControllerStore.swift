@@ -71,7 +71,7 @@ final class GameControllerStore: ObservableObject {
 
     deinit {
         continuation.finish()
-//        notificationTasks.forEach { $0.cancel() }
+        notificationTasks.forEach { $0.cancel() }
     }
 
     // MARK: - Controller discovery

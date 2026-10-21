@@ -192,8 +192,8 @@ final class GCodeParser {
 
         let bytes = Array(text.utf8)
         var values: [UInt8: Double] = [:]
-        var gCommands: [Int] = []
-        var mCommands: [Int] = []
+        var gCommands: [Double] = []
+        var mCommands: [Double] = []
         var index = 0
 
         while index < bytes.count {
@@ -221,7 +221,7 @@ final class GCodeParser {
             if upper == 0x47 { // G
                 index += 1
                 if let number = parseNumber(bytes, index: &index) {
-                    gCommands.append(Int(number))
+                    gCommands.append(number)
                 }
                 continue
             }
@@ -230,7 +230,7 @@ final class GCodeParser {
             if upper == 0x4D { // M
                 index += 1
                 if let number = parseNumber(bytes, index: &index) {
-                    mCommands.append(Int(number))
+                    mCommands.append(number)
                 }
                 continue
             }
@@ -279,8 +279,9 @@ final class GCodeParser {
 
         var newPosition = oldPosition
 
-        let scale =
-            state.units.scaleToMillimeters
+        let scale = state.units.scaleToMillimeters
+        // Reject the whole geometry block before it can poison modal position or Metal buffers.
+        guard values.values.allSatisfy({ Float($0 * scale).isFinite }) else { return }
 
         // X
         if let value = values[0x58] {
@@ -318,12 +319,17 @@ final class GCodeParser {
             }
         }
 
+        guard Float(newPosition.x).isFinite, Float(newPosition.y).isFinite,
+              Float(newPosition.z).isFinite else { return }
+
         let hasXYZ =
             values[0x58] != nil ||
             values[0x59] != nil ||
             values[0x5A] != nil
 
-        guard hasXYZ else {
+        let hasArcCenter = values[0x49] != nil || values[0x4A] != nil
+        let isArc = state.motion == .clockwiseArc || state.motion == .counterClockwiseArc
+        guard hasXYZ || (isArc && hasArcCenter) else {
             return
         }
 
@@ -379,7 +385,7 @@ final class GCodeParser {
 
     // MARK: G commands
 
-    private func applyGCommand(_ g: Int, state: inout GCodeState) {
+    private func applyGCommand(_ g: Double, state: inout GCodeState) {
         switch g {
             case 0:
                 state.motion = .rapid
@@ -412,6 +418,7 @@ final class GCodeParser {
         segments: inout [ToolpathSegment]
     ) {
 
+        guard [start.x, start.y, start.z, end.x, end.y, end.z].allSatisfy({ Float($0).isFinite }) else { return }
         guard distanceSquared(
             start,
             end
@@ -451,8 +458,7 @@ final class GCodeParser {
                            lineNumber: Int,
                            segments: inout [ToolpathSegment]) {
 
-        guard let iValue = values[0x49],
-              let jValue = values[0x4A] else {
+        guard values[0x49] != nil || values[0x4A] != nil else {
 
             // If the arc cannot be resolved, safely fall back to a straight
             // line rather than generating invalid geometry.
@@ -464,9 +470,10 @@ final class GCodeParser {
             return
         }
 
+        // Omitted center components are zero; an omitted endpoint closes a circle.
         let center = SIMD2<Double>(
-            start.x + iValue * scale,
-            start.y + jValue * scale
+            start.x + (values[0x49] ?? 0) * scale,
+            start.y + (values[0x4A] ?? 0) * scale
         )
 
         let startVector = SIMD2<Double>(

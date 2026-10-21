@@ -219,16 +219,19 @@ final class SingleGerberParser {
         // Interpolation
         if command.hasPrefix("G01") {
             interpolation = .linear
+            parseCoordinateCommand(String(command.dropFirst(3)))
             return
         }
 
         if command.hasPrefix("G02") {
             interpolation = .clockwise
+            parseCoordinateCommand(String(command.dropFirst(3)))
             return
         }
 
         if command.hasPrefix("G03") {
             interpolation = .counterClockwise
+            parseCoordinateCommand(String(command.dropFirst(3)))
             return
         }
 

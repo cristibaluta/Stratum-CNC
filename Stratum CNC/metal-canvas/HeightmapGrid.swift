@@ -233,7 +233,9 @@ struct HeightmapGrid {
                     let raw = simd_dot(cellCenter - start2D, travel) / travelLengthSquared
                     t = min(max(raw, 0), 1)
                 } else {
-                    t = 0 // zero-length segment; the parser filters these out before they get here
+                    // Z-only plunges have no XY travel, but still remove material.
+                    // The deepest endpoint determines the swept cutting surface.
+                    t = segment.end.z < segment.start.z ? 1 : 0
                 }
                 let closestPoint = start2D + travel * t
                 let offset = simd_distance(cellCenter, closestPoint)

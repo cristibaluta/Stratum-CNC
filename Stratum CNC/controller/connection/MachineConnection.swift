@@ -7,6 +7,7 @@
 
 import Foundation
 import Network
+import Combine
 
 /// The `P:` field of a status report — progress of the file the machine is
 /// playing from its SD card (Roadmap 1.4).
@@ -188,14 +189,6 @@ struct MakeraMachineStatus: Equatable {
     }
 }
 
-/// Which wire protocol the connected machine actually speaks.
-/// Officially detected, not assumed — see Carvera_Controller's
-/// carveracontroller/protocols/detector.py for the reference implementation.
-enum MakeraWireProtocol: String {
-    case smoothie = "Smoothie (plain text)"
-    case makera = "Makera (framed binary)"
-}
-
 /// Single-byte realtime controls. Unlike a G-code/console line these aren't
 /// queued behind whatever the machine is doing — the firmware acts on them
 /// the moment the byte arrives, which is the whole point for holding or
@@ -266,6 +259,7 @@ final class MachineConnection: ObservableObject {
     /// what the machine actually puts in it, without touching the parser.
     var onFileTransferFrame: ((UInt8, Data) -> Void)?
 
+    private var sessionID = UUID()
     private var connection: NWConnection?
     private var pollTimer: Timer?
 
@@ -291,6 +285,7 @@ final class MachineConnection: ObservableObject {
 
     func connect(to machine: MakeraMachine) {
         disconnect()
+        let sessionID = self.sessionID
 
         if machine.isMock {
             connectMock()
@@ -305,7 +300,7 @@ final class MachineConnection: ObservableObject {
 
         connection.stateUpdateHandler = { [weak self] state in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.sessionID == sessionID else { return }
                 switch state {
                 case .ready:
                     self.isConnected = true
@@ -314,9 +309,9 @@ final class MachineConnection: ObservableObject {
                     self.beginProtocolDetection()
                 case .failed(let error):
                     self.lastError = "Connection failed: \(error.localizedDescription)"
-                    self.isConnected = false
+                    self.disconnect()
                 case .cancelled:
-                    self.isConnected = false
+                    self.disconnect()
                 default:
                     break
                 }
@@ -336,6 +331,7 @@ final class MachineConnection: ObservableObject {
     /// `startPolling()` — built around `pollTimer` sending a real `?` byte
     /// — is deliberately not called here.
     private func connectMock() {
+        let sessionID = self.sessionID
         let simulator = MockMachineSimulator()
         mockSimulator = simulator
         isConnected = true
@@ -344,12 +340,14 @@ final class MachineConnection: ObservableObject {
         rawLog.append("Connected to Mock Machine (simulated — no hardware).")
 
         simulator.onStatusLine = { [weak self] line in
-            self?.handleLine(line)
+            guard let self, self.sessionID == sessionID else { return }
+            self.handleLine(line)
         }
         simulator.start()
     }
 
     func disconnect() {
+        sessionID = UUID()
         mockSimulator?.stop()
         mockSimulator = nil
         pollTimer?.invalidate()
@@ -394,6 +392,7 @@ final class MachineConnection: ObservableObject {
     }
 
     private func attemptProbe() {
+        let sessionID = self.sessionID
         guard let connection, wireProtocol == nil else { return }
         detectionAttempt += 1
         detectionBuffer.removeAll()
@@ -402,7 +401,7 @@ final class MachineConnection: ObservableObject {
         connection.send(content: probe, completion: .contentProcessed { _ in })
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            guard let self, self.wireProtocol == nil else { return }
+            guard let self, self.sessionID == sessionID, self.wireProtocol == nil else { return }
 
             if let text = String(data: self.detectionBuffer, encoding: .utf8),
                text.localizedCaseInsensitiveContains("echo") {
@@ -428,10 +427,12 @@ final class MachineConnection: ObservableObject {
     /// command like "get wcs" or "config-get-all -e". Encoded according to
     /// whichever wire protocol was detected for this connection.
     func send(_ command: String) {
+        let sessionID = self.sessionID
         if let mockSimulator {
             rawLog.append("> \(command)")
             mockSimulator.handle(command: command) { [weak self] reply in
-                self?.handleLine(reply)
+                guard let self, self.sessionID == sessionID else { return }
+                self.handleLine(reply)
             }
             return
         }
@@ -447,7 +448,10 @@ final class MachineConnection: ObservableObject {
             let frame = MakeraFraming.buildFrame(ptype: MakeraFraming.ptypeCtrlMulti, payload: Data(stripped.utf8))
             connection.send(content: frame, completion: .contentProcessed { [weak self] error in
                 guard let error else { return }
-                Task { @MainActor in self?.lastError = "Send failed: \(error.localizedDescription)" }
+                Task { @MainActor in
+                    guard let self, self.sessionID == sessionID else { return }
+                    self.lastError = "Send failed: \(error.localizedDescription)"
+                }
             })
 
         case .smoothie, .none:
@@ -455,7 +459,10 @@ final class MachineConnection: ObservableObject {
             if !line.hasSuffix("\n") { line += "\n" }
             connection.send(content: line.data(using: .utf8), completion: .contentProcessed { [weak self] error in
                 guard let error else { return }
-                Task { @MainActor in self?.lastError = "Send failed: \(error.localizedDescription)" }
+                Task { @MainActor in
+                    guard let self, self.sessionID == sessionID else { return }
+                    self.lastError = "Send failed: \(error.localizedDescription)"
+                }
             })
         }
     }
@@ -469,6 +476,7 @@ final class MachineConnection: ObservableObject {
     /// so a hold/resume/reset is visible in the console history.
     @discardableResult
     func sendRealtime(_ command: MachineRealtimeCommand) -> Bool {
+        let sessionID = self.sessionID
         if let mockSimulator {
             if command != .statusQuery {
                 appendLog("> \(command.logText)")
@@ -498,7 +506,8 @@ final class MachineConnection: ObservableObject {
             // A dropped status poll is noise; a dropped hold/reset is not.
             guard let error, command != .statusQuery else { return }
             Task { @MainActor in
-                self?.lastError = "Send failed: \(error.localizedDescription)"
+                guard let self, self.sessionID == sessionID else { return }
+                self.lastError = "Send failed: \(error.localizedDescription)"
             }
         })
         return true
@@ -523,17 +532,22 @@ final class MachineConnection: ObservableObject {
     /// `GCodeUploader` can pace chunk-by-chunk sending off real socket
     /// backpressure instead of firing every chunk at once.
     func sendFileFrame(ptype: UInt8, payload: Data, completion: @escaping (Error?) -> Void) {
+        let sessionID = self.sessionID
         if let mockSimulator {
             mockSimulator.handleFileFrame(payloadSize: payload.count) { [weak self] in
+                guard let self, self.sessionID == sessionID else {
+                    completion(MachineConnectionError.notReady)
+                    return
+                }
                 completion(nil)
                 // `GCodeUploader.finishFrameTransfer()` puts itself in
-                // `.verifying` right after the End frame's completion and
+                // `.verifying` before sending the End frame and
                 // waits for a text line containing "ok"/"done"/"saved" to
                 // leave it — a real machine's own save-confirmation line.
                 // The mock supplies that line itself here rather than
                 // requiring a second round trip.
-                if ptype == MakeraFraming.ptypeFileEnd {
-                    self?.handleLine("ok")
+                if self.sessionID == sessionID, ptype == MakeraFraming.ptypeFileEnd {
+                    self.handleLine("ok")
                 }
             }
             return
@@ -544,8 +558,10 @@ final class MachineConnection: ObservableObject {
         }
         let frame = MakeraFraming.buildFrame(ptype: ptype, payload: payload)
         nonisolated(unsafe) let completion = completion
-        connection.send(content: frame, completion: .contentProcessed { error in
-            Task { @MainActor in completion(error) }
+        connection.send(content: frame, completion: .contentProcessed { [weak self] error in
+            Task { @MainActor in
+                completion(self?.sessionID == sessionID ? error : MachineConnectionError.notReady)
+            }
         })
     }
 
@@ -554,12 +570,13 @@ final class MachineConnection: ObservableObject {
     /// legacy `upload` flow: the raw file body, then a single 0x04 (Ctrl-D)
     /// terminator byte.
     func sendRawBytes(_ bytes: Data, completion: @escaping (Error?) -> Void) {
+        let sessionID = self.sessionID
         if let mockSimulator {
             // `connectMock()` always reports `.makera`, so `GCodeUploader`
             // never actually picks this path against the mock — handled
             // anyway so nothing silently hangs if that ever changes.
-            mockSimulator.handleFileFrame(payloadSize: bytes.count) {
-                completion(nil)
+            mockSimulator.handleFileFrame(payloadSize: bytes.count) { [weak self] in
+                completion(self?.sessionID == sessionID ? nil : MachineConnectionError.notReady)
             }
             return
         }
@@ -568,32 +585,42 @@ final class MachineConnection: ObservableObject {
             return
         }
         nonisolated(unsafe) let completion = completion
-        connection.send(content: bytes, completion: .contentProcessed { error in
-            Task { @MainActor in completion(error) }
+        connection.send(content: bytes, completion: .contentProcessed { [weak self] error in
+            Task { @MainActor in
+                completion(self?.sessionID == sessionID ? error : MachineConnectionError.notReady)
+            }
         })
     }
 
     private func startPolling() {
+        let sessionID = self.sessionID
         pollTimer?.invalidate()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.requestStatus() }
+            Task { @MainActor in
+                guard let self, self.sessionID == sessionID else { return }
+                self.requestStatus()
+            }
         }
     }
 
     // MARK: - Receiving
 
     private func startReceiving() {
+        let sessionID = self.sessionID
         guard let connection else { return }
         connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, _, isComplete, error in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, self.sessionID == sessionID else { return }
                 if let data, !data.isEmpty {
                     self.routeIncoming(data)
                 }
+                guard self.sessionID == sessionID else { return }
                 if let error {
                     self.lastError = "Receive error: \(error.localizedDescription)"
-                    self.isConnected = false
-                } else if !isComplete {
+                    self.disconnect()
+                } else if isComplete {
+                    self.disconnect()
+                } else {
                     self.startReceiving()
                 }
             }

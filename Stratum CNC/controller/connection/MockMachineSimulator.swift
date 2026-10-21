@@ -178,15 +178,15 @@ final class MockMachineSimulator {
             return
         }
 
-        if upper.hasPrefix("G0") || upper.hasPrefix("G1") {
-            applyMotion(from: upper)
-            after(0.12) { reply("ok") }
-            return
-        }
-
         if upper.hasPrefix("G10L20P0") {
             applyZero(from: upper)
             after(0.05) { reply("ok") }
+            return
+        }
+
+        if upper.hasPrefix("G0") || upper.hasPrefix("G1") {
+            applyMotion(from: upper)
+            after(0.12) { reply("ok") }
             return
         }
 

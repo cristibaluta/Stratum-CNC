@@ -22,13 +22,13 @@ struct Stratum_CNC_App: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Project") {
-                    // Add your new project logic here
+                    model.showingNewProject = true
                 }
                 .keyboardShortcut("N", modifiers: .command)
             }
             CommandGroup(after: .saveItem) {
                 Button("Save") {
-                    // Add your save logic here
+                    model.projectsStore.saveActiveProject()
                 }
                 .keyboardShortcut("S", modifiers: .command)
             }

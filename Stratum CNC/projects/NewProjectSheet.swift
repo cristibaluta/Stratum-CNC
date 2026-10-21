@@ -16,7 +16,7 @@ struct NewProjectSheet: View {
     let onCreate: (String) -> Void
 
     private var canCreate: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ProjectPaths.isValidName(name.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     var body: some View {
@@ -53,7 +53,7 @@ struct NewProjectSheet: View {
     private func create() {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !trimmed.isEmpty else {
+        guard ProjectPaths.isValidName(trimmed) else {
             return
         }
 

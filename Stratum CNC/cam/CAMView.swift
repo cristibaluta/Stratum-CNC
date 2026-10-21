@@ -134,10 +134,8 @@ struct CAMView: View {
                         return
                     }
                     // Imports asset to project directory
-                    if let _ = try? projectModel.importAsset(from: url) {
-                        // If success, load the asset into UI
-                        // We must use the same original url to load the file because security scope does not work in app dirs
-                        camModel.loadAndParseFileAt(url)
+                    if let asset = try? projectModel.importAsset(from: url) {
+                        camModel.loadAndParseFileAt(projectModel.paths.assetsDirectory.appendingPathComponent(asset.name))
                     }
                     url.stopAccessingSecurityScopedResource()
                 }

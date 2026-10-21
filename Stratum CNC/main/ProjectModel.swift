@@ -56,7 +56,7 @@ class ProjectModel: ObservableObject {
     @Published var project: Project
     @Published var projectData: ProjectData {
         didSet {
-            print("project data changed to: \(projectData)")
+            saveMetadataTrigger.send(())
         }
     }
     @Published var toolpaths: [ToolpathData]?
@@ -79,6 +79,7 @@ class ProjectModel: ObservableObject {
     // collapses into a single write once the user pauses.
     private let saveMetadataTrigger = PassthroughSubject<Void, Never>()
     private var cancellables = Set<AnyCancellable>()
+    private var loadedAssetNames = Set<String>()
 
     init(project: Project, paths: ProjectPaths) {
         self.project = project
@@ -118,15 +119,14 @@ class ProjectModel: ObservableObject {
 //        }
         camModel.onStockChanged = { [weak self] stock in
             self?.projectData.stock = stock
-            self?.saveMetadataTrigger.send(())
         }
+
+        loadProjectData()
 
         camModel.onToolpathsChanged = { [weak self] toolpaths in
             self?.toolpaths = toolpaths
             try? self?.saveToolpaths()
         }
-
-        loadProjectData()
 
         // Wired up only after the initial load/restore above has finished:
         // loadProjectData() itself calls camModel.loadAndParseFileAt for
@@ -136,15 +136,17 @@ class ProjectModel: ObservableObject {
         // a chance to apply it.
         camModel.onObjectsChanged = { [weak self] objects in
             self?.updateAssetTransforms(from: objects)
-            self?.saveMetadataTrigger.send(())
         }
 
         saveMetadataTrigger
-            .debounce(for: .milliseconds(5000), scheduler: DispatchQueue.main)
+            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             .sink { [weak self] in
                 try? self?.saveProjectMetadata()
             }
             .store(in: &cancellables)
+
+        // Upgrade legacy assets before a new toolpath can reference their IDs.
+        updateAssetTransforms(from: camModel.canvasState.objects)
     }
 
     func loadProjectData() {
@@ -157,8 +159,11 @@ class ProjectModel: ObservableObject {
         // saved position/scale/rotation on top of the freshly-parsed one.
         for asset in projectData.assets ?? [] {
             let url = paths.assetsDirectory.appendingPathComponent(asset.name)
-            if let object = camModel.loadAndParseFileAt(url), let transform = asset.transform {
-                camModel.canvasState.restoreTransform(transform, objectID: object.id)
+            if let object = camModel.loadAndParseFileAt(url, restoring: asset.objects) {
+                loadedAssetNames.insert(asset.name)
+                if asset.objects == nil, let transform = asset.transform {
+                    camModel.canvasState.restoreTransform(transform, objectID: object.id)
+                }
             }
         }
 
@@ -174,19 +179,26 @@ class ProjectModel: ObservableObject {
             toolpaths = []
         }
         self.toolpaths = toolpaths
+        camModel.toolpaths = toolpaths
     }
 
     func importAsset(from url: URL) throws -> AssetData {
-        // 1. Move asset from original location to assets folder in the project
-        let assetDestination = paths.assetsDirectory.appendingPathComponent(url.lastPathComponent)
-        if FileManager.default.fileExists(atPath: assetDestination.path) {
-            try? FileManager.default.removeItem(at: assetDestination)
+        // Keep existing imports intact, even when a different source has the
+        // same basename. A failed copy must not create a metadata entry.
+        let fileManager = FileManager.default
+        var assetDestination = paths.assetsDirectory.appendingPathComponent(url.lastPathComponent)
+        var suffix = 2
+        while fileManager.fileExists(atPath: assetDestination.path) {
+            let stem = url.deletingPathExtension().lastPathComponent
+            let ext = url.pathExtension.isEmpty ? "" : "." + url.pathExtension
+            assetDestination = paths.assetsDirectory.appendingPathComponent("\(stem) (\(suffix))\(ext)")
+            suffix += 1
         }
-        try? FileManager.default.copyItem(at: url, to: assetDestination)
+        try fileManager.copyItem(at: url, to: assetDestination)
 
         // 2. Add asset to json
         var assets = projectData.assets ?? []
-        let asset = AssetData(name: url.lastPathComponent, transform: nil)
+        let asset = AssetData(name: assetDestination.lastPathComponent, transform: nil)
         assets.append(asset)
         projectData.assets = assets
         try saveProjectMetadata()
@@ -202,15 +214,23 @@ class ProjectModel: ObservableObject {
     private func updateAssetTransforms(from objects: [D2_Object]) {
         guard var assets = projectData.assets, !assets.isEmpty else { return }
 
-        for object in objects {
-            guard let index = assets.firstIndex(where: { $0.name == object.name }) else { continue }
-            assets[index].transform = AssetTransform(x: object.position.x,
-                                                      y: object.position.y,
-                                                      width: object.width,
-                                                      height: object.height,
-                                                      rotation: object.rotationDegrees)
+        loadedAssetNames.formUnion(objects.compactMap(\.sourceAssetName))
+        for index in assets.indices where loadedAssetNames.contains(assets[index].name) {
+            assets[index].objects = objects.filter { $0.sourceAssetName == assets[index].name }.map { object in
+                AssetObjectData(id: object.id, name: object.name,
+                                transform: AssetTransform(x: object.position.x, y: object.position.y,
+                                                          width: object.width, height: object.height,
+                                                          rotation: object.rotationDegrees))
+            }
         }
         projectData.assets = assets
+    }
+
+    /// Flush pending edits before closing or quitting; debounce alone can lose
+    /// the final edit when this model is released before its timer fires.
+    func save() throws {
+        try saveProjectMetadata()
+        try saveToolpaths()
     }
 
     private func saveProjectMetadata() throws {
@@ -219,6 +239,8 @@ class ProjectModel: ObservableObject {
     }
 
     private func saveToolpaths() throws {
+        // Targets reference object IDs in project.json, so persist those first.
+        try saveProjectMetadata()
         let data = try encoder.encode(toolpaths)
         try data.write(to: paths.toolpathsFile, options: .atomic)
     }

@@ -184,7 +184,9 @@ final class MakeraFrameParser {
             bytesNeeded -= 1
             if bytesNeeded == 0 {
                 expectedLength = (Int(packetData[0]) << 8) | Int(packetData[1])
-                if expectedLength >= 0 && expectedLength <= MakeraFraming.maxFrameDataLength {
+                // Every frame needs at least a type byte and two CRC bytes.
+                // A zero length would otherwise leave readData waiting forever.
+                if expectedLength >= 3 && expectedLength <= MakeraFraming.maxFrameDataLength {
                     state = .readData
                     bytesNeeded = expectedLength
                 } else {

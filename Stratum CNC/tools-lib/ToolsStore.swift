@@ -7,6 +7,7 @@
 
 import Foundation
 import Observation
+import Combine
 
 @MainActor
 final class ToolsStore: ObservableObject {
@@ -23,15 +24,10 @@ final class ToolsStore: ObservableObject {
 
     private let fileManager = FileManager.default
 
-    private var documentDirectory: URL {
-        fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-    }
+    private let toolsFileURL: URL
 
-    private var toolsFileURL: URL {
-        documentDirectory.appendingPathComponent("tools.json")
-    }
-
-    init() {
+    init(toolsFileURL: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("tools.json")) {
+        self.toolsFileURL = toolsFileURL
         do {
             try load()
         } catch {
@@ -118,8 +114,11 @@ final class ToolsStore: ObservableObject {
         for (index, tool) in tools.enumerated() { indexByID[tool.id] = index }
 
         var added = 0, updated = 0, skipped = 0
-        for tool in imported {
+        for var tool in imported {
+            var importedIDs = Set<UUID>()
+            tool.presets = tool.presets.filter { importedIDs.insert($0.id).inserted }
             guard let index = indexByID[tool.id] else {
+                indexByID[tool.id] = tools.count
                 tools.append(tool)
                 added += 1
                 continue

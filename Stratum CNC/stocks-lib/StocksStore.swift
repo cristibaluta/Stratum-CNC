@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import Observation
 
 @MainActor
@@ -19,15 +20,12 @@ final class StocksStore: ObservableObject {
 
     private let fileManager = FileManager.default
 
-    private var documentDirectory: URL {
-        fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-    }
+    private let stocksFileURL: URL
 
-    private var stocksFileURL: URL {
-        documentDirectory.appendingPathComponent("materials.json")
-    }
-
-    init() {
+    init(stocksFileURL: URL = FileManager.default.urls(for: .documentDirectory,
+                                                      in: .userDomainMask)[0]
+        .appendingPathComponent("materials.json")) {
+        self.stocksFileURL = stocksFileURL
         self.library = StockLibrary(stocks: [])
 
         do {
@@ -41,9 +39,6 @@ final class StocksStore: ObservableObject {
 
     func load() throws {
         if !fileManager.fileExists(atPath: stocksFileURL.path) {
-            try copyDefaultStocks()
-        } else {
-            try fileManager.removeItem(atPath: stocksFileURL.path)
             try copyDefaultStocks()
         }
 

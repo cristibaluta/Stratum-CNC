@@ -260,7 +260,7 @@ private struct NumberField2: View {
     }
 
     private func commit() {
-        guard let number = Double(text) else {
+        guard let number = Double(text), number.isFinite else {
             text = Self.format(value)
             return
         }
@@ -272,12 +272,12 @@ private struct NumberField2: View {
 
     private static func format(_ value: CGFloat) -> String {
         if value.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(Int(value))
+            return String(format: "%.0f", locale: Locale(identifier: "en_US_POSIX"), Double(value))
         }
 
         return String(
             format: "%.3f",
-            locale: Locale.current,
+            locale: Locale(identifier: "en_US_POSIX"),
             Double(value)
         )
         .trimmingCharacters(in: CharacterSet(charactersIn: "0"))

@@ -64,23 +64,24 @@ enum GerberParser {
             guard let text = String(data: data, encoding: .utf8) else {
                 continue
             }
-            let layer = file.lastPathComponent
-            let extensionName = file.pathExtension.lowercased()
-
-            // Copper is special: a Gerber line is a centerline plus an aperture
-            // width, not a hairline. Convert copper into physical filled polygons
-            // and union all overlapping geometry before exposing it as DXF.
-            let entities: [DXF.Entity]
-            if extensionName == "gtl" || extensionName == "gbl" {
-                entities = CopperGerberParser(source: text, layer: layer).parse()
-            } else {
-                entities = SingleGerberParser(source: text, layer: layer).parse()
-            }
-
-            parsedFiles.append(ParsedFile(name: layer, entities: entities))
+            parsedFiles.append(parseFile(text, name: file.lastPathComponent))
         }
 
         return Result(files: parsedFiles)
+    }
+
+    static func parseFile(_ text: String, name: String) -> ParsedFile {
+        let ext = (name as NSString).pathExtension.lowercased()
+        let entities: [DXF.Entity]
+        switch ext {
+        case "drl":
+            entities = ExcellonParser(source: text, layer: name).parse()
+        case "gtl", "gbl":
+            entities = CopperGerberParser(source: text, layer: name).parse()
+        default:
+            entities = SingleGerberParser(source: text, layer: name).parse()
+        }
+        return ParsedFile(name: name, entities: entities)
     }
 
     private static func isGerberFile(_ url: URL) -> Bool {
@@ -107,9 +108,7 @@ enum GerberParser {
         for entry in try archive.entries {
             let entryPath = entry.path
             // Prevent ZIP path traversal.
-            let destination = directory.appendingPathComponent(entryPath)
-
-            guard destination.path.hasPrefix(directory.path + "/") else {
+            guard let destination = ArchiveEntryPath.destination(for: entryPath, in: directory) else {
                 continue
             }
 

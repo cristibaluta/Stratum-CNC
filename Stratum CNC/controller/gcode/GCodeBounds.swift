@@ -68,6 +68,15 @@ private struct Tracker {
         var wordX: Double?, wordY: Double?, wordZ: Double?
         var wordI: Double?, wordJ: Double?
 
+        // Modal settings apply to the entire block, regardless of word order.
+        for (letter, value) in words where letter == "G" {
+            switch value {
+            case 20: scale = 25.4
+            case 21: scale = 1.0
+            default: break
+            }
+        }
+
         for (letter, value) in words {
             switch letter {
                 case "G":
@@ -99,7 +108,8 @@ private struct Tracker {
         if let wordY { newY = relative ? y.map { $0 + wordY } : wordY }
 
         let hasAxisWord = wordX != nil || wordY != nil || wordZ != nil
-        if let motion, motion != 0, hasAxisWord {
+        let hasArcCenter = (motion == 2 || motion == 3) && (wordI != nil || wordJ != nil)
+        if let motion, motion != 0, hasAxisWord || hasArcCenter {
             // A cutting move. Include where it starts as well as where it
             // ends: the plunge (a Z-only feed move) carries no X/Y words but
             // is still cutting at the current XY.

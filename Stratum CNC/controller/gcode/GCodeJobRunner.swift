@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 /// Streams a sequence of lines to the machine, one at a time, only
 /// advancing once the previous line has been acknowledged.
@@ -52,6 +53,7 @@ final class GCodeJobRunner: ObservableObject {
     /// Called once the last line has been acknowledged (state becomes
     /// `.completed`). Not called for `stop()` — an abort isn't a completion.
     var onFinish: (() -> Void)?
+    var onFailure: (() -> Void)?
 
     /// True from the moment a line is sent until the machine acknowledges
     /// it. Tracked separately from `state` because a feed-hold can pause
@@ -72,8 +74,8 @@ final class GCodeJobRunner: ObservableObject {
         guard !isActive else { return }
 
         let cleaned = lines
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && !$0.hasPrefix(";") && !$0.hasPrefix("(") }
+            .map(Self.removingComments)
+            .filter { !$0.isEmpty }
 
         guard !cleaned.isEmpty else { return }
 
@@ -86,6 +88,18 @@ final class GCodeJobRunner: ObservableObject {
     }
 
     /// Stops queuing further lines. Resume with `resume()`.
+    private static func removingComments(_ line: String) -> String {
+        var depth = 0
+        var result = ""
+        for character in line {
+            if character == ";", depth == 0 { break }
+            if character == "(" { depth += 1; continue }
+            if character == ")", depth > 0 { depth -= 1; continue }
+            if depth == 0 { result.append(character) }
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     func pause() {
         guard state == .running else { return }
         state = .paused
@@ -116,7 +130,15 @@ final class GCodeJobRunner: ObservableObject {
     /// accept them.
     func handleMachineLine(_ line: String) {
         guard isActive else { return }
-        guard line.localizedCaseInsensitiveContains("ok") else { return }
+        let response = line.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if response.hasPrefix("error") || response.hasPrefix("alarm") {
+            queue.removeAll()
+            awaitingAck = false
+            state = .failed(line)
+            onFailure?()
+            return
+        }
+        guard awaitingAck, response == "ok" || response.hasPrefix("ok ") else { return }
         // Record the ack even while paused, so `resume()` knows whether
         // there's still a line in flight to wait for.
         awaitingAck = false

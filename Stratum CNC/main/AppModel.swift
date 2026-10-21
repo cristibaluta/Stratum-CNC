@@ -14,6 +14,7 @@ class AppModel: ObservableObject {
     @Published var toolsStore = ToolsStore()
     @Published var stocksStore = StocksStore()
 
+    @Published var showingNewProject = false
     @Published var showingToolsSheet: Bool = false
     @Published var showingStocksSheet: Bool = false
 

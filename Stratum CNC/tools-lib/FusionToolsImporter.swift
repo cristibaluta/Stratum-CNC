@@ -135,7 +135,7 @@ enum FusionToolsImporter {
         }
         func rpm(_ value: Double?) -> Int? {
             guard let value, value > 0 else { return nil }
-            return Int(value.rounded())
+            return Int(exactly: value.rounded())
         }
 
         return (f.startValues?.presets ?? []).map { p in
@@ -360,9 +360,11 @@ private enum ZipReader {
             let extraLength = u16(offset + 30)
             let commentLength = u16(offset + 32)
             let localOffset = u32(offset + 42)
+            let entryEnd = offset + 46 + nameLength + extraLength + commentLength
+            guard entryEnd <= b.count else { throw FusionImportError.notAnArchive }
             let nameBytes = b[(offset + 46)..<(offset + 46 + nameLength)]
             let name = String(decoding: nameBytes, as: UTF8.self)
-            offset += 46 + nameLength + extraLength + commentLength
+            offset = entryEnd
 
             guard (name as NSString).lastPathComponent.lowercased() == wanted else { continue }
 

@@ -13,6 +13,7 @@ final class D2_Object {
 
     let id: UUID
     var name: String
+    var sourceAssetName: String?
 
     /// Paths normalized so their origin is at (0, 0).
     let paths: [STBezierPath]

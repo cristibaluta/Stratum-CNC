@@ -125,7 +125,10 @@ class ControllerModel: ObservableObject {
     /// SD path of a job whose `play` is being held back until the pre-run
     /// leveling finishes. Non-nil means "a run is being prepared"; clearing
     /// it (Stop does) cancels the `play`.
-    private var pendingPlayPath: String?
+    private var pendingPlayID = UUID()
+    private var pendingPlayPath: String? {
+        didSet { pendingPlayID = UUID() }
+    }
 
     /// When on, the pre-run macro also probes Z and zeroes the work Z
     /// coordinate at the trigger point (same two lines as `autoZeroProbe()`)
@@ -218,6 +221,9 @@ class ControllerModel: ObservableObject {
         jobRunner.onFinish = { [weak self] in
             self?.levelingFinished()
         }
+        jobRunner.onFailure = { [weak self] in
+            self?.pendingPlayPath = nil
+        }
         connection.onLine = { [weak self] line in
             self?.jobRunner.handleMachineLine(line)
             self?.uploader.handleMachineLine(line)
@@ -232,8 +238,9 @@ class ControllerModel: ObservableObject {
             .store(in: &cancellables)
         connection.$isConnected
             .removeDuplicates()
+            .dropFirst()
             .sink { [weak self] connected in
-                Task { @MainActor in self?.connectionChanged(connected) }
+                self?.connectionChanged(connected)
             }
             .store(in: &cancellables)
 
@@ -459,6 +466,11 @@ class ControllerModel: ObservableObject {
             alerts.requestAuthorization()
             return
         }
+        pendingPlayPath = nil
+        pendingLevelingArea = nil
+        jobRunner.stop()
+        uploader.connectionClosed()
+        jogController.stopAll()
         // `lastError` is only set by failures, not by an ordinary disconnect.
         if connection.lastError != nil, ["Run", "Hold", "Pause"].contains(lastBaseState) {
             alerts.post(MachineAlert(
@@ -528,7 +540,8 @@ class ControllerModel: ObservableObject {
     /// `jobRunner` macro finishing, hence the `pendingPlayPath` check.
     private func levelingFinished() {
         guard let path = pendingPlayPath else { return }
-        Task { await self.playWhenIdle(path) }
+        let runID = pendingPlayID
+        Task { await self.playWhenIdle(path, runID: runID) }
     }
 
     /// Starts `play` only once the machine itself reports Idle, not merely
@@ -536,14 +549,15 @@ class ControllerModel: ObservableObject {
     /// cycle is assumed (see `autoZeroProbe`), not confirmed for this
     /// firmware, and starting a program in the middle of probing would be
     /// bad. Bails out on Alarm, Stop, disconnect, or after ten minutes.
-    private func playWhenIdle(_ path: String) async {
+    private func playWhenIdle(_ path: String, runID: UUID) async {
+        guard pendingPlayID == runID else { return }
         let deadline = Date().addingTimeInterval(600)
 
         // Let a status report that predates the last line clear out.
         connection.requestStatus()
         try? await Task.sleep(nanoseconds: 1_000_000_000)
 
-        while pendingPlayPath == path {
+        while pendingPlayID == runID && pendingPlayPath == path {
             let state = connection.status?.state ?? ""
 
             if !connection.isConnected || state.hasPrefix("Alarm") || Date() > deadline {
@@ -558,7 +572,7 @@ class ControllerModel: ObservableObject {
         }
 
         // Stop (or a newer run) cleared/replaced it while waiting.
-        guard pendingPlayPath == path else { return }
+        guard pendingPlayID == runID, pendingPlayPath == path else { return }
         pendingPlayPath = nil
         sendRawCommand("play \(path)", recordInHistory: false)
     }

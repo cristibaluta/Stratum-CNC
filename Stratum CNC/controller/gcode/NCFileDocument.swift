@@ -167,6 +167,7 @@ final class NCFileDocument: ObservableObject {
     /// to touch every `@Published` property directly; called with `await`
     /// from the background `Task.detached` in `load(from:)`.
     private func finishLoad(parsed: ParsedGCode, url: URL, fileName: String) {
+        guard !Task.isCancelled else { return }
         self.lines = parsed.lines
         self.toolpathSegments = parsed.toolpathSegments
         self.rebuildVertexPrefixSums()
@@ -178,11 +179,15 @@ final class NCFileDocument: ObservableObject {
     }
 
     private func failLoad(_ error: Error) {
+        guard !Task.isCancelled else { return }
         self.isLoading = false
         self.lastError = "Couldn't read file: \(error.localizedDescription)"
     }
 
     func load(from string: String) {
+        loadTask?.cancel()
+        loadTask = nil
+        isLoading = false
         let parser = GCodeParser()
         let code: ParsedGCode = parser.parse(string)
 

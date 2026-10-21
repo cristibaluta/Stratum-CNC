@@ -34,7 +34,9 @@ class CAMModel: ObservableObject {
     let canvasZoomModel = CanvasZoomModel()
 
     // ---- TEMPORARY TOOLPATH EDITING ----
-    @Published var toolpaths: [ToolpathData] = []
+    @Published var toolpaths: [ToolpathData] = [] {
+        didSet { onToolpathsChanged?(toolpaths) }
+    }
 
     /// The toolpath whose settings are open in the right-hand panel; nil closes the panel.
     /// Shape picking follows it: while a toolpath is open the canvas is in picking
@@ -366,37 +368,34 @@ class CAMModel: ObservableObject {
     }
 
     @discardableResult
-    func loadAndParseFileAt(_ url: URL) -> D2_Object? {
-
-        let ext = url.pathExtension
-
-        switch ext.lowercased() {
-            case "svg":
-                if let obj = SVGImporter().parse(url: url) {
-                    canvasState.add(obj, select: false)
-                    return obj
-                }
-
-            case "dxf":
-                if let obj = DXFImporter().parse(url: url) {
-                    canvasState.add(obj, select: false)
-                    return obj
-                }
-
-            case "step", "stp":
-                print("import step")
-
-            case "zip":
-                let objs: [D2_Object] = GerberImporter().parse(url: url)
-                for obj in objs {
-                    canvasState.add(obj, select: false)
-                }
-                return objs.first
-
-            default:
-                print("Unsupported file type: \(ext)")
+    func loadAndParseFileAt(_ url: URL, restoring savedObjects: [AssetObjectData]? = nil) -> D2_Object? {
+        let imported: [D2_Object]
+        switch url.pathExtension.lowercased() {
+        case "svg": imported = SVGImporter().parse(url: url).map { [$0] } ?? []
+        case "dxf": imported = DXFImporter().parse(url: url).map { [$0] } ?? []
+        case "zip": imported = GerberImporter().parse(url: url)
+        default: return nil
         }
-        return nil
+
+        var restored: [D2_Object] = []
+        for parsed in imported {
+            let object: D2_Object
+            if let savedObjects {
+                // The saved list is authoritative: omitted archive layers were deleted.
+                guard let saved = savedObjects.first(where: { $0.name == parsed.name }) else { continue }
+                object = D2_Object(id: saved.id, name: parsed.name, paths: parsed.paths,
+                                   entities: parsed.entities, contours: parsed.contours,
+                                   position: CGPoint(x: saved.transform.x, y: saved.transform.y),
+                                   originalSize: parsed.originalSize, width: max(saved.transform.width, 0.001))
+                object.setRotation(saved.transform.rotation)
+            } else {
+                object = parsed
+            }
+            object.sourceAssetName = url.lastPathComponent
+            restored.append(object)
+            canvasState.add(object, select: false)
+        }
+        return restored.first
     }
 
     func clear() {

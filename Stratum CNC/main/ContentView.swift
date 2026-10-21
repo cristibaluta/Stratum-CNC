@@ -24,6 +24,16 @@ struct ContentView: View {
         }
         .frame(minWidth: 800, minHeight: 600)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .sheet(isPresented: $appModel.showingNewProject) {
+            NewProjectSheet { name in
+                do {
+                    let project = try projectsStore.createProject(name: name)
+                    projectsStore.open(project)
+                } catch {
+                    print("Failed to create project: \(error)")
+                }
+            }
+        }
         // `onDismiss` also fires after a normal pick, but by then the continuation
         // is already resolved, so resolving again with nil is a no-op.
         .sheet(isPresented: $appModel.showingToolsSheet, onDismiss: { appModel.resolveToolPick(nil) }) {
@@ -47,5 +57,8 @@ struct ContentView: View {
         // above rather than relying on inheriting it from here.
         .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
         .tint(.purple)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            projectsStore.saveActiveProject()
+        }
     }
 }
