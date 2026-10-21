@@ -145,9 +145,13 @@ struct MetalCanvasView: NSViewRepresentable {
         context.coordinator.zoomModel = zoomModel
         renderer.onFrameRendered = { [weak coordinator = context.coordinator] in
             coordinator?.updateZoomPercent()
+            coordinator?.zoomModel?.frameRendered.send()
         }
         zoomModel?.installResetAction { [weak coordinator = context.coordinator] in
             coordinator?.resetToTrueToLife()
+        }
+        zoomModel?.installProjection { [weak coordinator = context.coordinator] world in
+            coordinator?.normalizedViewPoint(forWorld: world)
         }
 
         if interactionMode == .locked2D {
@@ -733,6 +737,27 @@ struct MetalCanvasView: NSViewRepresentable {
                 return
             }
             zoomModel.updatePercent(Double(pointsPerWorldUnit / truePointsPerWorldUnit) * 100)
+        }
+
+        /// World point (z = 0) → where it is in this view, as fractions of its
+        /// size with the origin top-left (see `CanvasZoomModel.normalizedViewPoint`).
+        /// The inverse of `pointerEvent(for:)`'s view point → world point, so
+        /// it is only meaningful for the top-down view CAM's 2D canvas is
+        /// locked to; the camera's right/up vectors are used so it stays
+        /// correct regardless.
+        func normalizedViewPoint(forWorld point: CGPoint) -> CGPoint? {
+            guard let camera = renderer?.camera else {
+                return nil
+            }
+            let halfHeight = camera.distance * tan(camera.fov * 0.5)
+            let halfWidth = halfHeight * camera.aspectRatio
+            guard halfWidth > 0, halfHeight > 0 else {
+                return nil
+            }
+            let offset = SIMD3<Float>(Float(point.x), Float(point.y), 0) - camera.target
+            let ndcX = simd_dot(offset, camera.right) / halfWidth
+            let ndcY = simd_dot(offset, camera.up) / halfHeight
+            return CGPoint(x: CGFloat((ndcX + 1) / 2), y: CGFloat(1 - (ndcY + 1) / 2))
         }
 
         /// Sets `camera.distance` so 1 mm of world space renders as 1

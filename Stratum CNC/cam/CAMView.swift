@@ -47,24 +47,17 @@ struct CAMView: View {
             if $camModel.canvasState.objects.isEmpty {
                 emptyView
             } else {
-                CAM_Metal_View(canvasState: camModel.canvasState, zoomModel: camModel.canvasZoomModel)
+                // The "Add toolpath" tooltip sits on the selected shapes, inside the canvas
+                // view (it needs the camera). Hidden while a toolpath is open.
+                CAM_Metal_View(canvasState: camModel.canvasState,
+                               zoomModel: camModel.canvasZoomModel,
+                               addToolpathShapeCount: camModel.shapesForNewToolpath.count,
+                               onAddToolpath: {
+                                   withAnimation(.easeOut(duration: 0.15)) {
+                                       camModel.addToolpathFromSelection()
+                                   }
+                               })
                     .id(ObjectIdentifier(camModel.canvasState))
-
-                // Centered at the top of the canvas: offers a toolpath for the
-                // shapes just selected. Never while a toolpath is open.
-                VStack {
-                    if !camModel.shapesForNewToolpath.isEmpty {
-                        AddToolpathTooltip(shapeCount: camModel.shapesForNewToolpath.count) {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                camModel.addToolpathFromSelection()
-                            }
-                        }
-                        .padding(.top, 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                    Spacer()
-                }
-                .animation(.easeOut(duration: 0.15), value: camModel.shapesForNewToolpath.isEmpty)
 
                 // Centered at the bottom of the canvas, above everything else.
                 VStack {
@@ -292,32 +285,6 @@ struct CAMView: View {
         )
     }
 
-}
-
-/// Floating bar at the top of the canvas, shown while shapes are selected and
-/// no toolpath is open. One click creates a toolpath that cuts those shapes.
-private struct AddToolpathTooltip: View {
-
-    let shapeCount: Int
-    let onAdd: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Text(shapeCount == 1 ? "1 shape selected" : "\(shapeCount) shapes selected")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Button(action: onAdd) {
-                Label("Add toolpath", systemImage: "plus")
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.separator))
-        .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
-    }
 }
 
 /// A vertical ScrollView that is only as tall as its content — up to whatever

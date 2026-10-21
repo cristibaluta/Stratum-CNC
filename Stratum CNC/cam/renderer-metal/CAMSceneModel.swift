@@ -17,6 +17,11 @@ final class CAMSceneModel: ObservableObject {
     /// that matters here: see the ordering note in `rebuild()`.
     @Published private(set) var renderObjects: [RenderObject] = []
 
+    /// World-space bounding box of the shapes selected with the mouse (the plain
+    /// selection, not the shapes picked for a toolpath), or nil when none are.
+    /// What the "Add toolpath" tooltip points at.
+    @Published private(set) var selectionWorldBounds: CGRect?
+
     /// Window-background color (appearance-aware) for `MetalCanvasView.clearColor`.
     @Published private(set) var backgroundColor = SIMD4<Float>(0.2, 0.2, 0.2, 1)
 
@@ -138,6 +143,17 @@ final class CAMSceneModel: ObservableObject {
         objects.append(.ruler(z: 0, length: Style.rulerLength, color: Style.rulerColor))
         if canvasState.isStockVisible, let stock = canvasState.stock {
             objects.append(.stockBox(for: stock, color: stock.material.surfaceColor))
+        }
+
+        var selectionBounds: CGRect?
+        if !canvasState.isPickingPaths, !canvasState.selectedPaths.isEmpty {
+            let selected = Set(canvasState.selectedPaths)
+            for path in paths where selected.contains(PathSelection(objectID: path.objectID, pathIndex: path.pathIndex)) {
+                selectionBounds = selectionBounds.map { $0.union(path.worldBounds) } ?? path.worldBounds
+            }
+        }
+        if selectionWorldBounds != selectionBounds {
+            selectionWorldBounds = selectionBounds
         }
 
         renderPaths = paths

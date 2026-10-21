@@ -2,10 +2,19 @@
 //  CanvasZoomModel.swift
 //  Stratum CNC
 //
+//  Created by Cristian Baluta on 22.10.2026.
+//
+
+
+//
+//  CanvasZoomModel.swift
+//  Stratum CNC
+//
 //  Created by Cristian Baluta on 22.09.2026.
 //
 
 import Foundation
+import Combine
 
 /// Bridges a `CanvasZoomButton` to the `MetalCanvasView` it controls. One
 /// instance per canvas — CAM's locked 2D view and the controller's free 3D
@@ -50,6 +59,32 @@ final class CanvasZoomModel: ObservableObject {
     /// Called only by `MetalCanvasView.Coordinator`, once per frame drawn.
     func updatePercent(_ value: Double) {
         percent = value
+    }
+
+    // MARK: Viewport (for views anchored to a spot on the canvas)
+
+    /// Fires after every frame the canvas draws, i.e. after any pan, zoom or
+    /// resize. Deliberately a plain subject rather than a `@Published`: only
+    /// the few views that follow a point on the canvas (see
+    /// `CAM_Metal_View`'s "Add toolpath" tooltip) subscribe, so the rest of
+    /// the screen isn't re-evaluated on every pan tick.
+    let frameRendered = PassthroughSubject<Void, Never>()
+
+    /// Installed by `MetalCanvasView.makeNSView`; `nil` until the canvas has a camera.
+    private var projection: ((CGPoint) -> CGPoint?)?
+
+    /// Where a world point (mm, z = 0) currently is on screen, as fractions of
+    /// the canvas size: x from 0 (left) to 1 (right), y from 0 (top) to 1
+    /// (bottom) — the SwiftUI convention, so multiply by the size of a view
+    /// that covers the canvas. Outside 0...1 means off screen. `nil` until the
+    /// canvas has a camera.
+    func normalizedViewPoint(forWorld point: CGPoint) -> CGPoint? {
+        projection?(point)
+    }
+
+    /// Called only by `MetalCanvasView.makeNSView`.
+    func installProjection(_ projection: @escaping (CGPoint) -> CGPoint?) {
+        self.projection = projection
     }
 
     /// Called only by `MetalCanvasView.makeNSView`.
