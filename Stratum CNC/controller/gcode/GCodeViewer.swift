@@ -22,6 +22,13 @@ struct GCodeViewer: View {
     /// Observed directly for the same reason as `uploader` above — used to
     /// disable "play" while there's nothing to send to.
     @ObservedObject var connection: SL.Connection
+    /// Which list sits above the table: the detected toolpaths or the macros.
+    var mode: GCodePanelMode = .gcode
+    /// Macro selection and parameters. Observed directly so edits redraw here.
+    @ObservedObject var macros: MacroStore
+    /// Streams a macro's generated lines to the machine
+    /// (`ControllerModel.startJob(lines:)`).
+    var onRunMacro: (([String]) -> Void)? = nil
     var highlightedLine: Int? = nil
     /// Forwarded straight to `GCodeTableView`'s `onLineSelected` — see there
     /// for what "selected" covers. `ControllerView` supplies the closure
@@ -62,11 +69,31 @@ struct GCodeViewer: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            toolpathsView
-                .frame(height: 200)
-            GCodeTableView(document: model.document,
-                           highlightedLine: machineLine ?? highlightedLine,
-                           requestedLine: model.requestedLine, onLineSelected: onLineSelected)
+            switch mode {
+                case .gcode:
+                    toolpathsView
+                        .frame(height: 200)
+                case .macros:
+                    MacrosListView(store: macros)
+                        .frame(height: 130)
+            }
+            if mode == .macros, let macro = macros.selectedMacro {
+                MacroDetailView(store: macros,
+                                macro: macro,
+                                canRun: canRunMacro,
+                                onRun: { onRunMacro?($0) })
+            }
+            switch mode {
+                case .gcode:
+                    GCodeTableView(document: model.document,
+                                   highlightedLine: machineLine ?? highlightedLine,
+                                   requestedLine: model.requestedLine, onLineSelected: onLineSelected)
+                case .macros:
+                    // Same table, showing the selected macro's generated G-code.
+                    GCodeTableView(document: macros.document,
+                                   highlightedLine: nil,
+                                   requestedLine: nil, onLineSelected: nil)
+            }
             jobProgress
             commandBar
                 .frame(height: 36)
@@ -205,6 +232,12 @@ struct GCodeViewer: View {
     /// start that flow.
     private var canStartJob: Bool {
         !uploader.isActive && !model.document.lines.isEmpty
+    }
+
+    /// A macro streams straight to the machine, so it needs a connection and
+    /// nothing else already moving it or uploading.
+    private var canRunMacro: Bool {
+        connection.isConnected && !uploader.isActive && connection.status?.isBusy != true
     }
 
     /// Feed-held, per the machine's own status report — so this is also

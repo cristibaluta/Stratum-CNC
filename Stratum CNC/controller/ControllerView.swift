@@ -121,19 +121,9 @@ struct ControllerView: View {
 
                 GroupBox(label:
                     HStack(alignment: .top, spacing: 8) {
-                        Button {
-                            model.connection.requestStatus()
-                        } label: {
-                            Text("G-CODE")
-                        }
-                        .buttonStyle(.borderless)
+                        panelModeButton("G-CODE", mode: .gcode)
                         Divider().frame(height: 14)// The divider likes to expand if not constrained
-                        Button {
-                            model.connection.requestStatus()
-                        } label: {
-                            Text("MACROS")
-                        }
-                        .buttonStyle(.borderless)
+                        panelModeButton("MACROS", mode: .macros)
                         Spacer()
                     }
                     .padding(.top, 4)
@@ -141,6 +131,9 @@ struct ControllerView: View {
                     GCodeViewer(model: gCodeModel,
                                 uploader: model.uploader,
                                 connection: model.connection,
+                                mode: model.gcodePanelMode,
+                                macros: model.macros,
+                                onRunMacro: { model.startJob(lines: $0) },
                                 highlightedLine: gCodeModel.scrubLine,
                                 onLineSelected: scrubTo,
                                 onPlay: {
@@ -289,6 +282,18 @@ struct ControllerView: View {
     }
 
     // MARK: - Panels
+
+    private func panelModeButton(_ title: String, mode: GCodePanelMode) -> some View {
+        let isSelected = model.gcodePanelMode == mode
+        return Button {
+            model.gcodePanelMode = mode
+        } label: {
+            Text(title)
+                .fontWeight(isSelected ? .bold : .regular)
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+        }
+        .buttonStyle(.borderless)
+    }
 
     private var toolpathParamsPanels: some View {
         VStack(alignment: .leading, spacing: 12) {

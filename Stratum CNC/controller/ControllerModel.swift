@@ -102,6 +102,13 @@ class ControllerModel: ObservableObject {
     @Published var isShowingRunReview = false
 
     @Published var isGCodeImporterPresented = false
+
+    /// The right-hand G-CODE / MACROS tabs. Only one is shown at a time.
+    @Published var gcodePanelMode: GCodePanelMode = .gcode
+
+    /// Built-in macros (selection and parameters). Observed directly by the
+    /// views that show it, like `scene`.
+    let macros = MacroStore()
     @Published var isShowingCommandPalette = false
     @Published var isLightOn = false
     @Published var terminalAutoScroll = true
