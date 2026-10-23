@@ -50,6 +50,13 @@ enum RenderRole: Hashable {
     /// toolpath it was measured from. Rebuilt by
     /// `CanvasSceneModel.updateBoundingBox`.
     case boundingBox
+    /// Rapid moves of the macro currently selected in the controller's MACROS
+    /// tab. Kept apart from `.toolpathRapid` so previewing a macro never
+    /// touches the loaded program's geometry: the program is only hidden, and
+    /// comes back without a reload. Follows `xyOffset` like the toolpath.
+    case macroRapid
+    /// Cutting moves of the previewed macro. See `.macroRapid`.
+    case macroCutting
 }
 
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
@@ -521,7 +528,9 @@ extension RenderObject {
 
     static func toolpath(from segments: [ToolpathSegment],
                          rapidColor: SIMD4<Float> = SIMD4<Float>(1.0, 0.85, 0.2, 1.0),
-                         cuttingColor: SIMD4<Float> = SIMD4<Float>(0.2, 0.8, 1.0, 1.0)) -> [RenderObject] {
+                         cuttingColor: SIMD4<Float> = SIMD4<Float>(0.2, 0.8, 1.0, 1.0),
+                         rapidRole: RenderRole = .toolpathRapid,
+                         cuttingRole: RenderRole = .toolpathCutting) -> [RenderObject] {
 
         guard !segments.isEmpty else {
             return []
@@ -544,13 +553,13 @@ extension RenderObject {
 
         var objects: [RenderObject] = []
         if !rapidPoints.isEmpty {
-            objects.append(RenderObject(role: .toolpathRapid,
+            objects.append(RenderObject(role: rapidRole,
                                         points: rapidPoints,
                                         color: rapidColor,
                                         primitive: .lineList))
         }
         if !cuttingPoints.isEmpty {
-            objects.append(RenderObject(role: .toolpathCutting,
+            objects.append(RenderObject(role: cuttingRole,
                                         points: cuttingPoints,
                                         color: cuttingColor,
                                         primitive: .lineList))

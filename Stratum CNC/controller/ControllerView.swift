@@ -92,7 +92,7 @@ struct ControllerView: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if gCodeModel.document.lines.isEmpty {
+            } else if gCodeModel.document.lines.isEmpty && model.gcodePanelMode != .macros {
                 VStack {
                     Spacer()
                     emptyState
@@ -102,6 +102,9 @@ struct ControllerView: View {
             } else {
                 CanvasSection(scene: model.scene, gCodeModel: gCodeModel,
                               camModel: camModel, connection: model.connection,
+                              macros: model.macros,
+                              macroDocument: model.macros.document,
+                              showsMacroPreview: model.gcodePanelMode == .macros,
                               isStockVisible: stockVisibleBinding,
                               isShowingCanvasControlsSettings: $isShowingCanvasControlsSettings,
                               onReloadFromCAM: {
@@ -424,6 +427,15 @@ private struct CanvasSection: View {
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var camModel: CAMModel
     let connection: MachineConnection
+    /// Selection of the MACROS tab. Observed so picking another macro redraws.
+    @ObservedObject var macros: MacroStore
+    /// The selected macro's generated G-code, parsed like any program. It is
+    /// its own object (not the loaded program's), which is what lets the canvas
+    /// preview a macro without ever replacing `gCodeModel.document`.
+    @ObservedObject var macroDocument: NCFileDocument
+    /// True while the MACROS tab is the active one. With a macro selected the
+    /// canvas then shows it in place of the loaded program.
+    let showsMacroPreview: Bool
     let isStockVisible: Binding<Bool>
     @Binding var isShowingCanvasControlsSettings: Bool
     let onReloadFromCAM: () -> Void
@@ -480,6 +492,18 @@ private struct CanvasSection: View {
                                 toolRadii: gCodeModel.toolRadiiByLine())
     }
 
+    /// Shows the selected macro on the canvas while the MACROS tab is active,
+    /// and puts the loaded program back otherwise. Safe to call any number of
+    /// times; the program is only hidden, never reloaded or re-parsed.
+    private func syncMacroPreview() {
+        if showsMacroPreview, macros.selectedMacro != nil {
+            scene.showMacroPreview(macroDocument.toolpathSegments)
+        } else {
+            let counts = gCodeModel.document.toolpathVertexCounts(upTo: gCodeModel.scrubLine)
+            scene.hideMacroPreview(restoringProgramVertexCounts: counts)
+        }
+    }
+
     private func forceHeightmapRefresh() {
         scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
                              document: gCodeModel.document,
@@ -490,7 +514,7 @@ private struct CanvasSection: View {
 
     private func handleScrubScroll(_ event: NSEvent) {
         let totalLines = gCodeModel.document.lines.count
-        guard totalLines > 0 else {
+        guard totalLines > 0, !scene.isMacroPreviewActive else {
             return
         }
 
@@ -568,7 +592,7 @@ private struct CanvasSection: View {
                             renderMode: scene.renderMode,
                             xyOffset: scene.xyOffset,
                             stockColor: scene.stockColor,
-                            heightmapMesh: scene.heightmapMesh,
+                            heightmapMesh: scene.isMacroPreviewActive ? nil : scene.heightmapMesh,
                             clearColor: viewportClearColor,
                             zoomModel: scene.zoomModel)
             .cornerRadius(8)
@@ -586,8 +610,21 @@ private struct CanvasSection: View {
                 ToolPositionSync(connection: connection) { point in
                     scene.updateTool(gCodeModel.spindleToolSpec)
                     scene.updateToolPosition(point)
+                    // A macro runs from wherever the tool is.
+                    scene.setMacroOrigin(SIMD2<Float>(point.x, point.y))
                 }
             )
+            .overlay(alignment: .bottomLeading) {
+                if scene.isMacroPreviewActive {
+                    Label("Macro preview at the tool position", systemImage: "eye")
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.regularMaterial)
+                        .cornerRadius(6)
+                        .padding(8)
+                }
+            }
             .overlay(alignment: .topLeading) {
                 HStack(spacing: 4) {
                     Button(action: onReloadFromCAM) {
@@ -652,11 +689,12 @@ private struct CanvasSection: View {
                 .padding(8)
             }
 
-            Slider(value: scrubBinding, in: 0...Double(gCodeModel.document.lines.count)) { editing in
+            Slider(value: scrubBinding, in: 0...Double(max(1, gCodeModel.document.lines.count))) { editing in
                 if !editing {
                     forceHeightmapRefresh()
                 }
             }
+            .disabled(gCodeModel.document.lines.isEmpty || scene.isMacroPreviewActive)
             .frame(height: 45)
             .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
         }
@@ -670,6 +708,17 @@ private struct CanvasSection: View {
             gCodeModel.scrubLine = gCodeModel.document.lines.count
             scene.updateTool(gCodeModel.spindleToolSpec)
             forceHeightmapRefresh()
+            syncMacroPreview()
+        }
+        .onChange(of: showsMacroPreview) { _, _ in
+            syncMacroPreview()
+        }
+        .onChange(of: macros.selectedMacroID) { _, _ in
+            syncMacroPreview()
+        }
+        .onChange(of: macroDocument.toolpathSegments) { _, _ in
+            // Parameter edits regenerate the macro's G-code.
+            syncMacroPreview()
         }
         .onChange(of: camModel.selectedStockMaterial) { _, newStock in
             scene.updateStock(newStock)

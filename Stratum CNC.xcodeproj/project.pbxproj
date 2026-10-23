@@ -32,17 +32,6 @@
 		6D244741308958F300A01698 /* StratumLink */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = StratumLink; path = ../StratumLink; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		562C417F308B2E6B002E3781 /* Exceptions for "Stratum CNC" folder in "Stratum CNC" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"controller/cnc-coordinates.svg",
-				controller/Coordinates.md,
-			);
-			target = 56CEA04C30356265008167CA /* Stratum CNC */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		560F76AB3052C5A40017EE04 /* Stratum CNC Tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -51,9 +40,6 @@
 		};
 		56CEA04F30356265008167CA /* Stratum CNC */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				562C417F308B2E6B002E3781 /* Exceptions for "Stratum CNC" folder in "Stratum CNC" target */,
-			);
 			path = "Stratum CNC";
 			sourceTree = "<group>";
 		};

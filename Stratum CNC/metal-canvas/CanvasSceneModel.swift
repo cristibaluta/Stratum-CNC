@@ -199,6 +199,11 @@ class CanvasSceneModel: ObservableObject {
         heightmapMesh = nil
         renderObjects.replacing(roles: [.toolpathRapid, .toolpathCutting],
                                 with: RenderObject.toolpath(from: segments))
+        // A program (re)loaded while a macro is being previewed stays hidden
+        // until the preview ends.
+        if isMacroPreviewActive {
+            hideProgramToolpath()
+        }
     }
 
     /// Rebuilds the dotted bounding box around the loaded program's cutting
@@ -215,6 +220,11 @@ class CanvasSceneModel: ObservableObject {
     func updateBoundingBox(segments: [ToolpathSegment], toolRadii: [Float]) {
         let bounds = ToolpathBounds.compute(segments: segments, toolRadii: toolRadii)
         let objects = bounds.map { [RenderObject.boundingBox(min: $0.min, max: $0.max)] } ?? []
+        if isMacroPreviewActive {
+            // The box belongs to the program, which is hidden right now.
+            stashedBoundingBox = objects
+            return
+        }
         renderObjects.replacing(roles: [.boundingBox], with: objects)
     }
 
@@ -228,8 +238,93 @@ class CanvasSceneModel: ObservableObject {
     /// `NCFileDocument.toolpathVertexCounts(upTo:)`, which is the O(1)
     /// counterpart to the segment slice `updateToolpath` expects.
     func setToolpathVisibleVertexCounts(rapid: Int, cutting: Int) {
+        // Scrubbing the program must not bring it back over a macro preview.
+        guard !isMacroPreviewActive else {
+            return
+        }
         renderObjects.settingVisibleVertexCount(rapid, forRole: .toolpathRapid)
         renderObjects.settingVisibleVertexCount(cutting, forRole: .toolpathCutting)
+    }
+
+    // MARK: - Macro preview
+
+    /// True while the canvas shows the selected macro instead of the loaded
+    /// program. The program's geometry, bounding box and scrub position are
+    /// all kept — see `showMacroPreview` / `hideMacroPreview`.
+    @Published private(set) var isMacroPreviewActive = false
+
+    /// The macro's parsed segments in its own coordinates (the parser starts at
+    /// X0 Y0), before `macroOrigin` is added.
+    private var macroSegments: [ToolpathSegment] = []
+
+    /// Where the macro would run: the tool's current work-coordinate XY. Macros
+    /// work from wherever the tool is, so this follows the machine position.
+    private var macroOrigin: SIMD2<Float> = .zero
+
+    /// The program's dotted bounding box, taken off the canvas while a macro
+    /// is previewed and put back afterwards.
+    private var stashedBoundingBox: [RenderObject] = []
+
+    /// Draws `segments` (a macro's parsed G-code) at the tool position and
+    /// hides the loaded program. Nothing of the program is discarded: its
+    /// render objects stay in `renderObjects` with zero visible vertices, so
+    /// `hideMacroPreview` is a cheap switch back, not a re-tessellation.
+    func showMacroPreview(_ segments: [ToolpathSegment]) {
+        if !isMacroPreviewActive {
+            stashedBoundingBox = renderObjects.filter { $0.role == .boundingBox }
+            renderObjects.replacing(roles: [.boundingBox], with: [])
+            isMacroPreviewActive = true
+        }
+        hideProgramToolpath()
+        macroSegments = segments
+        rebuildMacroPreview()
+    }
+
+    /// Follows the tool: redraws the preview when the tool's XY changed.
+    func setMacroOrigin(_ xy: SIMD2<Float>) {
+        guard simd_distance(xy, macroOrigin) > 1e-4 else {
+            return
+        }
+        macroOrigin = xy
+        if isMacroPreviewActive {
+            rebuildMacroPreview()
+        }
+    }
+
+    /// Removes the macro preview and brings the program back, drawn up to the
+    /// scrub position given by `counts` (`NCFileDocument.toolpathVertexCounts`).
+    /// Does nothing when no macro is being previewed.
+    func hideMacroPreview(restoringProgramVertexCounts counts: (rapid: Int, cutting: Int)) {
+        guard isMacroPreviewActive else {
+            return
+        }
+        isMacroPreviewActive = false
+        macroSegments = []
+        renderObjects.replacing(roles: [.macroRapid, .macroCutting], with: [])
+        renderObjects.replacing(roles: [.boundingBox], with: stashedBoundingBox)
+        stashedBoundingBox = []
+        setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
+    }
+
+    private func hideProgramToolpath() {
+        renderObjects.settingVisibleVertexCount(0, forRole: .toolpathRapid)
+        renderObjects.settingVisibleVertexCount(0, forRole: .toolpathCutting)
+    }
+
+    private func rebuildMacroPreview() {
+        let shift = SIMD3<Float>(macroOrigin.x, macroOrigin.y, 0)
+        let placed = macroSegments.map {
+            ToolpathSegment(start: $0.start + shift,
+                            end: $0.end + shift,
+                            lineNumber: $0.lineNumber,
+                            flags: $0.flags)
+        }
+        renderObjects.replacing(roles: [.macroRapid, .macroCutting],
+                                with: RenderObject.toolpath(from: placed,
+                                                            rapidColor: SIMD4<Float>(0.95, 0.75, 1.0, 1.0),
+                                                            cuttingColor: SIMD4<Float>(1.0, 0.35, 0.85, 1.0),
+                                                            rapidRole: .macroRapid,
+                                                            cuttingRole: .macroCutting))
     }
 
     /// Rebuilds the solid cutter at `point` (the machine's current work

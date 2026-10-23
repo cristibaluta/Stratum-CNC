@@ -652,7 +652,7 @@ private extension MetalRenderer {
     /// follow `xyOffset`, everything else (stock, axes, fixtures) stays put.
     func drawOffset(for role: RenderRole?) -> SIMD2<Float> {
         switch role {
-            case .toolpathRapid, .toolpathCutting, .tool, .boundingBox:
+            case .toolpathRapid, .toolpathCutting, .macroRapid, .macroCutting, .tool, .boundingBox:
                 return xyOffset
             default:
                 return .zero
