@@ -13,9 +13,10 @@ struct Uniforms {
     var dashLength: Float
     /// XY offset applied to vertex position in model space, before the MVP
     /// transform — mirrors `CanvasSceneModel.xyOffset`. Zero for every batch
-    /// except `.toolpathRapid`/`.toolpathCutting` (see `MetalRenderer.drawBatch`);
-    /// everything else (stock box, tool marker, axes) always passes `.zero`
-    /// here so it stays put while the toolpath preview shifts.
+    /// except the toolpath, tool marker and bounding box (see
+    /// `MetalRenderer.drawOffset(for:)`); everything else (stock box, axes,
+    /// fixtures) always passes `.zero` here so it stays put while the job
+    /// shifts.
     var offset: SIMD2<Float> = .zero
 }
 

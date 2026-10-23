@@ -44,6 +44,12 @@ enum RenderRole: Hashable {
     /// Static machine fixture: the graduated ruler along the anchor's
     /// inside edges. Same Z/rebuild rules as `.workbed` and `.anchor`.
     case ruler
+    /// Dotted rectangle around the loaded program's cutting moves, grown
+    /// outward by the radius of the tool that cuts each edge — i.e. the
+    /// footprint the finished job occupies. Follows `xyOffset` like the
+    /// toolpath it was measured from. Rebuilt by
+    /// `CanvasSceneModel.updateBoundingBox`.
+    case boundingBox
 }
 
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
@@ -485,6 +491,32 @@ extension RenderObject {
             points.append(first)
         }
         return RenderObject(role: role, points: points, color: color, primitive: .lineStrip)
+    }
+
+    /// The job's bounding box: a flat, closed, dashed rectangle in the XY
+    /// plane at `z` (default 0, the stock's top face), from `min` (bottom-
+    /// left corner — the job's origin) to `max`. Drawn in toolpath
+    /// coordinates; `MetalRenderer` shifts it by `xyOffset` like the
+    /// toolpath itself (see `drawOffset(for:)`).
+    ///
+    /// The dash length scales with the job so the pattern stays readable on
+    /// both a 20 mm part and a 300 mm one (the dash is in world millimeters,
+    /// not pixels).
+    static func boundingBox(min: SIMD2<Float>,
+                            max: SIMD2<Float>,
+                            z: Float = 0,
+                            color: SIMD4<Float> = SIMD4<Float>(0.2, 0.75, 0.35, 1.0)) -> RenderObject {
+        let corners = [
+            min,
+            SIMD2<Float>(max.x, min.y),
+            max,
+            SIMD2<Float>(min.x, max.y)
+        ]
+        var object = flatOutline(corners, z: z, role: .boundingBox, color: color)
+        let longestSide = Swift.max(max.x - min.x, max.y - min.y)
+        object.isDashed = true
+        object.dashLength = Swift.min(Swift.max(longestSide / 80, 0.5), 4)
+        return object
     }
 
     static func toolpath(from segments: [ToolpathSegment],

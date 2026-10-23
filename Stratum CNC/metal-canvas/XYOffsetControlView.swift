@@ -7,10 +7,15 @@
 
 import SwiftUI
 
-/// Two small numeric fields for nudging the job's XY origin on the canvas,
-/// in millimeters. Meant to sit alongside `HeightmapQualityPickerView` in
-/// the canvas top overlay, next to `CanvasSceneModel.xyOffset`, the value
-/// it edits.
+/// Two small numeric fields for positioning the job on the canvas, in
+/// millimeters. Sits in the canvas's top-right button stack, next to
+/// `CanvasSceneModel.xyOffset`, the value it edits.
+///
+/// The offset moves the job's dotted bounding box (see
+/// `RenderObject.boundingBox`) together with the toolpath inside it, so the
+/// point being edited is the box's bottom-left corner — the job origin.
+/// `MachiningRunSheet` shows the same value as "X Offset / Y Offset" and
+/// `ControllerModel.uploadJob` sends it to the machine.
 ///
 /// This is the "numeric fields" option from the roadmap rather than a
 /// drag-pad: a typed value commits discretely (on submit / focus loss),
@@ -36,26 +41,28 @@ struct XYOffsetControlView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("XY Offset")
-                .font(.caption2.bold())
-                .foregroundStyle(.secondary)
-            HStack(spacing: 6) {
-                offsetField(label: "X", value: xBinding)
-                offsetField(label: "Y", value: yBinding)
-            }
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                .help("Job origin: position of the bounding box's bottom-left corner, in mm")
+            offsetField(label: "X", value: xBinding)
+            offsetField(label: "Y", value: yBinding)
         }
+        .padding(.horizontal, 8)
+        .padding(2)
+        .frame(height: 28)
+        .background(.gray)
+        .cornerRadius(8)
     }
 
     private func offsetField(label: String, value: Binding<Double>) -> some View {
         HStack(spacing: 3) {
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.caption2.bold())
             TextField("", value: value, format: .number.precision(.fractionLength(0...2)))
                 .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 52)
+                .frame(width: 56)
         }
     }
 }

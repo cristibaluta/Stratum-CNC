@@ -135,6 +135,36 @@ class GCodeStore: ObservableObject {
         return activeToolSpec
     }
 
+    /// Tool radius in effect on each line of the program, in millimeters,
+    /// indexed by 1-based line number (index 0 is unused) — what
+    /// `ToolpathBounds.compute` grows each cutting move by.
+    ///
+    /// A line inside a tool's section gets that tool's assigned radius, or 0
+    /// when the tool has no spec yet (a size nobody has told us about isn't
+    /// guessed). Lines outside any `T… M6` section — programs that never
+    /// change tool — get the first assigned tool's radius, the same fallback
+    /// the heightmap carves with (`activeToolSpec`).
+    func toolRadiiByLine() -> [Float] {
+        let fallback = activeToolSpec.map(ToolFootprint.radius(for:)) ?? 0
+        var radii = [Float](repeating: fallback, count: document.lines.count + 1)
+
+        for toolpath in document.toolpaths {
+            guard let number = toolpath.toolNumber else {
+                continue
+            }
+            let radius = toolSpecAssignments[number].map(ToolFootprint.radius(for:)) ?? 0
+            let first = max(toolpath.startLine, 0)
+            let last = min(toolpath.endLine, radii.count - 1)
+            guard first <= last else {
+                continue
+            }
+            for line in first...last {
+                radii[line] = radius
+            }
+        }
+        return radii
+    }
+
     var activeToolSpec: ToolSpec? {
         for toolNumber in tools {
             if let spec = toolSpecAssignments[toolNumber] {

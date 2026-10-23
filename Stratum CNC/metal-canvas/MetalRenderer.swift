@@ -171,7 +171,7 @@ class MetalRenderer: NSObject {
 
     /// Forwarded straight from `CanvasSceneModel.xyOffset` (see
     /// `MetalCanvasView.updateNSView`). Applied to `.toolpathRapid`/
-    /// `.toolpathCutting`/`.tool` batches in `drawBatch` — the stock box,
+    /// `.toolpathCutting`/`.tool`/`.boundingBox` batches in `drawBatch` — the stock box,
     /// axes, workbed, and anchor (`role == .stock`/`nil`/`.workbed`/`.anchor`)
     /// always get `Uniforms.offset == .zero` and stay put, while the toolpath
     /// preview and the tool marker following it shift together. The heightmap surface doesn't read
@@ -652,7 +652,7 @@ private extension MetalRenderer {
     /// follow `xyOffset`, everything else (stock, axes, fixtures) stays put.
     func drawOffset(for role: RenderRole?) -> SIMD2<Float> {
         switch role {
-            case .toolpathRapid, .toolpathCutting, .tool:
+            case .toolpathRapid, .toolpathCutting, .tool, .boundingBox:
                 return xyOffset
             default:
                 return .zero

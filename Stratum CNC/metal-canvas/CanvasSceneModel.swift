@@ -201,6 +201,23 @@ class CanvasSceneModel: ObservableObject {
                                 with: RenderObject.toolpath(from: segments))
     }
 
+    /// Rebuilds the dotted bounding box around the loaded program's cutting
+    /// moves, grown by the radius of the tool cutting each edge (see
+    /// `ToolpathBounds`), or removes it when there's nothing to bound.
+    ///
+    /// `toolRadii` is `GCodeStore.toolRadiiByLine()`. Call after
+    /// `updateToolpath`, and again when tool assignments change — the
+    /// radii, not the segments, are what an assignment alters.
+    ///
+    /// Only the toolpath-space rectangle is stored: `xyOffset` is applied by
+    /// the renderer every frame (see `MetalRenderer.drawOffset(for:)`), so
+    /// moving the job never needs this to be rebuilt.
+    func updateBoundingBox(segments: [ToolpathSegment], toolRadii: [Float]) {
+        let bounds = ToolpathBounds.compute(segments: segments, toolRadii: toolRadii)
+        let objects = bounds.map { [RenderObject.boundingBox(min: $0.min, max: $0.max)] } ?? []
+        renderObjects.replacing(roles: [.boundingBox], with: objects)
+    }
+
     /// Narrows how much of the *already-loaded* rapid/cutting toolpath is
     /// drawn — the scrubber's fast path. Unlike `updateToolpath`, this never
     /// re-tessellates: it mutates `visibleVertexCount` in place on the

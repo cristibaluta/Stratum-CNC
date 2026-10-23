@@ -467,6 +467,14 @@ private struct CanvasSection: View {
         )
     }
 
+    /// Rebuilds the dotted job bounding box. Needs the segments *and* the
+    /// per-line tool radii, so it runs whenever either changes — a new
+    /// program, or a different tool assigned to a `T` number.
+    private func refreshBoundingBox() {
+        scene.updateBoundingBox(segments: gCodeModel.document.toolpathSegments,
+                                toolRadii: gCodeModel.toolRadiiByLine())
+    }
+
     private func forceHeightmapRefresh() {
         scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
                              document: gCodeModel.document,
@@ -543,11 +551,8 @@ private struct CanvasSection: View {
                         .frame(width: 300)
                 }
                 Divider()
-                VStack(alignment: .leading) {
-                    HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
-                    XYOffsetControlView(xyOffset: $scene.xyOffset)
-                }
-                .frame(minWidth: 100)
+                HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
+                    .frame(minWidth: 100)
                 Spacer()
             }
             .frame(height: 120)
@@ -635,6 +640,8 @@ private struct CanvasSection: View {
                     .background(.gray)
                     .cornerRadius(8)
 
+                    XYOffsetControlView(xyOffset: $scene.xyOffset)
+
                     CanvasZoomButton(zoomModel: scene.zoomModel)
                 }
                 .padding(8)
@@ -654,6 +661,7 @@ private struct CanvasSection: View {
             // whatever material the project actually has selected.
             scene.updateStock(camModel.selectedStockMaterial)
             scene.updateToolpath(gCodeModel.document.toolpathSegments)
+            refreshBoundingBox()
             gCodeModel.scrubLine = gCodeModel.document.lines.count
             scene.updateTool(gCodeModel.spindleToolSpec)
             forceHeightmapRefresh()
@@ -667,6 +675,7 @@ private struct CanvasSection: View {
             // and parks the scrubber at the end, so what's drawn
             // always matches where the slider sits.
             scene.updateToolpath(newSegments)
+            refreshBoundingBox()
             gCodeModel.scrubLine = gCodeModel.document.lines.count
             scene.updateTool(gCodeModel.spindleToolSpec)
             forceHeightmapRefresh()
@@ -675,8 +684,10 @@ private struct CanvasSection: View {
             // Assigning (or reassigning) a `T` number's tool changes
             // what the heightmap should have been carved with — e.g.
             // picking a bigger end mill widens every cut — and the tool
-            // drawn on the canvas.
+            // drawn on the canvas — and how far the job's bounding box
+            // reaches past the toolpath.
             scene.updateTool(gCodeModel.spindleToolSpec)
+            refreshBoundingBox()
             forceHeightmapRefresh()
         }
         .onChange(of: scene.renderMode) { _, mode in
