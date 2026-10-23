@@ -123,6 +123,19 @@ class ProjectModel: ObservableObject {
 
         loadProjectData()
 
+        // Restore the Controller's XY offset, then keep project.json in step
+        // with it. Restored before subscribing, so loading doesn't count as
+        // an edit; `dropFirst` skips the value `$xyOffset` replays on subscribe.
+        controllerModel.scene.xyOffset = projectData.xyOffset ?? .zero
+        controllerModel.scene.$xyOffset
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] offset in
+                guard let self, self.projectData.xyOffset != offset else { return }
+                self.projectData.xyOffset = offset
+            }
+            .store(in: &cancellables)
+
         camModel.onToolpathsChanged = { [weak self] toolpaths in
             self?.toolpaths = toolpaths
             try? self?.saveToolpaths()
