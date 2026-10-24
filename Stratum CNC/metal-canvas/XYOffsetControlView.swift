@@ -8,8 +8,7 @@
 import SwiftUI
 
 /// Two small numeric fields for positioning the job on the canvas, in
-/// millimeters. Sits in the canvas's top-right button stack, next to
-/// `CanvasSceneModel.xyOffset`, the value it edits.
+/// millimeters, bound to `CanvasSceneModel.xyOffset`.
 ///
 /// The offset moves the job's dotted bounding box (see
 /// `RenderObject.boundingBox`) together with the toolpath inside it, so the
@@ -17,12 +16,14 @@ import SwiftUI
 /// `MachiningRunSheet` shows the same value as "X Offset / Y Offset" and
 /// `ControllerModel.uploadJob` sends it to the machine.
 ///
-/// This is the "numeric fields" option from the roadmap rather than a
-/// drag-pad: a typed value commits discretely (on submit / focus loss),
-/// which is exactly what `CanvasSection`'s `onChange(of: scene.xyOffset)`
-/// assumes when it recarves immediately and unthrottled — a drag-pad would
-/// instead need to throttle while dragging and force an exact recarve on
-/// release, the same way the scrub slider does.
+/// Numeric fields rather than a drag-pad: a typed value commits discretely
+/// (on submit / focus loss), which is exactly what `CanvasSection`'s
+/// `onChange(of: scene.xyOffset)` assumes when it recarves immediately and
+/// unthrottled.
+///
+/// It no longer floats over the canvas; `PanelOffset` hosts it as a row of
+/// the WORK SETUP panel, next to zero and probe — it is the same idea (where
+/// the job's origin sits), just typed instead of touched off.
 struct XYOffsetControlView: View {
     @Binding var xyOffset: SIMD2<Float>
 
@@ -41,16 +42,14 @@ struct XYOffsetControlView: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
-                .help("Job origin: position of the bounding box's bottom-left corner, in mm")
+        HStack(spacing: 8) {
             offsetField(label: "X", value: xBinding)
             offsetField(label: "Y", value: yBinding)
+            Text("mm")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 8)
-        .padding(2)
-        .frame(height: 28)
-        .canvasChrome()
+        .help("Job origin: position of the bounding box's bottom-left corner, in mm")
     }
 
     private func offsetField(label: String, value: Binding<Double>) -> some View {
@@ -61,7 +60,22 @@ struct XYOffsetControlView: View {
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 56)
+                .frame(width: 60)
+        }
+    }
+}
+
+/// The WORK SETUP row for the job's XY offset. Needs its own
+/// `@ObservedObject` on the scene: `ControllerView` only observes
+/// `ControllerModel`, which doesn't forward the scene's changes.
+struct PanelOffset: View {
+    @ObservedObject var scene: CanvasSceneModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            PanelRowLabel("OFFSET")
+            XYOffsetControlView(xyOffset: $scene.xyOffset)
+            Spacer(minLength: 0)
         }
     }
 }

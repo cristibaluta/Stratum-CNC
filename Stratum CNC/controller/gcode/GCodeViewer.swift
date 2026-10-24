@@ -124,21 +124,6 @@ struct GCodeViewer: View {
 
     private var toolpathsView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Toolpaths")
-                    .font(.headline)
-
-                Spacer()
-
-                Text("\(toolpaths.count)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-
-            Divider()
-
             if toolpaths.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")

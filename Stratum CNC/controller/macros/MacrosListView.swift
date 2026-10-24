@@ -12,19 +12,6 @@ struct MacrosListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Macros")
-                    .font(.headline)
-                Spacer()
-                Text("\(store.macros.count)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-
-            Divider()
-
             List(selection: $store.selectedMacroID) {
                 ForEach(store.macros) { macro in
                     HStack(spacing: 8) {

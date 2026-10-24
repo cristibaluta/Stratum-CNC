@@ -127,15 +127,16 @@ struct ControllerView: View {
             VStack(spacing: 16) {
                 toolpathParamsPanels
 
-                GroupBox(label:
-                    HStack(alignment: .top, spacing: 8) {
-                        panelModeButton("G-CODE", mode: .gcode)
-                        Divider().frame(height: 14)// The divider likes to expand if not constrained
-                        panelModeButton("MACROS", mode: .macros)
-                        Spacer()
-                    }
-                    .padding(.top, 4)
-                ) {
+                GroupBox {
+                    VStack(spacing: 6) {
+                        Picker("", selection: $model.gcodePanelMode) {
+                            ForEach(GCodePanelMode.allCases, id: \.self) { mode in
+                                Text(mode == .gcode ? "G-code" : "Macros").tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+
                     GCodeViewer(model: gCodeModel,
                                 uploader: model.uploader,
                                 connection: model.connection,
@@ -157,6 +158,7 @@ struct ControllerView: View {
                                 onResumeFromLine: { model.resumeJob(fromLine: $0) },
                                 canResumeFromLine: model.lastUploadedRemotePath != nil,
                                 onStop: model.stopJob)
+                    }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -291,18 +293,6 @@ struct ControllerView: View {
 
     // MARK: - Panels
 
-    private func panelModeButton(_ title: String, mode: GCodePanelMode) -> some View {
-        let isSelected = model.gcodePanelMode == mode
-        return Button {
-            model.gcodePanelMode = mode
-        } label: {
-            Text(title)
-                .fontWeight(isSelected ? .bold : .regular)
-                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
-        }
-        .buttonStyle(.borderless)
-    }
-
     private var toolpathParamsPanels: some View {
         // PanelATC and PanelAccessories (vacuum / cooling) are intentionally
         // not shown any more — they are still in the project and will be
@@ -311,6 +301,7 @@ struct ControllerView: View {
             VStack(alignment: .leading, spacing: 8) {
                 PanelCoordinate(model: model)
                 PanelProbe(model: model)
+                PanelOffset(scene: model.scene)
             }
             .padding(.vertical, 2)
         }
@@ -703,8 +694,6 @@ private struct CanvasSection: View {
                     }
                     .padding(2)
                     .canvasChrome()
-
-                    XYOffsetControlView(xyOffset: $scene.xyOffset)
 
                     CanvasZoomButton(zoomModel: scene.zoomModel)
                 }
