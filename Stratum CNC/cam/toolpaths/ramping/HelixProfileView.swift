@@ -5,24 +5,8 @@
 //  Created by Cristian Baluta on 28.08.2026.
 //
 
-
-//
-//  HelixProfileView.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 28.08.2026.
-//
-
 import SwiftUI
 
-/// Side-on profile of a helix ramp.
-///
-/// A helix cuts a circle in plan view while descending — so viewed from the
-/// side, the circular motion projects onto the horizontal axis as the tool
-/// sweeps back and forth between the two edges of the diameter (like a
-/// circle seen edge-on), while depth increases steadily, one revolution at
-/// a time. The result reads as a spiral "unrolled" sideways: a wavy path
-/// bounded by two vertical guides (the diameter), sloping downward.
 struct HelixProfileView: View {
     let angle: Double
     /// Helix diameter, mm. Derived from the tool diameter (see `RampMath.helixDiameter`).

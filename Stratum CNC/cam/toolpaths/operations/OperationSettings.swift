@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import StratumCAM
 
 // MARK: - Operation kind
 
@@ -165,12 +166,6 @@ enum SlotSource: String, CaseIterable, Codable, Hashable {
     case centerline = "Centre line"
 }
 
-enum ChamferSide: String, CaseIterable, Codable, Hashable {
-    case outside = "Outside"
-    case inside = "Inside"
-    case onContour = "On contour"
-}
-
 // MARK: - Options
 
 struct OperationSettings: Codable, Hashable {
@@ -217,7 +212,7 @@ struct OperationSettings: Codable, Hashable {
     /// Cut to a fixed depth instead of the one the V-bit's angle gives for `chamferWidth`.
     var chamferUsesDepth: Bool = false
     var chamferDepth: Double = 0.5
-    var chamferSide: ChamferSide = .outside
+    var chamferSide: SC.CutSide = .outside
 
     // Thread mill
     var threadTargetDiameter: Double = 3
@@ -258,7 +253,7 @@ extension OperationSettings {
         chamferWidth = try c.decodeIfPresent(Double.self, forKey: .chamferWidth) ?? d.chamferWidth
         chamferUsesDepth = try c.decodeIfPresent(Bool.self, forKey: .chamferUsesDepth) ?? d.chamferUsesDepth
         chamferDepth = try c.decodeIfPresent(Double.self, forKey: .chamferDepth) ?? d.chamferDepth
-        chamferSide = try c.decodeIfPresent(ChamferSide.self, forKey: .chamferSide) ?? d.chamferSide
+        chamferSide = try c.decodeIfPresent(SC.CutSide.self, forKey: .chamferSide) ?? d.chamferSide
         slotDepthPerPass = try c.decodeIfPresent(Double.self, forKey: .slotDepthPerPass) ?? d.slotDepthPerPass
         drillUsesPecking = try c.decodeIfPresent(Bool.self, forKey: .drillUsesPecking) ?? d.drillUsesPecking
         drillPeckDepth = try c.decodeIfPresent(Double.self, forKey: .drillPeckDepth) ?? d.drillPeckDepth

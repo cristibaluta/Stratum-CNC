@@ -196,7 +196,7 @@ enum ToolpathGenerator {
 
 // MARK: - App model -> StratumCAM model
 
-private extension ToolpathGenerator {
+extension ToolpathGenerator {
 
     static func makeTool(from tool: Tool, for kind: OperationKind) -> SC.ToolParams {
         let vAngle = tool.tipAngle.map { Double($0) }
@@ -226,61 +226,61 @@ private extension ToolpathGenerator {
         }
 
         switch options.kind {
-        case .contour, .engrave:
-            break
-        case .pocket:
-            if options.pocketPattern == .trochoidal,
-               !(5...100).contains(options.pocketTrochoidalPitch) {
-                // Below ~5 % the loops get so tight that the path explodes in size.
-                throw GenerationError.invalidOption("The trochoidal loop pitch must be between 5 % and 100 % of the tool radius.")
-            }
-        case .facing:
-            guard options.facingExtension >= 0 else {
-                throw GenerationError.invalidOption("The facing extension can't be negative.")
-            }
-        case .slotting:
-            guard options.slotDepthPerPass > 0 else {
-                throw GenerationError.invalidOption("Depth per pass must be greater than 0.")
-            }
-        case .drilling:
-            if options.drillUsesPecking, options.drillPeckDepth <= 0 {
-                throw GenerationError.invalidOption("The peck depth must be greater than 0.")
-            }
-        case .counterbore:
-            guard options.counterboreDepth > 0 else {
-                throw GenerationError.invalidOption("The counterbore depth must be greater than 0.")
-            }
-            guard options.counterboreDiameter > Double(toolpath.tool.toolDiameter) else {
-                throw GenerationError.invalidOption("The counterbore diameter must be larger than the tool (Ø\(toolpath.tool.toolDiameter) mm).")
-            }
-        case .boring:
-            guard options.boreTargetDiameter > 0 else {
-                throw GenerationError.invalidOption("The finished diameter must be greater than 0.")
-            }
-            if options.boreUsesDwell, options.boreDwellTime < 0 {
-                throw GenerationError.invalidOption("The dwell time can't be negative.")
-            }
-        case .threadMilling:
-            guard options.threadPitch > 0 else {
-                throw GenerationError.invalidOption("The thread pitch must be greater than 0.")
-            }
-            guard options.threadTargetDiameter > 0 else {
-                throw GenerationError.invalidOption("The thread diameter must be greater than 0.")
-            }
-            guard options.threadRadialPasses >= 1 else {
-                throw GenerationError.invalidOption("The thread needs at least 1 radial pass.")
-            }
-        case .chamfer:
-            guard options.chamferWidth > 0 else {
-                throw GenerationError.invalidOption("The chamfer width must be greater than 0.")
-            }
-            if options.chamferUsesDepth {
-                guard options.chamferDepth > 0 else {
-                    throw GenerationError.invalidOption("The chamfer depth must be greater than 0.")
+            case .contour, .engrave:
+                break
+            case .pocket:
+                if options.pocketPattern == .trochoidal,
+                   !(5...100).contains(options.pocketTrochoidalPitch) {
+                    // Below ~5 % the loops get so tight that the path explodes in size.
+                    throw GenerationError.invalidOption("The trochoidal loop pitch must be between 5 % and 100 % of the tool radius.")
                 }
-            } else if (toolpath.tool.tipAngle ?? 0) <= 0 {
-                throw GenerationError.invalidOption("A chamfer needs a V-bit: pick a tool with a tip angle, or turn on Fixed depth.")
-            }
+            case .facing:
+                guard options.facingExtension >= 0 else {
+                    throw GenerationError.invalidOption("The facing extension can't be negative.")
+                }
+            case .slotting:
+                guard options.slotDepthPerPass > 0 else {
+                    throw GenerationError.invalidOption("Depth per pass must be greater than 0.")
+                }
+            case .drilling:
+                if options.drillUsesPecking, options.drillPeckDepth <= 0 {
+                    throw GenerationError.invalidOption("The peck depth must be greater than 0.")
+                }
+            case .counterbore:
+                guard options.counterboreDepth > 0 else {
+                    throw GenerationError.invalidOption("The counterbore depth must be greater than 0.")
+                }
+                guard options.counterboreDiameter > Double(toolpath.tool.toolDiameter) else {
+                    throw GenerationError.invalidOption("The counterbore diameter must be larger than the tool (Ø\(toolpath.tool.toolDiameter) mm).")
+                }
+            case .boring:
+                guard options.boreTargetDiameter > 0 else {
+                    throw GenerationError.invalidOption("The finished diameter must be greater than 0.")
+                }
+                if options.boreUsesDwell, options.boreDwellTime < 0 {
+                    throw GenerationError.invalidOption("The dwell time can't be negative.")
+                }
+            case .threadMilling:
+                guard options.threadPitch > 0 else {
+                    throw GenerationError.invalidOption("The thread pitch must be greater than 0.")
+                }
+                guard options.threadTargetDiameter > 0 else {
+                    throw GenerationError.invalidOption("The thread diameter must be greater than 0.")
+                }
+                guard options.threadRadialPasses >= 1 else {
+                    throw GenerationError.invalidOption("The thread needs at least 1 radial pass.")
+                }
+            case .chamfer:
+                guard options.chamferWidth > 0 else {
+                    throw GenerationError.invalidOption("The chamfer width must be greater than 0.")
+                }
+                if options.chamferUsesDepth {
+                    guard options.chamferDepth > 0 else {
+                        throw GenerationError.invalidOption("The chamfer depth must be greater than 0.")
+                    }
+                } else if (toolpath.tool.tipAngle ?? 0) <= 0 {
+                    throw GenerationError.invalidOption("A chamfer needs a V-bit: pick a tool with a tip angle, or turn on Fixed depth.")
+                }
         }
     }
 
@@ -293,79 +293,73 @@ private extension ToolpathGenerator {
     ///
     /// Internal (unlike the rest of this extension) because `ToolpathData.machiningOperation`
     /// reads it to build the form.
-    internal static func makeOperation(from toolpath: ToolpathData) -> SC.MachiningOperation {
+    public static func makeOperation(from toolpath: ToolpathData) -> SC.MachiningOperation {
         let options = toolpath.operation
         let direction = makeDirection(from: options.direction)
         let entry = makeEntry(from: toolpath.ramping, toolDiameter: Double(toolpath.tool.toolDiameter))
 
         switch options.kind {
 
-        case .contour:
-            let side: SC.CutSide
-            switch toolpath.contour {
-            case .inside:  side = .inside
-            case .outside: side = .outside
-            case .outline: side = .onContour
-            }
-            return .contour(side: side,
-                            direction: direction,
-                            entry: entry,
-                            leadIn: nil,
-                            leadOut: nil,
-                            tabs: [])
-
-        case .pocket:
-            return .pocket(direction: direction,
-                           pattern: makePocketPattern(from: options),
-                           entry: entry)
-
-        case .facing:
-            return .facing(direction: direction,
-                           extensionLength: options.facingExtension)
-
-        case .slotting:
-            // The pattern only matters together with `.fromOpenEnd` entry; for a plunge, ramp or
-            // helix entry the engine just traces the centre line.
-            return .slotting(depthPerPass: options.slotDepthPerPass,
-                             pattern: .raster,
-                             entry: entry)
-
-        case .engrave:
-            return .engrave
-
-        case .drilling:
-            return .drilling(peckDepth: options.drillUsesPecking ? options.drillPeckDepth : nil)
-
-        case .counterbore:
-            return .counterbore(diameter: options.counterboreDiameter,
-                                depth: options.counterboreDepth,
+            case .contour:
+                return .contour(side: toolpath.contour,
                                 direction: direction,
-                                entry: entry)
+                                entry: entry,
+                                leadIn: nil,
+                                leadOut: nil,
+                                tabs: [])
 
-        case .boring:
-            return .boring(targetDiameter: options.boreTargetDiameter,
-                           dwellTime: options.boreUsesDwell ? options.boreDwellTime : nil,
-                           shiftRetract: options.boreShiftRetract)
+            case .pocket:
+                return .pocket(direction: direction,
+                               pattern: makePocketPattern(from: options),
+                               entry: entry)
 
-        case .threadMilling:
-            return .threadMilling(pitch: options.threadPitch,
-                                  isInternal: options.threadIsInternal,
-                                  direction: options.threadHandedness == .rightHand ? .rightHand : .leftHand,
-                                  radialPasses: options.threadRadialPasses,
-                                  targetDiameter: options.threadTargetDiameter)
+            case .facing:
+                return .facing(direction: direction,
+                               extensionLength: options.facingExtension)
 
-        case .chamfer:
-            let side: SC.CutSide
-            switch options.chamferSide {
-                case .outside:   side = .outside
-                case .inside:    side = .inside
-                case .onContour: side = .onContour
-            }
-            let params = SC.ChamferParams(width: options.chamferWidth,
-                                          depth: options.chamferUsesDepth ? options.chamferDepth : nil,
-                                          side: side,
-                                          direction: direction)
-            return .chamfer(params: params)
+            case .slotting:
+                // The pattern only matters together with `.fromOpenEnd` entry; for a plunge, ramp or
+                // helix entry the engine just traces the centre line.
+                return .slotting(depthPerPass: options.slotDepthPerPass,
+                                 pattern: .raster,
+                                 entry: entry)
+
+            case .engrave:
+                return .engrave
+
+            case .drilling:
+                return .drilling(peckDepth: options.drillUsesPecking ? options.drillPeckDepth : nil)
+
+            case .counterbore:
+                return .counterbore(diameter: options.counterboreDiameter,
+                                    depth: options.counterboreDepth,
+                                    direction: direction,
+                                    entry: entry)
+
+            case .boring:
+                return .boring(targetDiameter: options.boreTargetDiameter,
+                               dwellTime: options.boreUsesDwell ? options.boreDwellTime : nil,
+                               shiftRetract: options.boreShiftRetract)
+
+            case .threadMilling:
+                return .threadMilling(pitch: options.threadPitch,
+                                      isInternal: options.threadIsInternal,
+                                      direction: options.threadHandedness == .rightHand ? .rightHand : .leftHand,
+                                      radialPasses: options.threadRadialPasses,
+                                      targetDiameter: options.threadTargetDiameter)
+
+            case .chamfer:
+                let side: SC.CutSide
+                switch options.chamferSide {
+                    case .outside:   side = .outside
+                    case .inside:    side = .inside
+                    case .onContour: side = .onContour
+                }
+                let params = SC.ChamferParams(width: options.chamferWidth,
+                                              depth: options.chamferUsesDepth ? options.chamferDepth : nil,
+                                              side: side,
+                                              direction: direction)
+                return .chamfer(params: params)
         }
     }
 
@@ -431,7 +425,7 @@ private extension ToolpathGenerator {
 
 // MARK: - Diagnostics (PerfLog)
 
-private extension ToolpathGenerator {
+extension ToolpathGenerator {
 
     /// What we hand to the engine. `entities` is the number of line/arc pieces the
     /// contours are chained from — SVG curves are flattened to short lines on import,

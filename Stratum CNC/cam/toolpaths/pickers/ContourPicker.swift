@@ -6,53 +6,23 @@
 //
 
 import SwiftUI
+import StratumCAM
 
-/// Any "which side of the boundary" choice the glyph can draw: inside, outside, or
-/// straight along the line. `ContourType` (contour) and `ChamferSide` (chamfer) each
-/// spell the same three positions with their own case names, so `ContourPicker` and its
-/// glyph work from this instead of one concrete enum -- the icons are drawn once and
-/// reused wherever a "side" is picked.
 protocol CutSideOption: CaseIterable, Hashable, RawRepresentable where RawValue == String {
-    var position: CutSidePosition { get }
+    var position: SC.CutSide { get }
     var selectionHint: String { get }
 }
 
-enum CutSidePosition {
-    case inside, outside, onLine
+extension SC.CutSide: @retroactive CaseIterable {
+    public static let allCases: [SC.CutSide] = []
 }
-
-extension ContourType: CutSideOption {
-    var position: CutSidePosition {
-        switch self {
-            case .inside:  return .inside
-            case .outside: return .outside
-            case .outline: return .onLine
-        }
-    }
-
+extension SC.CutSide: CutSideOption {
+    var position: SC.CutSide { self }
     var selectionHint: String {
         switch self {
-            case .outline: return "Tool centre follows the selected line exactly."
+            case .onContour: return "Tool centre follows the selected line exactly."
             case .inside:  return "Tool stays inside the selected shape, offset by its radius."
             case .outside: return "Tool stays outside the selected shape, offset by its radius."
-        }
-    }
-}
-
-extension ChamferSide: CutSideOption {
-    var position: CutSidePosition {
-        switch self {
-            case .inside:    return .inside
-            case .outside:   return .outside
-            case .onContour: return .onLine
-        }
-    }
-
-    var selectionHint: String {
-        switch self {
-            case .outside:   return "Bevels the outside edge of the selected shape."
-            case .inside:    return "Bevels the inside edge of the selected shape."
-            case .onContour: return "Bevels straight along the selected line."
         }
     }
 }
@@ -166,7 +136,7 @@ private struct ContourGridPicker<Value: CutSideOption>: View {
 /// A small drawing of the part's boundary (solid) against the tool's path (dashed),
 /// showing at a glance whether the tool runs inside, outside, or on the line.
 private struct ContourTypeGlyph: View {
-    let position: CutSidePosition
+    let position: SC.CutSide
     var tint: Color = .primary
 
     /// How far the part boundary sits from the glyph's own frame, so the "outside"
@@ -189,7 +159,7 @@ private struct ContourTypeGlyph: View {
     /// out past the boundary (outside); zero traces the boundary itself (on the line).
     private var pathOffset: CGFloat {
         switch position {
-            case .onLine:  return 0
+            case .onContour:  return 0
             case .inside:  return 3
             case .outside: return -3
         }
@@ -197,15 +167,9 @@ private struct ContourTypeGlyph: View {
 
     private var pathCornerRadius: CGFloat {
         switch position {
-            case .onLine:  return 2.5
+            case .onContour:  return 2.5
             case .inside:  return 1
             case .outside: return 4
         }
     }
-}
-
-#Preview {
-    @Previewable @State var selection = ContourType.outline
-    ContourPicker(selection: $selection, title: "CONTOUR")
-        .padding()
 }

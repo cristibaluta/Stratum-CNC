@@ -47,7 +47,7 @@ extension ToolpathData {
                 break
 
             case .contour(let side, let direction, _, _, _, _):
-                contour = ContourType(side)
+                contour = side
                 operation.direction = CutDirectionOption(direction)
 
             case .pocket(let direction, let pattern, _):
@@ -84,7 +84,7 @@ extension ToolpathData {
                 if let depth = params.depth {
                     operation.chamferDepth = depth
                 }
-                operation.chamferSide = ChamferSide(params.side)
+                operation.chamferSide = params.side
                 operation.direction = CutDirectionOption(params.direction)
 
             case .boring(let targetDiameter, let dwellTime, let shiftRetract):
@@ -108,25 +108,5 @@ extension ToolpathData {
 private extension CutDirectionOption {
     init(_ direction: SC.CutDirection) {
         self = direction == .conventional ? .conventional : .climb
-    }
-}
-
-private extension ContourType {
-    init(_ side: SC.CutSide) {
-        switch side {
-            case .inside:    self = .inside
-            case .outside:   self = .outside
-            case .onContour: self = .outline
-        }
-    }
-}
-
-private extension ChamferSide {
-    init(_ side: SC.CutSide) {
-        switch side {
-            case .inside:    self = .inside
-            case .outside:   self = .outside
-            case .onContour: self = .onContour
-        }
     }
 }

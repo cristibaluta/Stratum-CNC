@@ -8,10 +8,6 @@
 import SwiftUI
 
 /// Side profile of a linear ramp.
-///
-/// The ramp distance is derived from the angle and the stepdown. The tool
-/// starts at z0, ramps down over the first half of that distance, then comes
-/// back to the start point along the same slope, finishing at the stepdown z.
 struct LinearRampProfileView: View {
     let angle: Double
     let length: Double

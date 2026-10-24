@@ -225,29 +225,29 @@ class CAMModel: ObservableObject {
 
     private static func defaultToolpath() -> ToolpathData {
         var toolpath = ToolpathData(id: UUID(),
-                     name: "Contour 1",
-                     tool: Tool(id: UUID(),
-                                name: "3.175mm",
-                                shankDiameter: 3.175,
-                                toolDiameter: 3.175,
-                                length: 12,
-                                type: .endMill,
-                                group: nil,
-                                tipAngle: nil,
-                                presets: []),
-                     startZ: 0,
-                     endZ: -1,
-                     contour: .outline,
-                     ramping: RampingSettings(enabled: true,
-                                              type: .linear,
-                                              angle: 2,
-                                              length: 10),
-                     feedRate: 800,
-                     plungeRate: 400,
-                     spindleRPM: 12000,
-                     stepDown: 0.1,
-                     stepOver: 0.1,
-                     safeZ: 3)
+                                    name: "Contour 1",
+                                    tool: Tool(id: UUID(),
+                                               name: "3.175mm",
+                                               shankDiameter: 3.175,
+                                               toolDiameter: 3.175,
+                                               length: 12,
+                                               type: .endMill,
+                                               group: nil,
+                                               tipAngle: nil,
+                                               presets: []),
+                                    startZ: 0,
+                                    endZ: -1,
+                                    contour: .onContour,
+                                    ramping: RampingSettings(enabled: true,
+                                                             type: .linear,
+                                                             angle: 2,
+                                                             length: 10),
+                                    feedRate: 800,
+                                    plungeRate: 400,
+                                    spindleRPM: 12000,
+                                    stepDown: 0.1,
+                                    stepOver: 0.25,
+                                    safeZ: 3)
         toolpath.applyDefaults(for: toolpath.operation.kind)
         return toolpath
     }
@@ -293,8 +293,7 @@ class CAMModel: ObservableObject {
     /// overlay path building happen in the background; the UI stays responsive
     /// and the cell shows a spinner until `finishGeneration` applies the result.
     func generateToolpaths(for id: UUID) {
-        guard let toolpath = toolpaths.first(where: { $0.id == id }),
-              !generatingIDs.contains(id) else {
+        guard let toolpath = toolpaths.first(where: { $0.id == id }), !generatingIDs.contains(id) else {
             return
         }
 

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 struct ToolpathData: Identifiable, Codable, Hashable {
     var id = UUID()
@@ -22,7 +23,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     var startZ: Double
     var endZ: Double
 
-    var contour: ContourType
+    var contour: SC.CutSide
     var ramping: RampingSettings
 
     var feedRate: Double
@@ -72,7 +73,7 @@ extension ToolpathData {
         tool = try c.decode(Tool.self, forKey: .tool)
         startZ = try c.decode(Double.self, forKey: .startZ)
         endZ = try c.decode(Double.self, forKey: .endZ)
-        contour = try c.decode(ContourType.self, forKey: .contour)
+        contour = try c.decode(SC.CutSide.self, forKey: .contour)
         ramping = try c.decode(RampingSettings.self, forKey: .ramping)
         feedRate = try c.decode(Double.self, forKey: .feedRate)
         plungeRate = try c.decode(Double.self, forKey: .plungeRate)
@@ -90,10 +91,4 @@ extension ToolpathData {
         // projects' values are only replaced if the operation is changed.
         editedFields = try c.decodeIfPresent(Set<ToolpathField>.self, forKey: .editedFields) ?? []
     }
-}
-
-enum ContourType: String, CaseIterable, Codable, Hashable {
-    case inside = "Inside"
-    case outside = "Outside"
-    case outline = "Outline"
 }

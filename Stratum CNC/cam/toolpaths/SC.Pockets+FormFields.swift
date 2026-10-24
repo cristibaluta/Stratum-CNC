@@ -12,8 +12,11 @@ extension SC.AdaptiveSettings {
     fileprivate func formFields(idPrefix: String,
                                  onChange: @escaping (SC.AdaptiveSettings) -> Void) -> [SC.ParameterField] {
         [
-            .double(.init(id: "\(idPrefix).optimalLoad", label: "Optimal Load", unit: "mm",
-                          range: 0.1...10.0, value: optimalLoad,
+            .double(.init(id: "\(idPrefix).optimalLoad",
+                          label: "Optimal Load",
+                          unit: "mm",
+                          range: 0.1...10.0,
+                          value: optimalLoad,
                           onChange: { onChange(.init(optimalLoad: $0)) }))
         ]
     }
@@ -23,11 +26,17 @@ extension SC.TrochoidalSettings {
     fileprivate func formFields(idPrefix: String,
                                  onChange: @escaping (SC.TrochoidalSettings) -> Void) -> [SC.ParameterField] {
         [
-            .double(.init(id: "\(idPrefix).radialEngagement", label: "Radial Engagement", unit: "% of tool radius",
-                          range: 0.0...1.0, value: radialEngagement,
+            .double(.init(id: "\(idPrefix).radialEngagement",
+                          label: "Radial Engagement",
+                          unit: "% of tool radius",
+                          range: 0.0...1.0,
+                          value: radialEngagement,
                           onChange: { onChange(.init(radialEngagement: $0, loopRadius: loopRadius)) })),
-            .double(.init(id: "\(idPrefix).loopRadius", label: "Loop Radius", unit: "mm",
-                          range: 0.1...20.0, value: loopRadius,
+            .double(.init(id: "\(idPrefix).loopRadius",
+                          label: "Loop Radius",
+                          unit: "mm",
+                          range: 0.1...20.0,
+                          value: loopRadius,
                           onChange: { onChange(.init(radialEngagement: radialEngagement, loopRadius: $0)) }))
         ]
     }
@@ -47,9 +56,11 @@ extension SC.PocketClearingPattern {
 
         let cases: [SC.ParameterField.VariantField.Case] = [
             .init(id: "offset", label: "Offset", fields: []),
-            .init(id: "concentric", label: "Concentric", fields: [
-                .choice(SC.spiralDirectionChoice(id: "\(id).concentric.direction", current: currentConcentric,
-                                                  onChange: { onChange(.concentric(direction: $0)) }))
+            .init(id: "concentric",
+                  label: "Concentric",
+                  fields: [
+                    .choice(SC.spiralDirectionChoice(id: "\(id).concentric.direction", current: currentConcentric,
+                                                     onChange: { onChange(.concentric(direction: $0)) }))
             ]),
             .init(id: "raster", label: "Raster", fields: []),
             .init(id: "spiral", label: "Spiral", fields: [

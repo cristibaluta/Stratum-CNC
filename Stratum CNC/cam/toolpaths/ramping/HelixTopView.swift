@@ -10,8 +10,6 @@ import SwiftUI
 struct HelixTopView: View {
     var direction: HelixDirection = .outsideIn
     private let cycleDuration: Double = 2.0
-    /// Fixed turn count for the icon: it is illustrative only, so it does not
-    /// follow the angle or any other value.
     private let turns = 1.2
 
     var body: some View {
