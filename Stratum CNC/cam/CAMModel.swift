@@ -224,7 +224,7 @@ class CAMModel: ObservableObject {
     }
 
     private static func defaultToolpath() -> ToolpathData {
-        ToolpathData(id: UUID(),
+        var toolpath = ToolpathData(id: UUID(),
                      name: "Contour 1",
                      tool: Tool(id: UUID(),
                                 name: "3.175mm",
@@ -242,12 +242,14 @@ class CAMModel: ObservableObject {
                                               type: .linear,
                                               angle: 2,
                                               length: 10),
-                     feedRate: 0.1,
-                     plungeRate: 0.1,
-                     spindleRPM: 1200,
+                     feedRate: 800,
+                     plungeRate: 400,
+                     spindleRPM: 12000,
                      stepDown: 0.1,
                      stepOver: 0.1,
                      safeZ: 3)
+        toolpath.applyDefaults(for: toolpath.operation.kind)
+        return toolpath
     }
 
     // MARK: Shape picking

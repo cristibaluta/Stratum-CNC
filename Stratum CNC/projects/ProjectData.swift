@@ -24,7 +24,7 @@ struct ProjectData: Identifiable, Codable, Hashable {
          isStockVisible: Bool?,
          assets: [AssetData]?,
          xyOffset: SIMD2<Float>? = nil) {
-
+        
         self.id = id
         self.stock = stock
         self.isStockVisible = isStockVisible

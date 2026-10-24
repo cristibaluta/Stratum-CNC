@@ -131,9 +131,26 @@ struct PanelToolpathDetails: View {
             get: { toolpath.operation.kind },
             set: { newKind in
                 toolpath.operation.kind = newKind
+                // Untouched fields take the new operation's defaults; edited ones stay.
+                toolpath.applyDefaults(for: newKind)
                 if !toolpath.isNameCustom {
                     toolpath.name = newKind.nextName(among: siblingNames)
                 }
+            }
+        )
+    }
+
+    /// A binding that also records the field as edited when the user changes its value,
+    /// so changing the operation later leaves it alone.
+    private func editedBinding(_ value: Binding<Double>, _ field: ToolpathField) -> Binding<Double> {
+        Binding(
+            get: { value.wrappedValue },
+            set: { newValue in
+                guard newValue != value.wrappedValue else {
+                    return
+                }
+                value.wrappedValue = newValue
+                toolpath.markEdited(field)
             }
         )
     }
@@ -158,7 +175,7 @@ struct PanelToolpathDetails: View {
             OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if toolpath.operation.kind.usesStepover {
-                NumberField(title: "STEPOVER", value: $toolpath.stepOver, suffix: "mm")
+                NumberField(title: "STEPOVER", value: editedBinding($toolpath.stepOver, .stepOver), suffix: "mm")
             }
         }
     }
@@ -200,10 +217,10 @@ struct PanelToolpathDetails: View {
             // Z range (a counterbore has its own depth instead of an End Z)
             NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
             if toolpath.operation.kind.usesEndZ {
-                NumberField(title: "END Z", value: $toolpath.endZ, suffix: "mm")
+                NumberField(title: "END Z", value: editedBinding($toolpath.endZ, .endZ), suffix: "mm")
             }
             if toolpath.operation.kind.usesStepdown {
-                NumberField(title: "STEPDOWN", value: $toolpath.stepDown, suffix: "mm")
+                NumberField(title: "STEPDOWN", value: editedBinding($toolpath.stepDown, .stepDown), suffix: "mm")
             }
         }
     }

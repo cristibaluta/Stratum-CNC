@@ -42,6 +42,11 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     /// operations that have them; see `OperationKind`.
     var operation = OperationSettings()
 
+    /// General fields the user has set by hand (or a tool preset has). Those keep their value
+    /// when the operation changes; the others follow the operation's defaults
+    /// (see `OperationDefaults`).
+    var editedFields: Set<ToolpathField> = []
+
     // Explicit so the legacy single-contour `target` key can be read on decode
     // (see init(from:) below) without being written back on encode.
     private enum CodingKeys: String, CodingKey {
@@ -51,7 +56,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
         case feedRate, plungeRate, spindleRPM
         case stepDown, stepOver, safeZ
         case targets
-        case operation
+        case operation, editedFields
     }
 }
 
@@ -80,6 +85,10 @@ extension ToolpathData {
 
         // Projects saved before operations existed were all contours.
         operation = try c.decodeIfPresent(OperationSettings.self, forKey: .operation) ?? OperationSettings()
+
+        // Absent on projects saved before defaults existed: nothing counts as edited, so those
+        // projects' values are only replaced if the operation is changed.
+        editedFields = try c.decodeIfPresent(Set<ToolpathField>.self, forKey: .editedFields) ?? []
     }
 }
 
