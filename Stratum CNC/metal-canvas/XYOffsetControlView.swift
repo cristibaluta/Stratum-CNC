@@ -50,8 +50,7 @@ struct XYOffsetControlView: View {
         .padding(.horizontal, 8)
         .padding(2)
         .frame(height: 28)
-        .background(.gray)
-        .cornerRadius(8)
+        .canvasChrome()
     }
 
     private func offsetField(label: String, value: Binding<Double>) -> some View {

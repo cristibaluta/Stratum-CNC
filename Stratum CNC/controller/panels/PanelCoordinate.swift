@@ -7,42 +7,43 @@
 
 import SwiftUI
 
+/// One row of work-zero actions. Hosted inside the shared WORK SETUP box
+/// in `ControllerView`, so it has no `GroupBox` of its own. "Get
+/// Coordinates" is gone: it sent the same status request as the refresh
+/// button in the POSITION header.
 struct PanelCoordinate: View {
 
     @ObservedObject var model: ControllerModel
 
     var body: some View {
-        GroupBox("WORK COORDINATES") {
-            VStack(spacing: 6) {
-                HStack {
-                    Text("Zero")
-                        .font(.caption)
-                    Button("X") {
-                        model.sendRawCommand(model.zeroCommand(x: true))
-                    }
-                    Button("Y") {
-                        model.sendRawCommand(model.zeroCommand(y: true))
-                    }
-                    Button("Z") {
-                        model.sendRawCommand(model.zeroCommand(z: true))
-                    }
-                    Spacer()
-                }
+        HStack(spacing: 6) {
+            PanelRowLabel("ZERO")
 
-                HStack {
-                    Button {
-                        model.sendRawCommand(model.zeroCommand(x: true, y: true, z: true))
-                    } label: {
-                        Label("Set XYZ Zero", systemImage: "scope")
-                    }
-
-                    Button {
-                        model.connection.requestStatus()
-                    } label: {
-                        Label("Get Coordinates", systemImage: "location")
-                    }
-                }
+            Button("X") {
+                model.sendRawCommand(model.zeroCommand(x: true))
             }
+            .help("Set X work zero here")
+
+            Button("Y") {
+                model.sendRawCommand(model.zeroCommand(y: true))
+            }
+            .help("Set Y work zero here")
+
+            Button("Z") {
+                model.sendRawCommand(model.zeroCommand(z: true))
+            }
+            .help("Set Z work zero here")
+
+            Spacer(minLength: 4)
+
+            Button {
+                model.sendRawCommand(model.zeroCommand(x: true, y: true, z: true))
+            } label: {
+                Label("XYZ", systemImage: "scope")
+            }
+            .buttonStyle(QuietButtonStyle(tint: .accentColor))
+            .help("Set X, Y and Z work zero here")
         }
+        .buttonStyle(.quiet)
     }
 }

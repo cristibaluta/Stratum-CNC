@@ -42,6 +42,10 @@ struct ControllerView: View {
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
 
+    /// Opens the stocks library (owned by the CAM side of the app). When nil
+    /// the stock chip's icon opens the stock editor instead.
+    var onOpenStocksLib: (() -> Void)? = nil
+
     @State private var isShowingCanvasControlsSettings = false
 
     private var stockVisibleBinding: Binding<Bool> {
@@ -107,6 +111,7 @@ struct ControllerView: View {
                               showsMacroPreview: model.gcodePanelMode == .macros,
                               isStockVisible: stockVisibleBinding,
                               isShowingCanvasControlsSettings: $isShowingCanvasControlsSettings,
+                              onOpenStocksLib: onOpenStocksLib,
                               onReloadFromCAM: {
                                   gCodeModel.generateGCode(from: camModel.toolpaths,
                                                            generations: camModel.generations,
@@ -299,26 +304,27 @@ struct ControllerView: View {
     }
 
     private var toolpathParamsPanels: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            PanelCoordinate(model: model)
-            PanelProbe(model: model)
-            PanelATC(model: model)
+        // PanelATC and PanelAccessories (vacuum / cooling) are intentionally
+        // not shown any more — they are still in the project and will be
+        // triggered from elsewhere.
+        GroupBox("WORK SETUP") {
+            VStack(alignment: .leading, spacing: 8) {
+                PanelCoordinate(model: model)
+                PanelProbe(model: model)
+            }
+            .padding(.vertical, 2)
         }
         .frame(maxWidth: .infinity)
     }
 
     private var controlPanels: some View {
         VStack(spacing: 16) {
-            PanelPosition(connection: model.connection)
+            // Home / Unlock / Refresh moved into PanelPosition's header, so
+            // PanelMachine isn't shown; PanelAccessories is not shown either.
+            PanelPosition(connection: model.connection, model: model)
                 .frame(maxWidth: .infinity)
 
-            HStack(alignment: .top)  {
-                PanelSpindle(model: model)
-                PanelMachine(model: model)
-            }
-            .frame(maxWidth: .infinity)
-
-            PanelAccessories(model: model)
+            PanelSpindle(model: model)
                 .frame(maxWidth: .infinity)
 
             PanelJog(joystick: joystickStore,
@@ -438,6 +444,7 @@ private struct CanvasSection: View {
     let showsMacroPreview: Bool
     let isStockVisible: Binding<Bool>
     @Binding var isShowingCanvasControlsSettings: Bool
+    let onOpenStocksLib: (() -> Void)?
     let onReloadFromCAM: () -> Void
     let onImportFile: () -> Void
 
@@ -463,6 +470,9 @@ private struct CanvasSection: View {
     /// rounding each event on its own would drop all of it — the scrubber
     /// would either not move at all or only in the odd big jump.
     @State private var scrubRemainder = 0.0
+
+    /// Heightmap quality lives next to the Wireframe/Heightmap switch.
+    @State private var isShowingHeightmapQuality = false
 
     /// Fine scrubbing: how many lines one unit of scroll moves. A precise
     /// device (trackpad, Magic Mouse) reports pixels, so this is
@@ -564,27 +574,25 @@ private struct CanvasSection: View {
 
     var body: some View {
         VStack {
-            HStack(alignment: .top, spacing: 12) {
-                PanelStockMaterial(stock: $camModel.selectedStockMaterial,
-                                   isStockVisible: isStockVisible,
-                                   isCompact: true,
-                                   onOpenStocksLib: nil)
-                    .frame(width: 300)
+            // One slim line: stock summary, then the program's tools in a
+            // scrolling row. Editing happens in popovers/menus on demand.
+            HStack(spacing: 10) {
+                StockChip(stock: $camModel.selectedStockMaterial,
+                          isStockVisible: isStockVisible,
+                          onOpenLibrary: onOpenStocksLib)
 
                 if !gCodeModel.tools.isEmpty {
-                    Divider()
-                    ToolsPickerView(tools: gCodeModel.tools,
-                                    assignments: $gCodeModel.toolSpecAssignments,
-                                    fileSpecs: gCodeModel.headerToolSpecs,
-                                    activeTool: gCodeModel.activeToolNumber)
-                        .frame(width: 300)
+                    Divider().frame(height: 16)
+                    ToolChipsView(tools: gCodeModel.tools,
+                                  assignments: $gCodeModel.toolSpecAssignments,
+                                  fileSpecs: gCodeModel.headerToolSpecs,
+                                  activeTool: gCodeModel.activeToolNumber)
+                } else {
+                    Spacer(minLength: 0)
                 }
-                Divider()
-                HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
-                    .frame(minWidth: 100)
-                Spacer()
             }
-            .frame(height: 120)
+            .padding(.horizontal, 10)
+            .frame(height: 38)
             .background(.regularMaterial)
             .cornerRadius(8)
 
@@ -649,8 +657,7 @@ private struct CanvasSection: View {
                 .padding(.horizontal, 8)
                 .padding(2)
                 .frame(height: 28)
-                .background(.gray)
-                .cornerRadius(8)
+                .canvasChrome()
                 .padding(8)
             }
             .overlay(alignment: .topTrailing) {
@@ -667,6 +674,22 @@ private struct CanvasSection: View {
                         .pickerStyle(.segmented)
                         .labelsHidden()
 
+                        // Carve quality only means something for the heightmap.
+                        if scene.renderMode == .heightmap {
+                            Button {
+                                isShowingHeightmapQuality.toggle()
+                            } label: {
+                                Image(systemName: "slider.horizontal.3")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Heightmap quality")
+                            .popover(isPresented: $isShowingHeightmapQuality, arrowEdge: .bottom) {
+                                HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
+                                    .frame(width: 190)
+                                    .padding(12)
+                            }
+                        }
+
                         Divider()
                             .frame(height: 18)
 
@@ -679,8 +702,7 @@ private struct CanvasSection: View {
                         .padding(.horizontal, 8)
                     }
                     .padding(2)
-                    .background(.gray)
-                    .cornerRadius(8)
+                    .canvasChrome()
 
                     XYOffsetControlView(xyOffset: $scene.xyOffset)
 
