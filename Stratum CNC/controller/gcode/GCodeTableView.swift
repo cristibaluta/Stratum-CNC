@@ -13,26 +13,16 @@ extension NSUserInterfaceItemIdentifier {
     static let lineTextColumn = NSUserInterfaceItemIdentifier("lineTextColumn")
 }
 
-/// Wraps a real NSTableView in an NSScrollView. Rows are addressed by integer
-/// index and cell views are reused, keeping the G-code viewer suitable for
-/// very large files.
 struct GCodeTableView: NSViewRepresentable {
     @ObservedObject var document: NCFileDocument
     var highlightedLine: Int?
     var requestedLine: Int?
-    /// Called with a 1-based G-code line number whenever the table's
-    /// selection changes — including a person clicking a row directly, not
-    /// just the programmatic jumps `requestedLine` drives. The coordinator
-    /// can't tell those two cases apart (`NSTableView` fires the same
-    /// selection notification either way), but that's fine here: a
-    /// programmatic jump only ever selects the row `requestedLine` already
-    /// points at, so the closure's own line-hasn't-changed guard on the
-    /// caller's side absorbs it as a no-op rather than a feedback loop.
     var onLineSelected: ((Int) -> Void)? = nil
 
     func makeNSView(context: Context) -> NSScrollView {
         let tableView = NSTableView()
         tableView.style = .plain
+        tableView.backgroundColor = .clear
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.gridStyleMask = []
         tableView.headerView = nil
@@ -60,6 +50,7 @@ struct GCodeTableView: NSViewRepresentable {
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
+        scrollView.contentView.drawsBackground = false
 
         context.coordinator.tableView = tableView
         return scrollView
@@ -188,11 +179,6 @@ struct GCodeTableView: NSViewRepresentable {
             tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
         }
 
-        /// Fires for *any* selection change — a direct click, arrow-key
-        /// navigation, or our own `selectRow(_:)` from the `requestedLine`
-        /// handling above. `document.lines[row].id` is the 1-based G-code
-        /// line number (see `GCodeParser`), the same unit `onLineSelected`'s
-        /// caller keys everything else off of.
         func tableViewSelectionDidChange(_ notification: Notification) {
             guard let tableView = notification.object as? NSTableView else {
                 return

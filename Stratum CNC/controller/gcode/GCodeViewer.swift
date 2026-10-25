@@ -75,7 +75,7 @@ struct GCodeViewer: View {
                         .frame(height: 200)
                 case .macros:
                     MacrosListView(store: macros)
-                        .frame(height: 130)
+                        .frame(height: 200)
             }
             if mode == .macros, let macro = macros.selectedMacro {
                 MacroDetailView(store: macros,
@@ -83,6 +83,10 @@ struct GCodeViewer: View {
                                 canRun: canRunMacro,
                                 onRun: { onRunMacro?($0) })
             }
+
+            Divider()
+                .frame(height: 1)
+
             switch mode {
                 case .gcode:
                     GCodeTableView(document: model.document,
@@ -109,9 +113,6 @@ struct GCodeViewer: View {
             refreshToolpaths()
         }
         .onChange(of: model.document.toolpathSegments.count) { _, _ in
-            // Catches in-place line edits that regenerate `toolpathSegments`
-            // without changing `lines.count` (e.g. editing one line's G-code
-            // text) — those wouldn't otherwise trigger a refresh above.
             refreshToolpaths()
         }
     }
@@ -148,6 +149,7 @@ struct GCodeViewer: View {
                             }
                     }
                 }
+                .scrollContentBackground(.hidden)
                 .onChange(of: model.selectedToolpathID) { _, newID in
                     guard let newID, let toolpath = toolpaths.first(where: { $0.id == newID }) else {
                         return
@@ -158,18 +160,6 @@ struct GCodeViewer: View {
         }
     }
 
-    // MARK: - Job progress (Roadmap 1.4)
-
-    /// The line the machine is executing while a job is running or paused,
-    /// in the same 1-based numbering as the table's rows. While a job is
-    /// active this takes over the table's highlight — and its
-    /// auto-scroll — from the scrubber; when it ends, the highlight goes
-    /// back to `highlightedLine`.
-    ///
-    /// The status report doesn't say *which* file is playing, so this assumes
-    /// it's the one loaded here — true after "Send to Machine", not if a job
-    /// was started from the machine itself. A line past the end of the loaded
-    /// document is ignored rather than highlighted.
     private var machineLine: Int? {
         guard let job = connection.status?.activeJob,
               job.currentLine > 0,
@@ -178,9 +168,6 @@ struct GCodeViewer: View {
         return job.currentLine
     }
 
-    /// Live progress bar for a running/paused job; for a job that has ended,
-    /// a quiet line saying where it got to (the firmware keeps reporting it).
-    /// Nothing at all before any job has run.
     @ViewBuilder
     private var jobProgress: some View {
         if let job = connection.status?.activeJob {

@@ -8,9 +8,6 @@
 import SwiftUI
 import StratumLink
 
-/// Spindle as a single row: RPM field, start, stop. It used to share a row
-/// with the MACHINE panel (now folded into POSITION's header), so it gets
-/// the full panel width.
 struct PanelSpindle: View {
 
     @ObservedObject var model: ControllerModel
@@ -47,9 +44,8 @@ struct PanelSpindle: View {
                 }
                 .buttonStyle(QuietButtonStyle(tint: .red))
                 .help("Stop spindle")
-                // Note: the firmware only implements M3 (on) / M5 (off) —
-                // there's no M4/CCW support, so no separate CW/CCW toggle exists.
             }
+            .padding(8)
         }
     }
 }

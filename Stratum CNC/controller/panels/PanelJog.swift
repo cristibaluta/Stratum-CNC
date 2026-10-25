@@ -44,7 +44,7 @@ struct PanelJog: View {
     var onStopHold: (() -> Void)?
 
     var body: some View {
-        GroupBox("JOG") {
+        GroupBox {//}("JOG") {
             VStack {
                 if let j = joystick.controllers.first {
                     HStack(spacing: 8) {
@@ -64,7 +64,7 @@ struct PanelJog: View {
 
                 HStack(spacing: 8) {
                     VStack(spacing: 8) {
-                        modePicker
+//                        modePicker
                         joystickView
                     }
                     Divider()
@@ -118,25 +118,25 @@ struct PanelJog: View {
 
     private func jogDirection(for button: GameControllerStore.ButtonPress.Button) -> JogDirection? {
         switch button {
-        case .dpadUp: .yPlus
-        case .dpadDown: .yMinus
-        case .dpadLeft: .xMinus
-        case .dpadRight: .xPlus
-        case .rightShoulder: .zPlus
-        case .rightTrigger: .zMinus
-        default: nil
+            case .dpadUp: .yPlus
+            case .dpadDown: .yMinus
+            case .dpadLeft: .xMinus
+            case .dpadRight: .xPlus
+            case .rightShoulder: .zPlus
+            case .rightTrigger: .zMinus
+            default: nil
         }
     }
 
     private func setHighlight(for button: GameControllerStore.ButtonPress.Button, pressed: Bool) {
         switch button {
-        case .dpadLeft: leftHighlighted = pressed
-        case .dpadRight: rightHighlighted = pressed
-        case .dpadUp: topHighlighted = pressed
-        case .dpadDown: bottomHighlighted = pressed
-        case .rightShoulder: zUpHighlighted = pressed
-        case .rightTrigger: zDownHighlighted = pressed
-        default: break
+            case .dpadLeft: leftHighlighted = pressed
+            case .dpadRight: rightHighlighted = pressed
+            case .dpadUp: topHighlighted = pressed
+            case .dpadDown: bottomHighlighted = pressed
+            case .rightShoulder: zUpHighlighted = pressed
+            case .rightTrigger: zDownHighlighted = pressed
+            default: break
         }
     }
 
@@ -151,10 +151,10 @@ struct PanelJog: View {
             .help("Step: one move per click. Hold: keeps moving while the button is held.")
 
             switch jogMode {
-            case .step:
-                stepPicker
-            case .hold:
-                speedPicker
+                case .step:
+                    stepPicker
+                case .hold:
+                    speedPicker
             }
         }
     }
@@ -188,6 +188,7 @@ struct PanelJog: View {
                         .tag(selectedJogStep)
                 }
             }
+            .pickerStyle(.menu)
             .labelsHidden()
             Spacer()
         }

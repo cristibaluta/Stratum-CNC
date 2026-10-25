@@ -63,7 +63,9 @@ struct ControllerView: View {
     }
 
     fileprivate static func scrubTo(line: Int, gCodeModel: GCodeStore, camModel: CAMModel, scene: CanvasSceneModel, forceHeightmap: Bool) {
-        guard line != gCodeModel.scrubLine else { return }
+        guard line != gCodeModel.scrubLine else {
+            return
+        }
 
         gCodeModel.scrubLine = line
         gCodeModel.requestedLine = line
@@ -87,105 +89,17 @@ struct ControllerView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            // Left panel with G-code preview, slider and start buttons
-            if gCodeModel.document.isLoading {
-                VStack {
-                    Spacer()
-                    loadingState
-                    Spacer()
-                }
+        HStack(alignment: .top, spacing: 16) {
+            column1
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if gCodeModel.document.lines.isEmpty && model.gcodePanelMode != .macros {
-                VStack {
-                    Spacer()
-                    emptyState
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                CanvasSection(scene: model.scene, gCodeModel: gCodeModel,
-                              camModel: camModel, connection: model.connection,
-                              macros: model.macros,
-                              macroDocument: model.macros.document,
-                              showsMacroPreview: model.gcodePanelMode == .macros,
-                              isStockVisible: stockVisibleBinding,
-                              isShowingCanvasControlsSettings: $isShowingCanvasControlsSettings,
-                              onOpenStocksLib: onOpenStocksLib,
-                              onReloadFromCAM: {
-                                  gCodeModel.generateGCode(from: camModel.toolpaths,
-                                                           generations: camModel.generations,
-                                                           stock: camModel.selectedStockMaterial)
-                              },
-                              onImportFile: { model.isGCodeImporterPresented = true })
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(16)
-                    .padding(.trailing, -16)
-            }
 
-            // Right panels with g-
-            VStack(spacing: 16) {
-                toolpathParamsPanels
+            column2
+                .frame(width: 300)
 
-                GroupBox {
-                    VStack(spacing: 6) {
-                        Picker("", selection: $model.gcodePanelMode) {
-                            ForEach(GCodePanelMode.allCases, id: \.self) { mode in
-                                Text(mode == .gcode ? "G-code" : "Macros").tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-
-                    GCodeViewer(model: gCodeModel,
-                                uploader: model.uploader,
-                                connection: model.connection,
-                                mode: model.gcodePanelMode,
-                                macros: model.macros,
-                                onRunMacro: { model.startJob(lines: $0) },
-                                highlightedLine: gCodeModel.scrubLine,
-                                onLineSelected: scrubTo,
-                                onPlay: {
-                                    if model.connection.isConnected {
-                                        model.isShowingRunReview = true
-                                    } else {
-                                        model.isShowingMachinePicker = true
-                                    }
-                                },
-                                onPause: model.pauseJob,
-                                onSuspend: model.suspendJob,
-                                onResume: model.resumeJob,
-                                onResumeFromLine: { model.resumeJob(fromLine: $0) },
-                                canResumeFromLine: model.lastUploadedRemotePath != nil,
-                                onStop: model.stopJob)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .frame(width: 300)
-            .padding(16)
-            .padding(.trailing, -16)
-//            .disabled(!model.connection.isConnected)
-            .sheet(isPresented: $model.isShowingRunReview) {
-                MachiningRunSheet(model: model, gCodeModel: gCodeModel, camModel: camModel, connection: model.connection)
-            }
-            .sheet(isPresented: $model.isShowingMachinePicker) {
-                MachineConnectSheet(model: model, connection: model.connection)
-            }
-
-            // Right panel with controller and console
-            VStack(spacing: 16) {
-                controlPanels
-
-                GroupBox(label: Text("MDI CONSOLE")) {
-                    TerminalView(model: model, connection: model.connection)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .frame(width: 300)
-            .padding(16)
-//            .disabled(!model.connection.isConnected)
+            column3
+                .frame(width: 300)
         }
+        .padding(16)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             if let machine = model.selectedMachine {
@@ -266,7 +180,12 @@ struct ControllerView: View {
                 CanvasControlsSettingsView()
             }
         }
-        .machineAlerts(model.alerts, onResume: model.resumeJob)
+        .sheet(isPresented: $model.isShowingRunReview) {
+            MachiningRunSheet(model: model, gCodeModel: gCodeModel, camModel: camModel, connection: model.connection)
+        }
+        .sheet(isPresented: $model.isShowingMachinePicker) {
+            MachineConnectSheet(model: model, connection: model.connection)
+        }
         .alert("Use from CAM",
                isPresented: Binding(get: { gCodeModel.camImportMessage != nil },
                                     set: { if !$0 { gCodeModel.camImportMessage = nil } })) {
@@ -289,41 +208,120 @@ struct ControllerView: View {
                     gCodeModel.document.lastError = error.localizedDescription
             }
         }
+        .machineAlerts(model.alerts, onResume: model.resumeJob)
     }
 
-    // MARK: - Panels
-
-    private var toolpathParamsPanels: some View {
-        // PanelATC and PanelAccessories (vacuum / cooling) are intentionally
-        // not shown any more — they are still in the project and will be
-        // triggered from elsewhere.
-        GroupBox("WORK SETUP") {
-            VStack(alignment: .leading, spacing: 8) {
-                PanelCoordinate(model: model)
-                PanelProbe(model: model)
-                PanelOffset(scene: model.scene)
+    @ViewBuilder
+    private var column1: some View {
+        if gCodeModel.document.isLoading {
+            VStack {
+                Spacer()
+                loadingState
+                Spacer()
             }
-            .padding(.vertical, 2)
+        } else if gCodeModel.document.lines.isEmpty && model.gcodePanelMode != .macros {
+            VStack {
+                Spacer()
+                emptyState
+                Spacer()
+            }
+        } else {
+            CanvasSection(scene: model.scene, gCodeModel: gCodeModel,
+                          camModel: camModel, connection: model.connection,
+                          macros: model.macros,
+                          macroDocument: model.macros.document,
+                          showsMacroPreview: model.gcodePanelMode == .macros,
+                          isStockVisible: stockVisibleBinding,
+                          isShowingCanvasControlsSettings: $isShowingCanvasControlsSettings,
+                          onOpenStocksLib: onOpenStocksLib,
+                          onReloadFromCAM: {
+                              gCodeModel.generateGCode(from: camModel.toolpaths,
+                                                       generations: camModel.generations,
+                                                       stock: camModel.selectedStockMaterial)
+                          },
+                          onImportFile: { model.isGCodeImporterPresented = true })
         }
-        .frame(maxWidth: .infinity)
     }
 
-    private var controlPanels: some View {
+    @ViewBuilder
+    private var column2: some View {
         VStack(spacing: 16) {
-            // Home / Unlock / Refresh moved into PanelPosition's header, so
-            // PanelMachine isn't shown; PanelAccessories is not shown either.
+            workspacePanel
+            gcodeAndMacrosPanel
+        }
+//            .disabled(!model.connection.isConnected)
+
+    }
+
+    @ViewBuilder
+    private var column3: some View {
+        // Right panel with controller and console
+        VStack(spacing: 16) {
             PanelPosition(connection: model.connection, model: model)
-                .frame(maxWidth: .infinity)
 
             PanelSpindle(model: model)
-                .frame(maxWidth: .infinity)
 
             PanelJog(joystick: joystickStore,
                      holdFeed: $model.holdJogFeed,
                      onJog: { model.jog($0) },
                      onHold: { direction, pressed in model.holdJog(direction, pressed: pressed) },
                      onStopHold: { model.stopHoldJog() })
-            .frame(height: 235)
+            .frame(height: 180)
+
+            GroupBox(label: Text("MDI CONSOLE")) {
+                TerminalView(model: model, connection: model.connection)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+//            .disabled(!model.connection.isConnected)
+    }
+
+    // MARK: - Panels
+
+    private var workspacePanel: some View {
+        GroupBox {//}("WORK SETUP") {
+            VStack(alignment: .leading, spacing: 8) {
+                PanelCoordinate(model: model)
+                PanelProbe(model: model)
+                PanelOffset(scene: model.scene)
+            }
+            .padding(8)
+        }
+    }
+
+    private var gcodeAndMacrosPanel: some View {
+        GroupBox {
+            VStack(spacing: 6) {
+                Picker("", selection: $model.gcodePanelMode) {
+                    ForEach(GCodePanelMode.allCases, id: \.self) { mode in
+                        Text(mode == .gcode ? "G-code" : "Macros").tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+            GCodeViewer(model: gCodeModel,
+                        uploader: model.uploader,
+                        connection: model.connection,
+                        mode: model.gcodePanelMode,
+                        macros: model.macros,
+                        onRunMacro: { model.startJob(lines: $0) },
+                        highlightedLine: gCodeModel.scrubLine,
+                        onLineSelected: scrubTo,
+                        onPlay: {
+                            if model.connection.isConnected {
+                                model.isShowingRunReview = true
+                            } else {
+                                model.isShowingMachinePicker = true
+                            }
+                        },
+                        onPause: model.pauseJob,
+                        onSuspend: model.suspendJob,
+                        onResume: model.resumeJob,
+                        onResumeFromLine: { model.resumeJob(fromLine: $0) },
+                        canResumeFromLine: model.lastUploadedRemotePath != nil,
+                        onStop: model.stopJob)
+            }
         }
     }
 
@@ -452,7 +450,7 @@ private struct CanvasSection: View {
     /// light mode is pure white.
     private var viewportClearColor: SIMD4<Float> {
         colorScheme == .dark
-            ? SIMD4<Float>(0.2, 0.2, 0.2, 1)
+            ? SIMD4<Float>(0.1, 0.1, 0.1, 1)
             : SIMD4<Float>(1, 1, 1, 1)
     }
 

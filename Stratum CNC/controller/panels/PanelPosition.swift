@@ -18,9 +18,9 @@ struct PanelPosition: View {
     @ObservedObject var model: ControllerModel
 
     var body: some View {
-        GroupBox("POSITION") {
+        GroupBox {//}("POSITION") {
             VStack(alignment: .leading, spacing: 8) {
-                Grid(alignment: .trailing, horizontalSpacing: 10, verticalSpacing: 4) {
+                Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 8) {
                     GridRow {
                         Color.clear
                             .frame(width: 1, height: 1)
@@ -46,7 +46,7 @@ struct PanelPosition: View {
                 }
 
                 // Labelled, so it's clear what each one does.
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     Button {
                         model.sendRawCommand(model.homeCommand)
                     } label: {
@@ -72,7 +72,7 @@ struct PanelPosition: View {
                 }
                 .buttonStyle(.quiet)
             }
-            .padding(.vertical, 2)
+            .padding(8)
         }
     }
 
