@@ -184,7 +184,7 @@ final class NCFileDocument: ObservableObject {
         self.lastError = "Couldn't read file: \(error.localizedDescription)"
     }
 
-    func load(from string: String) {
+    func load(from string: String, name: String = "From CAM") {
         loadTask?.cancel()
         loadTask = nil
         isLoading = false
@@ -199,7 +199,7 @@ final class NCFileDocument: ObservableObject {
         // A program built in memory isn't backed by a file: drop whatever was loaded before.
         self.fileURL = nil
         self.lastError = nil
-        self.fileName = "From CAM"
+        self.fileName = name
     }
 
     // MARK: Background parsing

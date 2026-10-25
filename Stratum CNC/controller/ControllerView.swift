@@ -58,6 +58,7 @@ struct ControllerView: View {
     var onOpenStocksLib: (() -> Void)? = nil
 
     @State private var isShowingCanvasControlsSettings = false
+    @State private var isShowingEmptyStateRemoteFiles = false
 
     private var stockVisibleBinding: Binding<Bool> {
         Binding(
@@ -222,6 +223,22 @@ struct ControllerView: View {
         .machineAlerts(model.alerts, onResume: model.resumeJob)
     }
 
+    /// Downloads a program from the machine's SD card and loads it as if it
+    /// had been imported from disk.
+    private func loadRemoteFile(_ file: MachineFileEntry) {
+        model.session.downloadGCode(path: file.path) { result in
+            switch result {
+            case .success(let text):
+                gCodeModel.document.load(from: text, name: file.name)
+                gCodeModel.selectedToolpathID = nil
+                gCodeModel.requestedLine = nil
+                gCodeModel.analyzedLineCount = -1
+            case .failure(let error):
+                gCodeModel.document.lastError = error.localizedDescription
+            }
+        }
+    }
+
     @ViewBuilder
     private var column1: some View {
         if gCodeModel.document.isLoading {
@@ -250,7 +267,9 @@ struct ControllerView: View {
                                                        generations: camModel.generations,
                                                        stock: camModel.selectedStockMaterial)
                           },
-                          onImportFile: { model.isGCodeImporterPresented = true })
+                          onImportFile: { model.isGCodeImporterPresented = true },
+                          session: model.session,
+                          onLoadRemoteFile: loadRemoteFile)
         }
     }
 
@@ -380,6 +399,21 @@ struct ControllerView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(gCodeModel.document.isLoading)
+
+                    Button {
+                        isShowingEmptyStateRemoteFiles = true
+                    } label: {
+                        Label("Load from Machine…", systemImage: "externaldrive.badge.wifi")
+                    }
+                    .disabled(gCodeModel.document.isLoading)
+                    .popover(isPresented: $isShowingEmptyStateRemoteFiles, arrowEdge: .bottom) {
+                        RemoteFilesPopover(info: model.session.info,
+                                           downloader: model.session.downloader,
+                                           isConnected: model.connection.isConnected) { file in
+                            isShowingEmptyStateRemoteFiles = false
+                            loadRemoteFile(file)
+                        }
+                    }
                 }
             }
         }
@@ -469,6 +503,9 @@ private struct CanvasSection: View {
     let onOpenStocksLib: (() -> Void)?
     let onReloadFromCAM: () -> Void
     let onImportFile: () -> Void
+    let session: SL.Session
+    let onLoadRemoteFile: (MachineFileEntry) -> Void
+    @State private var isShowingRemoteFiles = false
 
     /// So the 3D viewport's background follows the app-wide day/night
     /// switch (see `ContentView`) instead of always being the renderer's
@@ -617,6 +654,23 @@ private struct CanvasSection: View {
             }
             .help("Import from file")
             .disabled(gCodeModel.document.isLoading)
+
+            Button {
+                isShowingRemoteFiles = true
+            } label: {
+                Image(systemName: "externaldrive.badge.wifi")
+                    .frame(width: 22, height: 22)
+            }
+            .help("Load from machine")
+            .disabled(gCodeModel.document.isLoading)
+            .popover(isPresented: $isShowingRemoteFiles, arrowEdge: .bottom) {
+                RemoteFilesPopover(info: session.info,
+                                   downloader: session.downloader,
+                                   isConnected: connection.isConnected) { file in
+                    isShowingRemoteFiles = false
+                    onLoadRemoteFile(file)
+                }
+            }
 
             Text(gCodeModel.document.fileName)
                 .font(.caption.weight(.medium))
