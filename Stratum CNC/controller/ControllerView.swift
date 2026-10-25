@@ -417,6 +417,40 @@ struct ControllerView: View {
     }
 }
 
+/// The strip under the canvas: the scrub slider normally, the running job's
+/// progress bar in the same spot while a job is on the machine. Same height
+/// either way so the canvas doesn't jump when a job starts or ends.
+///
+/// Observes the connection itself — `CanvasSection` only holds it as a plain
+/// `let`, so it would never redraw on the machine's status polls (same
+/// reasoning as `ToolPositionSync`).
+private struct ScrubberOrJobProgress<Scrubber: View>: View {
+    @ObservedObject var connection: MachineConnection
+    @ViewBuilder let scrubber: () -> Scrubber
+
+    var body: some View {
+        Group {
+            if let job = connection.status?.activeJob {
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressView(value: job.fraction)
+                        .progressViewStyle(.linear)
+                    HStack {
+                        Text(verbatim: "Line \(job.currentLine)")
+                        Spacer()
+                        Text(verbatim: "\(job.percent)% · \(job.elapsedText)")
+                    }
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 4)
+            } else {
+                scrubber()
+            }
+        }
+        .frame(height: 45)
+    }
+}
+
 private struct CanvasSection: View {
     @ObservedObject var scene: CanvasSceneModel
     @ObservedObject var gCodeModel: GCodeStore
@@ -698,14 +732,15 @@ private struct CanvasSection: View {
                 .padding(8)
             }
 
-            Slider(value: scrubBinding, in: 0...Double(max(1, gCodeModel.document.lines.count))) { editing in
-                if !editing {
-                    forceHeightmapRefresh()
+            ScrubberOrJobProgress(connection: connection) {
+                Slider(value: scrubBinding, in: 0...Double(max(1, gCodeModel.document.lines.count))) { editing in
+                    if !editing {
+                        forceHeightmapRefresh()
+                    }
                 }
+                .disabled(gCodeModel.document.lines.isEmpty || scene.isMacroPreviewActive)
+                .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
             }
-            .disabled(gCodeModel.document.lines.isEmpty || scene.isMacroPreviewActive)
-            .frame(height: 45)
-            .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
         }
         .onAppear {
             // Sync once up front — `renderObjects` otherwise still

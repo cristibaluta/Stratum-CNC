@@ -170,22 +170,12 @@ struct GCodeViewer: View {
         return job.currentLine
     }
 
+    /// The running job's progress bar lives under the canvas, in place of the
+    /// scrub slider (`ScrubberOrJobProgress`); this only keeps the summary of
+    /// the previous job.
     @ViewBuilder
     private var jobProgress: some View {
-        if let job = connection.status?.activeJob {
-            VStack(alignment: .leading, spacing: 3) {
-                ProgressView(value: job.fraction)
-                    .progressViewStyle(.linear)
-                HStack {
-                    Text(verbatim: "Line \(job.currentLine)")
-                    Spacer()
-                    Text(verbatim: "\(job.percent)% · \(job.elapsedText)")
-                }
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 4)
-        } else if let last = connection.status?.lastJob {
+        if connection.status?.activeJob == nil, let last = connection.status?.lastJob {
             HStack {
                 Text(verbatim: "Last job: line \(last.currentLine)")
                 Spacer()
