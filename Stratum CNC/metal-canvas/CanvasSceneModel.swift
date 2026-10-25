@@ -227,8 +227,8 @@ class CanvasSceneModel: ObservableObject {
     }
 
     /// Work bed, anchor and ruler at the stock's bottom face. The bed is
-    /// built in machine coordinates; the anchor and ruler are built at the
-    /// origin and moved to the active anchor by the renderer
+    /// built in machine coordinates; the anchor (which carries its ruler) is
+    /// built at the origin and moved to the active anchor by the renderer
     /// (`MetalRenderer.anchorOrigin`), so changing the anchor needs no
     /// rebuild.
     private func rebuildFixtures() {

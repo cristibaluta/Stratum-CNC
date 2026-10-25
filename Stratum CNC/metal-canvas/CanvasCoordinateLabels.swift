@@ -32,7 +32,8 @@ struct CanvasCoordinateLabels: View {
         let point: SIMD2<Float>
         let color: Color
         /// Which corner of the pill sits at the point; the pill extends away
-        /// from it, back over the object it belongs to.
+        /// from that corner, so `.bottomLeading` puts it up and to the right
+        /// of the point and `.topTrailing` down and to the left.
         let corner: Alignment
     }
 
@@ -41,8 +42,11 @@ struct CanvasCoordinateLabels: View {
         let bed = CanvasLayer.workbed.tint ?? .gray
         let anchor = CanvasLayer.anchor.tint ?? .orange
         return [
-            Pill(id: "home", point: layout.bedMax, color: bed, corner: .topTrailing),
-            Pill(id: "far", point: layout.bedMin, color: bed, corner: .bottomLeading),
+            // The two bed corners hang off *outside* the bed — home up and to
+            // the right, the far corner down and to the left — so the pills
+            // never sit on the bed itself.
+            Pill(id: "home", point: layout.bedMax, color: bed, corner: .bottomLeading),
+            Pill(id: "far", point: layout.bedMin, color: bed, corner: .topTrailing),
             Pill(id: "anchor", point: layout.activeAnchor, color: anchor, corner: .topTrailing)
         ]
     }
@@ -63,11 +67,15 @@ struct CanvasCoordinateLabels: View {
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            // Pills must jump with the camera, never glide after it.
+            .transaction { $0.animation = nil }
         }
         .allowsHitTesting(false)
-        // Deferred a runloop turn: the canvas reports a frame from inside
-        // SwiftUI's own update pass, where changing state is not allowed.
-        .onReceive(scene.zoomModel.frameRendered.receive(on: DispatchQueue.main)) { _ in
+        // Straight from the frame the canvas just drew, so the pills move
+        // with a pan or an orbit rather than a frame behind it. (The canvas
+        // itself defers the reports that come from inside SwiftUI's update
+        // pass, where state can't change — see `MetalCanvasView`.)
+        .onReceive(scene.zoomModel.frameRendered) { _ in
             frameTick &+= 1
         }
     }
@@ -86,7 +94,9 @@ struct CanvasCoordinateLabels: View {
                     .foregroundStyle(pill.color)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 2)
-                    .background(.regularMaterial, in: Capsule())
+                    // Plain translucent fill, not a blurred material: the
+                    // blur would be re-rendered on every frame of a pan.
+                    .background(.background.opacity(0.88), in: Capsule())
                     .overlay(Capsule().strokeBorder(pill.color, lineWidth: 1))
                     .fixedSize()
                     .offset(x: dx, y: dy)

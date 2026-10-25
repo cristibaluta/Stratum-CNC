@@ -57,6 +57,9 @@ enum RenderRole: Hashable {
     case anchor
     /// Static machine fixture: the graduated ruler along the anchor's
     /// inside edges. Same Z/rebuild rules as `.workbed` and `.anchor`.
+    /// In the controller's scene the ruler is part of the `.anchor` object
+    /// (see `anchor(z:...rulerLength:)`); this role is the ruler as an
+    /// object of its own, which CAM's 2D view still uses.
     case ruler
     /// Dotted rectangle around the loaded program's cutting moves, grown
     /// outward by the radius of the tool that cuts each edge — i.e. the
@@ -368,9 +371,10 @@ extension RenderObject {
     /// adding a new fixture role only means adding it here once.
     static let allFixtureRoles: Set<RenderRole> = [.workbed, .anchor, .ruler]
 
-    /// The static fixtures — work bed, anchor, and the anchor's ruler — at
-    /// height `z`. `roles` picks which of the three to build (default: all
-    /// of them, the controller's scene). CAM's 2D view, which draws its own
+    /// The static fixtures — work bed, and the anchor with its ruler — at
+    /// height `z`. `roles` picks what to build (default: all of it, the
+    /// controller's scene, where the ruler is built into the anchor object
+    /// rather than as a separate one). CAM's 2D view, which draws its own
     /// stock and isn't positioned relative to the machine bed at all, asks
     /// for just `[.ruler]` here instead.
     ///
@@ -383,8 +387,13 @@ extension RenderObject {
                          bedSize: SIMD2<Float> = SIMD2<Float>(200, 200)) -> [RenderObject] {
         var result: [RenderObject] = []
         if roles.contains(.workbed) { result.append(workbed(z: z, origin: bedOrigin, width: bedSize.x, height: bedSize.y)) }
-        if roles.contains(.anchor) { result.append(anchor(z: z)) }
-        if roles.contains(.ruler) { result.append(ruler(z: z)) }
+        // The ruler is part of the anchor: one object when both are wanted.
+        // A ruler alone (the 2D view's `[.ruler]`) is still its own object.
+        if roles.contains(.anchor) {
+            result.append(anchor(z: z, rulerLength: roles.contains(.ruler) ? 80 : 0))
+        } else if roles.contains(.ruler) {
+            result.append(ruler(z: z))
+        }
         return result
     }
 
@@ -449,11 +458,19 @@ extension RenderObject {
     ///            └─────────┘ (85,-15)
     ///         (-15,-15) = outer corner
     ///
+    /// With `rulerLength` above zero the anchor also carries its ruler (see
+    /// `ruler(z:insideCorner:length:color:)`): the graduations along the two
+    /// inside edges are part of the *same* object, so the anchor and its
+    /// ruler show, hide and move as one. The outline is then a `.lineList`
+    /// rather than a closed `.lineStrip`, so both can share a single
+    /// buffer; it draws identically.
+    ///
     /// Static, like `workbed` — no `xyOffset`.
     static func anchor(z: Float,
                        insideCorner: SIMD2<Float> = .zero,
                        legLength: Float = 100,
                        thickness: Float = 15,
+                       rulerLength: Float = 0,
                        color: SIMD4<Float> = CanvasPalette.anchor) -> RenderObject {
 
         let outer = insideCorner - SIMD2<Float>(repeating: thickness)
@@ -466,7 +483,22 @@ extension RenderObject {
             SIMD2<Float>(insideCorner.x,      outer.y + legLength),      // Y arm, far end, inner edge
             SIMD2<Float>(outer.x,             outer.y + legLength)       // Y arm, far end, outer edge
         ]
-        return flatOutline(corners, z: z, role: .anchor, color: color)
+        guard rulerLength > 0 else {
+            return flatOutline(corners, z: z, role: .anchor, color: color)
+        }
+
+        // Outline as separate segments (closing back to the first corner),
+        // then the ruler's ticks, all in one line list.
+        var points: [SIMD3<Float>] = []
+        for index in corners.indices {
+            let from = corners[index]
+            let to = corners[(index + 1) % corners.count]
+            points.append(SIMD3<Float>(from.x, from.y, z))
+            points.append(SIMD3<Float>(to.x, to.y, z))
+        }
+        points += rulerPoints(z: z, insideCorner: insideCorner, length: rulerLength)
+
+        return RenderObject(role: .anchor, points: points, color: color, primitive: .lineList)
     }
 
     /// A ruler along the anchor's two *inside* edges, measured from the
@@ -486,6 +518,15 @@ extension RenderObject {
                       insideCorner: SIMD2<Float> = .zero,
                       length: Float = 80,
                       color: SIMD4<Float> = CanvasPalette.ruler) -> RenderObject {
+        RenderObject(role: .ruler,
+                     points: rulerPoints(z: z, insideCorner: insideCorner, length: length),
+                     color: color,
+                     primitive: .lineList)
+    }
+
+    /// The ruler's line segments (baselines and ticks), shared by the
+    /// standalone `ruler` and the anchor that carries it.
+    private static func rulerPoints(z: Float, insideCorner: SIMD2<Float>, length: Float) -> [SIMD3<Float>] {
 
         var points: [SIMD3<Float>] = []
         let x0 = insideCorner.x
@@ -510,7 +551,7 @@ extension RenderObject {
             points.append(SIMD3<Float>(x0 - tick, y0 + d, z))
         }
 
-        return RenderObject(role: .ruler, points: points, color: color, primitive: .lineList)
+        return points
     }
 
     /// Closed polygon outline at constant `z`. One `.lineStrip` that returns

@@ -59,15 +59,15 @@ struct PanelPosition: View {
                     }
 
                     if let status = connection.status {
-                        positionRow(title: "MACHINE",
+                        positionRow(title: "MCS",
                                     values: [status.machinePosition.x, status.machinePosition.y, status.machinePosition.z, 0],
                                     prominent: false)
-                        positionRow(title: "WORK",
+                        positionRow(title: "WCS",
                                     values: [status.workPosition.x, status.workPosition.y, status.workPosition.z, 0],
                                     prominent: true)
                     } else {
-                        positionRow(title: "MACHINE", values: [0, 0, 0, 0], prominent: false)
-                        positionRow(title: "WORK", values: [0, 0, 0, 0], prominent: true)
+                        positionRow(title: "MCS", values: [0, 0, 0, 0], prominent: false)
+                        positionRow(title: "WCS", values: [0, 0, 0, 0], prominent: true)
                     }
 
                     offsetRow
@@ -149,8 +149,8 @@ struct PanelPosition: View {
             offsetField($scene.xyOffset.x, axis: "X")
             offsetField($scene.xyOffset.y, axis: "Y")
 
-            Color.clear.frame(width: 1, height: 1)
-            Color.clear.frame(width: 1, height: 1)
+//            Color.clear.frame(width: 1, height: 1)
+//            Color.clear.frame(width: 1, height: 1)
         }
         .help("G-code offset: where the job's origin sits, in mm")
     }

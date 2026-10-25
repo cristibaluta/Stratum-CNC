@@ -149,8 +149,23 @@ struct MetalCanvasView: NSViewRepresentable {
         // rather than the button reaching into the camera directly.
         context.coordinator.zoomModel = zoomModel
         renderer.onFrameRendered = { [weak coordinator = context.coordinator] in
-            coordinator?.updateZoomPercent()
-            coordinator?.zoomModel?.frameRendered.send()
+            guard let coordinator else {
+                return
+            }
+            coordinator.updateZoomPercent()
+            // Views that follow a point on the canvas (the coordinate pills)
+            // want to know the moment a frame is drawn — for a pan or an
+            // orbit that is straight from the gesture, where state can be
+            // changed right away. A frame drawn from `updateNSView` is
+            // inside SwiftUI's own update pass, where it can't, so only
+            // those are handed over a runloop turn later.
+            if coordinator.isInsideSwiftUIUpdate {
+                DispatchQueue.main.async { [weak coordinator] in
+                    coordinator?.zoomModel?.frameRendered.send()
+                }
+            } else {
+                coordinator.zoomModel?.frameRendered.send()
+            }
         }
         zoomModel?.installResetAction { [weak coordinator = context.coordinator] in
             coordinator?.resetToTrueToLife()
@@ -233,6 +248,9 @@ struct MetalCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: MTKView, context: Context) {
+        context.coordinator.isInsideSwiftUIUpdate = true
+        defer { context.coordinator.isInsideSwiftUIUpdate = false }
+
         if let clearColor {
             nsView.clearColor = MTLClearColor(red: Double(clearColor.x), green: Double(clearColor.y),
                                               blue: Double(clearColor.z), alpha: Double(clearColor.w))
@@ -267,6 +285,9 @@ struct MetalCanvasView: NSViewRepresentable {
     class Coordinator: NSObject {
         var parent: MetalCanvasView
         var renderer: MetalRenderer?
+        /// True while `updateNSView` runs. See `onFrameRendered` in
+        /// `makeNSView`.
+        var isInsideSwiftUIUpdate = false
         /// M4: id of the last `HeightmapMesh` actually uploaded to the GPU
         /// (see `updateNSView`). `nil` alongside `heightmapMesh == nil`
         /// means nothing's been uploaded yet.

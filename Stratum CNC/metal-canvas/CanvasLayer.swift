@@ -17,8 +17,8 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
     case boundingBox
     case tool
     case workbed
+    /// The L-bracket together with its graduated ruler — one object.
     case anchor
-    case ruler
     case axes
     /// Not a render object: the coordinate pills drawn over the canvas
     /// (`CanvasCoordinateLabels`). One entry hides them all.
@@ -35,7 +35,6 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .tool:         return "Tool"
             case .workbed:      return "Work bed"
             case .anchor:       return "Anchor"
-            case .ruler:        return "Ruler"
             case .axes:         return "Axes"
             case .coordinates:  return "Coordinates"
         }
@@ -52,7 +51,6 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .tool:         return [.tool]
             case .workbed:      return [.workbed]
             case .anchor:       return [.anchor]
-            case .ruler:        return [.ruler]
             case .axes:         return [.axes]
             case .coordinates:  return []
         }
@@ -70,7 +68,6 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .tool:         return CanvasPalette.tool
             case .workbed:      return CanvasPalette.workbed
             case .anchor:       return CanvasPalette.anchor
-            case .ruler:        return CanvasPalette.ruler
             case .axes, .coordinates: return nil
         }
     }
