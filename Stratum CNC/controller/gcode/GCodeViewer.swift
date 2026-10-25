@@ -99,8 +99,10 @@ struct GCodeViewer: View {
                                    requestedLine: nil, onLineSelected: nil)
             }
             jobProgress
+
+            Divider()
+
             commandBar
-                .frame(height: 36)
         }
         .onAppear {
             refreshToolpaths()
@@ -221,7 +223,23 @@ struct GCodeViewer: View {
     /// Pause is offered while the machine is moving; resume while it's held.
     private var canPauseOrResume: Bool {
         guard connection.isConnected, let status = connection.status else { return false }
-        return status.isRunning || status.isHeld
+        return status.isRunning || status.isHeld || status.isSuspended
+    }
+
+    private var isSuspended: Bool {
+        connection.status?.isSuspended == true
+    }
+
+    /// Held or suspended: either way the job is waiting for a resume.
+    private var isPaused: Bool {
+        isHeld || isSuspended
+    }
+
+    /// A job is in flight from the first upload byte until it finishes or is
+    /// stopped, including while held or suspended. Pause/stop only exist
+    /// then; otherwise the bar shows just "Send to Machine".
+    private var isJobActive: Bool {
+        uploader.isActive || connection.status?.isBusy == true || isPaused
     }
 
     /// Suspend needs a job that is actually playing and moving, mirroring
@@ -234,7 +252,7 @@ struct GCodeViewer: View {
     /// Stop covers both an upload in flight and a job running on the
     /// machine, so it's enabled for either.
     private var canStop: Bool {
-        uploader.isActive || (connection.isConnected && connection.status?.isBusy == true)
+        uploader.isActive || (connection.isConnected && (connection.status?.isBusy == true || isPaused))
     }
 
     /// The line `onResumeFromLine` would seek to if tapped right now —
@@ -268,60 +286,13 @@ struct GCodeViewer: View {
         }
     }
 
+    /// Same shape as the console's command bar (`TerminalView`): a divider
+    /// above, one 8pt-spaced row, 8pt vertical padding. Status on the left,
+    /// actions on the right, styled like the spindle's Start/Stop
+    /// (`QuietButtonStyle`). Idle shows only "Send to Machine"; once a job is
+    /// in flight that button gives way to the job controls.
     private var commandBar: some View {
         HStack(spacing: 8) {
-            // One button, two roles: feed-hold while the machine is running,
-            // resume while it's held. Driven by the machine's reported state
-            // (polled once a second), so the icon can lag a press by up to a
-            // second.
-            Button {
-                if isHeld {
-                    onResume?()
-                } else {
-                    onPause?()
-                }
-            } label: {
-                Image(systemName: isHeld ? "playpause.fill" : "pause.fill")
-                    .foregroundStyle(isHeld ? Color.orange : .secondary)
-            }
-            .buttonStyle(.borderless)
-            .disabled(!canPauseOrResume)
-            .help(isHeld ? "Resume the job" : "Pause the job — feed hold (!)")
-
-            Button {
-                onSuspend?()
-            } label: {
-                Image(systemName: "moon.zzz.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .disabled(!canSuspend)
-            .help("Suspend the job to continue later: stops the spindle and saves the position (console suspend). Resume brings it back.")
-
-            Button {
-                onStop?()
-            } label: {
-                Image(systemName: "stop.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
-            .disabled(!canStop)
-            .help("Stop: cancels an upload, or aborts the running job with a soft reset (not resumable)")
-
-            Button {
-                onPlay?()
-            } label: {
-                Image(systemName: "play.fill")
-                    .foregroundStyle(canStartJob ? Color.accentColor : .secondary)
-            }
-            .buttonStyle(.borderless)
-            .disabled(!canStartJob)
-            .help(connection.isConnected
-                  ? "Review and upload the loaded program to the machine's SD card"
-                  : "Connect a machine, then review and upload the loaded program")
-
-            Spacer()
-
             if let progressText {
                 Text(progressText)
                     .font(.caption.monospacedDigit())
@@ -329,28 +300,78 @@ struct GCodeViewer: View {
                     .lineLimit(1)
             }
 
-            // Only while held, and only once there's a known SD-card file
-            // to seek in — see `canResumeFromLine`. Tap a row in the table
-            // above first to change `resumeLineTarget`; this always shows
-            // *some* line so there's no dead click, but it's the same line
-            // plain "resume" would use until a row is tapped.
-            if isHeld, canResumeFromLine, let target = resumeLineTarget {
-                Button {
-                    onResumeFromLine?(target)
-                } label: {
-                    Text("Resume from Line \(target)")
-                }
-                .help("Seek to line \(target) (console \"goto \(target)\"), then resume — instead of continuing from where it paused")
-            }
+            Spacer()
 
-            Button {
-                onPlay?()
-            } label: {
-                Text("Send to Machine")
+            if isJobActive {
+                jobControls
+            } else {
+                Button {
+                    onPlay?()
+                } label: {
+                    Label("Send to Machine", systemImage: "play.fill")
+                }
+                .buttonStyle(QuietButtonStyle(tint: .green))
+                .disabled(!canStartJob)
+                .help(connection.isConnected
+                      ? "Review and upload the loaded program to the machine's SD card"
+                      : "Connect a machine, then review and upload the loaded program")
             }
-            .disabled(!canStartJob)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .frame(minHeight: 22)
+    }
+
+    @ViewBuilder
+    private var jobControls: some View {
+        // Only while paused, and only once there's a known SD-card file to
+        // seek in — see `canResumeFromLine`. Tap a row in the table above to
+        // change `resumeLineTarget`.
+        if isPaused, canResumeFromLine, let target = resumeLineTarget {
+            Button {
+                onResumeFromLine?(target)
+            } label: {
+                Text("Resume from Line \(target)")
+            }
+            .buttonStyle(QuietButtonStyle(tint: .accentColor))
+            .help("Seek to line \(target) (console \"goto \(target)\"), then resume — instead of continuing from where it paused")
+        }
+
+        // Machine-side controls: not offered while a file is still uploading.
+        if canPauseOrResume {
+            // One button, two roles: feed-hold while running, resume while
+            // paused. Driven by the machine's polled state, so the icon can
+            // lag a press by up to a second.
+            Button {
+                if isPaused {
+                    onResume?()
+                } else {
+                    onPause?()
+                }
+            } label: {
+                Image(systemName: isPaused ? "playpause.fill" : "pause.fill")
+            }
+            .buttonStyle(QuietButtonStyle(tint: .orange))
+            .help(isPaused ? "Resume the job" : "Pause the job — feed hold (!)")
+
+            if canSuspend {
+                Button {
+                    onSuspend?()
+                } label: {
+                    Image(systemName: "moon.zzz.fill")
+                }
+                .buttonStyle(QuietButtonStyle(tint: .secondary))
+                .help("Suspend the job to continue later: stops the spindle and saves the position (console suspend). Resume brings it back.")
+            }
+        }
+
+        Button {
+            onStop?()
+        } label: {
+            Image(systemName: "stop.fill")
+        }
+        .buttonStyle(QuietButtonStyle(tint: .red))
+        .disabled(!canStop)
+        .help("Stop: cancels an upload, or aborts the running job with a soft reset (not resumable)")
     }
 }
 
