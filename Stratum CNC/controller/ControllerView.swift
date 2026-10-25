@@ -660,11 +660,11 @@ private struct CanvasSection: View {
             .background(.regularMaterial)
             .cornerRadius(8)
 
-            MetalCanvasView(objects: $scene.renderObjects,
+            MetalCanvasView(objects: .constant(scene.visibleRenderObjects),
                             renderMode: scene.renderMode,
                             xyOffset: scene.xyOffset,
                             stockColor: scene.stockColor,
-                            heightmapMesh: scene.isMacroPreviewActive ? nil : scene.heightmapMesh,
+                            heightmapMesh: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapMesh,
                             clearColor: viewportClearColor,
                             zoomModel: scene.zoomModel)
             .cornerRadius(8)
@@ -696,6 +696,10 @@ private struct CanvasSection: View {
                         .cornerRadius(6)
                         .padding(8)
                 }
+            }
+            .overlay(alignment: .topLeading) {
+                CanvasLayersList(scene: scene)
+                    .padding(8)
             }
             .overlay(alignment: .topTrailing) {
                 VStack(alignment: .trailing, spacing: 6) {

@@ -28,6 +28,13 @@ class CanvasSceneModel: ObservableObject {
     /// types here — MetalRenderer is the only thing that turns this into GPU buffers.
     @Published var renderObjects: [RenderObject] = RenderObject.defaultScene()
 
+    /// Objects the person switched off in the canvas's objects list. Only
+    /// what is handed to the renderer is filtered (`visibleRenderObjects`);
+    /// `renderObjects` itself keeps everything, so the scrubber and the
+    /// macro preview keep working on hidden objects and switching one back
+    /// on needs no rebuild of the scene. See `CanvasLayer`.
+    @Published var hiddenLayers: Set<CanvasLayer> = []
+
     /// Bridges the canvas's 100% button to `MetalCanvasView` — see
     /// `CanvasZoomModel`. Lives here (rather than on `ControllerModel` or
     /// `CanvasSection`) so `CanvasSection` has it to hand to both the button

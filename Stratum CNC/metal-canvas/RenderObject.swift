@@ -57,6 +57,9 @@ enum RenderRole: Hashable {
     case macroRapid
     /// Cutting moves of the previewed macro. See `.macroRapid`.
     case macroCutting
+    /// The XYZ axis gizmo at the origin (all three arrows). Tagged only so
+    /// the canvas's objects list can switch it off — see `CanvasLayer`.
+    case axes
 }
 
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
@@ -587,7 +590,7 @@ extension RenderObject {
                      kind: ToolSpec.Kind = .endMill,
                      tipAngleDegrees: Double? = nil,
                      segments: Int = 48,
-                     color: SIMD4<Float> = SIMD4<Float>(0.9, 0.0, 0.0, 1.0)) -> RenderObject {
+                     color: SIMD4<Float> = SIMD4<Float>(0.6, 0.62, 0.66, 1.0)) -> RenderObject {
 
         let sides = max(3, segments)
         let radius = Float(max(0, diameter) / 2)
@@ -810,7 +813,7 @@ extension RenderObject {
             points.append(tip)
         }
 
-        return RenderObject(points: points, color: color, primitive: .lineList)
+        return RenderObject(role: .axes, points: points, color: color, primitive: .lineList)
     }
 
     /// Any two unit vectors perpendicular to `direction` and to each other —
