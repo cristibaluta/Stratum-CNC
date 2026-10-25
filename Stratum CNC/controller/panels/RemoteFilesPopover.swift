@@ -14,6 +14,7 @@ struct RemoteFilesPopover: View {
     @ObservedObject var downloader: MachineFileDownloader
     let isConnected: Bool
     let onSelect: (MachineFileEntry) -> Void
+    @Environment(\.dismiss) private var dismiss
 
     private static let gcodeExtensions: Set<String> = ["nc", "ngc", "gcode", "cnc", "tap", "gc"]
 
@@ -77,10 +78,24 @@ struct RemoteFilesPopover: View {
 
             switch downloader.state {
             case .downloading(let path, let bytes):
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Downloading \((path as NSString).lastPathComponent)… \(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))")
-                        .font(.caption)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Downloading \((path as NSString).lastPathComponent)")
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Text(downloader.progress > 0
+                             ? "\(Int(downloader.progress * 100))%"
+                             : ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))
+                            .monospacedDigit()
+                    }
+                    .font(.caption)
+                    // Indeterminate until the machine reports the packet count.
+                    if downloader.progress > 0 {
+                        ProgressView(value: downloader.progress)
+                    } else {
+                        ProgressView().progressViewStyle(.linear)
+                    }
                 }
             case .failed(let message):
                 Text(message)
@@ -93,6 +108,11 @@ struct RemoteFilesPopover: View {
         }
         .padding(12)
         .frame(width: 340)
+        // Stays open while the file comes down (so the progress is visible),
+        // then closes itself once it has been handed over.
+        .onChange(of: downloader.isActive) { wasActive, isActive in
+            if wasActive, !isActive, downloader.state == .idle { dismiss() }
+        }
         .onAppear {
             if isConnected, !downloader.isActive {
                 info.listFiles(in: info.currentDirectory)

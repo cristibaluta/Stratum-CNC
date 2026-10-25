@@ -410,7 +410,6 @@ struct ControllerView: View {
                         RemoteFilesPopover(info: model.session.info,
                                            downloader: model.session.downloader,
                                            isConnected: model.connection.isConnected) { file in
-                            isShowingEmptyStateRemoteFiles = false
                             loadRemoteFile(file)
                         }
                     }
@@ -667,7 +666,6 @@ private struct CanvasSection: View {
                 RemoteFilesPopover(info: session.info,
                                    downloader: session.downloader,
                                    isConnected: connection.isConnected) { file in
-                    isShowingRemoteFiles = false
                     onLoadRemoteFile(file)
                 }
             }
