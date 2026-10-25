@@ -81,7 +81,7 @@ struct MachinesList: View {
                 }
             }
         }
-        .onAppear { model.discovery.startScanning() }
-        .onDisappear { model.discovery.stopScanning() }
+        // Scanning is owned by `ControllerModel`; starting/stopping it here
+        // would stop discovery as soon as the sheet closes.
     }
 }

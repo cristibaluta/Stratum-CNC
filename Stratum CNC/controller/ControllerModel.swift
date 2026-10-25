@@ -22,7 +22,11 @@ import AppKit
 @MainActor
 class ControllerModel: ObservableObject {
 
-    @Published var discovery = SL.Discovery()
+    /// Listens for the UDP broadcasts real machines send (see `SL.Discovery`).
+    /// Scanning starts with the model — not with whichever view happens to
+    /// show the list — so the toolbar picker is populated and a real machine
+    /// is picked up even if the picker sheet was never opened.
+    let discovery = SL.Discovery()
     @Published var selectedMachine: SL.MakeraMachine?
 
     /// The machine logic. Views reach its parts through the forwarding
@@ -143,6 +147,19 @@ class ControllerModel: ObservableObject {
         session = SL.Session(lastUploadedRemotePath: savedPath)
         lastUploadedRemotePath = savedPath
 
+        // `discovery` is a nested object: forward its changes so views
+        // reading `model.discovery.machines` refresh when a machine appears.
+        discovery.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+
+        // Auto-select (and therefore auto-connect, see `ControllerView`) the
+        // first real machine found, replacing nothing or the simulator.
+        discovery.$machines
+            .sink { [weak self] machines in self?.autoSelectRealMachine(in: machines) }
+            .store(in: &cancellables)
+        discovery.startScanning()
+
         session.onLastUploadedRemotePathChange = { [weak self] path in
             self?.lastUploadedRemotePath = path
         }
@@ -163,6 +180,19 @@ class ControllerModel: ObservableObject {
             }
         }
         #endif
+    }
+
+    private var cancellables = Set<AnyCancellable>()
+    /// Machines already auto-selected once, so that if the person later
+    /// switches away (to the simulator, say) we don't yank them back.
+    private var autoSelectedMachineIDs = Set<String>()
+
+    private func autoSelectRealMachine(in machines: [SL.MakeraMachine]) {
+        guard selectedMachine == nil || selectedMachine?.isMock == true,
+              let real = machines.first(where: { !$0.isMock && !autoSelectedMachineIDs.contains($0.id) })
+        else { return }
+        autoSelectedMachineIDs.insert(real.id)
+        selectedMachine = real
     }
 
     /// Turns what the session reports into app behavior.
