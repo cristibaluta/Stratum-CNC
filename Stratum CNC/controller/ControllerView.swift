@@ -697,9 +697,19 @@ private struct CanvasSection: View {
                         .padding(8)
                 }
             }
+            .overlay {
+                CanvasCoordinateLabels(scene: scene)
+            }
             .overlay(alignment: .topLeading) {
-                CanvasLayersList(scene: scene)
-                    .padding(8)
+                CanvasLayersList(scene: scene) {
+                    PanelStockMaterial(stock: $camModel.selectedStockMaterial,
+                                       isStockVisible: isStockVisible,
+                                       isCompact: true,
+                                       onOpenStocksLib: nil)
+                        .frame(width: 300)
+                        .padding(12)
+                }
+                .padding(8)
             }
             .overlay(alignment: .topTrailing) {
                 VStack(alignment: .trailing, spacing: 6) {

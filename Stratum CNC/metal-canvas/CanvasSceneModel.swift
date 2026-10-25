@@ -35,6 +35,29 @@ class CanvasSceneModel: ObservableObject {
     /// on needs no rebuild of the scene. See `CanvasLayer`.
     @Published var hiddenLayers: Set<CanvasLayer> = []
 
+    /// Where the work bed and the anchor sit in the machine's coordinates,
+    /// and which anchor is in use. Changing it rebuilds the fixtures (the
+    /// bed moves relative to the stock — see `MachineLayout`) and is
+    /// remembered between launches.
+    @Published var machineLayout: MachineLayout = MachineLayout.load() {
+        didSet {
+            guard machineLayout != oldValue else {
+                return
+            }
+            machineLayout.save()
+            rebuildFixtures()
+        }
+    }
+
+    /// The stock the scene was last built for, so the fixtures can be
+    /// rebuilt on their own (`rebuildFixtures`) when only the layout changes.
+    private var currentStock: StockMaterial?
+
+    /// Height the fixtures sit at: the stock's bottom face.
+    var fixtureZ: Float {
+        currentStock.map { RenderObject.bottomZ(of: $0) } ?? -10
+    }
+
     /// Bridges the canvas's 100% button to `MetalCanvasView` — see
     /// `CanvasZoomModel`. Lives here (rather than on `ControllerModel` or
     /// `CanvasSection`) so `CanvasSection` has it to hand to both the button
@@ -186,9 +209,19 @@ class CanvasSceneModel: ObservableObject {
     /// The static workbed and anchor are rebuilt here too: they're flat, and
     /// sit at the stock's bottom face, so a change in stock depth moves them.
     func updateStock(_ stock: StockMaterial) {
+        currentStock = stock
         stockColor = stock.material.surfaceColor
         renderObjects.updating(.stockBox(for: stock))
-        for fixture in RenderObject.fixtures(for: stock) {
+        rebuildFixtures()
+    }
+
+    /// Work bed, anchor and ruler at the stock's bottom face, with the bed
+    /// placed by `machineLayout`.
+    private func rebuildFixtures() {
+        let layout = machineLayout
+        for fixture in RenderObject.fixtures(bottomZ: fixtureZ,
+                                             bedOrigin: layout.bedMinOnCanvas,
+                                             bedSize: layout.bedSize) {
             renderObjects.updating(fixture)
         }
     }

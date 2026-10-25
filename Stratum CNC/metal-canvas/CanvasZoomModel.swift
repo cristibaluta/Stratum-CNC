@@ -15,6 +15,7 @@
 
 import Foundation
 import Combine
+import simd
 
 /// Bridges a `CanvasZoomButton` to the `MetalCanvasView` it controls. One
 /// instance per canvas — CAM's locked 2D view and the controller's free 3D
@@ -80,6 +81,20 @@ final class CanvasZoomModel: ObservableObject {
     /// canvas has a camera.
     func normalizedViewPoint(forWorld point: CGPoint) -> CGPoint? {
         projection?(point)
+    }
+
+    /// Same as the `CGPoint` version, for a point at any height — the
+    /// controller's free 3D view needs it, since a point's height shifts it
+    /// on screen once the camera is orbited away from top-down.
+    func normalizedViewPoint(forWorld point: SIMD3<Float>) -> CGPoint? {
+        projection3D?(point)
+    }
+
+    private var projection3D: ((SIMD3<Float>) -> CGPoint?)?
+
+    /// Called only by `MetalCanvasView.makeNSView`.
+    func installProjection3D(_ projection: @escaping (SIMD3<Float>) -> CGPoint?) {
+        projection3D = projection
     }
 
     /// Called only by `MetalCanvasView.makeNSView`.

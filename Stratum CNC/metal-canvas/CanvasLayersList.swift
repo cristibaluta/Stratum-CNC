@@ -2,16 +2,28 @@
 //  CanvasLayersList.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 25.10.2026.
+//  Overlay at the canvas's top-left: every object the canvas draws, each
+//  with a checkmark to show or hide it, tinted the color it is drawn in.
+//  Stock and Anchor carry a gear that opens their settings. Collapses to
+//  just its header so it can get out of the way of the model.
 //
 
 import SwiftUI
 
-struct CanvasLayersList: View {
+struct CanvasLayersList<StockSettings: View>: View {
 
     @ObservedObject var scene: CanvasSceneModel
+    /// Content of the popover behind the Stock row's gear.
+    private let stockSettings: () -> StockSettings
 
     @State private var isExpanded = true
+    @State private var isShowingStockSettings = false
+    @State private var isShowingAnchorSettings = false
+
+    init(scene: CanvasSceneModel, @ViewBuilder stockSettings: @escaping () -> StockSettings) {
+        self.scene = scene
+        self.stockSettings = stockSettings
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -36,6 +48,9 @@ struct CanvasLayersList: View {
 
             if isExpanded {
                 ForEach(CanvasLayer.allCases) { layer in
+                    if layer == .coordinates {
+                        Divider()
+                    }
                     row(for: layer)
                 }
             }
@@ -49,16 +64,60 @@ struct CanvasLayersList: View {
     private func row(for layer: CanvasLayer) -> some View {
         let notDrawnInMode = layer.isWireframeOnly && scene.renderMode == .heightmap
         let isAvailable = scene.hasContent(layer) && !notDrawnInMode
+        let isOn = scene.isVisible(layer)
 
-        return Toggle(isOn: Binding(get: { scene.isVisible(layer) },
-                                    set: { scene.setVisible(layer, $0) })) {
-            Text(layer.label)
-                .font(.caption)
+        return HStack(spacing: 8) {
+            // Own checkbox rather than `Toggle(.checkbox)`: the native one
+            // ignores `.tint` unless it is checked, and never colors its
+            // label. Box and label both take the color the object is drawn in
+            // (axes and coordinates have none, so they stay primary).
+            Button {
+                scene.setVisible(layer, !isOn)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: isOn ? "checkmark.square.fill" : "square")
+                    Text(layer.label)
+                        .font(.caption)
+                }
+                .foregroundStyle(layer.tint ?? Color.primary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!isAvailable)
+            .help(notDrawnInMode ? "Not drawn in heightmap mode"
+                                 : (isAvailable ? "Show or hide \(layer.label.lowercased())" : "Nothing to show yet"))
+
+            Spacer(minLength: 0)
+
+            switch layer {
+                case .stock:
+                    gear(isPresented: $isShowingStockSettings, help: "Stock settings") {
+                        stockSettings()
+                    }
+                case .anchor:
+                    gear(isPresented: $isShowingAnchorSettings, help: "Anchor settings") {
+                        AnchorSettingsView(scene: scene)
+                    }
+                default:
+                    EmptyView()
+            }
         }
-        .toggleStyle(.checkbox)
-        .controlSize(.small)
-        .disabled(!isAvailable)
-        .help(notDrawnInMode ? "Not drawn in heightmap mode"
-                             : (isAvailable ? "Show or hide \(layer.label.lowercased())" : "Nothing to show yet"))
+    }
+
+    private func gear<Content: View>(isPresented: Binding<Bool>,
+                                     help: String,
+                                     @ViewBuilder content: @escaping () -> Content) -> some View {
+        Button {
+            isPresented.wrappedValue.toggle()
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.borderless)
+        .help(help)
+        .popover(isPresented: isPresented, arrowEdge: .trailing) {
+            content()
+        }
     }
 }

@@ -6,6 +6,20 @@
 import Foundation
 import simd
 
+/// The colors the canvas draws its objects in. One place, so the objects
+/// list's tints (`CanvasLayer.color`) and the coordinate pills always match
+/// what is actually on the canvas.
+enum CanvasPalette {
+    static let stock       = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)
+    static let rapid       = SIMD4<Float>(1.0, 0.85, 0.2, 1.0)
+    static let cutting     = SIMD4<Float>(0.2, 0.8, 1.0, 1.0)
+    static let boundingBox = SIMD4<Float>(0.2, 0.75, 0.35, 1.0)
+    static let tool        = SIMD4<Float>(0.6, 0.62, 0.66, 1.0)
+    static let workbed     = SIMD4<Float>(0.55, 0.6, 0.65, 1.0)
+    static let anchor      = SIMD4<Float>(0.95, 0.55, 0.15, 1.0)
+    static let ruler       = anchor
+}
+
 /// How the points in a `RenderObject` should be connected.
 /// Mirrors the handful of `MTLPrimitiveType` cases the renderer actually uses,
 /// without pulling MetalKit into the model layer.
@@ -152,7 +166,7 @@ extension RenderObject {
     static func stockBox(minX: Float = 0, maxX: Float = 100,
                           minY: Float = 0, maxY: Float = 50,
                           topZ: Float = 0, bottomZ: Float = -10,
-                          color: SIMD4<Float> = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)) -> RenderObject {
+                          color: SIMD4<Float> = CanvasPalette.stock) -> RenderObject {
 
         let c000 = SIMD3<Float>(minX, minY, bottomZ)
         let c100 = SIMD3<Float>(maxX, minY, bottomZ)
@@ -194,7 +208,7 @@ extension RenderObject {
         return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
     }
 
-    static func stockBox(for stock: StockMaterial, color: SIMD4<Float> = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)) -> RenderObject {
+    static func stockBox(for stock: StockMaterial, color: SIMD4<Float> = CanvasPalette.stock) -> RenderObject {
 
         switch stock.geometry {
             case let .rectangular(width, height, depth):
@@ -359,9 +373,16 @@ extension RenderObject {
     /// of them, the controller's scene). CAM's 2D view, which draws its own
     /// stock and isn't positioned relative to the machine bed at all, asks
     /// for just `[.ruler]` here instead.
-    static func fixtures(bottomZ z: Float, roles: Set<RenderRole> = allFixtureRoles) -> [RenderObject] {
+    ///
+    /// `bedOrigin`/`bedSize` place the work bed (its minimum corner and
+    /// extent, in canvas coordinates — see `MachineLayout`); the defaults are
+    /// the original 200 × 200 mm bed with the anchor at its bottom-left.
+    static func fixtures(bottomZ z: Float,
+                         roles: Set<RenderRole> = allFixtureRoles,
+                         bedOrigin: SIMD2<Float> = SIMD2<Float>(-15, -15),
+                         bedSize: SIMD2<Float> = SIMD2<Float>(200, 200)) -> [RenderObject] {
         var result: [RenderObject] = []
-        if roles.contains(.workbed) { result.append(workbed(z: z)) }
+        if roles.contains(.workbed) { result.append(workbed(z: z, origin: bedOrigin, width: bedSize.x, height: bedSize.y)) }
         if roles.contains(.anchor) { result.append(anchor(z: z)) }
         if roles.contains(.ruler) { result.append(ruler(z: z)) }
         return result
@@ -371,13 +392,16 @@ extension RenderObject {
     /// physically. Their Z follows the stock's depth, so `CanvasSceneModel`
     /// rebuilds them alongside the stock box whenever the stock changes.
     /// See `fixtures(bottomZ:roles:)` for `roles`.
-    static func fixtures(for stock: StockMaterial, roles: Set<RenderRole> = allFixtureRoles) -> [RenderObject] {
-        fixtures(bottomZ: bottomZ(of: stock), roles: roles)
+    static func fixtures(for stock: StockMaterial,
+                         roles: Set<RenderRole> = allFixtureRoles,
+                         bedOrigin: SIMD2<Float> = SIMD2<Float>(-15, -15),
+                         bedSize: SIMD2<Float> = SIMD2<Float>(200, 200)) -> [RenderObject] {
+        fixtures(bottomZ: bottomZ(of: stock), roles: roles, bedOrigin: bedOrigin, bedSize: bedSize)
     }
 
     /// Z of `stock`'s bottom face — the same value each case of
     /// `stockBox(for:)` uses for its own `bottomZ`.
-    private static func bottomZ(of stock: StockMaterial) -> Float {
+    static func bottomZ(of stock: StockMaterial) -> Float {
         switch stock.geometry {
             case let .rectangular(_, _, depth):  return -Float(depth)
             case let .cylindrical(_, length):    return -Float(length)
@@ -396,7 +420,7 @@ extension RenderObject {
                         origin: SIMD2<Float> = SIMD2<Float>(-15, -15),
                         width: Float = 200,
                         height: Float = 200,
-                        color: SIMD4<Float> = SIMD4<Float>(0.55, 0.6, 0.65, 1.0)) -> RenderObject {
+                        color: SIMD4<Float> = CanvasPalette.workbed) -> RenderObject {
 
         let corners = [
             origin,
@@ -430,7 +454,7 @@ extension RenderObject {
                        insideCorner: SIMD2<Float> = .zero,
                        legLength: Float = 100,
                        thickness: Float = 15,
-                       color: SIMD4<Float> = SIMD4<Float>(0.95, 0.55, 0.15, 1.0)) -> RenderObject {
+                       color: SIMD4<Float> = CanvasPalette.anchor) -> RenderObject {
 
         let outer = insideCorner - SIMD2<Float>(repeating: thickness)
 
@@ -461,7 +485,7 @@ extension RenderObject {
     static func ruler(z: Float,
                       insideCorner: SIMD2<Float> = .zero,
                       length: Float = 80,
-                      color: SIMD4<Float> = SIMD4<Float>(0.95, 0.55, 0.15, 1.0)) -> RenderObject {
+                      color: SIMD4<Float> = CanvasPalette.ruler) -> RenderObject {
 
         var points: [SIMD3<Float>] = []
         let x0 = insideCorner.x
@@ -515,7 +539,7 @@ extension RenderObject {
     static func boundingBox(min: SIMD2<Float>,
                             max: SIMD2<Float>,
                             z: Float = 0,
-                            color: SIMD4<Float> = SIMD4<Float>(0.2, 0.75, 0.35, 1.0)) -> RenderObject {
+                            color: SIMD4<Float> = CanvasPalette.boundingBox) -> RenderObject {
         let corners = [
             min,
             SIMD2<Float>(max.x, min.y),
@@ -530,8 +554,8 @@ extension RenderObject {
     }
 
     static func toolpath(from segments: [ToolpathSegment],
-                         rapidColor: SIMD4<Float> = SIMD4<Float>(1.0, 0.85, 0.2, 1.0),
-                         cuttingColor: SIMD4<Float> = SIMD4<Float>(0.2, 0.8, 1.0, 1.0),
+                         rapidColor: SIMD4<Float> = CanvasPalette.rapid,
+                         cuttingColor: SIMD4<Float> = CanvasPalette.cutting,
                          rapidRole: RenderRole = .toolpathRapid,
                          cuttingRole: RenderRole = .toolpathCutting) -> [RenderObject] {
 
@@ -590,7 +614,7 @@ extension RenderObject {
                      kind: ToolSpec.Kind = .endMill,
                      tipAngleDegrees: Double? = nil,
                      segments: Int = 48,
-                     color: SIMD4<Float> = SIMD4<Float>(0.6, 0.62, 0.66, 1.0)) -> RenderObject {
+                     color: SIMD4<Float> = CanvasPalette.tool) -> RenderObject {
 
         let sides = max(3, segments)
         let radius = Float(max(0, diameter) / 2)

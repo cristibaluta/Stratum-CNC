@@ -153,6 +153,9 @@ struct MetalCanvasView: NSViewRepresentable {
         zoomModel?.installProjection { [weak coordinator = context.coordinator] world in
             coordinator?.normalizedViewPoint(forWorld: world)
         }
+        zoomModel?.installProjection3D { [weak coordinator = context.coordinator] world in
+            coordinator?.normalizedViewPoint(forWorld3D: world)
+        }
 
         if interactionMode == .locked2D {
             // `Camera`'s own default orientation already matches
@@ -746,6 +749,11 @@ struct MetalCanvasView: NSViewRepresentable {
         /// locked to; the camera's right/up vectors are used so it stays
         /// correct regardless.
         func normalizedViewPoint(forWorld point: CGPoint) -> CGPoint? {
+            normalizedViewPoint(forWorld3D: SIMD3<Float>(Float(point.x), Float(point.y), 0))
+        }
+
+        /// Same, for a point at any height.
+        func normalizedViewPoint(forWorld3D point: SIMD3<Float>) -> CGPoint? {
             guard let camera = renderer?.camera else {
                 return nil
             }
@@ -754,7 +762,7 @@ struct MetalCanvasView: NSViewRepresentable {
             guard halfWidth > 0, halfHeight > 0 else {
                 return nil
             }
-            let offset = SIMD3<Float>(Float(point.x), Float(point.y), 0) - camera.target
+            let offset = point - camera.target
             let ndcX = simd_dot(offset, camera.right) / halfWidth
             let ndcY = simd_dot(offset, camera.up) / halfHeight
             return CGPoint(x: CGFloat((ndcX + 1) / 2), y: CGFloat(1 - (ndcY + 1) / 2))

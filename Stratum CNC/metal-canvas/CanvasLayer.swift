@@ -2,15 +2,13 @@
 //  CanvasLayer.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 25.10.2026.
-//
 //  The things the controller's canvas draws, as the person sees them in the
 //  objects list over the canvas — each one a checkmark that shows or hides
 //  it. A layer is one or more `RenderRole`s; the model keeps drawing
 //  everything and only the list handed to the renderer is filtered.
 //
 
-import Foundation
+import SwiftUI
 
 enum CanvasLayer: String, CaseIterable, Identifiable {
     case stock
@@ -22,6 +20,9 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
     case anchor
     case ruler
     case axes
+    /// Not a render object: the coordinate pills drawn over the canvas
+    /// (`CanvasCoordinateLabels`). One entry hides them all.
+    case coordinates
 
     var id: String { rawValue }
 
@@ -36,6 +37,7 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .anchor:       return "Anchor"
             case .ruler:        return "Ruler"
             case .axes:         return "Axes"
+            case .coordinates:  return "Coordinates"
         }
     }
 
@@ -52,7 +54,29 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .anchor:       return [.anchor]
             case .ruler:        return [.ruler]
             case .axes:         return [.axes]
+            case .coordinates:  return []
         }
+    }
+
+    /// The color the canvas draws this in, for tinting its checkbox. `nil`
+    /// where there isn't one color (the axes are red/green/blue; the
+    /// coordinate pills take their colors from the bed and the anchor).
+    var color: SIMD4<Float>? {
+        switch self {
+            case .stock:        return CanvasPalette.stock
+            case .rapidMoves:   return CanvasPalette.rapid
+            case .cuttingMoves: return CanvasPalette.cutting
+            case .boundingBox:  return CanvasPalette.boundingBox
+            case .tool:         return CanvasPalette.tool
+            case .workbed:      return CanvasPalette.workbed
+            case .anchor:       return CanvasPalette.anchor
+            case .ruler:        return CanvasPalette.ruler
+            case .axes, .coordinates: return nil
+        }
+    }
+
+    var tint: Color? {
+        color.map { Color(red: Double($0.x), green: Double($0.y), blue: Double($0.z)) }
     }
 
     /// Heightmap mode shows the carved surface instead of the toolpath
@@ -81,7 +105,10 @@ extension CanvasSceneModel {
     /// tool before the machine has reported a position, or a bounding box
     /// before a program is loaded, has not.
     func hasContent(_ layer: CanvasLayer) -> Bool {
-        renderObjects.contains { object in
+        if layer == .coordinates {
+            return true
+        }
+        return renderObjects.contains { object in
             guard let role = object.role, layer.roles.contains(role) else {
                 return false
             }
