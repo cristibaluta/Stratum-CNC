@@ -2,9 +2,6 @@
 //  CanvasCoordinateLabels.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 25.10.2026.
-//
-//
 //  The machine's coordinate system, drawn over the canvas as small pills
 //  pinned to three points: home (0, 0) at the bed's top-right corner, the
 //  bed's far corner at the bottom-left, and the inside corner of the
@@ -30,10 +27,9 @@ struct CanvasCoordinateLabels: View {
 
     private struct Pill: Identifiable {
         let id: String
-        /// Canvas coordinates (mm) of the point the pill marks.
+        /// Machine coordinates (mm) of the point the pill marks — the canvas
+        /// is in machine coordinates, so this is also what the pill shows.
         let point: SIMD2<Float>
-        /// Machine coordinates shown in the pill.
-        let machine: SIMD2<Float>
         let color: Color
         /// Which corner of the pill sits at the point; the pill extends away
         /// from it, back over the object it belongs to.
@@ -45,12 +41,9 @@ struct CanvasCoordinateLabels: View {
         let bed = CanvasLayer.workbed.tint ?? .gray
         let anchor = CanvasLayer.anchor.tint ?? .orange
         return [
-            Pill(id: "home", point: layout.bedMaxOnCanvas, machine: .zero,
-                 color: bed, corner: .topTrailing),
-            Pill(id: "far", point: layout.bedMinOnCanvas, machine: -layout.bedSize,
-                 color: bed, corner: .bottomLeading),
-            Pill(id: "anchor", point: .zero, machine: layout.activeAnchor,
-                 color: anchor, corner: .topTrailing)
+            Pill(id: "home", point: layout.bedMax, color: bed, corner: .topTrailing),
+            Pill(id: "far", point: layout.bedMin, color: bed, corner: .bottomLeading),
+            Pill(id: "anchor", point: layout.activeAnchor, color: anchor, corner: .topTrailing)
         ]
     }
 
@@ -88,7 +81,7 @@ struct CanvasCoordinateLabels: View {
             .frame(width: 6, height: 6)
             .frame(width: 0, height: 0)
             .overlay(alignment: pill.corner) {
-                Text(Self.text(for: pill.machine))
+                Text(Self.text(for: pill.point))
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(pill.color)
                     .padding(.horizontal, 7)

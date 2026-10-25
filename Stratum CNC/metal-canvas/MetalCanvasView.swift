@@ -88,6 +88,11 @@ struct MetalCanvasView: NSViewRepresentable {
     /// `MetalRenderer.xyOffset`.
     var xyOffset: SIMD2<Float> = .zero
 
+    /// Forwarded to `MetalRenderer.anchorOrigin`. The controller passes the
+    /// active anchor's machine position so the canvas is in machine
+    /// coordinates; leave it zero for a canvas in the stock's own frame.
+    var anchorOrigin: SIMD2<Float> = .zero
+
     /// Base color for the heightmap surface, forwarded straight through in
     /// `updateNSView` — same one-way flow from `CanvasSceneModel` as
     /// `renderMode`/`xyOffset`. See `MetalRenderer.heightmapBaseColor`.
@@ -235,6 +240,7 @@ struct MetalCanvasView: NSViewRepresentable {
         context.coordinator.renderer?.updateGeometry(objects: objects)
         context.coordinator.renderer?.renderMode = renderMode
         context.coordinator.renderer?.xyOffset = xyOffset
+        context.coordinator.renderer?.anchorOrigin = anchorOrigin
         context.coordinator.renderer?.heightmapBaseColor = stockColor
 
         // `HeightmapMesh.id` is fresh per `init`, so this tells "a new carve

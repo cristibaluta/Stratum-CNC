@@ -14,12 +14,13 @@ import StratumLink
 ///              X      Y      Z      A
 ///     MACHINE  …      …      …      …     the fixed frame, zero at the home switches
 ///     WORK     …      …      …      …     what the G-code is written in — the row you read while jogging
-///     OFFSET  [ x ]  [ y ]                the G-code offset: where the job's origin sits (mm)
+///     G-CODE  [ x ]  [ y ]                the G-code offset: where the job's origin sits (mm)
+///     OFFSET
 ///     ───────
 ///     ZERO     X Y Z                XYZ   set the work origin here
 ///     PROBE    Z X Y  Auto Z        ⚙     find the surface, then set the origin
 ///
-/// The first two rows are live readouts of the machine; OFFSET is a setting
+/// The first two rows are live readouts of the machine; G-CODE OFFSET is a setting
 /// for the job (`CanvasSceneModel.xyOffset`, which Fusion's X/Y Offset header
 /// also fills in) and doesn't change while jogging. ZERO and PROBE are the
 /// two ways of setting the work origin, so they sit under the work row
@@ -141,7 +142,9 @@ struct PanelPosition: View {
     /// `onChange(of: scene.xyOffset)` relies on to recarve once per edit.
     private var offsetRow: some View {
         GridRow {
-            rowTitle("OFFSET")
+            // Two lines so the label stays as narrow as MACHINE and the grid
+            // still fits the 300 pt column.
+            rowTitle("G-CODE\nOFFSET")
 
             offsetField($scene.xyOffset.x, axis: "X")
             offsetField($scene.xyOffset.y, axis: "Y")
@@ -165,6 +168,7 @@ struct PanelPosition: View {
         Text(title)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
+            .multilineTextAlignment(.leading)
             .gridColumnAlignment(.leading)
     }
 }

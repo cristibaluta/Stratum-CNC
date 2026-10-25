@@ -15,8 +15,18 @@ import StratumLink
 /// (the same pattern `PanelPosition` uses) because `status` is published by
 /// `MachineConnection` itself, not by `ControllerModel` — `ControllerModel`
 /// never forwards it, so observing `model` alone wouldn't pick up changes.
+///
+/// The canvas is in machine coordinates, so the tool goes where the machine
+/// says it is (its machine X/Y), not where the typed anchor and offset say
+/// the work origin should be: if the two disagree, the tool visibly leaves
+/// the stock. The scene draws the tool at its position *plus the work
+/// origin* (like the toolpath it follows), so the XY handed over is the
+/// machine position minus that origin. Z stays the work Z, since the canvas
+/// only maps X and Y to machine coordinates. `workOrigin` changing (another
+/// anchor, an edited offset) re-sends the position for the same reason.
 private struct ToolPositionSync: View {
     @ObservedObject var connection: MachineConnection
+    let workOrigin: SIMD2<Float>
     let onUpdate: (SIMD3<Float>) -> Void
 
     var body: some View {
@@ -24,12 +34,13 @@ private struct ToolPositionSync: View {
             .frame(width: 0, height: 0)
             .onAppear { sync(connection.status) }
             .onChange(of: connection.status) { _, status in sync(status) }
+            .onChange(of: workOrigin) { _, _ in sync(connection.status) }
     }
 
     private func sync(_ status: MakeraMachineStatus?) {
         guard let status else { return }
-        onUpdate(SIMD3<Float>(Float(status.workPosition.x),
-                              Float(status.workPosition.y),
+        onUpdate(SIMD3<Float>(Float(status.machinePosition.x) - workOrigin.x,
+                              Float(status.machinePosition.y) - workOrigin.y,
                               Float(status.workPosition.z)))
     }
 }
@@ -651,6 +662,7 @@ private struct CanvasSection: View {
             MetalCanvasView(objects: .constant(scene.visibleRenderObjects),
                             renderMode: scene.renderMode,
                             xyOffset: scene.xyOffset,
+                            anchorOrigin: scene.machineLayout.activeAnchor,
                             stockColor: scene.stockColor,
                             heightmapMesh: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapMesh,
                             clearColor: viewportClearColor,
@@ -667,7 +679,7 @@ private struct CanvasSection: View {
                 HeightmapBusyOverlay(isBusy: scene.renderMode == .heightmap && scene.isComputingHeightmap)
             }
             .overlay(
-                ToolPositionSync(connection: connection) { point in
+                ToolPositionSync(connection: connection, workOrigin: scene.workOrigin) { point in
                     scene.updateTool(gCodeModel.spindleToolSpec)
                     scene.updateToolPosition(point)
                     // A macro runs from wherever the tool is.

@@ -35,18 +35,29 @@ class CanvasSceneModel: ObservableObject {
     /// on needs no rebuild of the scene. See `CanvasLayer`.
     @Published var hiddenLayers: Set<CanvasLayer> = []
 
-    /// Where the work bed and the anchor sit in the machine's coordinates,
-    /// and which anchor is in use. Changing it rebuilds the fixtures (the
-    /// bed moves relative to the stock — see `MachineLayout`) and is
-    /// remembered between launches.
+    /// Where the work bed and the anchors sit in the machine's coordinates,
+    /// and which anchor is in use. The canvas draws in those coordinates, so
+    /// changing the anchor moves the stock and the job, not the bed (see
+    /// `MachineLayout`). Remembered between launches.
     @Published var machineLayout: MachineLayout = MachineLayout.load() {
         didSet {
             guard machineLayout != oldValue else {
                 return
             }
             machineLayout.save()
-            rebuildFixtures()
         }
+    }
+
+    /// Machine position of the job's origin: active anchor + G-code offset.
+    var workOrigin: SIMD2<Float> {
+        machineLayout.workOrigin(xyOffset: xyOffset)
+    }
+
+    init() {
+        // The default scene's bed is drawn for a stock-framed canvas; put it
+        // in machine coordinates before the first frame so the initial
+        // camera fit frames the real bed.
+        rebuildFixtures()
     }
 
     /// The stock the scene was last built for, so the fixtures can be
@@ -215,12 +226,15 @@ class CanvasSceneModel: ObservableObject {
         rebuildFixtures()
     }
 
-    /// Work bed, anchor and ruler at the stock's bottom face, with the bed
-    /// placed by `machineLayout`.
+    /// Work bed, anchor and ruler at the stock's bottom face. The bed is
+    /// built in machine coordinates; the anchor and ruler are built at the
+    /// origin and moved to the active anchor by the renderer
+    /// (`MetalRenderer.anchorOrigin`), so changing the anchor needs no
+    /// rebuild.
     private func rebuildFixtures() {
         let layout = machineLayout
         for fixture in RenderObject.fixtures(bottomZ: fixtureZ,
-                                             bedOrigin: layout.bedMinOnCanvas,
+                                             bedOrigin: layout.bedMin,
                                              bedSize: layout.bedSize) {
             renderObjects.updating(fixture)
         }

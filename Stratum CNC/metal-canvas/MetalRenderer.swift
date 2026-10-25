@@ -74,9 +74,10 @@ struct HeightmapUniforms {
     var topZ: Float
     var bottomZ: Float
     var depthDarkening: Float
-    /// XY shift added to every vertex in the vertex shader. Zero for the
-    /// heightmap surface (its offset is baked into the carved vertices);
-    /// non-zero for solids that follow the toolpath, like the tool.
+    /// XY shift added to every vertex in the vertex shader. The heightmap
+    /// surface gets the anchor position (the job's offset is baked into its
+    /// carved vertices, relative to the stock); solids that follow the
+    /// toolpath, like the tool, get the work origin.
     var offset: SIMD2<Float> = .zero
 }
 
@@ -179,6 +180,16 @@ class MetalRenderer: NSObject {
     /// instead (see `HeightmapGrid.carve`), which is why this alone is
     /// never enough to move the heightmap mode's rendering.
     var xyOffset: SIMD2<Float> = .zero
+
+    /// Where the active anchor's inside corner sits on the canvas, when the
+    /// canvas is in the machine's own coordinates (the controller). The
+    /// stock, the anchor, the ruler, the axes gizmo and the carved surface
+    /// are built relative to that corner and drawn from here; the toolpath,
+    /// bounding box and tool sit at `anchorOrigin + xyOffset` — the work
+    /// origin. The work bed is built in machine coordinates and never
+    /// moves. Zero (the default) leaves everything where it was built, as
+    /// before. See `drawOffset(for:)`.
+    var anchorOrigin: SIMD2<Float> = .zero
 
     /// The heightmap surface's current GPU buffers, if a mesh has been
     /// uploaded. `nil` — the default, and also what a mesh with no
@@ -592,15 +603,18 @@ class MetalRenderer: NSObject {
             if let role = object.role, fitExcludedRoles.contains(role) {
                 continue
             }
+            // Frame things where they are drawn, not where they were built.
+            let shift = drawOffset(for: object.role)
+            let shift3 = SIMD3<Float>(shift.x, shift.y, 0)
             for point in object.points {
                 found = true
-                minPoint = simd_min(minPoint, point)
-                maxPoint = simd_max(maxPoint, point)
+                minPoint = simd_min(minPoint, point + shift3)
+                maxPoint = simd_max(maxPoint, point + shift3)
             }
             for vertex in object.solidTriangles {
                 found = true
-                minPoint = simd_min(minPoint, vertex.position)
-                maxPoint = simd_max(maxPoint, vertex.position)
+                minPoint = simd_min(minPoint, vertex.position + shift3)
+                maxPoint = simd_max(maxPoint, vertex.position + shift3)
             }
         }
 
@@ -648,12 +662,18 @@ private extension MetalRenderer {
         encoder.drawPrimitives(type: batch.primitiveType, vertexStart: 0, vertexCount: batch.drawVertexCount)
     }
 
-    /// The XY shift a batch is drawn with: the toolpath draws and the tool
-    /// follow `xyOffset`, everything else (stock, axes, fixtures) stays put.
+    /// The XY shift a batch is drawn with. Things that belong to the job
+    /// (toolpath, macro preview, tool, bounding box) sit at the work origin,
+    /// `anchorOrigin + xyOffset`; things clamped to the machine (stock,
+    /// anchor, ruler, and the axes gizmo marking 0, 0, 0 at the top of the
+    /// stock) sit at the anchor, `anchorOrigin`; the work bed is already in
+    /// machine coordinates and stays put.
     func drawOffset(for role: RenderRole?) -> SIMD2<Float> {
         switch role {
             case .toolpathRapid, .toolpathCutting, .macroRapid, .macroCutting, .tool, .boundingBox:
-                return xyOffset
+                return anchorOrigin + xyOffset
+            case .stock, .anchor, .ruler, .axes:
+                return anchorOrigin
             default:
                 return .zero
         }
@@ -704,8 +724,13 @@ private extension MetalRenderer {
     /// `dashLength: 0` (no discards — a face pre-pass needs to be solid to
     /// be useful) and always `.triangle` (occluder buffers are triangle
     /// lists regardless of what primitive type their owning batch's edges use).
-    func drawOccluder(_ buffer: MTLBuffer, vertexCount: Int, mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
-        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: 0)
+    ///
+    /// `offset` must be the owning batch's `drawOffset(for:)`: the faces
+    /// have to sit exactly where the edges they hide are drawn, or the depth
+    /// test no longer tells hidden edges from visible ones and the dotted
+    /// hidden lines are lost.
+    func drawOccluder(_ buffer: MTLBuffer, vertexCount: Int, offset: SIMD2<Float>, mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: 0, offset: offset)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
         encoder.setVertexBuffer(buffer, offset: 0, index: 0)
@@ -786,7 +811,11 @@ private extension MetalRenderer {
             guard let occluderBuffer = batch.occluderBuffer, batch.occluderVertexCount > 0 else {
                 continue
             }
-            drawOccluder(occluderBuffer, vertexCount: batch.occluderVertexCount, mvp: mvp, encoder: encoder)
+            drawOccluder(occluderBuffer,
+                         vertexCount: batch.occluderVertexCount,
+                         offset: drawOffset(for: batch.role),
+                         mvp: mvp,
+                         encoder: encoder)
         }
         encoder.setDepthBias(0, slopeScale: 0, clamp: 0)
         encoder.setRenderPipelineState(pipelineState)
@@ -935,7 +964,8 @@ private extension MetalRenderer {
                                          ambient: heightmapAmbient,
                                          topZ: heightmapBatch.topZ,
                                          bottomZ: heightmapBatch.bottomZ,
-                                         depthDarkening: heightmapDepthDarkening)
+                                         depthDarkening: heightmapDepthDarkening,
+                                         offset: anchorOrigin)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
         encoder.setVertexBuffer(heightmapBatch.vertexBuffer, offset: 0, index: 0)

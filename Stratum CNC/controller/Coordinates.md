@@ -7,7 +7,10 @@ A CNC keeps several coordinate systems. Each one is the previous one plus an off
 ## 1. Machine coordinates (MCS)
 - The machine's own fixed frame, zero at the home switches. It never changes.
 - `G53` moves in this frame.
-- The workbed and anchor are drawn in this frame, which is why they stay put on the canvas.
+- The controller's canvas is drawn in this frame (X and Y; see `MachineLayout`): home (0, 0) is the bed's top-right corner, the bed runs to (-200, -200), and the pills over the canvas show real machine coordinates.
+  - The work bed is fixed. The stock, the anchor and the 0, 0, 0 axes arrows (top of the stock) sit at the active anchor's inside corner; the toolpath, bounding box and tool sit at the work origin = anchor + G-code offset.
+  - Z is not mapped: it stays relative to the work origin (0 at the top of the stock), because the machine's Z offset depends on how the job is touched off.
+  - The live tool is drawn at the machine's own X/Y, so if the stored offset differs from anchor + G-code offset, the tool visibly leaves the stock.
 
 ## 2. Work coordinates (WCS: G54, G55, …)
 - The frame the G-code is written in. It is stored as an offset: `work = machine − offset`.

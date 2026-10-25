@@ -1,27 +1,22 @@
 //
-//  AnchorChoice.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 25.10.2026.
-//
-
-
-//
 //  MachineLayout.swift
 //  Stratum CNC
 //
-//  Where the work bed and the anchor sit in the machine's own coordinates
-//  (MCS), and how that maps onto the canvas.
+//  Where the work bed and the anchors sit in the machine's own
+//  coordinates (MCS), which is also the frame the controller's canvas is
+//  drawn in.
 //
-//  The canvas frame has its origin at the *inside corner of the L-bracket*
-//  (the active anchor): the stock, the toolpath and the bounding box are
-//  drawn from there. The machine's frame is fixed instead — home (0, 0) at
-//  the top-right corner of the bed, negative toward the bottom-left — so:
+//  Home (0, 0) is the bed's top-right corner and the bed extends to
+//  `-bedSize` at the bottom-left, so every position on the canvas reads as
+//  a real machine coordinate. Three things sit at three places:
 //
-//      canvas = machine - activeAnchor
+//      work bed                  fixed:  -bedSize … (0, 0)
+//      anchor, stock, axes       at the active anchor's inside corner
+//      toolpath, tool, bounds    at the work origin = active anchor + G-code offset
 //
-//  Choosing another anchor, or changing an anchor's position, therefore
-//  moves the *bed* on the canvas, not the stock sitting in the bracket.
+//  Only X and Y are in machine coordinates. Z stays relative to the work
+//  origin (0 at the top of the stock): the machine's Z offset depends on how
+//  the job is touched off, which the canvas doesn't know.
 //
 
 import Foundation
@@ -68,14 +63,20 @@ struct MachineLayout: Codable, Equatable {
         selected == .anchor1 ? anchor1 : anchor2
     }
 
-    /// The bed's far (bottom-left) corner on the canvas.
-    var bedMinOnCanvas: SIMD2<Float> {
-        -bedSize - activeAnchor
+    /// The bed's far (bottom-left) corner.
+    var bedMin: SIMD2<Float> {
+        -bedSize
     }
 
-    /// The bed's home (top-right, machine 0, 0) corner on the canvas.
-    var bedMaxOnCanvas: SIMD2<Float> {
-        -activeAnchor
+    /// The bed's home (top-right) corner: machine (0, 0).
+    var bedMax: SIMD2<Float> {
+        .zero
+    }
+
+    /// Machine position of the job's origin: the anchor's inside corner
+    /// plus the G-code offset (`CanvasSceneModel.xyOffset`).
+    func workOrigin(xyOffset: SIMD2<Float>) -> SIMD2<Float> {
+        activeAnchor + xyOffset
     }
 
     mutating func resetAnchors() {
