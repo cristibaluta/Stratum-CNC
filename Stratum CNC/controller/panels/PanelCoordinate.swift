@@ -7,8 +7,8 @@
 
 import SwiftUI
 
-/// One row of work-zero actions. Hosted inside the shared WORK SETUP box
-/// in `ControllerView`, so it has no `GroupBox` of its own. "Get
+/// One row of work-zero actions. Hosted inside `PanelPosition`, right under
+/// the work row it acts on, so it has no `GroupBox` of its own. "Get
 /// Coordinates" is gone: it sent the same status request as the refresh
 /// button in the POSITION header.
 struct PanelCoordinate: View {

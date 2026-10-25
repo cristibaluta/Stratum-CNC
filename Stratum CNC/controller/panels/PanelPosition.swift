@@ -8,18 +8,43 @@
 import SwiftUI
 import StratumLink
 
-/// Work and machine position as an aligned X/Y/Z/A table. Work is the one
-/// you read while jogging, so it is the larger row; machine is secondary.
-/// Home / Unlock / Status sit in a labelled row below the table — they used
-/// to be a separate MACHINE panel with their own bordered buttons.
+/// Everything about *where things are*, in one panel, top to bottom:
+///
+///     [Home] [Unlock when in alarm]                  [refresh]
+///              X      Y      Z      A
+///     MACHINE  …      …      …      …     the fixed frame, zero at the home switches
+///     WORK     …      …      …      …     what the G-code is written in — the row you read while jogging
+///     OFFSET  [ x ]  [ y ]                the G-code offset: where the job's origin sits (mm)
+///     ───────
+///     ZERO     X Y Z                XYZ   set the work origin here
+///     PROBE    Z X Y  Auto Z        ⚙     find the surface, then set the origin
+///
+/// The first two rows are live readouts of the machine; OFFSET is a setting
+/// for the job (`CanvasSceneModel.xyOffset`, which Fusion's X/Y Offset header
+/// also fills in) and doesn't change while jogging. ZERO and PROBE are the
+/// two ways of setting the work origin, so they sit under the work row
+/// instead of in a box of their own. This panel replaces the old POSITION
+/// and WORK SETUP boxes.
 struct PanelPosition: View {
 
     @ObservedObject var connection: SL.Connection
     @ObservedObject var model: ControllerModel
+    /// The offset lives on the canvas scene. `ControllerView` only observes
+    /// `ControllerModel`, which doesn't forward the scene's changes, so the
+    /// panel observes it itself (same reason `PanelOffset` did).
+    @ObservedObject var scene: CanvasSceneModel
+
+    /// GRBL-style state strings ("Alarm", "Idle", "Run", …). Unlock only
+    /// matters in an alarm, so it only shows then.
+    private var isAlarm: Bool {
+        connection.status?.state.lowercased().hasPrefix("alarm") == true
+    }
 
     var body: some View {
-        GroupBox {//}("POSITION") {
+        GroupBox {
             VStack(alignment: .leading, spacing: 8) {
+                machineActions
+
                 Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 8) {
                     GridRow {
                         Color.clear
@@ -33,55 +58,70 @@ struct PanelPosition: View {
                     }
 
                     if let status = connection.status {
-                        positionRow(title: "WORK",
-                                    values: [status.workPosition.x, status.workPosition.y, status.workPosition.z, 0],
-                                    prominent: true)
                         positionRow(title: "MACHINE",
                                     values: [status.machinePosition.x, status.machinePosition.y, status.machinePosition.z, 0],
                                     prominent: false)
+                        positionRow(title: "WORK",
+                                    values: [status.workPosition.x, status.workPosition.y, status.workPosition.z, 0],
+                                    prominent: true)
                     } else {
-                        positionRow(title: "WORK", values: [0, 0, 0, 0], prominent: true)
                         positionRow(title: "MACHINE", values: [0, 0, 0, 0], prominent: false)
+                        positionRow(title: "WORK", values: [0, 0, 0, 0], prominent: true)
                     }
+
+                    offsetRow
                 }
 
-                // Labelled, so it's clear what each one does.
-                HStack(spacing: 8) {
-                    Button {
-                        model.sendRawCommand(model.homeCommand)
-                    } label: {
-                        Label("Home", systemImage: "house")
-                    }
-                    .help("Run the homing cycle")
+                Divider()
 
-                    Button {
-                        model.sendRawCommand(model.unlockCommand)
-                    } label: {
-                        Label("Unlock", systemImage: "lock.open")
-                    }
-                    .help("Clear the alarm lock so the machine can move")
-
-                    Button {
-                        model.connection.requestStatus()
-                    } label: {
-                        Label("Status", systemImage: "info.circle")
-                    }
-                    .help("Ask the machine for its current status")
-
-                    Spacer(minLength: 0)
-                }
-                .buttonStyle(.quiet)
+                PanelCoordinate(model: model)
+                PanelProbe(model: model)
             }
             .padding(8)
         }
     }
 
+    // MARK: - Machine actions
+
+    /// Homing defines the machine frame, so it leads the panel. Labelled so
+    /// it's clear what each one does; refresh is just an icon (it sends the
+    /// same status request the old Status button did).
+    private var machineActions: some View {
+        HStack(spacing: 8) {
+            Button {
+                model.sendRawCommand(model.homeCommand)
+            } label: {
+                Label("Home", systemImage: "house")
+            }
+            .help("Run the homing cycle")
+
+            if isAlarm {
+                Button {
+                    model.sendRawCommand(model.unlockCommand)
+                } label: {
+                    Label("Unlock", systemImage: "lock.open")
+                }
+                .buttonStyle(QuietButtonStyle(tint: .orange))
+                .help("Clear the alarm lock so the machine can move")
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                model.connection.requestStatus()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .help("Ask the machine for its current position and status")
+        }
+        .buttonStyle(.quiet)
+    }
+
+    // MARK: - Rows
+
     private func positionRow(title: String, values: [Double], prominent: Bool) -> some View {
         GridRow {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .gridColumnAlignment(.leading)
+            rowTitle(title)
 
             ForEach(Array(values.enumerated()), id: \.offset) { index, value in
                 Text(String(format: "%.3f", value))
@@ -93,5 +133,38 @@ struct PanelPosition: View {
                     .minimumScaleFactor(0.8)
             }
         }
+    }
+
+    /// The G-code offset, typed under the X and Y columns. XY only, like the
+    /// canvas offset it is — Z comes from touch-off or probing. Numeric
+    /// fields commit on submit / focus loss, which is what `CanvasSection`'s
+    /// `onChange(of: scene.xyOffset)` relies on to recarve once per edit.
+    private var offsetRow: some View {
+        GridRow {
+            rowTitle("OFFSET")
+
+            offsetField($scene.xyOffset.x, axis: "X")
+            offsetField($scene.xyOffset.y, axis: "Y")
+
+            Color.clear.frame(width: 1, height: 1)
+            Color.clear.frame(width: 1, height: 1)
+        }
+        .help("G-code offset: where the job's origin sits, in mm")
+    }
+
+    private func offsetField(_ value: Binding<Float>, axis: String) -> some View {
+        TextField(axis, value: value, format: .number.precision(.fractionLength(0...2)))
+            .textFieldStyle(.roundedBorder)
+            .controlSize(.small)
+            .font(.system(size: 11, design: .monospaced))
+            .multilineTextAlignment(.trailing)
+            .frame(width: 58)
+    }
+
+    private func rowTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .gridColumnAlignment(.leading)
     }
 }

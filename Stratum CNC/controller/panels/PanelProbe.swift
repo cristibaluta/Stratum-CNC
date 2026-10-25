@@ -8,8 +8,8 @@
 import SwiftUI
 import StratumLink
 
-/// One row of probe actions. Hosted inside the shared WORK SETUP box in
-/// `ControllerView`. The auto-level options (grid, margin) are set once and
+/// One row of probe actions. Hosted inside `PanelPosition`, under the zero
+/// row — probing is the other way of setting the work origin. The auto-level options (grid, margin) are set once and
 /// rarely touched, so they sit behind the slider button instead of taking
 /// two rows of controls; the button is tinted while auto-level is on.
 struct PanelProbe: View {

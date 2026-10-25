@@ -246,7 +246,6 @@ struct ControllerView: View {
     @ViewBuilder
     private var column2: some View {
         VStack(spacing: 16) {
-            workspacePanel
             gcodeAndMacrosPanel
         }
 //            .disabled(!model.connection.isConnected)
@@ -257,7 +256,7 @@ struct ControllerView: View {
     private var column3: some View {
         // Right panel with controller and console
         VStack(spacing: 16) {
-            PanelPosition(connection: model.connection, model: model)
+            PanelPosition(connection: model.connection, model: model, scene: model.scene)
 
             PanelSpindle(model: model)
 
@@ -277,17 +276,6 @@ struct ControllerView: View {
     }
 
     // MARK: - Panels
-
-    private var workspacePanel: some View {
-        GroupBox {//}("WORK SETUP") {
-            VStack(alignment: .leading, spacing: 8) {
-                PanelCoordinate(model: model)
-                PanelProbe(model: model)
-                PanelOffset(scene: model.scene)
-            }
-            .padding(8)
-        }
-    }
 
     private var gcodeAndMacrosPanel: some View {
         GroupBox {
