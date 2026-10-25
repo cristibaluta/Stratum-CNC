@@ -20,23 +20,30 @@ struct ToolChipsView: View {
     var fileSpecs: [Int: ToolSpec] = [:]
     /// `GCodeStore.activeToolNumber`.
     var activeTool: Int? = nil
+    /// Where the chips sit while they all fit. `.trailing` pushes them to the
+    /// right edge of the available width; once they overflow they scroll
+    /// either way.
+    var alignment: Alignment = .leading
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                HStack(spacing: 6) {
-                    ForEach(tools, id: \.self) { tool in
-                        chip(for: tool)
-                            .id(tool)
+        GeometryReader { geo in
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(tools, id: \.self) { tool in
+                            chip(for: tool)
+                                .id(tool)
+                        }
                     }
+                    .padding(.vertical, 2)
+                    .frame(minWidth: geo.size.width, alignment: alignment)
                 }
-                .padding(.vertical, 2)
-            }
-            .scrollIndicators(.automatic)
-            .onChange(of: activeTool) { _, newValue in
-                guard let newValue else { return }
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    proxy.scrollTo(newValue, anchor: .center)
+                .scrollIndicators(.automatic)
+                .onChange(of: activeTool) { _, newValue in
+                    guard let newValue else { return }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
                 }
             }
         }

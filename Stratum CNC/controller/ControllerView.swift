@@ -595,21 +595,62 @@ private struct CanvasSection: View {
         ControllerView.scrubTo(line: max(0, min(totalLines, newLine)), gCodeModel: gCodeModel, camModel: camModel, scene: scene, forceHeightmap: false)
     }
 
+    /// Where the program came from, at the left of the bar above the canvas:
+    /// reload from CAM, import from a file, and the loaded file's name.
+    private var fileControls: some View {
+        HStack(spacing: 6) {
+            Button(action: onReloadFromCAM) {
+                Group {
+                    if gCodeModel.isGeneratingFromCAM {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                    }
+                }
+                .frame(width: 22, height: 22)
+            }
+            .help("Reload from CAM")
+            .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
+
+            Button(action: onImportFile) {
+                Image(systemName: "folder")
+                    .frame(width: 22, height: 22)
+            }
+            .help("Import from file")
+            .disabled(gCodeModel.document.isLoading)
+
+            Text(gCodeModel.document.fileName)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(gCodeModel.document.lines.isEmpty ? .secondary : .primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 180, alignment: .leading)
+                .help(gCodeModel.document.fileName)
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+    }
+
     var body: some View {
         VStack {
-            // One slim line: stock summary, then the program's tools in a
-            // scrolling row. Editing happens in popovers/menus on demand.
+            // One slim line: the program's file (reload / import / name), then
+            // the stock summary, with the program's tools pushed to the right
+            // in a scrolling row. Editing happens in popovers/menus on demand.
             HStack(spacing: 10) {
+                fileControls
+
+                Divider().frame(height: 16)
+
                 StockChip(stock: $camModel.selectedStockMaterial,
                           isStockVisible: isStockVisible,
                           onOpenLibrary: onOpenStocksLib)
 
                 if !gCodeModel.tools.isEmpty {
-                    Divider().frame(height: 16)
                     ToolChipsView(tools: gCodeModel.tools,
                                   assignments: $gCodeModel.toolSpecAssignments,
                                   fileSpecs: gCodeModel.headerToolSpecs,
-                                  activeTool: gCodeModel.activeToolNumber)
+                                  activeTool: gCodeModel.activeToolNumber,
+                                  alignment: .trailing)
                 } else {
                     Spacer(minLength: 0)
                 }
@@ -655,33 +696,6 @@ private struct CanvasSection: View {
                         .cornerRadius(6)
                         .padding(8)
                 }
-            }
-            .overlay(alignment: .topLeading) {
-                HStack(spacing: 4) {
-                    Button(action: onReloadFromCAM) {
-                        if gCodeModel.isGeneratingFromCAM {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                        }
-                    }
-                    .help("Reload from CAM")
-                    .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
-
-                    Divider().frame(height: 18)
-
-                    Button(action: onImportFile) {
-                        Image(systemName: "folder")
-                    }
-                    .help("Import from file")
-                    .disabled(gCodeModel.document.isLoading)
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 8)
-                .padding(2)
-                .frame(height: 28)
-                .canvasChrome()
-                .padding(8)
             }
             .overlay(alignment: .topTrailing) {
                 VStack(alignment: .trailing, spacing: 6) {
