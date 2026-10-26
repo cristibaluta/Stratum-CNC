@@ -14,15 +14,15 @@ import StratumLink
 ///              X      Y      Z      A
 ///     MACHINE  …      …      …      …     the fixed frame, zero at the home switches
 ///     WORK     …      …      …      …     what the G-code is written in — the row you read while jogging
-///     G-CODE  [ x ]  [ y ]                the G-code offset: where the job's origin sits (mm)
-///     OFFSET
+///     JOB      …      …                   the job offset: where the job's origin sits (mm), read-only
 ///     ───────
 ///     ZERO     X Y Z                XYZ   set the work origin here
 ///     PROBE    Z X Y  Auto Z        ⚙     find the surface, then set the origin
 ///
-/// The first two rows are live readouts of the machine; G-CODE OFFSET is a setting
+/// The first two rows are live readouts of the machine; JOB OFFSET shows a setting
 /// for the job (`CanvasSceneModel.xyOffset`, which Fusion's X/Y Offset header
-/// also fills in) and doesn't change while jogging. ZERO and PROBE are the
+/// also fills in) and doesn't change while jogging. It is not editable here:
+/// change it from the gear on the canvas's "Job area" row. ZERO and PROBE are the
 /// two ways of setting the work origin, so they sit under the work row
 /// instead of in a box of their own. This panel replaces the old POSITION
 /// and WORK SETUP boxes.
@@ -106,27 +106,28 @@ struct PanelPosition: View {
         }
     }
 
-    /// The G-code offset, typed under the X and Y columns. XY only, like the
-    /// canvas offset it is — Z comes from touch-off or probing. Numeric
-    /// fields commit on submit / focus loss, which is what `CanvasSection`'s
-    /// `onChange(of: scene.xyOffset)` relies on to recarve once per edit.
+    /// The job offset, read-only, shown as text (same style as the MCS row).
+    /// XY only, like the canvas offset it is — Z comes from touch-off or
+    /// probing. Edited in the Job area popover on the canvas.
     private var offsetRow: some View {
         HStack(spacing: 8) {
-            rowTitle("G-CODE OFFSET")
-            offsetField($scene.xyOffset.x, axis: "X")
-            offsetField($scene.xyOffset.y, axis: "Y")
+            rowTitle("JOB OFFSET")
+            offsetValue(scene.xyOffset.x, axis: "X")
+            offsetValue(scene.xyOffset.y, axis: "Y")
             Spacer()
         }
-        .help("G-code offset: where the job's origin sits, in mm")
+        .help("Job offset: where the job's origin sits, in mm. Change it from the gear on the canvas's Job area row.")
     }
 
-    private func offsetField(_ value: Binding<Float>, axis: String) -> some View {
-        TextField(axis, value: value, format: .number.precision(.fractionLength(0...2)))
-            .textFieldStyle(.roundedBorder)
-            .controlSize(.small)
-            .font(.system(size: 11, design: .monospaced))
-            .multilineTextAlignment(.trailing)
-            .frame(width: 58)
+    private func offsetValue(_ value: Float, axis: String) -> some View {
+        HStack(spacing: 3) {
+            Text(axis)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+            Text(String(format: "%.3f", value))
+                .font(.system(size: 10.5, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func rowTitle(_ title: String) -> some View {

@@ -19,6 +19,7 @@ struct CanvasLayersList<StockSettings: View>: View {
     @State private var isExpanded = true
     @State private var isShowingStockSettings = false
     @State private var isShowingAnchorSettings = false
+    @State private var isShowingJobAreaSettings = false
 
     init(scene: CanvasSceneModel, @ViewBuilder stockSettings: @escaping () -> StockSettings) {
         self.scene = scene
@@ -93,6 +94,10 @@ struct CanvasLayersList<StockSettings: View>: View {
                 case .stock:
                     gear(isPresented: $isShowingStockSettings, help: "Stock settings") {
                         stockSettings()
+                    }
+                case .boundingBox:
+                    gear(isPresented: $isShowingJobAreaSettings, help: "Job area settings") {
+                        JobAreaSettingsView(scene: scene)
                     }
                 case .anchor:
                     gear(isPresented: $isShowingAnchorSettings, help: "Anchor settings") {

@@ -18,7 +18,7 @@ import StratumLink
 /// settings is small enough to review at a glance together, without
 /// scrolling. Unlike MakerStudio's "Set Origin" tab, the origin section here
 /// is read-only: this app sets the job origin from the canvas's XY offset
-/// control (`XYOffsetControlView`), not from this sheet, so it's shown as
+/// control (`JobAreaSettingsView`), not from this sheet, so it's shown as
 /// info text only — change it on the canvas, then reopen this sheet (or just
 /// re-check the number here) before starting.
 ///
@@ -280,7 +280,7 @@ struct MachiningRunSheet: View {
             infoRow("Y Offset", "\(format(offset.y)) mm", emphasized: true)
             infoRow("Z", model.autoZBeforeRun ? "Set by Auto Z probe" : "Keep current work Z zero",
                     emphasized: true)
-            Text("Set on the canvas, not here — use the XY Offset control above the 3D view to change it.")
+            Text("Set on the canvas, not here — change it from the gear on the \"Job area\" row of the objects list.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

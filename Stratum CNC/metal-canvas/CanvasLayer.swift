@@ -31,7 +31,7 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .stock:        return "Stock"
             case .rapidMoves:   return "Rapid moves"
             case .cuttingMoves: return "Cutting moves"
-            case .boundingBox:  return "Bounding box"
+            case .boundingBox:  return "Job area"
             case .tool:         return "Tool"
             case .workbed:      return "Work bed"
             case .anchor:       return "Anchor"
