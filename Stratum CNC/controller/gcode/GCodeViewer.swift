@@ -244,7 +244,7 @@ struct GCodeViewer: View {
                 Button {
                     onPlay?()
                 } label: {
-                    Label("Send to Machine...", systemImage: "play.fill")
+                    Label("Review & Start...", systemImage: "play.fill")
                 }
                 .buttonStyle(JobButtonStyle(tint: .green))
                 .disabled(!canStartJob)
