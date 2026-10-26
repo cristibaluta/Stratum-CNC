@@ -12,57 +12,21 @@ import StratumLink
 struct GCodeViewer: View {
 
     @ObservedObject var model: GCodeStore
-    /// Owns the upload/progress state for the loaded program. Observed
-    /// directly (rather than reached through `model`) so this view updates
-    /// live as the transfer progresses — same reasoning as `PanelPosition`
-    /// observing `MachineConnection` directly instead of through
-    /// `ControllerModel`. Real jobs go through here, not `GCodeJobRunner` —
-    /// see `GCodeUploader`'s doc comment for why (Roadmap 1.2).
     @ObservedObject var uploader: SL.Uploader
-    /// Observed directly for the same reason as `uploader` above — used to
-    /// disable "play" while there's nothing to send to.
     @ObservedObject var connection: SL.Connection
-    /// Which list sits above the table: the detected toolpaths or the macros.
-    var mode: GCodePanelMode = .gcode
-    /// Macro selection and parameters. Observed directly so edits redraw here.
     @ObservedObject var macros: MacroStore
-    /// Streams a macro's generated lines to the machine
-    /// (`ControllerModel.startJob(lines:)`).
+
+    var mode: GCodePanelMode = .gcode
+
     var onRunMacro: (([String]) -> Void)? = nil
     var highlightedLine: Int? = nil
-    /// Forwarded straight to `GCodeTableView`'s `onLineSelected` — see there
-    /// for what "selected" covers. `ControllerView` supplies the closure
-    /// that actually syncs the scrubber and the Metal canvas.
     var onLineSelected: ((Int) -> Void)? = nil
-    /// Uploads the loaded program to the machine's SD card. `ControllerView`
-    /// supplies this as a closure into `ControllerModel.uploadJob(fileName:
-    /// contents:)` since this view only holds the `GCodeStore`, not the
-    /// machine connection.
     var onPlay: (() -> Void)? = nil
-    /// Feed-hold (`!`) on a job running on the machine. `ControllerModel`
-    /// supplies `pauseJob`, which also gates on the machine's reported state
-    /// (Roadmap 1.3).
     var onPause: (() -> Void)? = nil
-    /// Suspends the job so it can be continued later (console `suspend`):
-    /// stops the spindle and saves the position, unlike `onPause`'s
-    /// momentary feed-hold. Supplied as `ControllerModel.suspendJob`.
     var onSuspend: (() -> Void)? = nil
-    /// Resume after either kind of pause. Supplied as `resumeJob`, which
-    /// picks `~` for a feed-hold or `resume` for a suspend.
     var onResume: (() -> Void)? = nil
-    /// Resume, but seek to a chosen line first (`goto <line>`, Roadmap 1.5)
-    /// instead of continuing from wherever the hold happened. Supplied as
-    /// `ControllerModel.resumeJob(fromLine:)`. Only offered once there's a
-    /// known SD-card path to seek in — see `canResumeFromLine`.
     var onResumeFromLine: ((Int) -> Void)? = nil
-    /// Whether `onResumeFromLine` has anything to seek in — mirrors
-    /// `ControllerModel.lastUploadedRemotePath != nil`. `GCodeViewer` has no
-    /// other way to know this, since the remote path lives on `uploader`
-    /// only transiently (its `.completed` case), not as a standing property.
     var canResumeFromLine: Bool = false
-    /// Cancels an in-progress upload, or aborts a job running on the
-    /// machine (soft-reset). Supplied as `ControllerModel.stopJob`, which
-    /// works out which of the two applies.
     var onStop: (() -> Void)? = nil
 
     @State private var toolpaths: [GCodeToolpath] = []
@@ -245,10 +209,6 @@ struct GCodeViewer: View {
         uploader.isActive || (connection.isConnected && (connection.status?.isBusy == true || isPaused))
     }
 
-    /// The line `onResumeFromLine` would seek to if tapped right now —
-    /// whichever row was last tapped in the table (`model.requestedLine`),
-    /// falling back to the scrub position passed in as `highlightedLine` so
-    /// there's still a sensible target before the user has picked one.
     private var resumeLineTarget: Int? {
         model.requestedLine ?? highlightedLine
     }
@@ -276,35 +236,30 @@ struct GCodeViewer: View {
         }
     }
 
-    /// Same shape as the console's command bar (`TerminalView`): a divider
-    /// above, one 8pt-spaced row, 8pt vertical padding. Status on the left,
-    /// actions on the right, styled like the spindle's Start/Stop
-    /// (`QuietButtonStyle`). Idle shows only "Send to Machine"; once a job is
-    /// in flight that button gives way to the job controls.
     private var commandBar: some View {
         HStack(spacing: 8) {
-            if let progressText {
-                Text(progressText)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
             if isJobActive {
                 jobControls
             } else {
                 Button {
                     onPlay?()
                 } label: {
-                    Label("Send to Machine", systemImage: "play.fill")
+                    Label("Send to Machine...", systemImage: "play.fill")
                 }
-                .buttonStyle(QuietButtonStyle(tint: .green))
+                .buttonStyle(JobButtonStyle(tint: .green))
                 .disabled(!canStartJob)
                 .help(connection.isConnected
                       ? "Review and upload the loaded program to the machine's SD card"
                       : "Connect a machine, then review and upload the loaded program")
+            }
+
+            Spacer()
+
+            if let progressText {
+                Text(progressText)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
         }
         .padding(.vertical, 8)
@@ -313,9 +268,6 @@ struct GCodeViewer: View {
 
     @ViewBuilder
     private var jobControls: some View {
-        // Only while paused, and only once there's a known SD-card file to
-        // seek in — see `canResumeFromLine`. Tap a row in the table above to
-        // change `resumeLineTarget`.
         if isPaused, canResumeFromLine, let target = resumeLineTarget {
             Button {
                 onResumeFromLine?(target)
@@ -328,9 +280,6 @@ struct GCodeViewer: View {
 
         // Machine-side controls: not offered while a file is still uploading.
         if canPauseOrResume {
-            // One button, two roles: feed-hold while running, resume while
-            // paused. Driven by the machine's polled state, so the icon can
-            // lag a press by up to a second.
             Button {
                 if isPaused {
                     onResume?()
@@ -415,6 +364,6 @@ private struct ToolpathRow: View {
         if toolpath.operation == "Rapid" {
             return .secondary
         }
-        return .accentColor
+        return .secondary
     }
 }

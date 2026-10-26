@@ -276,10 +276,17 @@ struct ControllerView: View {
     @ViewBuilder
     private var column2: some View {
         VStack(spacing: 16) {
+            PanelJog(model: model,
+                     joystick: joystickStore,
+                     holdFeed: $model.holdJogFeed,
+                     onJog: { model.jog($0) },
+                     onHold: { direction, pressed in model.holdJog(direction, pressed: pressed) },
+                     onStopHold: { model.stopHoldJog() })
+//            .frame(height: 180)
+
             gcodeAndMacrosPanel
         }
 //            .disabled(!model.connection.isConnected)
-
     }
 
     @ViewBuilder
@@ -289,13 +296,6 @@ struct ControllerView: View {
             PanelPosition(connection: model.connection, model: model, scene: model.scene)
 
             PanelSpindle(model: model)
-
-            PanelJog(joystick: joystickStore,
-                     holdFeed: $model.holdJogFeed,
-                     onJog: { model.jog($0) },
-                     onHold: { direction, pressed in model.holdJog(direction, pressed: pressed) },
-                     onStopHold: { model.stopHoldJog() })
-            .frame(height: 180)
 
             GroupBox(label: Text("MDI CONSOLE")) {
                 TerminalView(model: model, connection: model.connection)
@@ -317,12 +317,13 @@ struct ControllerView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .padding(8)
 
             GCodeViewer(model: gCodeModel,
                         uploader: model.uploader,
                         connection: model.connection,
-                        mode: model.gcodePanelMode,
                         macros: model.macros,
+                        mode: model.gcodePanelMode,
                         onRunMacro: { model.startJob(lines: $0) },
                         highlightedLine: gCodeModel.scrubLine,
                         onLineSelected: scrubTo,
@@ -722,7 +723,7 @@ private struct CanvasSection: View {
             .cornerRadius(8)
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.gray, lineWidth: 1)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
             }
             .overlay {
                 // The carve runs on a background task; the old surface

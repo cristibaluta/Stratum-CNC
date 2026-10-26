@@ -33,6 +33,26 @@ struct QuietButtonStyle: ButtonStyle {
     }
 }
 
+struct JobButtonStyle: ButtonStyle {
+    var tint: Color = .primary
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title.weight(.medium))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .frame(minHeight: 22)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(tint.opacity(configuration.isPressed ? 0.22 : 0.10))
+            )
+            .opacity(isEnabled ? 1 : 0.4)
+            .contentShape(RoundedRectangle(cornerRadius: 5))
+    }
+}
+
 extension ButtonStyle where Self == QuietButtonStyle {
     static var quiet: QuietButtonStyle { QuietButtonStyle() }
 }

@@ -44,7 +44,13 @@ struct PanelPosition: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
-                machineActions
+                Button {
+                    model.connection.requestStatus()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .help("Ask the machine for its current position and status")
+                .padding(.bottom, -16)
 
                 Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 8) {
                     GridRow {
@@ -70,52 +76,16 @@ struct PanelPosition: View {
                         positionRow(title: "WCS", values: [0, 0, 0, 0], prominent: true)
                     }
 
-                    offsetRow
                 }
 
                 Divider()
 
+                offsetRow
                 PanelCoordinate(model: model)
                 PanelProbe(model: model)
             }
             .padding(8)
         }
-    }
-
-    // MARK: - Machine actions
-
-    /// Homing defines the machine frame, so it leads the panel. Labelled so
-    /// it's clear what each one does; refresh is just an icon (it sends the
-    /// same status request the old Status button did).
-    private var machineActions: some View {
-        HStack(spacing: 8) {
-            Button {
-                model.sendRawCommand(model.homeCommand)
-            } label: {
-                Label("Home", systemImage: "house")
-            }
-            .help("Run the homing cycle")
-
-            if isAlarm {
-                Button {
-                    model.sendRawCommand(model.unlockCommand)
-                } label: {
-                    Label("Unlock", systemImage: "lock.open")
-                }
-                .buttonStyle(QuietButtonStyle(tint: .orange))
-                .help("Clear the alarm lock so the machine can move")
-            }
-
-            Spacer(minLength: 0)
-
-            Button {
-                model.connection.requestStatus()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .help("Ask the machine for its current position and status")
-        }
-        .buttonStyle(.quiet)
     }
 
     // MARK: - Rows
@@ -141,16 +111,11 @@ struct PanelPosition: View {
     /// fields commit on submit / focus loss, which is what `CanvasSection`'s
     /// `onChange(of: scene.xyOffset)` relies on to recarve once per edit.
     private var offsetRow: some View {
-        GridRow {
-            // Two lines so the label stays as narrow as MACHINE and the grid
-            // still fits the 300 pt column.
-            rowTitle("G-CODE\nOFFSET")
-
+        HStack(spacing: 8) {
+            rowTitle("G-CODE OFFSET")
             offsetField($scene.xyOffset.x, axis: "X")
             offsetField($scene.xyOffset.y, axis: "Y")
-
-//            Color.clear.frame(width: 1, height: 1)
-//            Color.clear.frame(width: 1, height: 1)
+            Spacer()
         }
         .help("G-code offset: where the job's origin sits, in mm")
     }

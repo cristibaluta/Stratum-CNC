@@ -16,6 +16,7 @@ struct PanelJog: View {
         case hold
     }
 
+    @ObservedObject var model: ControllerModel
     @ObservedObject var joystick: GameControllerStore
     /// Speed used in hold mode, in mm/min. Owned by `ControllerModel`.
     @Binding var holdFeed: Double
@@ -44,8 +45,26 @@ struct PanelJog: View {
     var onStopHold: (() -> Void)?
 
     var body: some View {
-        GroupBox {//}("JOG") {
-            VStack {
+        GroupBox {
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        homingAction
+                        joystickView
+                    }
+                    Divider()
+                        .frame(height: 142)
+                    VStack(spacing: 16) {
+                        aAxisView
+                        Divider()
+                        zAxisView
+                    }
+                }
+                Divider()
+                HStack(spacing: 8) {
+                    modePicker
+                }
+
                 if let j = joystick.controllers.first {
                     HStack(spacing: 8) {
                         Toggle("Enable \(j.vendorName ?? "Unknown")", isOn: $joystickActive)
@@ -60,19 +79,6 @@ struct PanelJog: View {
                         Spacer()
                     }
                     Divider()
-                }
-
-                HStack(spacing: 8) {
-                    VStack(spacing: 8) {
-//                        modePicker
-                        joystickView
-                    }
-                    Divider()
-                    VStack(spacing: 16) {
-                        aAxisView
-                        Divider()
-                        zAxisView
-                    }
                 }
             }
             .padding(8)
@@ -140,22 +146,21 @@ struct PanelJog: View {
         }
     }
 
+    @ViewBuilder
     private var modePicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Picker("Mode", selection: $jogMode) {
-                Text("Step").tag(JogMode.step)
-                Text("Hold").tag(JogMode.hold)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .help("Step: one move per click. Hold: keeps moving while the button is held.")
+        Picker("Mode", selection: $jogMode) {
+            Text("Step").tag(JogMode.step)
+            Text("Hold").tag(JogMode.hold)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .help("Step: one move per click. Hold: keeps moving while the button is held.")
 
-            switch jogMode {
-                case .step:
-                    stepPicker
-                case .hold:
-                    speedPicker
-            }
+        switch jogMode {
+            case .step:
+                stepPicker
+            case .hold:
+                speedPicker
         }
     }
 
@@ -198,33 +203,25 @@ struct PanelJog: View {
         VStack(spacing: 8) {
             HStack(spacing: 5) {
                 Spacer()
-
                 jogButton("arrow.up", help: "Y+", direction: .yPlus, isHighlighted: $topHighlighted)
-
                 Spacer()
             }
 
             HStack(spacing: 5) {
                 jogButton("arrow.left", help: "X-", direction: .xMinus, isHighlighted: $leftHighlighted)
-
                 Button {
-                    // Absolute, unlike the arrow buttons: go to work zero,
-                    // don't step by 0.
                     onJog?(.absolute(x: 0, y: 0, z: nil, a: nil))
                 } label: {
                     Image(systemName: "scope")
                         .frame(width: 36, height: 30)
                 }
                 .help("Move X/Y to zero")
-
                 jogButton("arrow.right", help: "X+", direction: .xPlus, isHighlighted: $rightHighlighted)
             }
 
             HStack(spacing: 5) {
                 Spacer()
-
                 jogButton("arrow.down", help: "Y-", direction: .yMinus, isHighlighted: $bottomHighlighted)
-
                 Spacer()
             }
         }
@@ -297,6 +294,30 @@ struct PanelJog: View {
                          y: unit.y == 0 ? nil : unit.y * selectedJogStep,
                          z: unit.z == 0 ? nil : unit.z * selectedJogStep,
                          a: unit.a == 0 ? nil : unit.a * selectedJogStep))
+    }
+
+    private var homingAction: some View {
+        HStack(spacing: 8) {
+            Button {
+                model.sendRawCommand(model.homeCommand)
+            } label: {
+                Label("Home", systemImage: "house")
+            }
+            .help("Run the homing cycle")
+
+            //            if isAlarm {
+            //                Button {
+            //                    model.sendRawCommand(model.unlockCommand)
+            //                } label: {
+            //                    Label("Unlock", systemImage: "lock.open")
+            //                }
+            //                .buttonStyle(QuietButtonStyle(tint: .orange))
+            //                .help("Clear the alarm lock so the machine can move")
+            //            }
+            .buttonStyle(.quiet)
+
+            Spacer()
+        }
     }
 }
 
