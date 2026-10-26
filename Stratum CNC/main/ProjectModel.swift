@@ -71,6 +71,13 @@ class ProjectModel: ObservableObject {
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
+    /// Starts / ends security-scoped access to the project folder. An external
+    /// project's folder can only be written while its bookmark is active, so
+    /// every write below goes through `withFolderAccess`. Internal and scratch
+    /// projects use the defaults, which always succeed.
+    private let beginFolderAccess: @MainActor () -> Bool
+    private let endFolderAccess: @MainActor () -> Void
+
     // Rapid-fire edits (dragging an object, nudging it, live-typing in the
     // inspector) each call through to here — writing to disk on every one
     // would mean dozens of writes per second. Every save request goes
@@ -81,9 +88,14 @@ class ProjectModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var loadedAssetNames = Set<String>()
 
-    init(project: Project, paths: ProjectPaths) {
+    init(project: Project,
+         paths: ProjectPaths,
+         beginFolderAccess: @escaping @MainActor () -> Bool = { true },
+         endFolderAccess: @escaping @MainActor () -> Void = {}) {
         self.project = project
         self.paths = paths
+        self.beginFolderAccess = beginFolderAccess
+        self.endFolderAccess = endFolderAccess
 
         self.encoder = JSONEncoder()
         self.decoder = JSONDecoder()
@@ -211,11 +223,14 @@ class ProjectModel: ObservableObject {
             assetDestination = paths.assetsDirectory.appendingPathComponent("\(stem) (\(suffix))\(ext)")
             suffix += 1
         }
-        try fileManager.copyItem(at: url, to: assetDestination)
+        let destination = assetDestination
+        try withFolderAccess {
+            try fileManager.copyItem(at: url, to: destination)
+        }
 
         // 2. Add asset to json
         var assets = projectData.assets ?? []
-        let asset = AssetData(name: assetDestination.lastPathComponent, transform: nil)
+        let asset = AssetData(name: destination.lastPathComponent, transform: nil)
         assets.append(asset)
         projectData.assets = assets
         try saveProjectMetadata()
@@ -252,14 +267,26 @@ class ProjectModel: ObservableObject {
 
     private func saveProjectMetadata() throws {
         let data = try encoder.encode(projectData)
-        try data.write(to: paths.projectMetadata, options: .atomic)
+        try withFolderAccess {
+            try data.write(to: paths.projectMetadata, options: .atomic)
+        }
     }
 
     private func saveToolpaths() throws {
         // Targets reference object IDs in project.json, so persist those first.
         try saveProjectMetadata()
         let data = try encoder.encode(toolpaths)
-        try data.write(to: paths.toolpathsFile, options: .atomic)
+        try withFolderAccess {
+            try data.write(to: paths.toolpathsFile, options: .atomic)
+        }
+    }
+
+    /// Runs `body` with the project folder's bookmark activated. Calls nest, so
+    /// it's safe while the store is already holding access for the open project.
+    private func withFolderAccess<T>(_ body: () throws -> T) throws -> T {
+        guard beginFolderAccess() else { throw ProjectError.projectFolderMissing }
+        defer { endFolderAccess() }
+        return try body()
     }
 
 }

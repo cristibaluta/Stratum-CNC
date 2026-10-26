@@ -215,7 +215,10 @@ final class ProjectsStore: ObservableObject {
         releaseActiveAccess()
         accessedActiveProject = project
         activeProject = project
-        activeProjectModel = ProjectModel(project: project, paths: paths)
+        activeProjectModel = ProjectModel(project: project,
+                                          paths: paths,
+                                          beginFolderAccess: { [weak self] in self?.beginAccess(project) ?? false },
+                                          endFolderAccess: { [weak self] in self?.endAccess(project) })
     }
 
     /// Opens the scratch project. `tab` picks which screen it starts on, and
@@ -396,9 +399,12 @@ final class ProjectsStore: ObservableObject {
         do { bookmark = try ProjectBookmark.make(for: folder) } catch { throw ProjectError.bookmarkFailed }
 
         if let existingIndex {
-            // Already listed. Only an external project that couldn't be reached
-            // needs its bookmark replaced.
-            if projects[existingIndex].isExternal, missingProjectIDs.contains(projects[existingIndex].id) {
+            // Already listed. An external project whose folder couldn't be
+            // reached, or one the user is picking again (the fresh pick carries
+            // the app's current read-write scope, which an older read-only
+            // bookmark lacks), gets its bookmark replaced. Skipped while access
+            // is held, so begin/end calls stay paired on the same URL.
+            if projects[existingIndex].isExternal, accessCounts[projects[existingIndex].id] == nil {
                 projects[existingIndex].bookmark = bookmark
                 projects[existingIndex].path = folder.path
                 if let resolved = try? ProjectBookmark.resolve(bookmark) {
