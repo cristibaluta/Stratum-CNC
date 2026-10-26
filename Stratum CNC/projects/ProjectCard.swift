@@ -6,17 +6,18 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ProjectCard: View {
 
     let project: Project
-    let previewURL: URL
+    let previewImage: NSImage?
     @State private var isHovered: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
 
-            ProjectPreview(url: previewURL)
+            ProjectPreview(image: previewImage)
                 .frame(height: 180)
                 .frame(maxWidth: .infinity)
                 .background(.quaternary.opacity(0.5))

@@ -100,7 +100,7 @@ struct ProjectsView: View {
                     // }
 
                     ForEach(projectsStore.projects) { project in
-                        ProjectCard(project: project, previewURL: projectsStore.previewURL(for: project))
+                        ProjectCard(project: project, previewImage: projectsStore.previewImage(for: project))
                             .onTapGesture(count: 2) {
                                 open(project)
                             }
@@ -118,7 +118,7 @@ struct ProjectsView: View {
 
                                 Divider()
 
-                                Button("Delete", role: .destructive) {
+                                Button(project.isExternal ? "Remove from List" : "Delete", role: .destructive) {
                                     delete(project)
                                 }
                             }
@@ -168,12 +168,12 @@ struct ProjectsView: View {
                         projectsStore.openZombieProject(gcodeURL: url)
                     case .projectFolder:
                         do {
-                            let project = try projectsStore.importProjectFolder(url)
+                            let project = try projectsStore.openProjectFolder(url)
                             projectsStore.open(project)
                         } catch ProjectError.notAProjectFolder {
                             errorMessage = "That folder doesn't contain a project.json, so it isn't a Stratum project."
-                        } catch ProjectError.projectAlreadyExists {
-                            errorMessage = "A project named “\(url.lastPathComponent)” already exists."
+                        } catch ProjectError.projectFolderMissing {
+                            errorMessage = "That project's folder can't be reached."
                         } catch {
                             errorMessage = error.localizedDescription
                         }
@@ -194,10 +194,6 @@ struct ProjectsView: View {
     }
 
     private func showInFinder(_ project: Project) {
-        guard let paths = try? ProjectPaths(project: project) else {
-            return
-        }
-        let url = paths.projectDirectory
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        projectsStore.revealInFinder(project)
     }
 }

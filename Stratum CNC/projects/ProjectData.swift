@@ -10,7 +10,13 @@ import simd
 
 struct ProjectData: Identifiable, Codable, Hashable {
 
-    let id: UUID
+    /// The project's id, same as in `projects.json`, so a folder can be
+    /// recognised on its own (reinstalled app, lost index, folder renamed).
+    /// Projects saved before this was stamped carry an unrelated random id,
+    /// which `ProjectModel` overwrites on the next load.
+    var id: UUID
+    /// The project's display name, for the same reason. `nil` in older files.
+    var name: String?
     var stock: StockMaterial?
     var isStockVisible: Bool?
     var assets: [AssetData]?
@@ -20,12 +26,14 @@ struct ProjectData: Identifiable, Codable, Hashable {
     var xyOffset: SIMD2<Float>?
 
     init(id: UUID = UUID(),
+         name: String? = nil,
          stock: StockMaterial?,
          isStockVisible: Bool?,
          assets: [AssetData]?,
          xyOffset: SIMD2<Float>? = nil) {
         
         self.id = id
+        self.name = name
         self.stock = stock
         self.isStockVisible = isStockVisible
         self.assets = assets

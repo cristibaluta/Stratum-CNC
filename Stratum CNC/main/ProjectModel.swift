@@ -92,7 +92,7 @@ class ProjectModel: ObservableObject {
         encoder.dateEncodingStrategy = .iso8601
         decoder.dateDecodingStrategy = .iso8601
 
-        let projectData: ProjectData
+        var projectData: ProjectData
 
         do {
             let data = try Data(contentsOf: paths.projectMetadata)
@@ -103,6 +103,10 @@ class ProjectModel: ObservableObject {
                                       isStockVisible: nil,
                                       assets: nil)
         }
+        // The folder identifies itself: keep the project's id and name in
+        // project.json in step with the index (older files have a random id).
+        projectData.id = project.id
+        projectData.name = project.name
         self.projectData = projectData
 
         let defaultStock = StockMaterial(

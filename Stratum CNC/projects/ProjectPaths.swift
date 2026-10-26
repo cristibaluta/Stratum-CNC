@@ -7,10 +7,12 @@
 
 import Foundation
 
+/// Where a project's files live. Everything is relative to `projectDirectory`,
+/// so the rest of the app doesn't care whether the project is inside Stratum
+/// or in a folder the user picked.
 struct ProjectPaths {
 
-    let project: Project
-    let projectsRoot: URL
+    let projectDirectory: URL
 
     static let appDocuments: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
     static var projectsIndexFile: URL { appDocuments.appendingPathComponent("projects.json") }
@@ -24,16 +26,19 @@ struct ProjectPaths {
             && !name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
     }
 
-    init(project: Project, documentsDirectory: URL = Self.appDocuments) throws {
-        guard Self.isValidName(project.name) else { throw PathError.invalidProjectName }
-        self.project = project
-
-        projectsRoot = documentsDirectory.appendingPathComponent("Projects", isDirectory: true)
-        try FileManager.default.createDirectory(at: projectsRoot, withIntermediateDirectories: true)
+    /// A project in any folder: an external one (the resolved bookmark URL)
+    /// or an internal one whose directory is already known.
+    init(projectDirectory: URL) {
+        self.projectDirectory = projectDirectory
     }
 
-    var projectDirectory: URL {
-        projectsRoot.appendingPathComponent(project.name, isDirectory: true)
+    /// An internal project: `<documentsDirectory>/Projects/<name>`.
+    init(project: Project, documentsDirectory: URL = Self.appDocuments) throws {
+        guard Self.isValidName(project.name) else { throw PathError.invalidProjectName }
+
+        let projectsRoot = documentsDirectory.appendingPathComponent("Projects", isDirectory: true)
+        try FileManager.default.createDirectory(at: projectsRoot, withIntermediateDirectories: true)
+        projectDirectory = projectsRoot.appendingPathComponent(project.name, isDirectory: true)
     }
 
     var projectMetadata: URL {

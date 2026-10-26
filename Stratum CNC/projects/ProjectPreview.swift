@@ -10,11 +10,11 @@ import AppKit
 
 struct ProjectPreview: View {
 
-    let url: URL
+    let image: NSImage?
 
     var body: some View {
         Group {
-            if let image = NSImage(contentsOf: url) {
+            if let image {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
