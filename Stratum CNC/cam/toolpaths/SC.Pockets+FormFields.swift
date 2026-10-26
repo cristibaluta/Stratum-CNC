@@ -49,10 +49,21 @@ extension SC.PocketClearingPattern {
                            label: String = "Clearing Pattern",
                            onChange: @escaping (SC.PocketClearingPattern) -> Void) -> SC.ParameterField {
 
-        let currentSpiral: SC.SpiralDirection = { if case .spiral(let d) = self { return d } else { return .outsideIn } }()
-        let currentConcentric: SC.SpiralDirection = { if case .concentric(let d) = self { return d } else { return .outsideIn } }()
-        let currentTrochoidal: SC.TrochoidalSettings = { if case .trochoidal(let s) = self { return s } else { return .init(radialEngagement: 0.3, loopRadius: 1.0) } }()
-        let currentAdaptive: SC.AdaptiveSettings = { if case .adaptive(let s) = self { return s } else { return .init(optimalLoad: 1.0) } }()
+        let currentSpiral: SC.SpiralDirection = {
+            if case .spiral(let d) = self {
+                return d
+            } else {
+                return .outsideIn }
+        }()
+        let currentConcentric: SC.SpiralDirection = {
+            if case .concentric(let d) = self { return d } else { return .outsideIn }
+        }()
+        let currentTrochoidal: SC.TrochoidalSettings = {
+            if case .trochoidal(let s) = self { return s } else { return .init(radialEngagement: 0.3, loopRadius: 1.0) }
+        }()
+        let currentAdaptive: SC.AdaptiveSettings = {
+            if case .adaptive(let s) = self { return s } else { return .init(optimalLoad: 1.0) }
+        }()
 
         let cases: [SC.ParameterField.VariantField.Case] = [
             .init(id: "offset", label: "Offset", fields: []),
@@ -63,24 +74,27 @@ extension SC.PocketClearingPattern {
                                                      onChange: { onChange(.concentric(direction: $0)) }))
             ]),
             .init(id: "raster", label: "Raster", fields: []),
-            .init(id: "spiral", label: "Spiral", fields: [
+            .init(id: "spiral",
+                  label: "Spiral",
+                  fields: [
                 .choice(SC.spiralDirectionChoice(id: "\(id).spiral.direction", current: currentSpiral,
                                                   onChange: { onChange(.spiral(direction: $0)) }))
             ]),
-            .init(id: "trochoidal", label: "Trochoidal",
+            .init(id: "trochoidal",
+                  label: "Trochoidal",
                   fields: currentTrochoidal.formFields(idPrefix: "\(id).trochoidal") { onChange(.trochoidal(settings: $0)) }),
-            .init(id: "adaptive", label: "Adaptive",
+            .init(id: "adaptive",
+                  label: "Adaptive",
                   fields: currentAdaptive.formFields(idPrefix: "\(id).adaptive") { onChange(.adaptive(settings: $0)) })
         ]
 
-        let selectedId: String
-        switch self {
-            case .offset: selectedId = "offset"
-            case .concentric: selectedId = "concentric"
-            case .raster: selectedId = "raster"
-            case .spiral: selectedId = "spiral"
-            case .trochoidal: selectedId = "trochoidal"
-            case .adaptive: selectedId = "adaptive"
+        let selectedId: String = switch self {
+            case .offset: "offset"
+            case .concentric: "concentric"
+            case .raster: "raster"
+            case .spiral: "spiral"
+            case .trochoidal: "trochoidal"
+            case .adaptive: "adaptive"
         }
 
         return .variant(.init(id: id, label: label, cases: cases, selectedId: selectedId, onSelect: { newCaseId in

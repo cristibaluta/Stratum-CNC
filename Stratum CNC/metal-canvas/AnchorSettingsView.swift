@@ -4,12 +4,6 @@
 //
 //  Created by Cristian Baluta on 25.10.2026.
 //
-
-
-//
-//  AnchorSettingsView.swift
-//  Stratum CNC
-//
 //  Popover behind the gear on the objects list's Anchor row: pick which
 //  anchor the work is clamped against, and see/adjust where each one is in
 //  machine coordinates. See `MachineLayout`.

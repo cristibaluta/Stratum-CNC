@@ -14,14 +14,13 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
     case stock
     case rapidMoves
     case cuttingMoves
-    case boundingBox
     case tool
     case workbed
-    /// The L-bracket together with its graduated ruler — one object.
+    /// The L-bracket together with its graduated ruler
     case anchor
+    case boundingBox
     case axes
     /// Not a render object: the coordinate pills drawn over the canvas
-    /// (`CanvasCoordinateLabels`). One entry hides them all.
     case coordinates
 
     var id: String { rawValue }
@@ -31,10 +30,10 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .stock:        return "Stock"
             case .rapidMoves:   return "Rapid moves"
             case .cuttingMoves: return "Cutting moves"
-            case .boundingBox:  return "Job area"
             case .tool:         return "Tool"
             case .workbed:      return "Work bed"
             case .anchor:       return "Anchor"
+            case .boundingBox:  return "Job area"
             case .axes:         return "Axes"
             case .coordinates:  return "Coordinates"
         }
@@ -47,10 +46,10 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .stock:        return [.stock]
             case .rapidMoves:   return [.toolpathRapid, .macroRapid]
             case .cuttingMoves: return [.toolpathCutting, .macroCutting]
-            case .boundingBox:  return [.boundingBox]
             case .tool:         return [.tool]
             case .workbed:      return [.workbed]
             case .anchor:       return [.anchor]
+            case .boundingBox:  return [.boundingBox]
             case .axes:         return [.axes]
             case .coordinates:  return []
         }
@@ -64,10 +63,10 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
             case .stock:        return CanvasPalette.stock
             case .rapidMoves:   return CanvasPalette.rapid
             case .cuttingMoves: return CanvasPalette.cutting
-            case .boundingBox:  return CanvasPalette.boundingBox
             case .tool:         return CanvasPalette.tool
             case .workbed:      return CanvasPalette.workbed
             case .anchor:       return CanvasPalette.anchor
+            case .boundingBox:  return CanvasPalette.boundingBox
             case .axes, .coordinates: return nil
         }
     }
@@ -128,8 +127,7 @@ extension CanvasSceneModel {
         }
     }
 
-    /// The heightmap surface is the stock in heightmap mode, so the Stock
-    /// checkbox hides it too.
+    /// The heightmap surface is the stock in heightmap mode, so the Stock checkbox hides it too.
     var visibleHeightmapMesh: HeightmapMesh? {
         hiddenLayers.contains(.stock) ? nil : heightmapMesh
     }

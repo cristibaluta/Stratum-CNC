@@ -8,10 +8,8 @@
 import SwiftUI
 
 struct ToolPicker: View {
-    @Binding var tool: Tool
 
-    /// Called after the user picks a tool (from the recent list or the library),
-    /// not when `tool` is changed from outside.
+    @Binding var tool: Tool
     var onToolPicked: ((Tool) -> Void)?
 
     @EnvironmentObject var appModel: AppModel
@@ -77,15 +75,4 @@ struct ToolPicker: View {
     private func title(for candidate: Tool) -> String {
         "\(candidate.name) — Ø\(String(format: "%.2f", candidate.toolDiameter))"
     }
-}
-
-#Preview {
-    @Previewable @State var tool = Tool(name: "3.175mm End Mill",
-                                        shankDiameter: 3.175,
-                                        toolDiameter: 3.175,
-                                        length: 12,
-                                        type: .endMill)
-    ToolPicker(tool: $tool)
-        .environmentObject(AppModel())
-        .padding()
 }

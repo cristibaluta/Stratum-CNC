@@ -16,6 +16,7 @@ protocol CutSideOption: CaseIterable, Hashable, RawRepresentable where RawValue 
 extension SC.CutSide: @retroactive CaseIterable {
     public static let allCases: [SC.CutSide] = []
 }
+
 extension SC.CutSide: CutSideOption {
     var position: SC.CutSide { self }
     var selectionHint: String {

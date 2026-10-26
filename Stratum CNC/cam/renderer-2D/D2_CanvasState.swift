@@ -13,14 +13,6 @@ import simd
 /// Single source of truth for everything the 2D canvas, the objects inspector
 /// and the material panel need to agree on: the objects, the current
 /// selection, stock visibility/material, and the current zoom level.
-///
-/// IMPORTANT: nothing outside this class should mutate a `D2_Object`'s
-/// properties directly. Every mutation goes through a method here so there's
-/// one place to look when something behaves unexpectedly, and — crucially —
-/// so we can reliably notify observers. `D2_Object` is a plain (non-Observable)
-/// class, so mutating a property on an instance already inside `objects` does
-/// NOT trigger `@Published`'s notification by itself; the setters below call
-/// `objectWillChange.send()` explicitly to make up for that.
 final class D2_CanvasState: ObservableObject, Equatable {
 
     @Published var objects: [D2_Object] = []
@@ -39,22 +31,13 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// full current list. CAMModel writes it into the toolpath being edited.
     var onPickedPathsChanged: (([PathSelection]) -> Void)?
 
-    /// Whether the stock should be drawn. The persisted value lives in
-    /// ProjectData; whoever owns that (currently CAMView) is responsible for
-    /// mirroring it here whenever it changes, so the renderer only ever has
-    /// one flag to read.
+    /// Whether the stock should be drawn.
     @Published var isStockVisible: Bool = true
+    @Published var stock: StockMaterial?
 
-    /// All generated toolpaths as one top-down path in world coordinates, or
-    /// nil when there's nothing to show. Built by CAMModel (see
-    /// ToolpathPathBuilder) whenever generation results change; the renderer
-    /// only draws it.
+    /// All generated toolpaths as one top-down path in world coordinates, or nil when there's nothing to show.
     @Published private(set) var toolpathsPath: CGPath?
 
-    /// Stock material/geometry to render. Mirrored here from
-    /// CAMModel.selectedStockMaterial so the renderer has a single place to
-    /// read it from instead of reaching back out to CAMModel.
-    @Published var stock: StockMaterial?
 
     /// The canvas's current zoom scale. Kept in sync by D2_CanvasNSView on
     /// every pan/zoom/fit so anything computing zoom-dependent stroke widths
@@ -284,7 +267,9 @@ final class D2_CanvasState: ObservableObject, Equatable {
     }
 
     private func dropPickedPaths(where shouldDrop: (PathSelection) -> Bool) {
-        guard isPickingPaths else { return }
+        guard isPickingPaths else {
+            return
+        }
         let before = pickedPaths.count
         pickedPaths.removeAll(where: shouldDrop)
         if pickedPaths.count != before {
@@ -300,7 +285,9 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used for continuous drag-to-move on the canvas.
     func moveObject(_ id: UUID, to position: CGPoint) {
-        guard let object = object(withID: id) else { return }
+        guard let object = object(withID: id) else {
+            return
+        }
         objectWillChange.send()
         object.position = position
         onObjectsChanged?()
@@ -308,7 +295,9 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used by the inspector's text fields (X, Y, Width, Height, Rotation).
     func setValue(_ value: CGFloat, for property: ObjectProperty, objectID: UUID) {
-        guard let object = object(withID: objectID) else { return }
+        guard let object = object(withID: objectID) else {
+            return
+        }
         objectWillChange.send()
         switch property {
         case .x: object.position.x = value
@@ -322,19 +311,23 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used by the inspector's +1/-1 nudge buttons.
     func nudge(_ objectID: UUID, property: ObjectProperty, amount: CGFloat) {
-        guard let object = object(withID: objectID) else { return }
+        guard let object = object(withID: objectID) else {
+            return
+        }
         objectWillChange.send()
         switch property {
-        case .x: object.position.x += amount
-        case .y: object.position.y += amount
-        default: break
+            case .x: object.position.x += amount
+            case .y: object.position.y += amount
+            default: break
         }
         onObjectsChanged?()
     }
 
     /// Used by the inspector's ÷2/×2 buttons.
     func scaleWidth(_ objectID: UUID, factor: Int) {
-        guard let object = object(withID: objectID), factor != 0 else { return }
+        guard let object = object(withID: objectID), factor != 0 else {
+            return
+        }
         objectWillChange.send()
         object.width = factor > 0
             ? max(object.width * CGFloat(factor), 0.001)
@@ -344,7 +337,9 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used by the inspector's -90°/+90° buttons.
     func rotateObject(_ objectID: UUID, by degrees: CGFloat) {
-        guard let object = object(withID: objectID) else { return }
+        guard let object = object(withID: objectID) else {
+            return
+        }
         objectWillChange.send()
         object.rotate(by: degrees)
         onObjectsChanged?()
@@ -357,7 +352,9 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// does. `objectWillChange.send()` alone is enough to repaint the
     /// canvas and refresh the inspector's eye icon.
     func toggleObjectVisibility(_ objectID: UUID) {
-        guard let object = object(withID: objectID) else { return }
+        guard let object = object(withID: objectID) else {
+            return
+        }
         objectWillChange.send()
         object.isVisible.toggle()
     }
@@ -369,7 +366,9 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// these same values straight back into ProjectData would be a
     /// redundant (if harmless) save.
     func restoreTransform(_ transform: AssetTransform, objectID: UUID) {
-        guard let object = object(withID: objectID) else { return }
+        guard let object = object(withID: objectID) else {
+            return
+        }
         objectWillChange.send()
         object.position = CGPoint(x: transform.x, y: transform.y)
         object.width = max(transform.width, 0.001)

@@ -204,8 +204,8 @@ enum D2_RenderObjectBuilder {
         }
 
         return D2_RenderPath(objectID: objectID, pathIndex: pathIndex,
-                            renderObject: object, worldPath: mutablePath,
-                            worldBounds: mutablePath.boundingBoxOfPath)
+                             renderObject: object, worldPath: mutablePath,
+                             worldBounds: mutablePath.boundingBoxOfPath)
     }
 }
 

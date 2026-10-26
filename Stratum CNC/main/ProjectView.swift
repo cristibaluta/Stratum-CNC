@@ -11,9 +11,6 @@ struct ProjectView: View {
 
     @ObservedObject var appModel: AppModel
     @ObservedObject var projectModel: ProjectModel
-
-    /// Observed directly because its document's file name is the title of a
-    /// G-code file session (`projectModel` doesn't republish nested changes).
     @ObservedObject private var gCodeStore: GCodeStore
 
     var onClose: (() -> Void)
@@ -31,6 +28,10 @@ struct ProjectView: View {
             case .controllerOnly: "Controller"
             case .gcodeFile: gCodeStore.document.fileName
         }
+    }
+
+    private var subtitle: String {
+        "Status..."
     }
 
     var body: some View {
@@ -89,6 +90,6 @@ struct ProjectView: View {
             }
         }
         .navigationTitle(title)
-        .navigationSubtitle("Status...")
+        .navigationSubtitle(subtitle)
     }
 }

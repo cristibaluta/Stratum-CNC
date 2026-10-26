@@ -68,10 +68,6 @@ struct CanvasLayersList<StockSettings: View>: View {
         let isOn = scene.isVisible(layer)
 
         return HStack(spacing: 8) {
-            // Own checkbox rather than `Toggle(.checkbox)`: the native one
-            // ignores `.tint` unless it is checked, and never colors its
-            // label. Box and label both take the color the object is drawn in
-            // (axes and coordinates have none, so they stay primary).
             Button {
                 scene.setVisible(layer, !isOn)
             } label: {

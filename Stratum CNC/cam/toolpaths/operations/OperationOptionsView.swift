@@ -10,10 +10,10 @@ import SwiftUI
 import StratumCAM
 
 struct OperationOptionsView: View {
+
     @Binding var toolpath: ToolpathData
 
-    /// When true, every picker below lays its options out directly in the
-    /// view instead of behind a button + popover or a menu.
+    /// When true, every picker below lays its options out directly in the view instead of behind a button + popover or a menu.
     var expanded: Bool = false
 
     @State private var showRampEditor = false
@@ -108,8 +108,6 @@ struct OperationOptionsView: View {
         }
     }
 
-    /// Same picker `PatternPicker` already offers elsewhere: a glyph per pattern (rings,
-    /// scanlines, spiral, loops) instead of the generic engine field's text-only menu.
     private var patternRow: some View {
         row {
             PatternPicker(pattern: $toolpath.operation.pocketPattern, expanded: expanded)
@@ -163,8 +161,6 @@ private extension OperationKind {
         }
     }
 
-    /// `.adaptive` pockets crash the engine (`fatalError`), `.fromOpenEnd` entry needs an
-    /// open slot outline.
     static let hiddenCaseIDs: Set<String> = ["adaptive", "fromOpenEnd"]
 }
 

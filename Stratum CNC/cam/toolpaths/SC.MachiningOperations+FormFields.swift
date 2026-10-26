@@ -24,8 +24,12 @@ extension SC.MachiningOperation {
                     .choice(SC.cutDirectionChoice(id: "facing.direction", current: direction, onChange: {
                         onChange(.facing(direction: $0, extensionLength: extensionLength))
                     })),
-                    .double(.init(id: "facing.extensionLength", label: "Extension Length", unit: "mm",
-                                  range: 0.0...50.0, value: extensionLength, onChange: {
+                    .double(.init(id: "facing.extensionLength",
+                                  label: "Extension Length",
+                                  unit: "mm",
+                                  range: 0.0...50.0,
+                                  value: extensionLength,
+                                  onChange: {
                         onChange(.facing(direction: direction, extensionLength: $0))
                     }))
                     // No stepover: facing derives row spacing from the tool's own

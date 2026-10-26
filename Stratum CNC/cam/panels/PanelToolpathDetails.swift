@@ -175,7 +175,7 @@ struct PanelToolpathDetails: View {
             OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if toolpath.operation.kind.usesStepover {
-                NumberField(title: "STEPOVER", value: editedBinding($toolpath.stepOver, .stepOver), suffix: "mm")
+                NumberField(title: "STEPOVER", value: editedBinding($toolpath.stepOver, .stepOver), suffix: "%")
             }
         }
     }
