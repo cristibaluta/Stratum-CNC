@@ -68,8 +68,6 @@ private struct PatternGridPicker: View {
     private let columns = [
         GridItem(.flexible(), spacing: 6),
         GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6),
         GridItem(.flexible(), spacing: 6)
     ]
     private let tileSize = CGSize(width: 70, height: 56)
@@ -112,7 +110,8 @@ private struct PatternGridPicker: View {
 }
 
 /// A small drawing of the tool's path filling a pocket: nested rings for an offset,
-/// scanlines for a raster, a tightening spiral, and looping coils for a trochoid —
+/// scanlines for a raster, a tightening spiral, looping coils for a trochoid, and a helix with
+/// growing partial passes for adaptive —
 /// all against the pocket's boundary (solid), same convention as `ContourTypeGlyph`.
 private struct PatternGlyph: View {
     let pattern: PocketPattern
@@ -141,6 +140,7 @@ private struct PatternGlyph: View {
             case .spiral:     return spiralPath(in: rect)
             case .trochoidal: return trochoidalPath(in: rect)
             case .concentric: return spiralPath(in: rect)
+            case .adaptive:   return adaptivePath(in: rect)
         }
     }
 
@@ -204,6 +204,37 @@ private struct PatternGlyph: View {
         return path
     }
 
+    /// A small helix circle in the middle, with the wavefront growing out from it in
+    /// partial, rounded passes that never close into full rings.
+    private func adaptivePath(in rect: CGRect) -> Path {
+        var path = Path()
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let unit = min(rect.width, rect.height)
+        let helixRadius = unit * 0.14
+
+        path.addEllipse(in: CGRect(x: center.x - helixRadius,
+                                   y: center.y - helixRadius,
+                                   width: helixRadius * 2,
+                                   height: helixRadius * 2))
+
+        // (distance from the helix, how much of the ring is drawn)
+        let passes: [(CGFloat, CGFloat)] = [(0.18, 0.82), (0.34, 0.62)]
+        for (distance, drawn) in passes {
+            let half = helixRadius + unit * distance
+            let ring = CGRect(x: center.x - half * 1.5,
+                              y: center.y - half,
+                              width: half * 3,
+                              height: half * 2)
+            guard ring.width <= rect.width + 0.5, ring.height <= rect.height + 0.5 else {
+                continue
+            }
+            path.addPath(RoundedRectangle(cornerRadius: half * 0.6)
+                .path(in: ring)
+                .trimmedPath(from: 0.05, to: drawn))
+        }
+        return path
+    }
+
     /// A straight travel line with the small looping coils a trochoid traces
     /// as it steps forward.
     private func trochoidalPath(in rect: CGRect) -> Path {
@@ -236,6 +267,7 @@ private extension PocketPattern {
             case .spiral:     return "Clears with a continuous, tightening spiral."
             case .trochoidal: return "Clears with small looping passes, easing tool load in slots and tight corners."
             case .concentric: return "Clears with rings that expand outward."
+            case .adaptive:   return "Clears with a constant, light radial load: opens up from a helix in the middle, so the tool never buries itself in corners."
         }
     }
 }

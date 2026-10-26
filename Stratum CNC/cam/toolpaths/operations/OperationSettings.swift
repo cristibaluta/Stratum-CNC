@@ -23,6 +23,8 @@ struct OperationSettings: Codable, Hashable {
     var pocketSpiral: SpiralOrder = .outsideIn// TODO: reuse model from stratum cam
     /// Trochoidal forward pitch per loop, as a percentage of the tool radius.
     var pocketTrochoidalPitch: Double = 50
+    /// Adaptive clearing: the radial engagement the tool is kept at, in mm.
+    var pocketAdaptiveLoad: Double = 1
 
     // Facing
     /// How far the passes run past the selection's bounding box, mm.
@@ -64,7 +66,7 @@ struct OperationSettings: Codable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case kind, direction
-        case pocketPattern, pocketSpiral, pocketTrochoidalPitch
+        case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoad
         case facingExtension
         case slotSource, slotDepthPerPass
         case chamferWidth, chamferUsesDepth, chamferDepth, chamferSide
@@ -89,6 +91,7 @@ extension OperationSettings {
         pocketPattern = try c.decodeIfPresent(PocketPattern.self, forKey: .pocketPattern) ?? d.pocketPattern
         pocketSpiral = try c.decodeIfPresent(SpiralOrder.self, forKey: .pocketSpiral) ?? d.pocketSpiral
         pocketTrochoidalPitch = try c.decodeIfPresent(Double.self, forKey: .pocketTrochoidalPitch) ?? d.pocketTrochoidalPitch
+        pocketAdaptiveLoad = try c.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoad) ?? d.pocketAdaptiveLoad
         facingExtension = try c.decodeIfPresent(Double.self, forKey: .facingExtension) ?? d.facingExtension
         slotSource = try c.decodeIfPresent(SlotSource.self, forKey: .slotSource) ?? d.slotSource
         chamferWidth = try c.decodeIfPresent(Double.self, forKey: .chamferWidth) ?? d.chamferWidth

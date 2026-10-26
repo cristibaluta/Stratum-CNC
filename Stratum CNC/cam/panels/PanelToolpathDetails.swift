@@ -174,7 +174,9 @@ struct PanelToolpathDetails: View {
             // defines for the chosen operation
             OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if toolpath.operation.kind.usesStepover {
+            // Adaptive clearing is driven by its optimal load, not by the stepover.
+            if toolpath.operation.kind.usesStepover,
+               !(toolpath.operation.kind == .pocket && toolpath.operation.pocketPattern == .adaptive) {
                 NumberField(title: "STEPOVER", value: editedBinding($toolpath.stepOver, .stepOver), suffix: "%")
             }
         }

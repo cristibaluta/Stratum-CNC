@@ -234,6 +234,16 @@ extension ToolpathGenerator {
                     // Below ~5 % the loops get so tight that the path explodes in size.
                     throw GenerationError.invalidOption("The trochoidal loop pitch must be between 5 % and 100 % of the tool radius.")
                 }
+                if options.pocketPattern == .adaptive {
+                    let diameter = Double(toolpath.tool.toolDiameter)
+                    // The engine clamps to 2 %...95 % of the diameter; reject values that clamping would silently change.
+                    guard options.pocketAdaptiveLoad > 0 else {
+                        throw GenerationError.invalidOption("The adaptive optimal load must be greater than 0.")
+                    }
+                    if diameter > 0, options.pocketAdaptiveLoad > 0.95 * diameter {
+                        throw GenerationError.invalidOption("The adaptive optimal load can't exceed 95 % of the tool diameter.")
+                    }
+                }
             case .facing:
                 guard options.facingExtension >= 0 else {
                     throw GenerationError.invalidOption("The facing extension can't be negative.")
@@ -286,8 +296,7 @@ extension ToolpathGenerator {
 
     /// The toolpath's operation and options as StratumCAM's `SC.MachiningOperation`.
     ///
-    /// Not offered: `PocketClearingPattern.adaptive` (its engine code is a `fatalError`), the
-    /// slot patterns `.trochoidal`/`.adaptive` and `EntryStrategy.fromOpenEnd` (they only make
+    /// Not offered: the slot patterns `.trochoidal`/`.adaptive` and `EntryStrategy.fromOpenEnd` (they only make
     /// sense for slot outlines open at one or both ends, which the app doesn't derive yet), and
     /// lead-in/out and holding tabs on contours.
     ///
@@ -375,6 +384,8 @@ extension ToolpathGenerator {
                 // `radialEngagement` is a fraction of the tool radius; the pocket ignores `loopRadius`.
                 return .trochoidal(settings: SC.TrochoidalSettings(radialEngagement: options.pocketTrochoidalPitch / 100,
                                                                    loopRadius: 0))
+            case .adaptive:
+                return .adaptive(settings: SC.AdaptiveSettings(optimalLoad: options.pocketAdaptiveLoad))
             case .concentric:
                 return .concentric(direction: options.pocketSpiral == .outsideIn ? .outsideIn : .insideOut)
         }

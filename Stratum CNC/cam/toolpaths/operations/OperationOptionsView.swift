@@ -116,7 +116,8 @@ struct OperationOptionsView: View {
     }
 
     /// The one extra control a pattern needs, if any -- which way a spiral winds in,
-    /// or how tightly a trochoidal loop steps forward. Both are only stored on
+    /// how tightly a trochoidal loop steps forward, or how much of the tool an adaptive
+    /// pass is allowed to bury in the material. These are only stored on
     /// `OperationSettings`, not exposed by the generic form once `pattern` is hidden.
     @ViewBuilder
     private var patternDetail: some View {
@@ -125,6 +126,9 @@ struct OperationOptionsView: View {
                 EnumMenuPicker(title: "SPIRAL DIRECTION", selection: $toolpath.operation.pocketSpiral, expanded: expanded)
             case .trochoidal:
                 NumberField(title: "LOOP PITCH", value: $toolpath.operation.pocketTrochoidalPitch, suffix: "% radius")
+            case .adaptive:
+                NumberField(title: "OPTIMAL LOAD", value: $toolpath.operation.pocketAdaptiveLoad, suffix: "mm")
+                    .help("Radial engagement the tool is kept at while clearing. Smaller values mean lighter cuts and more passes.")
             case .offset, .raster:
                 EmptyView()
         }

@@ -137,14 +137,14 @@ enum ThreadHandedness: String, CaseIterable, Codable, Hashable {
     case leftHand = "Left-hand"
 }
 
-/// How a pocket is cleared. StratumCAM also has `.adaptive`, but its engine still stops with
-/// `fatalError("Not implemented yet")` for it, so it isn't offered here.
+/// How a pocket is cleared. Mirrors StratumCAM's `SC.PocketClearingPattern`.
 enum PocketPattern: String, CaseIterable, Codable, Hashable {
     case offset = "Offset"
     case raster = "Raster"
     case spiral = "Spiral"
     case trochoidal = "Trochoidal"
     case concentric = "Concentric"
+    case adaptive = "Adaptive"
 }
 
 enum SpiralOrder: String, CaseIterable, Codable, Hashable {

@@ -12,8 +12,6 @@
 //  offer it:
 //   - the entry strategy: it lives in `ToolpathData.ramping`, edited by the ramping editor
 //   - contour lead-in / lead-out / holding tabs, and the slot clearing pattern: not stored yet
-//   - `.concentric` pocket pattern: the app has no matching `PocketPattern` yet
-//   - `.adaptive` pocket pattern: the engine still stops with `fatalError` on it
 //
 
 import Foundation
@@ -67,9 +65,9 @@ extension ToolpathData {
                     case .concentric(let spiralDirection):
                         operation.pocketPattern = .concentric
                         operation.pocketSpiral = spiralDirection == .insideOut ? .insideOut : .outsideIn
-                    case .adaptive:
-                        fatalError("not implemented")
-                        break
+                    case .adaptive(let settings):
+                        operation.pocketPattern = .adaptive
+                        operation.pocketAdaptiveLoad = settings.optimalLoad
                 }
 
             case .drilling(let peckDepth):
