@@ -28,13 +28,11 @@ struct OperationOptionsView: View {
         toolpath.machiningOperation.requirements
     }
 
-    /// The patterns to offer in the pattern row. The slot's patterns are left out until
-    /// open-ended slots can be derived from the drawing: only a pocket has the row.
+    /// The patterns to offer in the pattern row: the pocket's. A slot has patterns of its own
+    /// (`requirements.slotPatterns`), which the app doesn't offer until open-ended slots can
+    /// be derived from the drawing.
     private var offeredPatterns: [PocketPattern] {
-        guard kind != .slotting else {
-            return []
-        }
-        return requirements.clearingPatterns.compactMap { PocketPattern($0) }
+        requirements.pocketPatterns.map { PocketPattern($0) }
     }
 
     var body: some View {

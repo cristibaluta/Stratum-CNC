@@ -123,9 +123,9 @@ enum PocketPattern: String, CaseIterable, Codable, Hashable {
 
 extension PocketPattern {
 
-    /// The app's pattern for one of the library's, if it has one.
-    init?(_ kind: SC.ClearingPatternKind) {
-        switch kind {
+    /// The app's pattern for one of the library's (its parameters are kept in `OperationSettings`).
+    init(_ pattern: SC.PocketClearingPattern) {
+        switch pattern {
             case .offset:     self = .offset
             case .concentric: self = .concentric
             case .raster:     self = .raster

@@ -167,9 +167,6 @@ enum ToolpathGenerator {
         if let error = error as? GenerationError {
             return error.errorDescription ?? "Couldn't generate the toolpath."
         }
-        if let issue = error as? SC.ValidationIssue {
-            return issue.message
-        }
         if let error = error as? SC.Error {
             switch error {
             case .contourNotClosed:
@@ -184,9 +181,16 @@ enum ToolpathGenerator {
                 return "A selected shape isn't a point or a closed circle. "
                     + "SVG circles are stored as lines and aren't recognised — use a DXF or drill-file circle."
             case .toolIncompatible:
-                return "The selected tool can't perform this operation."
+                switch operation {
+                    case .chamfer:
+                        return "A chamfer needs a V-bit: pick a tool with a tip angle, or turn on Fixed depth."
+                    case .counterbore:
+                        return "The counterbore diameter must be larger than the tool."
+                    default:
+                        return "The selected tool can't perform this operation."
+                }
             case .invalidParameter(let name):
-                return "Invalid parameter: \(name)."
+                return parameterMessage(for: name)
             case .geometryCollapsed:
                 return "The tool is too large for the selected shapes — nothing is left after offsetting."
             @unknown default:
@@ -194,6 +198,46 @@ enum ToolpathGenerator {
             }
         }
         return error.localizedDescription
+    }
+
+    /// What to tell the user about a parameter the library refused (`SC.Error.invalidParameter`).
+    /// The library names it by its form-field id (see `SC.MachiningOperation.validate`); the
+    /// wording is the app's.
+    private static func parameterMessage(for parameter: String) -> String {
+        switch parameter {
+            case "entry":
+                return "This operation can't use that entry strategy."
+            case "contour.leadIn":
+                return "A lead-in can't be combined with a ramp or helix entry: the entry already eases the tool in."
+            case "pattern.trochoidal.radialEngagement":
+                return "The trochoidal loop pitch must be between 5 % and 100 % of the tool radius."
+            case "pattern.adaptive.optimalLoad":
+                return "The adaptive optimal load must be greater than 0 and at most 95 % of the tool diameter."
+            case "facing.extensionLength":
+                return "The facing extension can't be negative."
+            case "slotting.depthPerPass":
+                return "Depth per pass must be greater than 0."
+            case "drilling.peckDepth":
+                return "The peck depth must be greater than 0."
+            case "counterbore.depth":
+                return "The counterbore depth must be greater than 0."
+            case "boring.targetDiameter":
+                return "The finished diameter must be greater than 0."
+            case "boring.dwellTime":
+                return "The dwell time can't be negative."
+            case "threadMilling.pitch", "pitch":
+                return "The thread pitch must be greater than 0."
+            case "threadMilling.targetDiameter":
+                return "The thread diameter must be greater than 0."
+            case "threadMilling.radialPasses", "radialPasses":
+                return "The thread needs at least 1 radial pass."
+            case "chamfer.params.width":
+                return "The chamfer width must be greater than 0."
+            case "chamfer.params.depth":
+                return "The chamfer depth must be greater than 0."
+            default:
+                return "Invalid parameter: \(parameter)."
+        }
     }
 }
 
