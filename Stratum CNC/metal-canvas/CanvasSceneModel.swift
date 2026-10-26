@@ -138,6 +138,22 @@ class CanvasSceneModel: ObservableObject {
     /// way (`onChange` + `forceHeightmapRefresh()`).
     @Published var xyOffset: SIMD2<Float> = .zero
 
+    /// Bottom-left corner of the job area in *toolpath* coordinates (the box
+    /// `updateBoundingBox` builds, tool radius included), or zero with no
+    /// program. The CAM puts the toolpath's 0,0 anywhere it likes, so this
+    /// is what ties `xyOffset` to something the person can see.
+    @Published private(set) var toolpathBoundsMin: SIMD2<Float> = .zero
+
+    /// Where the job area's bottom-left corner sits relative to the anchor,
+    /// in mm — what the person sees and types. `xyOffset` stays what the
+    /// machine and renderer need: where the G-code's own 0,0 goes
+    /// (`xyOffset = jobAreaOffset - toolpathBoundsMin`). Equal to `xyOffset`
+    /// when no program is loaded.
+    var jobAreaOffset: SIMD2<Float> {
+        get { xyOffset + toolpathBoundsMin }
+        set { xyOffset = newValue - toolpathBoundsMin }
+    }
+
     /// Base color the heightmap surface is shaded with — the selected
     /// stock's material color (`StockMaterialType.surfaceColor`), so the 3D
     /// preview matches whatever was picked in `MaterialPanelView`. Set by
@@ -273,6 +289,7 @@ class CanvasSceneModel: ObservableObject {
     /// moving the job never needs this to be rebuilt.
     func updateBoundingBox(segments: [ToolpathSegment], toolRadii: [Float]) {
         let bounds = ToolpathBounds.compute(segments: segments, toolRadii: toolRadii)
+        toolpathBoundsMin = bounds?.min ?? .zero
         let objects = bounds.map { [RenderObject.boundingBox(min: $0.min, max: $0.max)] } ?? []
         if isMacroPreviewActive {
             // The box belongs to the program, which is hidden right now.

@@ -10,6 +10,9 @@ import SwiftUI
 /// Two small numeric fields for positioning the job on the canvas, in
 /// millimeters, bound to `CanvasSceneModel.xyOffset`.
 ///
+/// (In the popover this is bound to `CanvasSceneModel.jobAreaOffset`, the box's
+/// corner relative to the anchor, not the raw `xyOffset`.)
+///
 /// The offset moves the job area (the dotted box, see
 /// `RenderObject.boundingBox`) together with the toolpath inside it, so the
 /// point being edited is the box's bottom-left corner — the job origin.
@@ -75,12 +78,12 @@ struct JobAreaSettingsView: View {
             Text("JOB AREA")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
-            XYOffsetControlView(xyOffset: $scene.xyOffset)
-            Text("Position of the job area's bottom-left corner. Moves the toolpath with it.")
+            XYOffsetControlView(xyOffset: $scene.jobAreaOffset)
+            Text("Position of the job area's bottom-left corner, relative to the anchor. Not stored in the G-code: the app converts it into the work origin it sends to the machine, since the CAM's own 0,0 can be anywhere in the job.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(width: 190, alignment: .leading)
+                .frame(width: 230, alignment: .leading)
         }
         .padding(12)
     }

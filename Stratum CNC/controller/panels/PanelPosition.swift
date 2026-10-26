@@ -22,7 +22,7 @@ import StratumLink
 /// The first two rows are live readouts of the machine; JOB OFFSET shows a setting
 /// for the job (`CanvasSceneModel.xyOffset`, which Fusion's X/Y Offset header
 /// also fills in) and doesn't change while jogging. It is not editable here:
-/// change it from the gear on the canvas's "Job area" row. ZERO and PROBE are the
+/// change it from the sliders button on the canvas's "Job area" row. ZERO and PROBE are the
 /// two ways of setting the work origin, so they sit under the work row
 /// instead of in a box of their own. This panel replaces the old POSITION
 /// and WORK SETUP boxes.
@@ -112,11 +112,11 @@ struct PanelPosition: View {
     private var offsetRow: some View {
         HStack(spacing: 8) {
             rowTitle("JOB OFFSET")
-            offsetValue(scene.xyOffset.x, axis: "X")
-            offsetValue(scene.xyOffset.y, axis: "Y")
+            offsetValue(scene.jobAreaOffset.x, axis: "X")
+            offsetValue(scene.jobAreaOffset.y, axis: "Y")
             Spacer()
         }
-        .help("Job offset: where the job's origin sits, in mm. Change it from the gear on the canvas's Job area row.")
+        .help("Job offset: the job area's bottom-left corner relative to the anchor, in mm. Change it from the sliders button on the canvas's Job area row.")
     }
 
     private func offsetValue(_ value: Float, axis: String) -> some View {

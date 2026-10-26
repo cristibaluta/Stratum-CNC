@@ -92,15 +92,15 @@ struct CanvasLayersList<StockSettings: View>: View {
 
             switch layer {
                 case .stock:
-                    gear(isPresented: $isShowingStockSettings, help: "Stock settings") {
+                    gear(isPresented: $isShowingStockSettings, help: "Stock settings", tint: layer.tint) {
                         stockSettings()
                     }
                 case .boundingBox:
-                    gear(isPresented: $isShowingJobAreaSettings, help: "Job area settings") {
+                    gear(isPresented: $isShowingJobAreaSettings, help: "Job area settings", tint: layer.tint) {
                         JobAreaSettingsView(scene: scene)
                     }
                 case .anchor:
-                    gear(isPresented: $isShowingAnchorSettings, help: "Anchor settings") {
+                    gear(isPresented: $isShowingAnchorSettings, help: "Anchor settings", tint: layer.tint) {
                         AnchorSettingsView(scene: scene)
                     }
                 default:
@@ -111,13 +111,14 @@ struct CanvasLayersList<StockSettings: View>: View {
 
     private func gear<Content: View>(isPresented: Binding<Bool>,
                                      help: String,
+                                     tint: Color?,
                                      @ViewBuilder content: @escaping () -> Content) -> some View {
         Button {
             isPresented.wrappedValue.toggle()
         } label: {
-            Image(systemName: "gearshape")
+            Image(systemName: "slider.horizontal.3")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(tint ?? Color.secondary)
         }
         .buttonStyle(.borderless)
         .help(help)
