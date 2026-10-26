@@ -22,6 +22,8 @@ struct GCodeViewer: View {
     var highlightedLine: Int? = nil
     var onLineSelected: ((Int) -> Void)? = nil
     var onPlay: (() -> Void)? = nil
+    /// Saves the displayed program to a file the person chooses.
+    var onExport: (() -> Void)? = nil
     var onPause: (() -> Void)? = nil
     var onSuspend: (() -> Void)? = nil
     var onResume: (() -> Void)? = nil
@@ -162,6 +164,12 @@ struct GCodeViewer: View {
         !uploader.isActive && !model.document.lines.isEmpty
     }
 
+    /// Exporting needs a program on screen, and a finished load: while a file is still
+    /// parsing, `lines` is the previous program or nothing.
+    private var canExport: Bool {
+        onExport != nil && !model.document.isLoading && !model.document.lines.isEmpty
+    }
+
     /// A macro streams straight to the machine, so it needs a connection and
     /// nothing else already moving it or uploading.
     private var canRunMacro: Bool {
@@ -251,11 +259,22 @@ struct GCodeViewer: View {
                 .help(connection.isConnected
                       ? "Review and upload the loaded program to the machine's SD card"
                       : "Connect a machine, then review and upload the loaded program")
+
+                Spacer()
+                Spacer()
+
+                Button {
+                    onExport?()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .buttonStyle(.plain)
+                .disabled(!canExport)
+                .help("Export the G-code shown here to a file")
             }
 
-            Spacer()
-
             if let progressText {
+                Spacer()
                 Text(progressText)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)

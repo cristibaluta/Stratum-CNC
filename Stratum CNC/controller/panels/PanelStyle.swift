@@ -40,7 +40,7 @@ struct JobButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.title.weight(.medium))
+            .font(.title2.weight(.medium))
             .foregroundStyle(tint)
             .padding(.horizontal, 8)
             .frame(minHeight: 22)

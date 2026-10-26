@@ -280,10 +280,16 @@ struct ControllerView: View {
     }
 
     private func regenerateFromCAM() {
-        gCodeModel.generateGCode(from: camModel.toolpaths,
-                                 generations: camModel.generations,
-                                 stock: camModel.selectedStockMaterial,
-                                 camRevision: camModel.revision)
+        // Generates whatever toolpaths aren't ready yet (progress shows in a popover on the
+        // button that was pressed), then builds the program from them.
+        gCodeModel.generateGCode(using: camModel)
+    }
+
+    private func exportGCode() {
+        // A CAM-generated program carries no file name of its own; name it after the project.
+        let fromCAM = gCodeModel.generatedFromCAMRevision != nil && hasCAM
+        GCodeExporter.export(gCodeModel.document,
+                             suggestedName: fromCAM ? projectModel.project.name : nil)
     }
 
     private var outdatedOverlay: some View {
@@ -307,6 +313,9 @@ struct ControllerView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(gCodeModel.isGeneratingFromCAM)
+            .popover(isPresented: $gCodeModel.isShowingCAMProgress, arrowEdge: .bottom) {
+                CAMGenerationProgressView(store: gCodeModel)
+            }
         }
         .padding(24)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
@@ -412,6 +421,7 @@ struct ControllerView: View {
                                 model.isShowingMachinePicker = true
                             }
                         },
+                        onExport: exportGCode,
                         onPause: model.pauseJob,
                         onSuspend: model.suspendJob,
                         onResume: model.resumeJob,
@@ -462,39 +472,48 @@ struct ControllerView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
-                    }
-
-                    Divider().frame(height: 40)
-
-                }
-
-                if canImportGCode {
-                VStack {
-                    Text("Load a .nc, .ngc, .gcode, .cnc, or .tap file.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button {
-                        model.isGCodeImporterPresented = true
-                    } label: {
-                        Label("Load G-code File…", systemImage: "folder")
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(gCodeModel.document.isLoading)
-
-                    Button {
-                        isShowingEmptyStateRemoteFiles = true
-                    } label: {
-                        Label("Load from Machine…", systemImage: "externaldrive.badge.wifi")
-                    }
-                    .disabled(gCodeModel.document.isLoading)
-                    .popover(isPresented: $isShowingEmptyStateRemoteFiles, arrowEdge: .bottom) {
-                        RemoteFilesPopover(info: model.session.info,
-                                           downloader: model.session.downloader,
-                                           isConnected: model.connection.isConnected) { file in
-                            loadRemoteFile(file)
+                        .popover(isPresented: $gCodeModel.isShowingCAMProgress, arrowEdge: .bottom) {
+                            CAMGenerationProgressView(store: gCodeModel)
                         }
                     }
                 }
+
+                if canImportGCode {
+                    HStack {
+                        VStack {
+                            Text("Load a .nc, .ngc, .gcode, .cnc, or .tap file from disk.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                model.isGCodeImporterPresented = true
+                            } label: {
+                                Label("Import from File…", systemImage: "folder")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(gCodeModel.document.isLoading)
+                        }
+
+                        Divider().frame(height: 40)
+
+                        VStack {
+                            Text("Load file from machine storage.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button {
+                                isShowingEmptyStateRemoteFiles = true
+                            } label: {
+                                Label("Import from Machine…", systemImage: "externaldrive.badge.wifi")
+                            }
+                            .disabled(gCodeModel.document.isLoading)
+                            .popover(isPresented: $isShowingEmptyStateRemoteFiles, arrowEdge: .bottom) {
+                                RemoteFilesPopover(info: model.session.info,
+                                                   downloader: model.session.downloader,
+                                                   isConnected: model.connection.isConnected) { file in
+                                    loadRemoteFile(file)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -714,44 +733,44 @@ private struct CanvasSection: View {
 
     /// Where the program came from, at the left of the bar above the canvas:
     /// import from a file or the machine, and the loaded file's name.
-    private var fileControls: some View {
-        HStack(spacing: 6) {
-            if let onImportFile {
-            Button(action: onImportFile) {
-                Image(systemName: "folder")
-                    .frame(width: 22, height: 22)
-            }
-            .help("Import from file")
-            .disabled(gCodeModel.document.isLoading)
-
-            Button {
-                isShowingRemoteFiles = true
-            } label: {
-                Image(systemName: "externaldrive.badge.wifi")
-                    .frame(width: 22, height: 22)
-            }
-            .help("Load from machine")
-            .disabled(gCodeModel.document.isLoading)
-            .popover(isPresented: $isShowingRemoteFiles, arrowEdge: .bottom) {
-                RemoteFilesPopover(info: session.info,
-                                   downloader: session.downloader,
-                                   isConnected: connection.isConnected) { file in
-                    onLoadRemoteFile(file)
-                }
-            }
-            }
-
-            Text(gCodeModel.document.fileName)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(gCodeModel.document.lines.isEmpty ? .secondary : .primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: 180, alignment: .leading)
-                .help(gCodeModel.document.fileName)
-        }
-        .buttonStyle(.plain)
-        .fixedSize()
-    }
+//    private var fileControls: some View {
+//        HStack(spacing: 6) {
+//            if let onImportFile {
+//            Button(action: onImportFile) {
+//                Image(systemName: "folder")
+//                    .frame(width: 22, height: 22)
+//            }
+//            .help("Import from file")
+//            .disabled(gCodeModel.document.isLoading)
+//
+//            Button {
+//                isShowingRemoteFiles = true
+//            } label: {
+//                Image(systemName: "externaldrive.badge.wifi")
+//                    .frame(width: 22, height: 22)
+//            }
+//            .help("Load from machine")
+//            .disabled(gCodeModel.document.isLoading)
+//            .popover(isPresented: $isShowingRemoteFiles, arrowEdge: .bottom) {
+//                RemoteFilesPopover(info: session.info,
+//                                   downloader: session.downloader,
+//                                   isConnected: connection.isConnected) { file in
+//                    onLoadRemoteFile(file)
+//                }
+//            }
+//            }
+//
+//            Text(gCodeModel.document.fileName)
+//                .font(.caption.weight(.medium))
+//                .foregroundStyle(gCodeModel.document.lines.isEmpty ? .secondary : .primary)
+//                .lineLimit(1)
+//                .truncationMode(.middle)
+//                .frame(maxWidth: 180, alignment: .leading)
+//                .help(gCodeModel.document.fileName)
+//        }
+//        .buttonStyle(.plain)
+//        .fixedSize()
+//    }
 
     var body: some View {
         VStack {
@@ -759,10 +778,6 @@ private struct CanvasSection: View {
             // the stock summary, with the program's tools pushed to the right
             // in a scrolling row. Editing happens in popovers/menus on demand.
             HStack(spacing: 10) {
-                fileControls
-
-                Divider().frame(height: 16)
-
                 StockChip(stock: $camModel.selectedStockMaterial,
                           isStockVisible: isStockVisible,
                           onOpenLibrary: onOpenStocksLib)

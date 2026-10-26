@@ -215,7 +215,7 @@ struct PanelJog: View {
                     Image(systemName: "scope")
                         .frame(width: 36, height: 30)
                 }
-                .help("Move X/Y to zero")
+                .help("Go to the work's XY zero")
                 jogButton("arrow.right", help: "X+", direction: .xPlus, isHighlighted: $rightHighlighted)
             }
 
@@ -303,7 +303,7 @@ struct PanelJog: View {
             } label: {
                 Label("Home", systemImage: "house")
             }
-            .help("Run the homing cycle")
+            .help("Return to the machine's home position")
 
             //            if isAlarm {
             //                Button {

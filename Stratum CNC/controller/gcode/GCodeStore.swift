@@ -191,44 +191,174 @@ class GCodeStore: ObservableObject {
     /// program isn't from CAM. A different current revision means CAM changed since.
     @Published private(set) var generatedFromCAMRevision: Int?
 
-    /// Builds a G-code program from the toolpaths generated in CAM and loads it as the current
+    // MARK: Generation progress
+
+    /// One row of the progress popover: a CAM toolpath and where it is in getting generated.
+    struct CAMProgressItem: Identifiable, Equatable {
+
+        enum State: Equatable {
+            /// Queued: it has to be generated, but another one is being worked on.
+            case waiting
+            case generating
+            /// Generated and current; it goes into the program.
+            case ready
+            /// The engine reported an error for it. It stays out of the program.
+            case failed(String)
+            /// Left out without an error (no shapes, no cutting passes, project changed).
+            case skipped(String)
+
+            var isFinished: Bool {
+                switch self {
+                    case .waiting, .generating: false
+                    case .ready, .failed, .skipped: true
+                }
+            }
+        }
+
+        let id: UUID
+        let name: String
+        var state: State
+    }
+
+    /// Every toolpath of the project and its generation state, while "Use from CAM" / "Refresh
+    /// from CAM" is generating the ones that weren't ready. Empty otherwise.
+    @Published private(set) var camProgress: [CAMProgressItem] = []
+
+    /// Drives the progress popover on the button that started the import.
+    @Published var isShowingCAMProgress = false
+
+    /// True once every toolpath is done and the engine is turning them into G-code.
+    @Published private(set) var isBuildingCAMGCode = false
+
+    // MARK: Importing
+
+    /// Builds a G-code program from the toolpaths of the CAM project and loads it as the current
     /// document, exactly as if it had been opened from a file (canvas, heightmap, tool list and
     /// the uploader all follow from `document`).
     ///
-    /// - Parameters:
-    ///   - toolpaths: `CAMModel.toolpaths`, in list order.
-    ///   - generations: `CAMModel.generations`, the engine output per toolpath id.
-    ///   - stock: `CAMModel.selectedStockMaterial`, written into the program header.
-    func generateGCode(from toolpaths: [ToolpathData],
-                       generations: [UUID: ToolpathGeneration],
-                       stock: StockMaterial? = nil,
-                       camRevision: Int? = nil) {
+    /// Toolpaths that were never generated, or were edited since, are generated first — the
+    /// same as pressing Generate on each of them in CAM — with the progress shown in a popover.
+    /// Toolpaths that still can't make it into the program (no shapes, an engine error…) are
+    /// reported in `camImportMessage` afterwards.
+    func generateGCode(using camModel: CAMModel) {
         guard !isGeneratingFromCAM else {
             return
         }
         camImportMessage = nil
+        isGeneratingFromCAM = true
 
-        let plan = ToolpathGCodeBuilder.plan(toolpaths: toolpaths, generations: generations)
+        Task { [weak self] in
+            await self?.importFromCAM(camModel)
+        }
+    }
+
+    private func importFromCAM(_ camModel: CAMModel) async {
+
+        let pending = camModel.toolpaths.filter { Self.needsGeneration($0, in: camModel) }
+        if !pending.isEmpty {
+            await generate(pending, in: camModel)
+        }
+
+        // Read after the generations above: they are what the program is built from, and they
+        // bump `camModel.revision`, which must not make the fresh program look outdated.
+        let plan = ToolpathGCodeBuilder.plan(toolpaths: camModel.toolpaths, generations: camModel.generations)
         guard !plan.sections.isEmpty else {
+            endCAMImport()
             camImportMessage = plan.nothingToGenerateMessage
             return
         }
 
-        isGeneratingFromCAM = true
+        isBuildingCAMGCode = true
         let sections = plan.sections
+        let stock = camModel.selectedStockMaterial
+        let revision = camModel.revision
 
-        Task { [weak self] in
-            // The engine can take a while on a big job; keep it off the main thread.
-            let gcode = await Task.detached(priority: .userInitiated) {
-                ToolpathGCodeBuilder.generate(sections, stock: stock)
-            }.value
+        // The engine can take a while on a big job; keep it off the main thread.
+        let gcode = await Task.detached(priority: .userInitiated) {
+            ToolpathGCodeBuilder.generate(sections, stock: stock)
+        }.value
 
-            self?.finishGeneratingFromCAM(gcode: gcode, plan: plan, camRevision: camRevision)
+        finishGeneratingFromCAM(gcode: gcode, plan: plan, camRevision: revision)
+    }
+
+    /// Generates `pending` one after the other, updating the popover as each one starts and ends.
+    /// One at a time keeps the progress readable and the engine from competing with itself.
+    private func generate(_ pending: [ToolpathData], in camModel: CAMModel) async {
+
+        let pendingIDs = Set(pending.map(\.id))
+        camProgress = camModel.toolpaths.map { toolpath in
+            CAMProgressItem(id: toolpath.id,
+                            name: toolpath.name,
+                            state: pendingIDs.contains(toolpath.id) ? .waiting : Self.state(of: toolpath, in: camModel))
+        }
+        isShowingCAMProgress = true
+
+        for toolpath in pending {
+            setProgress(.generating, for: toolpath.id)
+            camModel.generateToolpaths(for: toolpath.id)
+
+            // `generatingIDs` also empties when the run is abandoned (a canvas object changed,
+            // the toolpath was deleted), so this can't wait forever.
+            while camModel.generatingIDs.contains(toolpath.id) {
+                try? await Task.sleep(for: .milliseconds(40))
+            }
+
+            // Judge it as it is now: it may have been edited or removed while it ran.
+            if let current = camModel.toolpaths.first(where: { $0.id == toolpath.id }) {
+                setProgress(Self.state(of: current, in: camModel), for: toolpath.id)
+            } else {
+                setProgress(.skipped("Removed while generating."), for: toolpath.id)
+            }
         }
     }
 
-    private func finishGeneratingFromCAM(gcode: String, plan: ToolpathGCodeBuilder.Plan, camRevision: Int?) {
+    private func setProgress(_ state: CAMProgressItem.State, for id: UUID) {
+        guard let index = camProgress.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        camProgress[index].state = state
+    }
+
+    /// Whether "Generate" has to run before the toolpath can be posted: it has shapes, and has
+    /// either never been generated or was edited since. A toolpath whose current settings
+    /// already failed is left alone — running it again would fail the same way.
+    private static func needsGeneration(_ toolpath: ToolpathData, in camModel: CAMModel) -> Bool {
+        guard !toolpath.targets.isEmpty else {
+            return false
+        }
+        guard let generation = camModel.generations[toolpath.id] else {
+            return true
+        }
+        return !generation.isCurrent(for: toolpath)
+    }
+
+    /// Where a toolpath stands right now, judged the same way `ToolpathGCodeBuilder.plan` will.
+    private static func state(of toolpath: ToolpathData, in camModel: CAMModel) -> CAMProgressItem.State {
+        guard !toolpath.targets.isEmpty else {
+            return .skipped("No shapes selected.")
+        }
+        guard let generation = camModel.generations[toolpath.id] else {
+            return .skipped("Discarded, the project changed while generating.")
+        }
+        if case .failure = generation.outcome {
+            return .failed(generation.errorMessage ?? "Generation failed.")
+        }
+        guard generation.isCurrent(for: toolpath) else {
+            return .skipped("Changed while generating.")
+        }
+        return generation.passCount > 0 ? .ready : .skipped("No cutting passes.")
+    }
+
+    /// Closes the popover and clears the import's transient state.
+    private func endCAMImport() {
         isGeneratingFromCAM = false
+        isBuildingCAMGCode = false
+        isShowingCAMProgress = false
+        camProgress = []
+    }
+
+    private func finishGeneratingFromCAM(gcode: String, plan: ToolpathGCodeBuilder.Plan, camRevision: Int?) {
+        endCAMImport()
 
         guard !gcode.isEmpty else {
             camImportMessage = "The G-code engine didn't produce any output for the generated toolpaths."

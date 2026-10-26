@@ -49,7 +49,6 @@ struct SettingsView: View {
         // The Settings window is its own scene, outside ContentView, so it has
         // to apply the app-wide appearance itself.
         .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
-        .tint(.purple)
     }
 
     private var appearanceTab: some View {
