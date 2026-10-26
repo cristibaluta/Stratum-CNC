@@ -63,6 +63,12 @@ struct ControllerView: View {
     /// Without CAM (Controller-only sessions) there is nothing to generate from.
     private var hasCAM: Bool { !projectModel.hidesCAM }
 
+    /// Saved projects get their program from CAM only; any import happens in
+    /// the Controller-only sessions.
+    private var canImportGCode: Bool { projectModel.sessionKind != .project }
+    /// A G-code file session keeps its import button in the nav bar, by the title.
+    private var importsFromNavBar: Bool { projectModel.sessionKind == .gcodeFile }
+
     private var stockVisibleBinding: Binding<Bool> {
         Binding(
             get: { projectModel.projectData.isStockVisible ?? true },
@@ -138,9 +144,10 @@ struct ControllerView: View {
             }
         }
         .toolbar {
-            // Always available, so a program can be swapped whatever it came from.
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
+            // G-code file sessions only: swap the file, next to its name.
+            ToolbarItem(placement: .navigation) {
+                if importsFromNavBar {
+                    Menu {
                     Button {
                         model.isGCodeImporterPresented = true
                     } label: {
@@ -162,6 +169,7 @@ struct ControllerView: View {
                                        isConnected: model.connection.isConnected) { file in
                         loadRemoteFile(file)
                     }
+                }
                 }
             }
             ToolbarItem(placement: .primaryAction) {
@@ -290,7 +298,7 @@ struct ControllerView: View {
                                                        generations: camModel.generations,
                                                        stock: camModel.selectedStockMaterial)
                           } : nil,
-                          onImportFile: { model.isGCodeImporterPresented = true },
+                          onImportFile: canImportGCode && !importsFromNavBar ? { model.isGCodeImporterPresented = true } : nil,
                           session: model.session,
                           onLoadRemoteFile: loadRemoteFile)
         }
@@ -415,6 +423,7 @@ struct ControllerView: View {
 
                 }
 
+                if canImportGCode {
                 VStack {
                     Text("Load a .nc, .ngc, .gcode, .cnc, or .tap file.")
                         .font(.caption)
@@ -440,6 +449,7 @@ struct ControllerView: View {
                             loadRemoteFile(file)
                         }
                     }
+                }
                 }
             }
         }
@@ -529,7 +539,8 @@ private struct CanvasSection: View {
     let onOpenStocksLib: (() -> Void)?
     /// `nil` hides the button (no CAM in this session).
     let onReloadFromCAM: (() -> Void)?
-    let onImportFile: () -> Void
+    /// `nil` hides the import buttons (the program comes from elsewhere).
+    let onImportFile: (() -> Void)?
     let session: SL.Session
     let onLoadRemoteFile: (MachineFileEntry) -> Void
     @State private var isShowingRemoteFiles = false
@@ -677,6 +688,7 @@ private struct CanvasSection: View {
                 .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
             }
 
+            if let onImportFile {
             Button(action: onImportFile) {
                 Image(systemName: "folder")
                     .frame(width: 22, height: 22)
@@ -698,6 +710,7 @@ private struct CanvasSection: View {
                                    isConnected: connection.isConnected) { file in
                     onLoadRemoteFile(file)
                 }
+            }
             }
 
             Text(gCodeModel.document.fileName)
