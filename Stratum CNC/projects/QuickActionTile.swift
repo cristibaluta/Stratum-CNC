@@ -2,8 +2,6 @@
 //  QuickActionTile.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 26.10.2026.
-//
 //  A small action box for the top group of the projects page: an icon, a
 //  title and one line saying what it does.
 //
@@ -15,6 +13,7 @@ struct QuickActionTile: View {
     let title: String
     let subtitle: String
     let systemImage: String
+    var iconRotation: Angle = .zero
     let action: () -> Void
 
     @State private var isHovered = false
@@ -24,6 +23,7 @@ struct QuickActionTile: View {
             HStack(spacing: 12) {
                 Image(systemName: systemImage)
                     .font(.system(size: 18, weight: .medium))
+                    .rotationEffect(iconRotation)
                     .foregroundStyle(.tint)
                     .frame(width: 36, height: 36)
                     .background(.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
@@ -35,13 +35,15 @@ struct QuickActionTile: View {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
-            .frame(height: 60)
+            .padding(.vertical, 10)
+            .frame(minHeight: 76)
             .background(.quaternary.opacity(isHovered ? 1.0 : 0.4))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay {

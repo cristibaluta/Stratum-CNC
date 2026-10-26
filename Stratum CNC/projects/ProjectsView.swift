@@ -39,39 +39,65 @@ struct ProjectsView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     sectionTitle("QUICK START")
                     LazyVGrid(columns: quickColumns, spacing: 12) {
+                        QuickActionTile(title: "New Project",
+                                        subtitle: "Start a new CAM project",
+                                        systemImage: "plus") {
+                            appModel.showingNewProject = true
+                        }
                         QuickActionTile(title: "Open Project Folder",
-                                        subtitle: "Add a project from disk",
+                                        subtitle: "Open a Stratum project from a folder on disk",
                                         systemImage: "folder") {
                             picker = .projectFolder
                             isPicking = true
                         }
                         QuickActionTile(title: "Try Without Project",
-                                        subtitle: "Scratch CAM, nothing saved",
+                                        subtitle: "Explore CAM without creating a saved project",
                                         systemImage: "arrow.right.circle") {
                             projectsStore.openZombieProject()
                         }
                         QuickActionTile(title: "Open Controller",
-                                        subtitle: "Machine screen, no file loaded",
+                                        subtitle: "Connect to and control the CNC machine",
                                         systemImage: "dial.medium") {
                             projectsStore.openZombieProject(tab: .controller)
                         }
                         QuickActionTile(title: "Import G-code",
-                                        subtitle: "Load a file in the Controller",
-                                        systemImage: "square.and.arrow.down") {
+                                        subtitle: "Load a G-code file in the Controller to preview and run",
+                                        systemImage: "chevron.left.forwardslash.chevron.right") {
                             picker = .gcode
                             isPicking = true
                         }
                     }
                 }
 
-                // Group 2: the saved projects.
+                // Group 2: shared libraries.
+                VStack(alignment: .leading, spacing: 10) {
+                    sectionTitle("LIBRARIES")
+                    LazyVGrid(columns: quickColumns, spacing: 12) {
+                        QuickActionTile(title: "Tools Library",
+                                        subtitle: "Browse and edit your cutting tools",
+                                        systemImage: "pencil.tip.crop.circle.fill",
+                                        iconRotation: .degrees(180)) {
+                            appModel.showingToolsSheet = true
+                        }
+                        QuickActionTile(title: "Stock Library",
+                                        subtitle: "Browse and edit your stock materials",
+                                        systemImage: "cube") {
+                            appModel.showingStocksSheet = true
+                        }
+                    }
+                }
+
+                // Group 3: the saved projects.
                 VStack(alignment: .leading, spacing: 10) {
                     sectionTitle("PROJECTS")
                 LazyVGrid(columns: columns, spacing: 20) {
 
-                    NewProjectCard {
-                        appModel.showingNewProject = true
-                    }
+                    // The New Project card used to be the first cell here; it now
+                    // lives in Quick Start as a tile. `NewProjectCard` is kept
+                    // as-is, so putting it back is just un-commenting this.
+                    // NewProjectCard {
+                    //     appModel.showingNewProject = true
+                    // }
 
                     ForEach(projectsStore.projects) { project in
                         ProjectCard(project: project, previewURL: projectsStore.previewURL(for: project))
@@ -117,33 +143,6 @@ struct ProjectsView: View {
         }
         .navigationSubtitle("Select or create project...")
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: {
-                    appModel.showingToolsSheet.toggle()
-                }) {
-                    Label("Tools", systemImage: "pencil.tip.crop.circle.fill")
-                }
-                .rotationEffect(.degrees(180))
-
-                Button(action: {
-                    appModel.showingStocksSheet.toggle()
-                }) {
-                    Label("Stock", systemImage: "cube")
-                }
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    appModel.showingNewProject = true
-                } label: {
-                    Label("New Project", systemImage: "plus")
-                }
-
-                Button {
-                    projectsStore.loadProjects()
-                } label: {
-                    Label("Refresh Projects", systemImage: "arrow.trianglehead.clockwise.rotate.90")
-                }
-            }
             ToolbarItemGroup(placement: .primaryAction) {
                 AppearanceToggle(isDarkMode: $appModel.isDarkMode)
             }
