@@ -16,8 +16,15 @@ import StratumCAM
 class CAMModel: ObservableObject {
 
     // ---- PERSISTENT DATA (mirrors ProjectData) ----
+    /// Bumped whenever something the generated G-code is built from changes: the
+    /// toolpath settings, their generated results, or the stock. The Controller
+    /// compares it with the value its program was generated at to know when that
+    /// program is out of date (see `GCodeStore.generatedFromCAMRevision`).
+    @Published private(set) var revision = 0
+
     @Published var selectedStockMaterial: StockMaterial {
         didSet {
+            revision &+= 1
             canvasState.stock = selectedStockMaterial
             onStockChanged?(selectedStockMaterial)
         }
@@ -36,6 +43,7 @@ class CAMModel: ObservableObject {
     // ---- TEMPORARY TOOLPATH EDITING ----
     @Published var toolpaths: [ToolpathData] = [] {
         didSet {
+            revision &+= 1
             onToolpathsChanged?(toolpaths)
             // An edit can make the open toolpath's result outdated, which ends scrubbing
             syncScrub()
@@ -72,6 +80,7 @@ class CAMModel: ObservableObject {
 
     @Published private(set) var generations: [UUID: ToolpathGeneration] = [:] {
         didSet {
+            revision &+= 1
             // The preview below depends on whether something is being scrubbed, so sort that out first
             syncScrub(refreshPreview: false)
             updateToolpathPreview()

@@ -187,6 +187,10 @@ class GCodeStore: ObservableObject {
     /// it in an alert and clears it.
     @Published var camImportMessage: String?
 
+    /// `CAMModel.revision` the current program was generated from; nil when the
+    /// program isn't from CAM. A different current revision means CAM changed since.
+    @Published private(set) var generatedFromCAMRevision: Int?
+
     /// Builds a G-code program from the toolpaths generated in CAM and loads it as the current
     /// document, exactly as if it had been opened from a file (canvas, heightmap, tool list and
     /// the uploader all follow from `document`).
@@ -197,7 +201,8 @@ class GCodeStore: ObservableObject {
     ///   - stock: `CAMModel.selectedStockMaterial`, written into the program header.
     func generateGCode(from toolpaths: [ToolpathData],
                        generations: [UUID: ToolpathGeneration],
-                       stock: StockMaterial? = nil) {
+                       stock: StockMaterial? = nil,
+                       camRevision: Int? = nil) {
         guard !isGeneratingFromCAM else {
             return
         }
@@ -218,11 +223,11 @@ class GCodeStore: ObservableObject {
                 ToolpathGCodeBuilder.generate(sections, stock: stock)
             }.value
 
-            self?.finishGeneratingFromCAM(gcode: gcode, plan: plan)
+            self?.finishGeneratingFromCAM(gcode: gcode, plan: plan, camRevision: camRevision)
         }
     }
 
-    private func finishGeneratingFromCAM(gcode: String, plan: ToolpathGCodeBuilder.Plan) {
+    private func finishGeneratingFromCAM(gcode: String, plan: ToolpathGCodeBuilder.Plan, camRevision: Int?) {
         isGeneratingFromCAM = false
 
         guard !gcode.isEmpty else {
@@ -231,6 +236,7 @@ class GCodeStore: ObservableObject {
         }
 
         document.load(from: gcode)
+        generatedFromCAMRevision = camRevision
         // Same reset the file importer does when a new program replaces the old one.
         selectedToolpathID = nil
         requestedLine = nil

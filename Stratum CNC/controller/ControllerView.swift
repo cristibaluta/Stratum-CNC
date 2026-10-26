@@ -271,8 +271,60 @@ struct ControllerView: View {
         }
     }
 
+    /// A CAM-generated program whose source toolpaths (or stock) changed since.
+    private var isProgramOutdated: Bool {
+        hasCAM
+            && !gCodeModel.document.isLoading
+            && !gCodeModel.document.lines.isEmpty
+            && gCodeModel.generatedFromCAMRevision.map { $0 != camModel.revision } == true
+    }
+
+    private func regenerateFromCAM() {
+        gCodeModel.generateGCode(from: camModel.toolpaths,
+                                 generations: camModel.generations,
+                                 stock: camModel.selectedStockMaterial,
+                                 camRevision: camModel.revision)
+    }
+
+    private var outdatedOverlay: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                .font(.system(size: 36))
+                .foregroundStyle(.secondary)
+            Text("CAM toolpaths changed")
+                .font(.headline)
+            Text("This G-code was generated from an earlier version of your toolpaths. Refresh to regenerate it from CAM before running.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 320)
+            Button(action: regenerateFromCAM) {
+                if gCodeModel.isGeneratingFromCAM {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Refresh from CAM", systemImage: "arrow.triangle.2.circlepath")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(gCodeModel.isGeneratingFromCAM)
+        }
+        .padding(24)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .shadow(radius: 8)
+    }
+
     @ViewBuilder
     private var column1: some View {
+        column1Content
+            .overlay {
+                if isProgramOutdated {
+                    outdatedOverlay
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var column1Content: some View {
         if gCodeModel.document.isLoading {
             VStack {
                 Spacer()
@@ -293,11 +345,6 @@ struct ControllerView: View {
                           showsMacroPreview: model.gcodePanelMode == .macros,
                           isStockVisible: stockVisibleBinding,
                           onOpenStocksLib: onOpenStocksLib,
-                          onReloadFromCAM: hasCAM ? {
-                              gCodeModel.generateGCode(from: camModel.toolpaths,
-                                                       generations: camModel.generations,
-                                                       stock: camModel.selectedStockMaterial)
-                          } : nil,
                           onImportFile: canImportGCode && !importsFromNavBar ? { model.isGCodeImporterPresented = true } : nil,
                           session: model.session,
                           onLoadRemoteFile: loadRemoteFile)
@@ -404,9 +451,7 @@ struct ControllerView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button {
-                            gCodeModel.generateGCode(from: camModel.toolpaths,
-                                                     generations: camModel.generations,
-                                                     stock: camModel.selectedStockMaterial)
+                            regenerateFromCAM()
                         } label: {
                             if gCodeModel.isGeneratingFromCAM {
                                 ProgressView()
@@ -537,8 +582,6 @@ private struct CanvasSection: View {
     let isStockVisible: Binding<Bool>
     @Environment(\.openSettings) private var openSettings
     let onOpenStocksLib: (() -> Void)?
-    /// `nil` hides the button (no CAM in this session).
-    let onReloadFromCAM: (() -> Void)?
     /// `nil` hides the import buttons (the program comes from elsewhere).
     let onImportFile: (() -> Void)?
     let session: SL.Session
@@ -670,24 +713,9 @@ private struct CanvasSection: View {
     }
 
     /// Where the program came from, at the left of the bar above the canvas:
-    /// reload from CAM, import from a file, and the loaded file's name.
+    /// import from a file or the machine, and the loaded file's name.
     private var fileControls: some View {
         HStack(spacing: 6) {
-            if let onReloadFromCAM {
-                Button(action: onReloadFromCAM) {
-                    Group {
-                        if gCodeModel.isGeneratingFromCAM {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                        }
-                    }
-                    .frame(width: 22, height: 22)
-                }
-                .help("Reload from CAM")
-                .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
-            }
-
             if let onImportFile {
             Button(action: onImportFile) {
                 Image(systemName: "folder")
