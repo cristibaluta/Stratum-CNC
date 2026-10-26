@@ -149,10 +149,9 @@ struct MachiningRunSheet: View {
                      actionTitle: "Send to Machine", action: sendNow, actionDisabled: !canSend)
     }
 
-    /// What gets sent: where the G-code's own 0,0 goes.
+    /// What gets sent: where the G-code's own 0,0 goes. Derived from the job
+    /// area's position (see `CanvasSceneModel.jobAreaOffset`).
     private var offset: SIMD2<Float> { model.scene.xyOffset }
-    /// What the person sees: the job area's corner relative to the anchor.
-    private var jobAreaOffset: SIMD2<Float> { model.scene.jobAreaOffset }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -279,11 +278,11 @@ struct MachiningRunSheet: View {
 
     private var originSection: some View {
         section("WORK ORIGIN", systemImage: "scope") {
-            infoRow("X Offset", "\(format(jobAreaOffset.x)) mm", emphasized: true)
-            infoRow("Y Offset", "\(format(jobAreaOffset.y)) mm", emphasized: true)
+            infoRow("X Offset", "\(format(offset.x)) mm", emphasized: true)
+            infoRow("Y Offset", "\(format(offset.y)) mm", emphasized: true)
             infoRow("Z", model.autoZBeforeRun ? "Set by Auto Z probe" : "Keep current work Z zero",
                     emphasized: true)
-            Text("Set on the canvas, not here — change it from the sliders button on the “Job area” row of the objects list. Job area corner, relative to the anchor; sent to the machine as G-code origin X \(format(offset.x)), Y \(format(offset.y)).")
+            Text("Set on the canvas, not here — change it from the sliders button on the “Job area” row of the objects list. This is the offset sent to the machine; it follows the job area’s position.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

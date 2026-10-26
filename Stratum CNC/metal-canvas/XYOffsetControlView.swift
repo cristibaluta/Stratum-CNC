@@ -11,7 +11,8 @@ import SwiftUI
 /// millimeters, bound to `CanvasSceneModel.xyOffset`.
 ///
 /// (In the popover this is bound to `CanvasSceneModel.jobAreaOffset`, the box's
-/// corner relative to the anchor, not the raw `xyOffset`.)
+/// corner relative to the anchor, not the raw `xyOffset`. A cleared field
+/// resets that axis to the G-code's own corner, i.e. offset 0.)
 ///
 /// The offset moves the job area (the dotted box, see
 /// `RenderObject.boundingBox`) together with the toolpath inside it, so the
@@ -27,38 +28,47 @@ import SwiftUI
 /// unthrottled.
 ///
 struct XYOffsetControlView: View {
-    @Binding var xyOffset: SIMD2<Float>
+    /// The job area's bottom-left corner relative to the anchor.
+    @Binding var corner: SIMD2<Float>
+    /// The same corner in the G-code's own coordinates (usually negative:
+    /// the CAM's 0,0 is not the bottom-left). A cleared field means "as the
+    /// CAM wrote it" (sent offset 0), and shows this as its placeholder.
+    var gcodeCorner: SIMD2<Float> = .zero
 
-    private var xBinding: Binding<Double> {
+    private func binding(_ keyPath: WritableKeyPath<SIMD2<Float>, Float>) -> Binding<Double?> {
         Binding(
-            get: { Double(xyOffset.x) },
-            set: { xyOffset.x = Float($0) }
-        )
-    }
-
-    private var yBinding: Binding<Double> {
-        Binding(
-            get: { Double(xyOffset.y) },
-            set: { xyOffset.y = Float($0) }
+            get: {
+                // At the G-code's own corner the field reads empty, so the
+                // placeholder (that same value) is what's shown.
+                corner[keyPath: keyPath] == gcodeCorner[keyPath: keyPath]
+                    ? nil
+                    : Double(corner[keyPath: keyPath])
+            },
+            set: { newValue in
+                corner[keyPath: keyPath] = newValue.map { Float($0) } ?? gcodeCorner[keyPath: keyPath]
+            }
         )
     }
 
     var body: some View {
         HStack(spacing: 8) {
-            offsetField(label: "X", value: xBinding)
-            offsetField(label: "Y", value: yBinding)
+            offsetField(label: "X", value: binding(\.x), placeholder: gcodeCorner.x)
+            offsetField(label: "Y", value: binding(\.y), placeholder: gcodeCorner.y)
             Text("mm")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .help("Job origin: position of the job area's bottom-left corner, in mm")
+        .help("Job area's bottom-left corner relative to the anchor, in mm. Clear a field to use the G-code as written.")
     }
 
-    private func offsetField(label: String, value: Binding<Double>) -> some View {
+    private func offsetField(label: String, value: Binding<Double?>, placeholder: Float) -> some View {
         HStack(spacing: 3) {
             Text(label)
                 .font(.caption2.bold())
-            TextField("", value: value, format: .number.precision(.fractionLength(0...2)))
+            TextField("",
+                      value: value,
+                      format: .number.precision(.fractionLength(0...2)),
+                      prompt: Text(Double(placeholder), format: .number.precision(.fractionLength(0...2))))
                 .textFieldStyle(.roundedBorder)
                 .controlSize(.small)
                 .multilineTextAlignment(.trailing)
@@ -78,7 +88,7 @@ struct JobAreaSettingsView: View {
             Text("JOB AREA")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
-            XYOffsetControlView(xyOffset: $scene.jobAreaOffset)
+            XYOffsetControlView(corner: $scene.jobAreaOffset, gcodeCorner: scene.toolpathBoundsMin)
             Text("Position of the job area's bottom-left corner, relative to the anchor. Not stored in the G-code: the app converts it into the work origin it sends to the machine, since the CAM's own 0,0 can be anywhere in the job.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -90,6 +100,6 @@ struct JobAreaSettingsView: View {
 }
 
 #Preview {
-    XYOffsetControlView(xyOffset: .constant(SIMD2<Float>(1.5, -0.75)))
+    XYOffsetControlView(corner: .constant(SIMD2<Float>(1.5, -0.75)), gcodeCorner: SIMD2<Float>(-10, -10))
         .padding()
 }

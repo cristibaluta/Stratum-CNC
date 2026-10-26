@@ -112,11 +112,11 @@ struct PanelPosition: View {
     private var offsetRow: some View {
         HStack(spacing: 8) {
             rowTitle("JOB OFFSET")
-            offsetValue(scene.jobAreaOffset.x, axis: "X")
-            offsetValue(scene.jobAreaOffset.y, axis: "Y")
+            offsetValue(scene.xyOffset.x, axis: "X")
+            offsetValue(scene.xyOffset.y, axis: "Y")
             Spacer()
         }
-        .help("Job offset: the job area's bottom-left corner relative to the anchor, in mm. Change it from the sliders button on the canvas's Job area row.")
+        .help("Job offset: the offset sent to the machine, in mm. It follows the job area's position — change that from the sliders button on the canvas's Job area row.")
     }
 
     private func offsetValue(_ value: Float, axis: String) -> some View {
