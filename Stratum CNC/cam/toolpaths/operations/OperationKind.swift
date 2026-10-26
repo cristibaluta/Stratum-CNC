@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import StratumCAM
 
 enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
     case contour
@@ -85,33 +86,6 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
         }
     }
 
-    // MARK: Which generic controls apply
-
-    /// Steps down in several passes by the general Stepdown. Facing, drilling, boring and
-    /// chamfering are a single pass; a slot has its own depth per pass; a thread steps by its pitch.
-    var usesStepdown: Bool {
-        switch self {
-            case .contour, .pocket, .engrave, .counterbore: return true
-            default: return false
-        }
-    }
-
-    var usesStepover: Bool {
-        switch self {
-            case .pocket, .counterbore: return true
-            default: return false
-        }
-    }
-
-    /// The counterbore has its own depth and a chamfer's depth comes from its width and the
-    /// V-bit's angle, so the general End Z field is hidden for them.
-    var usesEndZ: Bool {
-        switch self {
-            case .counterbore, .chamfer: return false
-            default: return true
-        }
-    }
-
     /// "<Title> N" with the lowest free N among `existingNames`, so auto-generated
     /// toolpath names stay distinguishable within their own operation category
     /// (`Contour 1`, `Contour 2`, `Pocket 1`, ...) instead of sharing one counter
@@ -145,6 +119,21 @@ enum PocketPattern: String, CaseIterable, Codable, Hashable {
     case trochoidal = "Trochoidal"
     case concentric = "Concentric"
     case adaptive = "Adaptive"
+}
+
+extension PocketPattern {
+
+    /// The app's pattern for one of the library's, if it has one.
+    init?(_ kind: SC.ClearingPatternKind) {
+        switch kind {
+            case .offset:     self = .offset
+            case .concentric: self = .concentric
+            case .raster:     self = .raster
+            case .spiral:     self = .spiral
+            case .trochoidal: self = .trochoidal
+            case .adaptive:   self = .adaptive
+        }
+    }
 }
 
 enum SpiralOrder: String, CaseIterable, Codable, Hashable {

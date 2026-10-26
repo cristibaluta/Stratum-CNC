@@ -11,6 +11,9 @@ import SwiftUI
 struct PatternPicker: View {
     @Binding var pattern: PocketPattern
 
+    /// The patterns on offer, in order -- what the operation accepts, as the library says.
+    var available: [PocketPattern] = PocketPattern.allCases
+
     /// When true, the options are laid out directly in the view instead of
     /// behind a button + popover.
     var expanded: Bool = false
@@ -24,7 +27,7 @@ struct PatternPicker: View {
                 .foregroundStyle(.secondary)
 
             if expanded {
-                PatternGridPicker(pattern: $pattern, isPresented: .constant(false))
+                PatternGridPicker(pattern: $pattern, available: available, isPresented: .constant(false))
             } else {
                 Button {
                     isPresented.toggle()
@@ -52,7 +55,7 @@ struct PatternPicker: View {
                 .buttonStyle(.plain)
                 .help(pattern.selectionHint)
                 .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                    PatternGridPicker(pattern: $pattern, isPresented: $isPresented)
+                    PatternGridPicker(pattern: $pattern, available: available, isPresented: $isPresented)
                 }
             }
         }
@@ -63,6 +66,7 @@ struct PatternPicker: View {
 /// glyph + label tiles instead of `Menu`'s single vertical list.
 private struct PatternGridPicker: View {
     @Binding var pattern: PocketPattern
+    let available: [PocketPattern]
     @Binding var isPresented: Bool
 
     private let columns = [
@@ -74,7 +78,7 @@ private struct PatternGridPicker: View {
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 6) {
-            ForEach(PocketPattern.allCases, id: \.self) { option in
+            ForEach(available, id: \.self) { option in
                 tile(for: option)
             }
         }

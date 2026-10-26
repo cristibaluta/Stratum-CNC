@@ -14,6 +14,7 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 struct PanelToolpathDetails: View {
     @Binding var toolpath: ToolpathData
@@ -155,6 +156,12 @@ struct PanelToolpathDetails: View {
         )
     }
 
+    /// Which of the general fields (End Z, Stepdown, Stepover) the operation reads, as the
+    /// library defines it for the operation's current values.
+    private var requirements: SC.OperationRequirements {
+        toolpath.machiningOperation.requirements
+    }
+
     private var hint: String {
         if toolpath.operation.kind == .slotting {
             switch toolpath.operation.slotSource {
@@ -174,9 +181,7 @@ struct PanelToolpathDetails: View {
             // defines for the chosen operation
             OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            // Adaptive clearing is driven by its optimal load, not by the stepover.
-            if toolpath.operation.kind.usesStepover,
-               !(toolpath.operation.kind == .pocket && toolpath.operation.pocketPattern == .adaptive) {
+            if requirements.usesStepover {
                 NumberField(title: "STEPOVER", value: editedBinding($toolpath.stepOver, .stepOver), suffix: "%")
             }
         }
@@ -218,10 +223,10 @@ struct PanelToolpathDetails: View {
         HStack(spacing: 8) {
             // Z range (a counterbore has its own depth instead of an End Z)
             NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
-            if toolpath.operation.kind.usesEndZ {
+            if requirements.usesEndZ {
                 NumberField(title: "END Z", value: editedBinding($toolpath.endZ, .endZ), suffix: "mm")
             }
-            if toolpath.operation.kind.usesStepdown {
+            if requirements.usesStepdown {
                 NumberField(title: "STEPDOWN", value: editedBinding($toolpath.stepDown, .stepDown), suffix: "mm")
             }
         }

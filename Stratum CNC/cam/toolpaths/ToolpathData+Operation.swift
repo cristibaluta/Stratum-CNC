@@ -25,10 +25,14 @@ extension ToolpathData {
     }
 
     private mutating func apply(_ newValue: SC.MachiningOperation) {
+        // Every operation that has a direction stores it in the same place.
+        if let direction = newValue.direction {
+            operation.direction = CutDirectionOption(direction)
+        }
+
         switch newValue {
 
-            case .facing(let direction, let extensionLength):
-                operation.direction = CutDirectionOption(direction)
+            case .facing(_, let extensionLength):
                 operation.facingExtension = extensionLength
 
             case .slotting(let depthPerPass, _, _):
@@ -44,12 +48,10 @@ extension ToolpathData {
             case .engrave:
                 break
 
-            case .contour(let side, let direction, _, _, _, _):
+            case .contour(let side, _, _, _, _, _):
                 contour = side
-                operation.direction = CutDirectionOption(direction)
 
-            case .pocket(let direction, let pattern, _):
-                operation.direction = CutDirectionOption(direction)
+            case .pocket(_, let pattern, _):
                 switch pattern {
                     case .offset:
                         operation.pocketPattern = .offset
@@ -83,7 +85,6 @@ extension ToolpathData {
                     operation.chamferDepth = depth
                 }
                 operation.chamferSide = params.side
-                operation.direction = CutDirectionOption(params.direction)
 
             case .boring(let targetDiameter, let dwellTime, let shiftRetract):
                 operation.boreTargetDiameter = targetDiameter
@@ -93,10 +94,9 @@ extension ToolpathData {
                 }
                 operation.boreShiftRetract = shiftRetract
 
-            case .counterbore(let diameter, let depth, let direction, _):
+            case .counterbore(let diameter, let depth, _, _):
                 operation.counterboreDiameter = diameter
                 operation.counterboreDepth = depth
-                operation.direction = CutDirectionOption(direction)
         }
     }
 }

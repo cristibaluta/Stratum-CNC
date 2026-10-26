@@ -4,7 +4,7 @@
 //
 //  Starting values for the general toolpath fields (End Z, Stepdown, Stepover) that make
 //  sense for each operation. A value is only offered for a field the operation actually
-//  uses (see `OperationKind.usesEndZ` / `usesStepdown` / `usesStepover`).
+//  uses (see `SC.MachiningOperation.requirements`).
 //
 //  A default never overrides the user: once a field has been edited it is recorded in
 //  `ToolpathData.editedFields` and keeps its value when the operation changes. Fields still

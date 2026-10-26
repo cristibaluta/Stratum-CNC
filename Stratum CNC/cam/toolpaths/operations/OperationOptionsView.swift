@@ -22,6 +22,21 @@ struct OperationOptionsView: View {
         toolpath.operation.kind
     }
 
+    /// What the library says the operation takes and accepts; every optional row below is
+    /// shown because of it, not because of the operation's kind.
+    private var requirements: SC.OperationRequirements {
+        toolpath.machiningOperation.requirements
+    }
+
+    /// The patterns to offer in the pattern row. The slot's patterns are left out until
+    /// open-ended slots can be derived from the drawing: only a pocket has the row.
+    private var offeredPatterns: [PocketPattern] {
+        guard kind != .slotting else {
+            return []
+        }
+        return requirements.clearingPatterns.compactMap { PocketPattern($0) }
+    }
+
     var body: some View {
         let fields = toolpath.machiningOperation.formFields { toolpath.machiningOperation = $0 }
 
@@ -45,14 +60,14 @@ struct OperationOptionsView: View {
 
             // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
             // `ContourTypeGlyph`), same idea as the entry strategy below.
-            if kind == .pocket {
+            if !offeredPatterns.isEmpty {
                 Divider()
                 patternRow
             }
 
             // The entry strategy keeps its dedicated editor (angle/length preview, helix
-            // diagram), but whether an operation has one is still up to `formFields`.
-            if fields.contains(where: { $0.id == "entry" }) {
+            // diagram), but whether an operation has one is up to the library.
+            if requirements.usesEntry {
                 Divider()
                 rampingRow
             }
@@ -110,7 +125,7 @@ struct OperationOptionsView: View {
 
     private var patternRow: some View {
         row {
-            PatternPicker(pattern: $toolpath.operation.pocketPattern, expanded: expanded)
+            PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns, expanded: expanded)
             patternDetail
         }
     }

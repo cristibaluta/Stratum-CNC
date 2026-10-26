@@ -167,6 +167,9 @@ enum ToolpathGenerator {
         if let error = error as? GenerationError {
             return error.errorDescription ?? "Couldn't generate the toolpath."
         }
+        if let issue = error as? SC.ValidationIssue {
+            return issue.message
+        }
         if let error = error as? SC.Error {
             switch error {
             case .contourNotClosed:
@@ -215,83 +218,19 @@ extension ToolpathGenerator {
                              fluteLength: Double(tool.length ?? 0))
     }
 
-    /// Rejects option values the engine can't work with, with a message the user can act on.
+    /// Rejects values the engine can't work with, with a message the user can act on.
+    /// What counts as usable is up to the library (`SC.MachiningOperation.validate`); only the
+    /// depth range is checked here, because Start Z is the app's own coordinate.
     static func validateOptions(of toolpath: ToolpathData) throws {
-        let options = toolpath.operation
+        let operation = makeOperation(from: toolpath)
 
-        if options.kind.usesEndZ {
+        if operation.requirements.usesEndZ {
             guard toolpath.endZ < toolpath.startZ else {
                 throw GenerationError.invalidDepth
             }
         }
 
-        switch options.kind {
-            case .contour, .engrave:
-                break
-            case .pocket:
-                if options.pocketPattern == .trochoidal,
-                   !(5...100).contains(options.pocketTrochoidalPitch) {
-                    // Below ~5 % the loops get so tight that the path explodes in size.
-                    throw GenerationError.invalidOption("The trochoidal loop pitch must be between 5 % and 100 % of the tool radius.")
-                }
-                if options.pocketPattern == .adaptive {
-                    let diameter = Double(toolpath.tool.toolDiameter)
-                    // The engine clamps to 2 %...95 % of the diameter; reject values that clamping would silently change.
-                    guard options.pocketAdaptiveLoad > 0 else {
-                        throw GenerationError.invalidOption("The adaptive optimal load must be greater than 0.")
-                    }
-                    if diameter > 0, options.pocketAdaptiveLoad > 0.95 * diameter {
-                        throw GenerationError.invalidOption("The adaptive optimal load can't exceed 95 % of the tool diameter.")
-                    }
-                }
-            case .facing:
-                guard options.facingExtension >= 0 else {
-                    throw GenerationError.invalidOption("The facing extension can't be negative.")
-                }
-            case .slotting:
-                guard options.slotDepthPerPass > 0 else {
-                    throw GenerationError.invalidOption("Depth per pass must be greater than 0.")
-                }
-            case .drilling:
-                if options.drillUsesPecking, options.drillPeckDepth <= 0 {
-                    throw GenerationError.invalidOption("The peck depth must be greater than 0.")
-                }
-            case .counterbore:
-                guard options.counterboreDepth > 0 else {
-                    throw GenerationError.invalidOption("The counterbore depth must be greater than 0.")
-                }
-                guard options.counterboreDiameter > Double(toolpath.tool.toolDiameter) else {
-                    throw GenerationError.invalidOption("The counterbore diameter must be larger than the tool (Ø\(toolpath.tool.toolDiameter) mm).")
-                }
-            case .boring:
-                guard options.boreTargetDiameter > 0 else {
-                    throw GenerationError.invalidOption("The finished diameter must be greater than 0.")
-                }
-                if options.boreUsesDwell, options.boreDwellTime < 0 {
-                    throw GenerationError.invalidOption("The dwell time can't be negative.")
-                }
-            case .threadMilling:
-                guard options.threadPitch > 0 else {
-                    throw GenerationError.invalidOption("The thread pitch must be greater than 0.")
-                }
-                guard options.threadTargetDiameter > 0 else {
-                    throw GenerationError.invalidOption("The thread diameter must be greater than 0.")
-                }
-                guard options.threadRadialPasses >= 1 else {
-                    throw GenerationError.invalidOption("The thread needs at least 1 radial pass.")
-                }
-            case .chamfer:
-                guard options.chamferWidth > 0 else {
-                    throw GenerationError.invalidOption("The chamfer width must be greater than 0.")
-                }
-                if options.chamferUsesDepth {
-                    guard options.chamferDepth > 0 else {
-                        throw GenerationError.invalidOption("The chamfer depth must be greater than 0.")
-                    }
-                } else if (toolpath.tool.tipAngle ?? 0) <= 0 {
-                    throw GenerationError.invalidOption("A chamfer needs a V-bit: pick a tool with a tip angle, or turn on Fixed depth.")
-                }
-        }
+        try operation.validate(tool: makeTool(from: toolpath.tool, for: toolpath.operation.kind))
     }
 
     /// The toolpath's operation and options as StratumCAM's `SC.MachiningOperation`.
