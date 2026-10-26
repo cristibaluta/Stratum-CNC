@@ -233,6 +233,11 @@ final class ProjectsStore: ObservableObject {
             activeProject = project
             let model = ProjectModel(project: project, paths: paths)
             model.activeTab = gcodeURL == nil ? tab : .controller
+            if gcodeURL != nil {
+                model.sessionKind = .gcodeFile
+            } else if tab == .controller {
+                model.sessionKind = .controllerOnly
+            }
             if let gcodeURL {
                 // Same load and resets as the Controller's own G-code importer.
                 // Access stays open: the load is asynchronous.

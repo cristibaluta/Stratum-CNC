@@ -48,8 +48,25 @@ enum ActiveTab: String, CaseIterable, Identifiable {
     }
 }
 
+/// How the project was opened. Only `.project` has a CAM side; the other two
+/// are Controller-only sessions started from the Projects page.
+enum SessionKind {
+    /// A saved project, or the "Try Without Project" scratch project.
+    case project
+    /// "Open Controller" from the Projects page.
+    case controllerOnly
+    /// "Import G-code" from the Projects page: the Controller showing one file.
+    case gcodeFile
+}
+
 @MainActor
 class ProjectModel: ObservableObject {
+
+    /// Set by `ProjectsStore` right after creation, before the view appears.
+    var sessionKind: SessionKind = .project
+
+    /// Controller-only sessions have no CAM: its tab and CAM actions are hidden.
+    var hidesCAM: Bool { sessionKind != .project }
 
     @Published var activeTab: ActiveTab = .cam
 

@@ -58,6 +58,10 @@ struct ControllerView: View {
     var onOpenStocksLib: (() -> Void)? = nil
 
     @State private var isShowingEmptyStateRemoteFiles = false
+    @State private var isShowingToolbarRemoteFiles = false
+
+    /// Without CAM (Controller-only sessions) there is nothing to generate from.
+    private var hasCAM: Bool { !projectModel.hidesCAM }
 
     private var stockVisibleBinding: Binding<Bool> {
         Binding(
@@ -134,6 +138,32 @@ struct ControllerView: View {
             }
         }
         .toolbar {
+            // Always available, so a program can be swapped whatever it came from.
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button {
+                        model.isGCodeImporterPresented = true
+                    } label: {
+                        Label("Import from File…", systemImage: "folder")
+                    }
+                    Button {
+                        isShowingToolbarRemoteFiles = true
+                    } label: {
+                        Label("Load from Machine…", systemImage: "externaldrive.badge.wifi")
+                    }
+                } label: {
+                    Label("Import G-code", systemImage: "square.and.arrow.down")
+                }
+                .help("Import G-code from a file or the machine")
+                .disabled(gCodeModel.document.isLoading)
+                .popover(isPresented: $isShowingToolbarRemoteFiles, arrowEdge: .bottom) {
+                    RemoteFilesPopover(info: model.session.info,
+                                       downloader: model.session.downloader,
+                                       isConnected: model.connection.isConnected) { file in
+                        loadRemoteFile(file)
+                    }
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Picker("Machine", selection: $model.selectedMachine) {
                     ForEach(model.discovery.machines) { machine in
@@ -255,11 +285,11 @@ struct ControllerView: View {
                           showsMacroPreview: model.gcodePanelMode == .macros,
                           isStockVisible: stockVisibleBinding,
                           onOpenStocksLib: onOpenStocksLib,
-                          onReloadFromCAM: {
+                          onReloadFromCAM: hasCAM ? {
                               gCodeModel.generateGCode(from: camModel.toolpaths,
                                                        generations: camModel.generations,
                                                        stock: camModel.selectedStockMaterial)
-                          },
+                          } : nil,
                           onImportFile: { model.isGCodeImporterPresented = true },
                           session: model.session,
                           onLoadRemoteFile: loadRemoteFile)
@@ -360,27 +390,30 @@ struct ControllerView: View {
                 .font(.headline)
 
             HStack(spacing: 16) {
-                VStack {
-                    Text("Generate G-code from CAM toolpaths")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Button {
-                        gCodeModel.generateGCode(from: camModel.toolpaths,
-                                                 generations: camModel.generations,
-                                                 stock: camModel.selectedStockMaterial)
-                    } label: {
-                        if gCodeModel.isGeneratingFromCAM {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Text("Use from CAM")
+                if hasCAM {
+                    VStack {
+                        Text("Generate G-code from CAM toolpaths")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button {
+                            gCodeModel.generateGCode(from: camModel.toolpaths,
+                                                     generations: camModel.generations,
+                                                     stock: camModel.selectedStockMaterial)
+                        } label: {
+                            if gCodeModel.isGeneratingFromCAM {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Text("Use from CAM")
+                            }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
-                }
 
-                Divider().frame(height: 40)
+                    Divider().frame(height: 40)
+
+                }
 
                 VStack {
                     Text("Load a .nc, .ngc, .gcode, .cnc, or .tap file.")
@@ -494,7 +527,8 @@ private struct CanvasSection: View {
     let isStockVisible: Binding<Bool>
     @Environment(\.openSettings) private var openSettings
     let onOpenStocksLib: (() -> Void)?
-    let onReloadFromCAM: () -> Void
+    /// `nil` hides the button (no CAM in this session).
+    let onReloadFromCAM: (() -> Void)?
     let onImportFile: () -> Void
     let session: SL.Session
     let onLoadRemoteFile: (MachineFileEntry) -> Void
@@ -628,18 +662,20 @@ private struct CanvasSection: View {
     /// reload from CAM, import from a file, and the loaded file's name.
     private var fileControls: some View {
         HStack(spacing: 6) {
-            Button(action: onReloadFromCAM) {
-                Group {
-                    if gCodeModel.isGeneratingFromCAM {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.triangle.2.circlepath")
+            if let onReloadFromCAM {
+                Button(action: onReloadFromCAM) {
+                    Group {
+                        if gCodeModel.isGeneratingFromCAM {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                        }
                     }
+                    .frame(width: 22, height: 22)
                 }
-                .frame(width: 22, height: 22)
+                .help("Reload from CAM")
+                .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
             }
-            .help("Reload from CAM")
-            .disabled(gCodeModel.isGeneratingFromCAM || gCodeModel.document.isLoading)
 
             Button(action: onImportFile) {
                 Image(systemName: "folder")

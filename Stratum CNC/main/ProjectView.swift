@@ -12,7 +12,26 @@ struct ProjectView: View {
     @ObservedObject var appModel: AppModel
     @ObservedObject var projectModel: ProjectModel
 
+    /// Observed directly because its document's file name is the title of a
+    /// G-code file session (`projectModel` doesn't republish nested changes).
+    @ObservedObject private var gCodeStore: GCodeStore
+
     var onClose: (() -> Void)
+
+    init(appModel: AppModel, projectModel: ProjectModel, onClose: @escaping () -> Void) {
+        self.appModel = appModel
+        self.projectModel = projectModel
+        self.gCodeStore = projectModel.gCodeStore
+        self.onClose = onClose
+    }
+
+    private var title: String {
+        switch projectModel.sessionKind {
+            case .project: projectModel.project.name
+            case .controllerOnly: "Controller"
+            case .gcodeFile: gCodeStore.document.fileName
+        }
+    }
 
     var body: some View {
 
@@ -40,14 +59,16 @@ struct ProjectView: View {
                     Label("Close Project", systemImage: "arrow.backward")
                 }
             }
-            // Screen Picker
-            ToolbarItemGroup(placement: .secondaryAction) {
-                Picker("Screen", selection: $projectModel.activeTab) {
-                    ForEach(ActiveTab.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
+            // Screen Picker: nothing to switch to without CAM.
+            if !projectModel.hidesCAM {
+                ToolbarItemGroup(placement: .secondaryAction) {
+                    Picker("Screen", selection: $projectModel.activeTab) {
+                        ForEach(ActiveTab.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
                     }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
             }
 
             if projectModel.activeTab == .cam {
@@ -67,7 +88,7 @@ struct ProjectView: View {
                 }
             }
         }
-        .navigationTitle(projectModel.project.name)
+        .navigationTitle(title)
         .navigationSubtitle("Status...")
     }
 }
