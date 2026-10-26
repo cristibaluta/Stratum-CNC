@@ -8,6 +8,7 @@
 import SwiftUI
 import Combine
 import simd
+import CryptoKit
 import StratumLink
 #if os(macOS)
 import AppKit
@@ -160,6 +161,11 @@ class ControllerModel: ObservableObject {
             .store(in: &cancellables)
         discovery.startScanning()
 
+        session.uploader.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.syncSentState() }
+            .store(in: &cancellables)
+
         session.onLastUploadedRemotePathChange = { [weak self] path in
             self?.lastUploadedRemotePath = path
         }
@@ -290,6 +296,67 @@ class ControllerModel: ObservableObject {
             autoZBeforeRun: autoZBeforeRun
         )
         session.uploadJob(fileName: fileName, contents: contents, options: options)
+    }
+
+    // MARK: Send, then start (two steps)
+
+    /// Fingerprint (file name + contents) of the program last confirmed
+    /// uploaded to the machine *in this app session*. Deliberately not
+    /// persisted and not read back from the machine's SD card: a same-named
+    /// file there says nothing about whether it holds this code.
+    @Published private(set) var sentJobFingerprint: String?
+    private var pendingSentFingerprint: String?
+    private var pendingSawActiveUpload = false
+
+    nonisolated static func fingerprint(fileName: String, contents: String) -> String {
+        SHA256.hash(data: Data((fileName + "\n" + contents).utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    /// Uploads `contents` to the machine's SD card without starting it.
+    /// Requires `SL.Session.sendJob` (upload only, no pre-run macro, no play).
+    func sendJob(fileName: String, contents: String) {
+        sentJobFingerprint = nil
+        pendingSentFingerprint = Self.fingerprint(fileName: fileName, contents: contents)
+        pendingSawActiveUpload = false
+        session.uploadJob(fileName: fileName, contents: contents)
+    }
+
+    /// Runs the pre-run macro and plays the file `sendJob` last uploaded.
+    /// Origin and pre-run options are captured now, at start, so what the
+    /// review sheet shows is what runs.
+    /// Requires `SL.Session.runUploadedJob(options:)`.
+    func startSentJob() {
+        let options = SL.RunOptions(
+            originOffset: scene.xyOffset,
+            levelBeforeRun: levelBeforeRun,
+            levelGridPoints: levelGridPoints,
+            levelMargin: levelMargin,
+            autoZBeforeRun: autoZBeforeRun
+        )
+        // TODO: how to start the job?
+//        session.runUploadedJob(options: options)
+    }
+
+    /// Promotes the pending fingerprint to "sent" only once the uploader
+    /// itself reports completion (never on the request being made).
+    private func syncSentState() {
+        guard pendingSentFingerprint != nil else { return }
+        if uploader.isActive {
+            pendingSawActiveUpload = true
+            return
+        }
+        guard pendingSawActiveUpload else { return }
+        switch uploader.state {
+            case .completed:
+                sentJobFingerprint = pendingSentFingerprint
+                pendingSentFingerprint = nil
+            case .failed, .cancelled:
+                pendingSentFingerprint = nil
+            default:
+                break
+        }
     }
 
     /// The lines that put the job where the canvas shows it.
