@@ -57,7 +57,6 @@ struct ControllerView: View {
     /// the stock chip's icon opens the stock editor instead.
     var onOpenStocksLib: (() -> Void)? = nil
 
-    @State private var isShowingCanvasControlsSettings = false
     @State private var isShowingEmptyStateRemoteFiles = false
 
     private var stockVisibleBinding: Binding<Bool> {
@@ -187,11 +186,6 @@ struct ControllerView: View {
                 .disabled(!model.connection.isConnected)
             }
         }
-        .sheet(isPresented: $isShowingCanvasControlsSettings) {
-            NavigationStack {
-                CanvasControlsSettingsView()
-            }
-        }
         .sheet(isPresented: $model.isShowingRunReview) {
             MachiningRunSheet(model: model, gCodeModel: gCodeModel, camModel: camModel, connection: model.connection)
         }
@@ -260,7 +254,6 @@ struct ControllerView: View {
                           macroDocument: model.macros.document,
                           showsMacroPreview: model.gcodePanelMode == .macros,
                           isStockVisible: stockVisibleBinding,
-                          isShowingCanvasControlsSettings: $isShowingCanvasControlsSettings,
                           onOpenStocksLib: onOpenStocksLib,
                           onReloadFromCAM: {
                               gCodeModel.generateGCode(from: camModel.toolpaths,
@@ -499,7 +492,7 @@ private struct CanvasSection: View {
     /// canvas then shows it in place of the loaded program.
     let showsMacroPreview: Bool
     let isStockVisible: Binding<Bool>
-    @Binding var isShowingCanvasControlsSettings: Bool
+    @Environment(\.openSettings) private var openSettings
     let onOpenStocksLib: (() -> Void)?
     let onReloadFromCAM: () -> Void
     let onImportFile: () -> Void
@@ -798,7 +791,8 @@ private struct CanvasSection: View {
                             .frame(height: 18)
 
                         Button {
-                            isShowingCanvasControlsSettings = true
+                            SettingsTab.canvas.select()
+                            openSettings()
                         } label: {
                             Image(systemName: "computermouse")
                         }

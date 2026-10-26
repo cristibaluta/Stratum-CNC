@@ -33,5 +33,9 @@ struct Stratum_CNC_App: App {
                 .keyboardShortcut("S", modifiers: .command)
             }
         }
+
+        Settings {
+            SettingsView(appModel: model)
+        }
     }
 }

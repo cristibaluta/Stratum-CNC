@@ -142,11 +142,6 @@ struct ProjectsView: View {
             Text(errorMessage ?? "")
         }
         .navigationSubtitle("Select or create project...")
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                AppearanceToggle(isDarkMode: $appModel.isDarkMode)
-            }
-        }
     }
 
     private func sectionTitle(_ title: String) -> some View {

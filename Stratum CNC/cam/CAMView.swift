@@ -34,12 +34,10 @@ struct CAMView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var projectModel: ProjectModel
 
-    /// Same sheet, same `CanvasInputSettings.shared` it edits, as the
-    /// controller's canvas — see `CanvasControlsSettingsView`'s doc comment
-    /// and `CanvasInteractionMode.locked2D`. CAM needed its own entry point
-    /// for it since a change made from the controller's mouse-icon button
-    /// wouldn't otherwise be reachable from here.
-    @State private var isShowingCanvasControlsSettings = false
+    /// The mouse-icon button opens the Settings window on its Canvas tab, which
+    /// edits the same `CanvasInputSettings.shared` as the controller's canvas —
+    /// see `CanvasControlsSettingsView`'s doc comment and `CanvasInteractionMode.locked2D`.
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         let _ = Self._printChanges()
@@ -66,7 +64,8 @@ struct CAMView: View {
                         CanvasZoomButton(zoomModel: camModel.canvasZoomModel)
 
                         Button {
-                            isShowingCanvasControlsSettings = true
+                            SettingsTab.canvas.select()
+                            openSettings()
                         } label: {
                             Image(systemName: "computermouse")
                         }
@@ -126,11 +125,6 @@ struct CAMView: View {
         }
         .onAppear {
             camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
-        }
-        .sheet(isPresented: $isShowingCanvasControlsSettings) {
-            NavigationStack {
-                CanvasControlsSettingsView()
-            }
         }
         .fileImporter(isPresented: $camModel.showingFilePicker,
                       allowedContentTypes: camModel.supportedFiles,
