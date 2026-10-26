@@ -184,7 +184,7 @@ struct MachiningRunSheet: View {
 
             footer
         }
-        .frame(width: 640, height: 540)
+        .frame(width: 640)
         .onAppear {
             currentFingerprint = ControllerModel.fingerprint(
                 fileName: gCodeModel.document.fileName,

@@ -13,6 +13,7 @@ enum ProjectError: Error {
     case projectNotFound
     case projectAlreadyExists
     case assetImportFailed
+    case notAProjectFolder
 }
 
 @MainActor
@@ -71,13 +72,28 @@ final class ProjectsStore: ObservableObject {
         activeProjectModel = ProjectModel(project: project, paths: paths)
     }
 
-    func openZombieProject() {
+    /// Opens the scratch project. `tab` picks which screen it starts on, and
+    /// `gcodeURL` loads that G-code into the Controller first (it implies the
+    /// Controller tab).
+    func openZombieProject(tab: ActiveTab = .cam, gcodeURL: URL? = nil) {
         guard saveActiveProject() else { return }
         do {
             let project = try createProject(name: "Untitled", isZombie: true)
             let paths = try ProjectPaths(project: project, documentsDirectory: scratchDirectory)
             activeProject = project
-            activeProjectModel = ProjectModel(project: project, paths: paths)
+            let model = ProjectModel(project: project, paths: paths)
+            model.activeTab = gcodeURL == nil ? tab : .controller
+            if let gcodeURL {
+                // Same load and resets as the Controller's own G-code importer.
+                // Access stays open: the load is asynchronous.
+                _ = gcodeURL.startAccessingSecurityScopedResource()
+                model.gCodeStore.document.load(from: gcodeURL)
+                model.gCodeStore.selectedToolpathID = nil
+                model.gCodeStore.requestedLine = nil
+                model.gCodeStore.analyzedLineCount = -1
+            }
+            activeProject = project
+            activeProjectModel = model
         } catch {
             print("Failed to open scratch project: \(error)")
         }
@@ -145,6 +161,35 @@ final class ProjectsStore: ObservableObject {
         projects.insert(project, at: 0)
         try saveIndex()
 
+        return project
+    }
+
+    /// Adds a project folder from anywhere on disk (one that holds a
+    /// `project.json`) to the app's projects, by copying it into the projects
+    /// folder, and returns it. The original is left untouched.
+    @discardableResult
+    func importProjectFolder(_ url: URL) throws -> Project {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+
+        let name = url.lastPathComponent
+        guard FileManager.default.fileExists(atPath: url.appendingPathComponent("project.json").path),
+              ProjectPaths.isValidName(name) else {
+            throw ProjectError.notAProjectFolder
+        }
+        guard !projects.contains(where: { $0.name.lowercased() == name.lowercased() }) else {
+            throw ProjectError.projectAlreadyExists
+        }
+
+        let project = Project(name: name)
+        let paths = try ProjectPaths(project: project, documentsDirectory: documentsDirectory)
+        guard !FileManager.default.fileExists(atPath: paths.projectDirectory.path) else {
+            throw ProjectError.projectAlreadyExists
+        }
+        try FileManager.default.copyItem(at: url, to: paths.projectDirectory)
+
+        projects.insert(project, at: 0)
+        try saveIndex()
         return project
     }
 

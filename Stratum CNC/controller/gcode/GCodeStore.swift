@@ -82,7 +82,10 @@ class GCodeStore: ObservableObject {
         }
     }
 
-    var allowedContentTypes: [UTType] {
+    var allowedContentTypes: [UTType] { Self.allowedContentTypes }
+
+    /// Static so the projects page can offer the same file picker without a store.
+    static var allowedContentTypes: [UTType] {
         var types: [UTType] = [.plainText]
         for ext in ["nc", "ngc", "gcode", "cnc", "tap"] {
             if let type = UTType(filenameExtension: ext) {
