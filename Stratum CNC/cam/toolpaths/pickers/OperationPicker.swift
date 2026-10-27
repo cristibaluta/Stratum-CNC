@@ -12,33 +12,15 @@ struct OperationPicker: View {
     @State private var isPresented = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("OPERATION")
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-
+        InspectorRow(label: "Type") {
             Button {
                 isPresented.toggle()
             } label: {
-                HStack(spacing: 5) {
+                InspectorMenuLabel {
                     Image(systemName: kind.symbol)
                         .foregroundStyle(.secondary)
-
                     Text(kind.title)
-                        .fontWeight(.semibold)
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8))
                 }
-                .padding(.horizontal, 8)
-                .frame(height: 34)
-                .background(Color(.secondarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
-                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(kind.selectionHint ?? "What this toolpath does")

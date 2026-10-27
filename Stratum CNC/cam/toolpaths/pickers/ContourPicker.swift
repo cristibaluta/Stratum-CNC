@@ -28,60 +28,25 @@ extension SC.CutSide: CutSideOption {
     }
 }
 
-/// Chooses which side of the selected shape the tool follows. Same look as `OperationPicker`.
-/// Generic so contour and chamfer -- the two operations with a side -- share one picker and
-/// one glyph instead of each drawing their own.
+/// Chooses which side of the selected shape the tool follows, as a segmented control.
+/// Generic so contour and chamfer -- the two operations with a side -- share one picker.
 struct ContourPicker<Value: CutSideOption>: View {
     @Binding var selection: Value
 
-    /// Shown above the glyph button; "CONTOUR" for the contour operation, "SIDE" for chamfer.
-    var title: String = "SIDE"
-
-    /// When true, the options are laid out directly in the view instead of
-    /// behind a button + popover.
-    var expanded: Bool = false
-
-    @State private var isPresented = false
+    /// The row's label.
+    var title: String = "Side"
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-
-            if expanded {
-                ContourGridPicker(selection: $selection, isPresented: .constant(false))
-            } else {
-                Button {
-                    isPresented.toggle()
-                } label: {
-                    HStack(spacing: 5) {
-                        ContourTypeGlyph(position: selection.position)
-                            .frame(width: 18, height: 14)
-
-                        Text(selection.rawValue)
-                            .fontWeight(.semibold)
-
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8))
-                    }
-                    .padding(.horizontal, 8)
-                    .frame(height: 34)
-                    .background(Color(.secondarySystemFill))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(selection.selectionHint)
-                .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                    ContourGridPicker(selection: $selection, isPresented: $isPresented)
-                        .padding(24)
+        InspectorRow(label: title) {
+            Picker("", selection: $selection) {
+                ForEach(Array(Value.allCases), id: \.self) { option in
+                    Text(option.rawValue)
+                        .tag(option)
                 }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .help(selection.selectionHint)
         }
     }
 }

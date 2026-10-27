@@ -41,12 +41,6 @@ struct PanelToolpathDetails: View {
     var onScrub: (Int) -> Void = { _ in }
     var onDone: () -> Void = {}
 
-    /// Expanded lays every picker's options directly in the view instead of behind
-    /// a dropdown or a popover — quicker to scan and to change, at the cost of
-    /// height. Operation stays a popover either way: its grid of every operation
-    /// is too large to sit inline without pushing everything else off screen.
-    @State private var isExpanded = true
-
     /// What the last tool pick did to the cutting values, shown under the tool.
     @State private var presetNote: String?
 
@@ -55,32 +49,28 @@ struct PanelToolpathDetails: View {
     @State private var scrubStep: Int?
 
     var body: some View {
-        GroupBox("TOOLPATH PARAMS") {
-            VStack(alignment: .leading, spacing: 16) {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 0) {
                 rowHeader
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        rowOperation
-                        rowOperationOptions
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 10)
+
+                InspectorSection(title: "Operation", showsDivider: false) {
+                    rowOperation
+                    rowOperationOptions
                 }
-                GroupBox {
+                InspectorSection(title: "Tool") {
                     rowTool
-                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        rowPasses
-                        rowSafeZ
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                InspectorSection(title: "Depth") {
+                    rowDepth
                 }
-                rowFooter
-                generationStatus
+                InspectorSection(title: "Shapes") {
+                    rowShapes
+                    rowFooter
+                }
                 rowScrub
             }
-            .padding(16)
+            .padding(8)
             .onChange(of: toolpath.id) { _, _ in
                 presetNote = nil
                 scrubStep = nil
@@ -108,19 +98,15 @@ struct PanelToolpathDetails: View {
                 .font(.system(size: 15, weight: .semibold))
                 .background(.background)
             Spacer()
-            expandToggle
             doneButton
         }
     }
 
     @ViewBuilder
     private var rowOperation: some View {
-        HStack(alignment: .bottom, spacing: 16) {
-            OperationPicker(kind: operationKindBinding)
-            Text(hint)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        OperationPicker(kind: operationKindBinding)
+        if !hint.isEmpty {
+            InspectorNote(text: hint)
         }
     }
 
@@ -176,31 +162,22 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowOperationOptions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Side, direction, entry, diameters… whatever SC.MachiningOperation.formFields
-            // defines for the chosen operation
-            OperationOptionsView(toolpath: $toolpath, expanded: isExpanded)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if requirements.usesStepover {
-                NumberField(title: "STEPOVER", value: editedBinding($toolpath.stepOver, .stepOver), suffix: "%")
-            }
+        // Side, direction, entry, diameters… whatever SC.MachiningOperation.formFields
+        // defines for the chosen operation
+        OperationOptionsView(toolpath: $toolpath)
+        if requirements.usesStepover {
+            InspectorNumberField(title: "Stepover", value: editedBinding($toolpath.stepOver, .stepOver), suffix: "%")
         }
     }
 
     @ViewBuilder
     private var rowTool: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ToolPicker(tool: $toolpath.tool, onToolPicked: applyPreset(of:))
-            if let presetNote {
-                Text(presetNote)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            HStack(spacing: 8) {
-                IntField(title: "SPINDLE SPEED", value: $toolpath.spindleRPM, suffix: "RPM")
-                NumberField(title: "FEED RATE", value: $toolpath.feedRate, suffix: "mm/min")
-            }
+        ToolPicker(tool: $toolpath.tool, onToolPicked: applyPreset(of:))
+        if let presetNote {
+            InspectorNote(text: presetNote)
         }
+        InspectorIntField(title: "Spindle", value: $toolpath.spindleRPM, suffix: "rpm")
+        InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
     }
 
     /// Fills spindle speed, feeds, stepdown and ramp angle from the picked tool's
@@ -218,33 +195,34 @@ struct PanelToolpathDetails: View {
     }
 
     @ViewBuilder
-    private var rowPasses: some View {
-        HStack(spacing: 8) {
-            // Z range (a counterbore has its own depth instead of an End Z)
-            NumberField(title: "START Z", value: $toolpath.startZ, suffix: "mm")
-            if requirements.usesEndZ {
-                NumberField(title: "END Z", value: editedBinding($toolpath.endZ, .endZ), suffix: "mm")
-            }
-            if requirements.usesStepdown {
-                NumberField(title: "STEPDOWN", value: editedBinding($toolpath.stepDown, .stepDown), suffix: "mm")
-            }
+    private var rowDepth: some View {
+        // Z range (a counterbore has its own depth instead of an End Z)
+        InspectorNumberField(title: "Start Z", value: $toolpath.startZ, suffix: "mm")
+        if requirements.usesEndZ {
+            InspectorNumberField(title: "End Z", value: editedBinding($toolpath.endZ, .endZ), suffix: "mm")
+        }
+        if requirements.usesStepdown {
+            InspectorNumberField(title: "Stepdown", value: editedBinding($toolpath.stepDown, .stepDown), suffix: "mm")
+        }
+        InspectorNumberField(title: "Clearance Z", value: $toolpath.safeZ, suffix: "mm")
+    }
+
+    /// How many shapes the toolpath cuts. Shapes are chosen by clicking them on
+    /// the canvas while the cell is open, so there's nothing to press here.
+    private var rowShapes: some View {
+        InspectorRow(label: "Selected") {
+            shapesLabel
         }
     }
 
-    @ViewBuilder
-    private var rowSafeZ: some View {
-        HStack(spacing: 8) {
-            NumberField(title: "CLEARANCE Z", value: $toolpath.safeZ, suffix: "mm")
-        }
-    }
-
+    /// Generation status on the left, the Generate button on the right.
     @ViewBuilder
     private var rowFooter: some View {
-        HStack {
-            shapesLabel
-            Spacer()
-            // We show generate only if we have selected shapes
-            if !toolpath.targets.isEmpty {
+        // We show generate only if we have selected shapes
+        if !toolpath.targets.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+                generationStatus
+                Spacer(minLength: 0)
                 Button {
                     onGenerate()
                 } label: {
@@ -261,11 +239,12 @@ struct PanelToolpathDetails: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.small)
                 .disabled(isGenerating)
                 .help("Generate the toolpaths for the selected shapes")
             }
+            .padding(.top, 4)
         }
-        .frame(height: 36)
     }
 
     @ViewBuilder
@@ -302,30 +281,27 @@ struct PanelToolpathDetails: View {
            scrub.stepCount > 0 {
 
             let total = scrub.stepCount
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Label("PREVIEW", systemImage: "scope")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
+            InspectorSection(title: "Preview") {
+                HStack(spacing: 10) {
+                    Slider(value: Binding(
+                        get: { Double(scrubStep ?? total) },
+                        set: { newValue in
+                            let step = Int(newValue.rounded())
+                            guard step != (scrubStep ?? total) else {
+                                return
+                            }
+                            scrubStep = step
+                            onScrub(step)
+                        }
+                    ), in: 0...Double(total))
+                    .controlSize(.small)
+
                     Text("\(scrubStep ?? total) / \(total)")
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
-                Slider(value: Binding(
-                    get: { Double(scrubStep ?? total) },
-                    set: { newValue in
-                        let step = Int(newValue.rounded())
-                        guard step != (scrubStep ?? total) else {
-                            return
-                        }
-                        scrubStep = step
-                        onScrub(step)
-                    }
-                ), in: 0...Double(total))
-                .controlSize(.small)
+                .help("Scrub through the generated toolpath")
             }
-            .help("Scrub through the generated toolpath")
         }
     }
 
@@ -352,24 +328,6 @@ struct PanelToolpathDetails: View {
             case 1: return "1 shape selected"
             default: return "\(toolpath.targets.count) shapes selected"
         }
-    }
-
-    /// Toggles between the compact layout (dropdowns/popovers/menus) and the
-    /// expanded one (every option laid out directly in the view).
-    private var expandToggle: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isExpanded.toggle()
-            }
-        } label: {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .semibold))
-                .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                .frame(width: 22, height: 22)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .help(isExpanded ? "Collapse to dropdowns" : "Expand — show all options directly")
     }
 
     /// Esc does the same.

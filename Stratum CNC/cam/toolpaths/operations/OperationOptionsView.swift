@@ -13,9 +13,6 @@ struct OperationOptionsView: View {
 
     @Binding var toolpath: ToolpathData
 
-    /// When true, every picker below lays its options out directly in the view instead of behind a button + popover or a menu.
-    var expanded: Bool = false
-
     @State private var showRampEditor = false
 
     private var kind: OperationKind {
@@ -38,21 +35,20 @@ struct OperationOptionsView: View {
     var body: some View {
         let fields = toolpath.machiningOperation.formFields { toolpath.machiningOperation = $0 }
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if kind == .slotting {
-                EnumMenuPicker(title: "SELECTION IS", selection: $toolpath.operation.slotSource, expanded: expanded)
+                EnumMenuPicker(title: "Selection is", selection: $toolpath.operation.slotSource)
             }
 
             // Which side of the boundary the tool follows -- same glyph-based picker
             // for both, since `ContourPicker` is generic over `CutSideOption`.
             if kind == .contour {
-                ContourPicker(selection: $toolpath.contour, title: "CONTOUR", expanded: expanded)
+                ContourPicker(selection: $toolpath.contour, title: "Side")
             } else if kind == .chamfer {
-                ContourPicker(selection: $toolpath.operation.chamferSide, expanded: expanded)
+                ContourPicker(selection: $toolpath.operation.chamferSide)
             }
 
             ParameterFieldsView(fields: fields,
-                                expanded: expanded,
                                 hiddenFieldIDs: kind.hiddenFieldIDs,
                                 hiddenCaseIDs: OperationKind.hiddenCaseIDs)
 
@@ -101,44 +97,24 @@ struct OperationOptionsView: View {
         toolpath.ramping.type = available.contains(.linear) ? .linear : .none
     }
 
-    /// A row of controls, side by side when compact. Expanded pickers need
-    /// their full width to lay out their options directly, so the same row
-    /// stacks vertically once expanded.
-    @ViewBuilder
-    private func row<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        if expanded {
-            VStack(alignment: .leading, spacing: 8) {
-                content()
-            }
-        } else {
-            HStack(spacing: 8) {
-                content()
-            }
-        }
-    }
-
-    /// Ramping gets its own line, since it applies across very different operations.
+    /// Ramping gets its own rows, since it applies across very different operations.
     /// Once a method (anything other than "None") is chosen, its angle sits right
-    /// next to the button — bound to the same `toolpath.ramping.angle` the popover
+    /// below the button -- bound to the same `toolpath.ramping.angle` the popover
     /// edits, so the two always agree.
+    @ViewBuilder
     private var rampingRow: some View {
-        row {
-            rampingButton
-            HStack {
-                if toolpath.ramping.type != .none {
-                    NumberField(title: "RAMP ANGLE", value: $toolpath.ramping.angle, suffix: "°")
-                }
-
-                NumberField(title: "RAMP FEED", value: $toolpath.plungeRate, suffix: "mm/min")
-                    .help(toolpath.ramping.enabled && toolpath.ramping.type != .none
-                          ? "Feed rate along the ramp entry."
-                          : "No ramping selected — used as the plunge feed rate.")
-            }
+        rampingButton
+        if toolpath.ramping.type != .none {
+            InspectorNumberField(title: "Ramp angle", value: $toolpath.ramping.angle, suffix: "°")
         }
+        InspectorNumberField(title: "Ramp feed", value: $toolpath.plungeRate, suffix: "mm/min")
+            .help(toolpath.ramping.enabled && toolpath.ramping.type != .none
+                  ? "Feed rate along the ramp entry."
+                  : "No ramping selected — used as the plunge feed rate.")
     }
 
     private var rampingButton: some View {
-        RampingButton(ramping: $toolpath.ramping, expanded: expanded, available: availableRampTypes) {
+        RampingButton(ramping: $toolpath.ramping, available: availableRampTypes) {
             showRampEditor = true
         }
         .popover(isPresented: $showRampEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
@@ -151,11 +127,10 @@ struct OperationOptionsView: View {
         }
     }
 
+    @ViewBuilder
     private var patternRow: some View {
-        row {
-            PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns, expanded: expanded)
-            patternDetail
-        }
+        PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns)
+        patternDetail
     }
 
     /// The one extra control a pattern needs, if any -- which way a spiral winds in,
@@ -166,11 +141,11 @@ struct OperationOptionsView: View {
     private var patternDetail: some View {
         switch toolpath.operation.pocketPattern {
             case .spiral, .concentric:
-                EnumMenuPicker(title: "SPIRAL DIRECTION", selection: $toolpath.operation.pocketSpiral, expanded: expanded)
+                EnumMenuPicker(title: "Spiral direction", selection: $toolpath.operation.pocketSpiral)
             case .trochoidal:
-                NumberField(title: "LOOP PITCH", value: $toolpath.operation.pocketTrochoidalPitch, suffix: "% radius")
+                InspectorNumberField(title: "Loop pitch", value: $toolpath.operation.pocketTrochoidalPitch, suffix: "% radius")
             case .adaptive:
-                NumberField(title: "OPTIMAL LOAD", value: $toolpath.operation.pocketAdaptiveLoad, suffix: "mm")
+                InspectorNumberField(title: "Optimal load", value: $toolpath.operation.pocketAdaptiveLoad, suffix: "mm")
                     .help("Radial engagement the tool is kept at while clearing. Smaller values mean lighter cuts and more passes.")
             case .offset, .raster:
                 EmptyView()
@@ -216,81 +191,53 @@ private extension OperationKind {
 
 // MARK: - Reusable controls
 
-/// A titled menu for any string-backed enum. In its expanded form, every
-/// case is laid out as a row of pill buttons instead of behind a menu.
+/// A labelled pop-up button for any string-backed enum.
 struct EnumMenuPicker<Value: Hashable & CaseIterable & RawRepresentable>: View where Value.RawValue == String {
     let title: String
     @Binding var selection: Value
-    var expanded: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.system(size: 9))
-
-            if expanded {
-                HStack(spacing: 6) {
-                    ForEach(Array(Value.allCases), id: \.self) { option in
-                        pill(for: option)
+        InspectorRow(label: title) {
+            Menu {
+                ForEach(Array(Value.allCases), id: \.self) { option in
+                    Button {
+                        selection = option
+                    } label: {
+                        if option == selection {
+                            Label(option.rawValue, systemImage: "checkmark")
+                        } else {
+                            Text(option.rawValue)
+                        }
                     }
                 }
-            } else {
-                Picker("", selection: $selection) {
-                    ForEach(Array(Value.allCases), id: \.self) {
-                        Text($0.rawValue)
-                            .tag($0)
-                    }
+            } label: {
+                InspectorMenuLabel {
+                    Text(selection.rawValue)
                 }
-                .pickerStyle(.menu)
-                .frame(height: 30)
             }
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
         }
-    }
-
-    private func pill(for option: Value) -> some View {
-        let isSelected = option == selection
-
-        return Button {
-            selection = option
-        } label: {
-            Text(option.rawValue)
-                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
-                .padding(.horizontal, 10)
-                .frame(height: 30)
-                .background(isSelected ? Color.accentColor.opacity(0.15) : Color(.secondarySystemFill))
-                .foregroundStyle(isSelected ? Color.accentColor : .primary)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain)
     }
 }
 
-/// A titled on/off switch, sized like `NumberField`.
+/// A labelled on/off switch.
 struct ToggleField: View {
     let title: String
     @Binding var isOn: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.system(size: 9))
-
-            HStack {
+        InspectorRow(label: title) {
+            HStack(spacing: 8) {
                 Toggle("", isOn: $isOn)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.small)
 
                 Text(isOn ? "On" : "Off")
-                    .font(.system(size: 11))
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 30)
-            .background(.background)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
 }

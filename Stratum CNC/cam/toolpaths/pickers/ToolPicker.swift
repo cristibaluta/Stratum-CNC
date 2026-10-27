@@ -15,11 +15,7 @@ struct ToolPicker: View {
     @EnvironmentObject var appModel: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("TOOL")
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-
+        InspectorRow(label: "Tool") {
             Menu {
                 // The last 5 tools used, most recent first (persisted in UserDefaults).
                 ForEach(appModel.recentTools) { candidate in
@@ -48,21 +44,14 @@ struct ToolPicker: View {
                     Label("Pick from Library", systemImage: "wrench.and.screwdriver")
                 }
             } label: {
-                HStack(spacing: 5) {
+                InspectorMenuLabel {
                     Text("T\(tool.displayName)")
-                        .fontWeight(.semibold)
-
                     Text("Ø\(tool.toolDiameter, specifier: "%.1f")")
                         .foregroundStyle(.secondary)
-
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8))
                 }
-                .padding(.horizontal, 8)
-                .frame(height: 34)
-                .background(.background)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
             }
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
         }
     }
 

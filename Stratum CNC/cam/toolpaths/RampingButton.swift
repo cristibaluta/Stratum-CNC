@@ -7,14 +7,9 @@
 
 import SwiftUI
 
-/// Same look as `OperationPicker` / `ContourPicker`: an icon + label + chevron
-/// that opens the ramping editor. In its expanded form the ramp type is chosen
-/// directly as a row of tiles instead — the angle/length, return path, spiral
-/// direction and live visualization stay behind the editor button either way,
-/// since they don't fit inline without crowding the rest of the row.
+/// Same look as `OperationPicker`: a labelled pop-up button that opens the ramping editor.
 struct RampingButton: View {
     @Binding var ramping: RampingSettings
-    var expanded: Bool = false
     /// The ramp types the operation accepts, in the order they are offered.
     var available: [RampType] = RampType.allCases
     let action: () -> Void
@@ -22,88 +17,17 @@ struct RampingButton: View {
     private var shownType: RampType { ramping.enabled ? ramping.type : .none }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-
-            Text("RAMPING")
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-
-            if expanded {
-                HStack(spacing: 6) {
-                    ForEach(available, id: \.self) { candidate in
-                        expandedButton(for: candidate)
-                    }
-                    Spacer()
-                    editorButton
+        InspectorRow(label: "Entry") {
+            Button(action: action) {
+                InspectorMenuLabel {
+                    RampTypeGlyph(type: shownType, tint: ramping.enabled ? .primary : .secondary)
+                        .frame(width: 18, height: 14)
+                    Text(ramping.enabled ? ramping.type.rawValue : "Off")
                 }
-            } else {
-                Button(action: action) {
-                    HStack(spacing: 5) {
-                        RampTypeGlyph(type: shownType, tint: ramping.enabled ? .primary : .secondary)
-                            .frame(width: 18, height: 14)
-
-                        Text(ramping.enabled ? ramping.type.rawValue : "Off")
-                            .fontWeight(.semibold)
-
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8))
-                    }
-                    .padding(.horizontal, 8)
-                    .frame(height: 34)
-                }
-                .buttonStyle(.plain)
-                .background(Color(.secondarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(Color.primary.opacity(0.3), lineWidth: 1)
-                )
-                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help("Ramp angle, length, return path and spiral direction")
         }
-    }
-
-    // MARK: Expanded
-
-    private func expandedButton(for candidate: RampType) -> some View {
-        let isSelected = candidate == ramping.type
-
-        return Button {
-            ramping.type = candidate
-        } label: {
-            VStack(spacing: 4) {
-                RampTypeTileGlyph(type: candidate, tint: isSelected ? Color.accentColor : .secondary)
-                    .frame(width: 30, height: 22)
-
-                Text(candidate.rawValue)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            .frame(width: 70, height: 56)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        .foregroundStyle(isSelected ? Color.accentColor : .primary)
-        .overlay(
-            RoundedRectangle(cornerRadius: 5)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-        )
-        .help(candidate.rampSelectionHint)
-    }
-
-    /// Opens the full editor — angle/length, return path, spiral direction and
-    /// the live diagram — for whichever type is already selected above.
-    private var editorButton: some View {
-        Button(action: action) {
-            Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 12))
-                .frame(width: 26, height: 56)
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
-        .help("Ramp angle, length, return path and spiral direction")
     }
 }
 

@@ -7,56 +7,21 @@
 
 import SwiftUI
 
-/// Chooses which way the tool cuts relative to its rotation. Same look as
-/// `OperationPicker` / `ContourPicker` / `PatternPicker`.
+/// Chooses which way the tool cuts relative to its rotation, as a segmented control.
 struct DirectionPicker: View {
     @Binding var direction: CutDirectionOption
 
-    /// When true, the options are laid out directly in the view instead of
-    /// behind a button + popover.
-    var expanded: Bool = false
-
-    @State private var isPresented = false
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("DIRECTION")
-                .font(.system(size: 9))
-                .foregroundStyle(.secondary)
-
-            if expanded {
-                DirectionGridPicker(direction: $direction, isPresented: .constant(false))
-            } else {
-                Button {
-                    isPresented.toggle()
-                } label: {
-                    HStack(spacing: 5) {
-                        DirectionGlyph(direction: direction)
-                            .frame(width: 34, height: 20)
-
-                        Text(direction.rawValue)
-                            .fontWeight(.semibold)
-
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8))
-                    }
-                    .padding(.horizontal, 8)
-                    .frame(height: 34)
-                    .background(Color(.secondarySystemFill))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help(direction.selectionHint)
-                .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                    DirectionGridPicker(direction: $direction, isPresented: $isPresented)
-                        .padding(24)
+        InspectorRow(label: "Direction") {
+            Picker("", selection: $direction) {
+                ForEach(CutDirectionOption.allCases, id: \.self) { option in
+                    Text(option.rawValue)
+                        .tag(option)
                 }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .help(direction.selectionHint)
         }
     }
 }
