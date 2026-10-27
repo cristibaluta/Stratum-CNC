@@ -26,9 +26,10 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
 
     /// The order and grouping used by the picker menu.
     static let groups: [[OperationKind]] = [
-        [.contour, .pocket, .facing, .slotting, .engrave],
+        [.facing],
+        [.pocket, .contour, .slotting],
         [.drilling, .counterbore, .boring, .threadMilling],
-        [.chamfer]
+        [.engrave, .chamfer]
     ]
 
     var title: String {

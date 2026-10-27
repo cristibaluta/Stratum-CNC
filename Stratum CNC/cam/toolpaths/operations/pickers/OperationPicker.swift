@@ -42,13 +42,17 @@ private struct OperationGridPicker: View {
     private let width: CGFloat = 440
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(OperationKind.groups.enumerated()), id: \.offset) { index, group in
                 if index > 0 {
+                    // More air between the groups than between the rows inside one
                     Divider()
+                        .padding(.vertical, 24)
                 }
-                ForEach(group) { option in
-                    row(for: option)
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(group) { option in
+                        row(for: option)
+                    }
                 }
             }
         }
