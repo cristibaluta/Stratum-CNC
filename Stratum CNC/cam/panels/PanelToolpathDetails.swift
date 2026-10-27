@@ -58,16 +58,24 @@ struct PanelToolpathDetails: View {
         GroupBox("TOOLPATH PARAMS") {
             VStack(alignment: .leading, spacing: 16) {
                 rowHeader
-                Divider().background(.orange.opacity(0.5))
-                rowOperation
-                Divider()
-                rowOperationOptions
-                Divider().background(.orange.opacity(0.5))
-                rowTool
-                Divider()
-                rowPasses
-                rowSafeZ
-                Divider().background(.orange.opacity(0.5))
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        rowOperation
+                        rowOperationOptions
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                GroupBox {
+                    rowTool
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        rowPasses
+                        rowSafeZ
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 rowFooter
                 generationStatus
                 rowScrub
@@ -79,14 +87,6 @@ struct PanelToolpathDetails: View {
             }
             // A new Generate starts its preview from the end again, like the canvas does
             .onChange(of: generation?.id) { _, _ in scrubStep = nil }
-            .overlay {
-                // Marks which toolpath the canvas clicks are going to
-                if isPicking {
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.orange, lineWidth: 1)
-                        .allowsHitTesting(false)
-                }
-            }
         }
     }
 
@@ -196,7 +196,6 @@ struct PanelToolpathDetails: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
-            Divider()
             HStack(spacing: 8) {
                 IntField(title: "SPINDLE SPEED", value: $toolpath.spindleRPM, suffix: "RPM")
                 NumberField(title: "FEED RATE", value: $toolpath.feedRate, suffix: "mm/min")
@@ -246,9 +245,6 @@ struct PanelToolpathDetails: View {
             Spacer()
             // We show generate only if we have selected shapes
             if !toolpath.targets.isEmpty {
-                Divider()
-                    .frame(height: 20)
-
                 Button {
                     onGenerate()
                 } label: {

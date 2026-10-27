@@ -59,14 +59,12 @@ struct OperationOptionsView: View {
             // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
             // `ContourTypeGlyph`), same idea as the entry strategy below.
             if !offeredPatterns.isEmpty {
-                Divider()
                 patternRow
             }
 
             // The entry strategy keeps its dedicated editor (angle/length preview, helix
             // diagram), but whether an operation has one is up to the library.
             if requirements.usesEntry {
-                Divider()
                 rampingRow
             }
         }
