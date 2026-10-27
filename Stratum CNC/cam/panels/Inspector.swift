@@ -135,14 +135,18 @@ struct InspectorNumberField<Accessory: View>: View {
     let title: String
     @Binding var value: Double
     let suffix: String
+    /// Fixed text before the value, inside the gray field (e.g. a "−" for a depth that is
+    /// typed as a positive number). Not editable.
+    let prefix: String
     /// Optional control on the right of the field, on the same row (e.g. a helper button).
     let accessory: Accessory
 
-    init(title: String, value: Binding<Double>, suffix: String,
+    init(title: String, value: Binding<Double>, suffix: String, prefix: String = "",
          @ViewBuilder accessory: () -> Accessory) {
         self.title = title
         self._value = value
         self.suffix = suffix
+        self.prefix = prefix
         self.accessory = accessory()
     }
 
@@ -150,6 +154,13 @@ struct InspectorNumberField<Accessory: View>: View {
         InspectorRow(label: title) {
             HStack(spacing: 6) {
                 HStack(spacing: 6) {
+                    if !prefix.isEmpty {
+                        Text(prefix)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .padding(.trailing, -5)
+                    }
+
                     TextField("", value: $value,
                               format: .number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
                         .textFieldStyle(.plain)
@@ -171,8 +182,8 @@ struct InspectorNumberField<Accessory: View>: View {
 
 extension InspectorNumberField where Accessory == EmptyView {
 
-    init(title: String, value: Binding<Double>, suffix: String) {
-        self.init(title: title, value: value, suffix: suffix) {
+    init(title: String, value: Binding<Double>, suffix: String, prefix: String = "") {
+        self.init(title: title, value: value, suffix: suffix, prefix: prefix) {
             EmptyView()
         }
     }

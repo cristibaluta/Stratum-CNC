@@ -195,12 +195,21 @@ struct PanelToolpathDetails: View {
         }
     }
 
+    /// End Z is typed as a positive depth below the top (the "−" is shown in front of the
+    /// field), but stored and sent on as the negative Z value. A minus typed anyway is ignored.
+    private var endDepth: Binding<Double> {
+        Binding(
+            get: { -toolpath.endZ },
+            set: { toolpath.endZ = -abs($0) }
+        )
+    }
+
     @ViewBuilder
     private var rowDepth: some View {
         // Z range (a counterbore has its own depth instead of an End Z)
         InspectorNumberField(title: "Start Z", value: $toolpath.startZ, suffix: "mm")
         if requirements.usesEndZ {
-            InspectorNumberField(title: "End Z", value: editedBinding($toolpath.endZ, .endZ), suffix: "mm") {
+            InspectorNumberField(title: "End Z", value: editedBinding(endDepth, .endZ), suffix: "mm", prefix: "−") {
                 if isHoleOperation, let thickness = stockThickness, thickness > 0 {
                     throughStockButton(thickness: thickness)
                 }
