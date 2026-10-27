@@ -152,12 +152,29 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     // MARK: Selection
 
+    /// Replaces the selection with one object. Works while a toolpath is open too: object
+    /// selection (move/scale in the inspector) is separate from picking shapes for the toolpath.
     func selectObject(_ id: UUID) {
-        guard !isPickingPaths, objects.contains(where: { $0.id == id }) else {
+        guard objects.contains(where: { $0.id == id }) else {
             return
         }
 
         selectedObjectIDs = [id]
+        selectedPaths.removeAll()
+    }
+
+    /// Adds the object to the selection, or removes it if it is already in it. Shift-click
+    /// in the objects list.
+    func toggleObjectSelection(_ id: UUID) {
+        guard objects.contains(where: { $0.id == id }) else {
+            return
+        }
+
+        if selectedObjectIDs.contains(id) {
+            selectedObjectIDs.remove(id)
+        } else {
+            selectedObjectIDs.insert(id)
+        }
         selectedPaths.removeAll()
     }
 
@@ -291,6 +308,85 @@ final class D2_CanvasState: ObservableObject, Equatable {
         objectWillChange.send()
         object.position = position
         onObjectsChanged?()
+    }
+
+    // MARK: Editing the whole selection
+    //
+    // With several objects selected they move and scale as one group: the group is the
+    // union of the objects' rotated bounds, scaling is anchored at its bottom-left corner
+    // (like a single object, which keeps its position), and rotation isn't offered.
+
+    private var selectedObjects: [D2_Object] {
+        objects.filter { selectedObjectIDs.contains($0.id) }
+    }
+
+    /// The union of the selected objects' bounds, or nil with nothing selected.
+    var selectionBounds: CGRect? {
+        let selected = selectedObjects
+        guard let first = selected.first else {
+            return nil
+        }
+        return selected.dropFirst().reduce(first.rotatedBounds) { $0.union($1.rotatedBounds) }
+    }
+
+    /// Moves every selected object by the same amount. Used by the canvas drag and the nudge buttons.
+    func moveSelection(dx: CGFloat, dy: CGFloat) {
+        let selected = selectedObjects
+        guard !selected.isEmpty, dx != 0 || dy != 0 else {
+            return
+        }
+        objectWillChange.send()
+        for object in selected {
+            object.position.x += dx
+            object.position.y += dy
+        }
+        onObjectsChanged?()
+    }
+
+    /// Scales every selected object, and the gaps between them, by `factor`, keeping the
+    /// group's bottom-left corner where it is.
+    func scaleSelection(by factor: CGFloat) {
+        let selected = selectedObjects
+        guard let bounds = selectionBounds, factor > 0, factor != 1 else {
+            return
+        }
+        objectWillChange.send()
+        let anchor = CGPoint(x: bounds.minX, y: bounds.minY)
+        for object in selected {
+            let center = object.center
+            let newCenter = CGPoint(x: anchor.x + (center.x - anchor.x) * factor,
+                                    y: anchor.y + (center.y - anchor.y) * factor)
+            object.width = max(object.width * factor, 0.001)
+            object.position = CGPoint(x: newCenter.x - object.width / 2,
+                                      y: newCenter.y - object.height / 2)
+        }
+        onObjectsChanged?()
+    }
+
+    /// The inspector's ÷2/×2 buttons for a group.
+    func scaleSelection(factor: Int) {
+        guard factor != 0 else {
+            return
+        }
+        scaleSelection(by: factor > 0 ? CGFloat(factor) : 1 / CGFloat(-factor))
+    }
+
+    /// The inspector's text fields for a group: X and Y place the group's bounds, Width
+    /// resizes the group to that width. Other properties don't apply to a group.
+    func setSelectionValue(_ value: CGFloat, for property: ObjectProperty) {
+        guard let bounds = selectionBounds else {
+            return
+        }
+        switch property {
+            case .x:
+                moveSelection(dx: value - bounds.minX, dy: 0)
+            case .y:
+                moveSelection(dx: 0, dy: value - bounds.minY)
+            case .width:
+                scaleSelection(by: max(value, 0.001) / max(bounds.width, 0.000001))
+            case .height, .rotation:
+                break
+        }
     }
 
     /// Used by the inspector's text fields (X, Y, Width, Height, Rotation).

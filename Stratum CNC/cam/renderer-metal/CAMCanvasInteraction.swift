@@ -34,7 +34,8 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
 
     private enum DragMode {
         case pan
-        case moveObject(UUID)
+        /// Moves every selected object (the rotation-center handle of any of them was grabbed).
+        case moveSelection
     }
 
     private static let clickDragThreshold: CGFloat = 4
@@ -64,22 +65,20 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
         dragMode = .pan
         pendingPick = nil
 
-        // Picking shapes for a toolpath: bypass the normal object/path
+        // The rotation-center handle of a selected object moves the selection. Checked before
+        // picking, so objects selected in the list can be dragged while a toolpath is open.
+        if isSelectedObjectHandleHit(event) {
+            dragMode = .moveSelection
+            return .handled
+        }
+
+        // Picking shapes for a toolpath: bypass the normal path
         // selection entirely (see D2_CanvasState.isPickingPaths).
         if canvasState.isPickingPaths {
             if let hit = hitTest(event) {
                 pendingPick = (selection: hit, startLocation: event.viewPoint)
             }
             return .pan
-        }
-
-        if let selectedObjectID = canvasState.selectedObjectIDs.first,
-           let object = canvasState.object(withID: selectedObjectID),
-           object.isVisible,
-           isRotationCenterHit(event, object: object) {
-            canvasState.selectObject(selectedObjectID)
-            dragMode = .moveObject(selectedObjectID)
-            return .handled
         }
 
         // Shift or Cmd held -> extend/toggle the selection instead of replacing it.
@@ -108,13 +107,9 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
             pendingPick = nil
         }
 
-        if case .moveObject(let objectID) = dragMode,
-           let lastWorld = lastDragWorldPoint,
-           let object = canvasState.object(withID: objectID) {
-
-            let newPosition = CGPoint(x: object.position.x + (event.worldPoint.x - lastWorld.x),
-                                      y: object.position.y + (event.worldPoint.y - lastWorld.y))
-            canvasState.moveObject(objectID, to: newPosition)
+        if case .moveSelection = dragMode, let lastWorld = lastDragWorldPoint {
+            canvasState.moveSelection(dx: event.worldPoint.x - lastWorld.x,
+                                      dy: event.worldPoint.y - lastWorld.y)
         }
 
         lastDragWorldPoint = event.worldPoint
@@ -136,6 +131,15 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
         hitTester.hitTest(worldPoint: event.worldPoint,
                           paths: renderPaths(),
                           pointsPerWorldUnit: event.pointsPerWorldUnit)
+    }
+
+    /// Whether the pointer is on the handle of any selected, visible object.
+    private func isSelectedObjectHandleHit(_ event: CanvasPointerEvent) -> Bool {
+        canvasState.objects.contains { object in
+            canvasState.selectedObjectIDs.contains(object.id)
+                && object.isVisible
+                && isRotationCenterHit(event, object: object)
+        }
     }
 
     /// The handle only exists (is drawn, is grabbable) for the selected

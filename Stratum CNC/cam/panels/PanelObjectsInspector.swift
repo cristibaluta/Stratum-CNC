@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 enum ObjectProperty: String {
     case x
@@ -18,14 +19,22 @@ enum ObjectProperty: String {
 struct PanelObjectsInspector: View {
 
     let elements: [D2_Object]
-    let selectedID: UUID?
+    let selectedIDs: Set<UUID>
+    /// The bounds of all selected objects together; what the group's X, Y and Width show.
+    var selectionBounds: CGRect?
 
-    var onSelectionChanged: ((UUID) -> Void)?
+    /// The object clicked, and whether to add it to / remove it from the selection (Shift
+    /// or Cmd held) instead of replacing the selection.
+    var onSelectionChanged: ((UUID, Bool) -> Void)?
     var onToggleVisibility: ((UUID) -> Void)?
     var onValueChanged: ((UUID, ObjectProperty, CGFloat) -> Void)?
     var onNudge: ((UUID, ObjectProperty, CGFloat) -> Void)?
     var onScale: ((UUID, Int) -> Void)?
     var onRotate: ((UUID, CGFloat) -> Void)?
+    /// Edits of several selected objects at once: they move and scale as a group.
+    var onGroupValueChanged: ((ObjectProperty, CGFloat) -> Void)?
+    var onGroupNudge: ((ObjectProperty, CGFloat) -> Void)?
+    var onGroupScale: ((Int) -> Void)?
     var onAddNew: (() -> Void)?
     var onDelete: ((UUID) -> Void)?
 
@@ -43,8 +52,12 @@ struct PanelObjectsInspector: View {
 
             objectsSection
 
-            if let object = elements.first(where: { $0.id == selectedID }) {
+            let selected = elements.filter { selectedIDs.contains($0.id) }
+            if selected.count == 1, let object = selected.first {
                 propertiesSection(for: object)
+                    .padding(.top, 10)
+            } else if selected.count > 1, let bounds = selectionBounds {
+                groupPropertiesSection(count: selected.count, bounds: bounds)
                     .padding(.top, 10)
             }
         }
@@ -76,7 +89,8 @@ struct PanelObjectsInspector: View {
     private func objectRow(_ object: D2_Object) -> some View {
         HStack(spacing: 8) {
             Button {
-                onSelectionChanged?(object.id)
+                let flags = NSEvent.modifierFlags
+                onSelectionChanged?(object.id, flags.contains(.shift) || flags.contains(.command))
             } label: {
                 Text(object.name)
                     .font(.system(size: 12))
@@ -93,7 +107,7 @@ struct PanelObjectsInspector: View {
                 onToggleVisibility?(object.id)
             }
         }
-        .inspectorListRow(isSelected: object.id == selectedID)
+        .inspectorListRow(isSelected: selectedIDs.contains(object.id))
         .contextMenu {
             Button(role: .destructive) {
                 onDelete?(object.id)
@@ -139,6 +153,49 @@ struct PanelObjectsInspector: View {
                 InspectorRow(label: "Height") {
                     HStack(spacing: 6) {
                         Text(NumberField2.format(object.height))
+                            .font(.system(size: 12))
+                        Text("mm")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        Image(systemName: "lock")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .inspectorField()
+                }
+            }
+        }
+    }
+
+    /// Several objects selected: they move and scale together. X, Y and Width describe the
+    /// group's bounds; there is no rotation.
+    private func groupPropertiesSection(count: Int, bounds: CGRect) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            InspectorSection(title: "Position · \(count) objects") {
+                valueRow("X", value: bounds.minX, unit: "mm") {
+                    onGroupValueChanged?(.x, $0)
+                } trailing: {
+                    SmallButton("−1") { onGroupNudge?(.x, -1) }
+                    SmallButton("+1") { onGroupNudge?(.x, 1) }
+                }
+                valueRow("Y", value: bounds.minY, unit: "mm") {
+                    onGroupValueChanged?(.y, $0)
+                } trailing: {
+                    SmallButton("−1") { onGroupNudge?(.y, -1) }
+                    SmallButton("+1") { onGroupNudge?(.y, 1) }
+                }
+            }
+            InspectorSection(title: "Size") {
+                valueRow("Width", value: bounds.width, unit: "mm") {
+                    onGroupValueChanged?(.width, $0)
+                } trailing: {
+                    SmallButton("÷2") { onGroupScale?(-2) }
+                    SmallButton("×2") { onGroupScale?(2) }
+                }
+                InspectorRow(label: "Height") {
+                    HStack(spacing: 6) {
+                        Text(NumberField2.format(bounds.height))
                             .font(.system(size: 12))
                         Text("mm")
                             .font(.system(size: 11))

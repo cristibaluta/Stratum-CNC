@@ -176,9 +176,14 @@ struct CAMView: View {
     private var inspectorPanel: some View {
         PanelObjectsInspector(
             elements: camModel.canvasState.objects,
-            selectedID: camModel.canvasState.selectedObjectIDs.first,
-            onSelectionChanged: { id in
-                camModel.canvasState.selectObject(id)
+            selectedIDs: camModel.canvasState.selectedObjectIDs,
+            selectionBounds: camModel.canvasState.selectionBounds,
+            onSelectionChanged: { id, extend in
+                if extend {
+                    camModel.canvasState.toggleObjectSelection(id)
+                } else {
+                    camModel.canvasState.selectObject(id)
+                }
             },
             onToggleVisibility: { id in
                 camModel.canvasState.toggleObjectVisibility(id)
@@ -194,6 +199,19 @@ struct CAMView: View {
             },
             onRotate: { id, degrees in
                 camModel.canvasState.rotateObject(id, by: degrees)
+            },
+            onGroupValueChanged: { property, value in
+                camModel.canvasState.setSelectionValue(value, for: property)
+            },
+            onGroupNudge: { property, amount in
+                switch property {
+                    case .x: camModel.canvasState.moveSelection(dx: amount, dy: 0)
+                    case .y: camModel.canvasState.moveSelection(dx: 0, dy: amount)
+                    default: break
+                }
+            },
+            onGroupScale: { factor in
+                camModel.canvasState.scaleSelection(factor: factor)
             },
             onAddNew: {
                 camModel.showingFilePicker = true
