@@ -26,6 +26,10 @@ struct OperationSettings: Codable, Hashable {
     /// Adaptive clearing: the radial engagement the tool is kept at, in mm.
     var pocketAdaptiveLoad: Double = 1
 
+    // Contour
+    /// Holding tabs left in the cut, in the order the form lists them.
+    var contourTabs: [HoldingTabSettings] = []
+
     // Facing
     /// How far the passes run past the selection's bounding box, mm.
     var facingExtension: Double = 1
@@ -67,6 +71,7 @@ struct OperationSettings: Codable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case kind, direction
         case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoad
+        case contourTabs
         case facingExtension
         case slotSource, slotDepthPerPass
         case chamferWidth, chamferUsesDepth, chamferDepth, chamferSide
@@ -92,6 +97,7 @@ extension OperationSettings {
         pocketSpiral = try c.decodeIfPresent(SpiralOrder.self, forKey: .pocketSpiral) ?? d.pocketSpiral
         pocketTrochoidalPitch = try c.decodeIfPresent(Double.self, forKey: .pocketTrochoidalPitch) ?? d.pocketTrochoidalPitch
         pocketAdaptiveLoad = try c.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoad) ?? d.pocketAdaptiveLoad
+        contourTabs = try c.decodeIfPresent([HoldingTabSettings].self, forKey: .contourTabs) ?? d.contourTabs
         facingExtension = try c.decodeIfPresent(Double.self, forKey: .facingExtension) ?? d.facingExtension
         slotSource = try c.decodeIfPresent(SlotSource.self, forKey: .slotSource) ?? d.slotSource
         chamferWidth = try c.decodeIfPresent(Double.self, forKey: .chamferWidth) ?? d.chamferWidth
@@ -112,5 +118,57 @@ extension OperationSettings {
         threadHandedness = try c.decodeIfPresent(ThreadHandedness.self, forKey: .threadHandedness) ?? d.threadHandedness
         threadRadialPasses = try c.decodeIfPresent(Int.self, forKey: .threadRadialPasses) ?? d.threadRadialPasses
         threadTargetDiameter = try c.decodeIfPresent(Double.self, forKey: .threadTargetDiameter) ?? d.threadTargetDiameter
+    }
+}
+
+/// One holding tab of a contour: the app's own Codable copy of `SC.HoldingTab`
+/// (whose id is new every time it is built). The `id` here only identifies the row in the
+/// editor and isn't saved.
+struct HoldingTabSettings: Codable, Hashable, Identifiable {
+    var id = UUID()
+    /// Where along the contour the tab sits, 0...1.
+    var positionRatio: Double
+    /// mm.
+    var width: Double
+    /// mm, measured up from the bottom of the cut.
+    var height: Double
+
+    /// The ranges `SC.MachiningOperation.formFields` gives these values.
+    static let positionRange: ClosedRange<Double> = 0...1
+    static let widthRange: ClosedRange<Double> = 1...20
+    static let heightRange: ClosedRange<Double> = 0.1...10
+
+    private enum CodingKeys: String, CodingKey {
+        case positionRatio, width, height
+    }
+
+    init(positionRatio: Double, width: Double, height: Double) {
+        self.positionRatio = positionRatio
+        self.width = width
+        self.height = height
+    }
+
+    init(_ tab: SC.HoldingTab) {
+        self.init(positionRatio: tab.positionRatio, width: tab.width, height: tab.height)
+    }
+
+    /// A tab with the library's default size, put in the middle of the largest gap between
+    /// the existing ones so they don't pile up at the same spot.
+    static func new(after tabs: [HoldingTabSettings]) -> HoldingTabSettings {
+        var tab = HoldingTabSettings(SC.HoldingTab(positionRatio: 0.5))
+        let positions = ([0.0] + tabs.map(\.positionRatio).sorted() + [1.0])
+        var best = (gap: 0.0, middle: 0.5)
+        for (a, b) in zip(positions, positions.dropFirst()) where b - a > best.gap {
+            best = (b - a, (a + b) / 2)
+        }
+        tab.positionRatio = best.middle
+        return tab
+    }
+
+    var libraryTab: SC.HoldingTab {
+        var tab = SC.HoldingTab(positionRatio: positionRatio)
+        tab.width = width
+        tab.height = height
+        return tab
     }
 }

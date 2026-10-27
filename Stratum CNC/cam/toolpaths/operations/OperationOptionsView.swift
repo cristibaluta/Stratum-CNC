@@ -14,6 +14,7 @@ struct OperationOptionsView: View {
     @Binding var toolpath: ToolpathData
 
     @State private var showRampEditor = false
+    @State private var showTabsEditor = false
 
     private var kind: OperationKind {
         toolpath.operation.kind
@@ -52,6 +53,17 @@ struct OperationOptionsView: View {
                                 hiddenFieldIDs: kind.hiddenFieldIDs,
                                 hiddenCaseIDs: OperationKind.hiddenCaseIDs)
 
+            // Holding tabs: a summary row that opens the editor in a popover.
+            if kind == .contour {
+                HoldingTabsButton(tabs: toolpath.operation.contourTabs) {
+                    showTabsEditor = true
+                }
+                .popover(isPresented: $showTabsEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                    HoldingTabsEditor(tabs: $toolpath.operation.contourTabs)
+                        .frame(width: 400)
+                }
+            }
+
             // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
             // `ContourTypeGlyph`), same idea as the entry strategy below.
             if !offeredPatterns.isEmpty {
@@ -60,7 +72,7 @@ struct OperationOptionsView: View {
 
             // Stepover is about how the area is cleared, so it follows the pattern (or the
             // generic fields when there is none) and comes before the entry.
-            if requirements.usesStepover {
+            if usesStepover {
                 stepOverRow
             }
 
@@ -83,6 +95,14 @@ struct OperationOptionsView: View {
     private var stepOverRow: some View {
         InspectorNumberField(title: "Stepover", value: stepOverPercent, suffix: "% of Ø")
         InspectorNote(text: stepOverNote)
+    }
+
+    /// Whether the stepover row is shown. Facing is always included: the library doesn't report
+    /// a stepover for it yet (it derives the spacing from the tool diameter), but the value is
+    /// stored and sent in `SC.CuttingData.stepoverPercentage` like any other, so it takes
+    /// effect as soon as the library reads it for facing.
+    private var usesStepover: Bool {
+        requirements.usesStepover || kind == .facing
     }
 
     private var stepOverPercent: Binding<Double> {
@@ -200,7 +220,8 @@ private extension OperationKind {
         switch self {
         case .contour:
             // The side gets its own dedicated `ContourPicker` row above; lead-in/out
-            // and tabs aren't stored on the toolpath.
+            // isn't stored on the toolpath yet. Holding tabs have their own row and popover
+            // (`HoldingTabsEditor`) on `OperationSettings.contourTabs`.
             return ["entry", "contour.side", "contour.leadIn", "contour.leadOut", "contour.tabs"]
         case .pocket:
             // The clearing pattern gets its own dedicated row (`patternRow`) with icon

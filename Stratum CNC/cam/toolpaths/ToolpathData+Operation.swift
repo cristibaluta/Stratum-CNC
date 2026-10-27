@@ -11,7 +11,8 @@
 //  What is deliberately *not* written back, because the app keeps it elsewhere or doesn't
 //  offer it:
 //   - the entry strategy: it lives in `ToolpathData.ramping`, edited by the ramping editor
-//   - contour lead-in / lead-out / holding tabs, and the slot clearing pattern: not stored yet
+//   - contour holding tabs: edited in `HoldingTabsEditor` straight on `OperationSettings.contourTabs`
+//   - contour lead-in / lead-out, and the slot clearing pattern: not stored yet
 //
 
 import Foundation

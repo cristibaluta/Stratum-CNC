@@ -32,7 +32,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Problem:** the order is Direction → Pattern → Entry → Ramp angle → Ramp feed → Stepover. Stepover is about clearing, so it belongs next to the pattern.
 - **Fix:** render Stepover directly under the pattern (and its detail row), before Entry. Same for Counterbore.
 
-### [ ] #3: Facing has no stepover control (priority: low)
+### [x] #3: Facing has no stepover control (priority: low)
 - **Where:** `SC.MachiningOperations+FormFields.swift` (comment: the engine derives row spacing from the tool diameter).
 - **Problem:** with a large facing cutter the user can't control overlap.
 - **Fix:** ask the library to expose it, or show a read-only note with the value the engine uses.
@@ -41,7 +41,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 
 ## B. Missing features
 
-### [ ] #4: Contour holding tabs (priority: high)
+### [x] #4: Contour holding tabs (priority: high)
 - **Where:** `OperationOptionsView.hiddenFieldIDs` (`contour.tabs`), `ToolpathData+Operation`, `ToolpathGenerator.makeOperation` (passes `tabs: []`).
 - **Problem:** the engine and form support tabs, but `ToolpathData` doesn't store them. Without tabs, a cut-out part ends up loose.
 - **Fix:** add a tabs array to `OperationSettings` (Codable, optional key), write it back in `apply`, pass it in `makeOperation`, unhide `contour.tabs`.

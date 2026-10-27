@@ -276,7 +276,7 @@ extension ToolpathGenerator {
     ///
     /// Not offered: the slot patterns `.trochoidal`/`.adaptive` and `EntryStrategy.fromOpenEnd` (they only make
     /// sense for slot outlines open at one or both ends, which the app doesn't derive yet), and
-    /// lead-in/out and holding tabs on contours. An engraving takes a plunge or a ramp but no helix
+    /// lead-in/out on contours. An engraving takes a plunge or a ramp but no helix
     /// (see `SC.MachiningOperation.requirements`).
     ///
     /// Internal (unlike the rest of this extension) because `ToolpathData.machiningOperation`
@@ -294,7 +294,7 @@ extension ToolpathGenerator {
                                 entry: entry,
                                 leadIn: nil,
                                 leadOut: nil,
-                                tabs: [])
+                                tabs: options.contourTabs.map { $0.libraryTab })
 
             case .pocket:
                 return .pocket(direction: direction,
