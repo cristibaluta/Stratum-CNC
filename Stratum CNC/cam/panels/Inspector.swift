@@ -1,12 +1,4 @@
 //
-//  Inspector.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 27.10.2026.
-//
-
-
-//
 //  InspectorStyle.swift
 //  Stratum CNC
 //
@@ -174,5 +166,65 @@ struct InspectorIntField: View {
             }
             .inspectorField()
         }
+    }
+}
+
+// MARK: - Panel header and list rows
+
+/// A panel's title in the same muted bold as a section header, with an optional add button.
+struct InspectorHeader: View {
+    let title: String
+    var addHelp: String = "Add"
+    var onAdd: (() -> Void)?
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            if let onAdd {
+                Button(action: onAdd) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help(addHelp)
+            }
+        }
+    }
+}
+
+extension View {
+    /// The look of a row in a list: tight padding, accent wash while selected.
+    func inspectorListRow(isSelected: Bool) -> some View {
+        self
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? Color.accentColor.opacity(0.25) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+/// The eye button at the start of a list row.
+struct InspectorVisibilityButton: View {
+    let isVisible: Bool
+    let showHelp: String
+    let hideHelp: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: isVisible ? "eye" : "eye.slash")
+                .font(.system(size: 12))
+                .frame(width: 20)
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(isVisible ? Color.secondary : Color.secondary.opacity(0.5))
+        .help(isVisible ? hideHelp : showHelp)
     }
 }

@@ -21,29 +21,15 @@ struct PanelToolpaths: View {
     @State private var draggedToolpath: ToolpathData?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Toolpaths")
-                    .font(.system(size: 13, weight: .bold))
-
-                Spacer()
-
-                Button {
-                    onAdd?()
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .help("Add a toolpath")
+        VStack(alignment: .leading, spacing: 8) {
+            InspectorHeader(title: "Toolpaths", addHelp: "Add a toolpath") {
+                onAdd?()
             }
-
-            Divider()
 
             if toolpaths.isEmpty {
                 Text("No toolpaths")
                     .foregroundStyle(.secondary)
-                    .font(.callout)
+                    .font(.system(size: 12))
                     .padding(.vertical, 2)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
@@ -74,25 +60,22 @@ struct PanelToolpaths: View {
         let isHidden = hiddenIDs.contains(toolpath.id)
 
         return HStack(spacing: 4) {
-            Button {
+            InspectorVisibilityButton(isVisible: !isHidden,
+                                      showHelp: "Show on canvas",
+                                      hideHelp: "Hide from canvas") {
                 onToggleVisibility?(toolpath.id)
-            } label: {
-                Image(systemName: isHidden ? "eye.slash" : "eye")
-                    .frame(width: 20)
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(isHidden ? Color.secondary.opacity(0.5) : Color.secondary)
-            .help(isHidden ? "Show on canvas" : "Hide from canvas")
 
             Button {
                 onSelect?(toolpath.id)
             } label: {
                 HStack(spacing: 6) {
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 1) {
                         Text(toolpath.name)
+                            .font(.system(size: 12))
                             .lineLimit(1)
                         Text("\(toolpath.operation.kind.title) · \(toolpath.tool.name)")
-                            .font(.caption2)
+                            .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
@@ -104,10 +87,7 @@ struct PanelToolpaths: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 4)
-        .background(isSelected ? Color.accentColor.opacity(0.3) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .inspectorListRow(isSelected: isSelected)
         .contextMenu {
             Button(role: .destructive) {
                 onDelete?(toolpath.id)

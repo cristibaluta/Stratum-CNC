@@ -32,13 +32,17 @@ struct PanelObjectsInspector: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            headerSection
-            Divider()
+        VStack(alignment: .leading, spacing: 0) {
+            InspectorHeader(title: "Objects", addHelp: "Import an object") {
+                onAddNew?()
+            }
+            .padding(.bottom, 8)
+
             objectsSection
-            if selectedID != nil {
-                Divider()
-                propertiesSection
+
+            if let object = elements.first(where: { $0.id == selectedID }) {
+                propertiesSection(for: object)
+                    .padding(.top, 10)
             }
         }
         .padding(12)
@@ -49,29 +53,12 @@ struct PanelObjectsInspector: View {
 
     // MARK: - Objects
 
-    private var headerSection: some View {
-        HStack {
-            Text("Objects")
-                .font(.system(size: 13, weight: .bold))
-
-            Spacer()
-
-            Button {
-                onAddNew?()
-            } label: {
-                Image(systemName: "plus")
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-        }
-    }
-
     private var objectsSection: some View {
         Group {
             if elements.isEmpty {
                 Text("No object imported!")
                     .foregroundStyle(.secondary)
-                    .font(.callout)
+                    .font(.system(size: 12))
                     .padding(.vertical, 2)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
@@ -85,30 +72,25 @@ struct PanelObjectsInspector: View {
 
     private func objectRow(_ object: D2_Object) -> some View {
         HStack(spacing: 4) {
-            Button {
+            InspectorVisibilityButton(isVisible: object.isVisible,
+                                      showHelp: "Show on canvas",
+                                      hideHelp: "Hide from canvas") {
                 onToggleVisibility?(object.id)
-            } label: {
-                Image(systemName: object.isVisible ? "eye" : "eye.slash")
-                    .frame(width: 20)
             }
-            .buttonStyle(.borderless)
-            .foregroundStyle(object.isVisible ? Color.secondary : Color.secondary.opacity(0.5))
-            .help(object.isVisible ? "Hide from canvas" : "Show on canvas")
 
             Button {
                 onSelectionChanged?(object.id)
             } label: {
                 Text(object.name)
+                    .font(.system(size: 12))
                     .lineLimit(1)
                     .opacity(object.isVisible ? 1 : 0.5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 4)
-        .background(object.id == selectedID ? Color.accentColor.opacity(0.2) : Color.clear)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .inspectorListRow(isSelected: object.id == selectedID)
         .contextMenu {
             Button(role: .destructive) {
                 onDelete?(object.id)
@@ -120,120 +102,78 @@ struct PanelObjectsInspector: View {
 
     // MARK: - Properties
 
-    private var propertiesSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Properties")
-                .font(.system(size: 13, weight: .bold))
-
-            if let object = elements.first(where: { $0.id == selectedID }) {
-
-                positionRow(title: "X", value: object.position.x, property: .x, id: object.id)
-                positionRow(title: "Y", value: object.position.y, property: .y, id: object.id)
-                scaleRow(title: "Width", value: object.width, id: object.id)
-                heightRow(title: "Height", value: object.height, id: object.id)
-                rotationRow(value: object.rotationDegrees, id: object.id)
+    private func propertiesSection(for object: D2_Object) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            InspectorSection(title: "Position") {
+                valueRow("X", value: object.position.x, unit: "mm") {
+                    onValueChanged?(object.id, .x, $0)
+                } trailing: {
+                    SmallButton("−1") { onNudge?(object.id, .x, -1) }
+                    SmallButton("+1") { onNudge?(object.id, .x, 1) }
+                }
+                valueRow("Y", value: object.position.y, unit: "mm") {
+                    onValueChanged?(object.id, .y, $0)
+                } trailing: {
+                    SmallButton("−1") { onNudge?(object.id, .y, -1) }
+                    SmallButton("+1") { onNudge?(object.id, .y, 1) }
+                }
+                valueRow("Rotation", value: object.rotationDegrees, unit: "°") {
+                    onValueChanged?(object.id, .rotation, $0)
+                } trailing: {
+                    // Preserving the original canvas rotation direction.
+                    SmallButton("−90°") { onRotate?(object.id, 90) }
+                    SmallButton("+90°") { onRotate?(object.id, -90) }
+                }
+            }
+            InspectorSection(title: "Size") {
+                valueRow("Width", value: object.width, unit: "mm") {
+                    onValueChanged?(object.id, .width, $0)
+                } trailing: {
+                    SmallButton("÷2") { onScale?(object.id, -2) }
+                    SmallButton("×2") { onScale?(object.id, 2) }
+                }
+                // Height follows the width, so it is shown but can't be edited on its own.
+                InspectorRow(label: "Height") {
+                    HStack(spacing: 6) {
+                        Text(NumberField2.format(object.height))
+                            .font(.system(size: 12))
+                        Text("mm")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        Image(systemName: "lock")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .inspectorField()
+                }
             }
         }
     }
 
-    // MARK: - Position
+    /// A labelled number field with its unit inside, and a few small buttons after it.
+    private func valueRow<Trailing: View>(_ title: String,
+                                          value: CGFloat,
+                                          unit: String,
+                                          onCommit: @escaping (CGFloat) -> Void,
+                                          @ViewBuilder trailing: () -> Trailing) -> some View {
+        InspectorRow(label: title) {
+            HStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    NumberField2(value: value, onCommit: onCommit)
+                    Text(unit)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .inspectorField()
 
-    private func positionRow(title: String, value: CGFloat, property: ObjectProperty, id: UUID) -> some View {
-        HStack(spacing: 4) {
-            rowLabel(title)
-
-            NumberField2(value: value) { newValue in
-                onValueChanged?(id, property, newValue)
-            }
-            .frame(width: 70)
-
-            Text("mm")
-                .foregroundStyle(.secondary)
-                .frame(width: 30, alignment: .leading)
-
-            SmallButton("−1") {
-                onNudge?(id, property, -1)
-            }
-            SmallButton("+1") {
-                onNudge?(id, property, 1)
+                trailing()
             }
         }
-    }
-
-    // MARK: - Width
-
-    private func scaleRow(title: String, value: CGFloat, id: UUID) -> some View {
-        HStack(spacing: 4) {
-            rowLabel(title)
-
-            NumberField2(value: value) { newValue in
-                onValueChanged?(id, .width, newValue)
-            }
-            .frame(width: 70)
-
-            Text("mm")
-                .foregroundStyle(.secondary)
-                .frame(width: 30, alignment: .leading)
-
-            SmallButton("÷2") {
-                onScale?(id, -2)
-            }
-            SmallButton("×2") {
-                onScale?(id, 2)
-            }
-        }
-    }
-
-    // MARK: - Height
-
-    private func heightRow(title: String, value: CGFloat, id: UUID) -> some View {
-        HStack(spacing: 4) {
-            rowLabel(title)
-
-            NumberField2(value: value) { newValue in
-                onValueChanged?(id, .height, newValue)
-            }
-            .frame(width: 70)
-
-            Text("mm")
-                .foregroundStyle(.secondary)
-                .frame(width: 30, alignment: .leading)
-
-            Text("🔒")
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    // MARK: - Rotation
-
-    private func rotationRow(value: CGFloat, id: UUID) -> some View {
-        HStack(spacing: 4) {
-            rowLabel("Rotation")
-
-            NumberField2(value: value) { newValue in
-                onValueChanged?(id, .rotation, newValue)
-            }
-            .frame(width: 70)
-            SmallButton("−90°") {
-                // Preserving your original canvas rotation direction.
-                onRotate?(id, 90)
-            }
-            SmallButton("+90°") {
-                // Preserving your original canvas rotation direction.
-                onRotate?(id, -90)
-            }
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func rowLabel(_ title: String) -> some View {
-        Text(title)
-            .frame(width: 70, alignment: .trailing)
     }
 }
 
-private struct NumberField2: View {
+struct NumberField2: View {
     let value: CGFloat
     let onCommit: (CGFloat) -> Void
 
@@ -250,7 +190,8 @@ private struct NumberField2: View {
 
     var body: some View {
         TextField("", text: $text)
-            .textFieldStyle(.roundedBorder)
+            .textFieldStyle(.plain)
+            .font(.system(size: 12))
             .onSubmit {
                 commit()
             }
@@ -270,7 +211,7 @@ private struct NumberField2: View {
         text = Self.format(newValue)
     }
 
-    private static func format(_ value: CGFloat) -> String {
+    static func format(_ value: CGFloat) -> String {
         if value.truncatingRemainder(dividingBy: 1) == 0 {
             return String(format: "%.0f", locale: Locale(identifier: "en_US_POSIX"), Double(value))
         }
@@ -301,5 +242,6 @@ private struct SmallButton: View {
     var body: some View {
         Button(title, action: action)
             .controlSize(.small)
+            .font(.system(size: 11))
     }
 }
