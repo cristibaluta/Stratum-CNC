@@ -115,9 +115,6 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowOperation: some View {
         OperationPicker(kind: operationKindBinding)
-        if !hint.isEmpty {
-            InspectorNote(text: hint)
-        }
     }
 
     /// Changing the operation also renames the toolpath to match -- "Contour 1",
@@ -156,18 +153,6 @@ struct PanelToolpathDetails: View {
     /// library defines it for the operation's current values.
     private var requirements: SC.OperationRequirements {
         toolpath.machiningOperation.requirements
-    }
-
-    private var hint: String {
-        if toolpath.operation.kind == .slotting {
-            switch toolpath.operation.slotSource {
-            case .outline:
-                return "Select the slot's outline: a closed, straight-sided rectangle exactly as wide as the tool."
-            case .centerline:
-                return "Select the line the tool centre follows; the slot is as wide as the tool."
-            }
-        }
-        return toolpath.operation.kind.selectionHint ?? ""
     }
 
     @ViewBuilder

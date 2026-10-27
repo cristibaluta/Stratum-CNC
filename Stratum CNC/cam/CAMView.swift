@@ -100,7 +100,7 @@ struct CAMView: View {
                                                return await appModel.pickStockMaterial()
                                            })
                             .background(.background)// Without a background the canvas is displayed above the GroupBox background
-                            .frame(width: 280)
+                            .frame(width: 320)
                         // Only while a toolpath is selected in the list
                         if let toolpath = selectedToolpath {
                             toolpathSettingsPanel(for: toolpath)

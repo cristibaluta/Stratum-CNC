@@ -62,6 +62,33 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
         }
     }
 
+    /// What the operation does and what to select for it, shown next to its title in the
+    /// picker.
+    var summary: String {
+        switch self {
+            case .contour:
+                return "Cuts along the edge of a shape, inside, outside or on the line. Select the contour to detach the part from the stock."
+            case .pocket:
+                return "Clears the material inside a closed shape. Select closed shapes."
+            case .facing:
+                return "Levels the top of the stock over the bounding box of the selection."
+            case .slotting:
+                return "Cuts a straight slot as wide as the tool. Select the slot outline or the line the tool centre follows."
+            case .engrave:
+                return "Follows lines and text at a shallow depth. Select lines or text."
+            case .drilling:
+                return "Drills straight down, with optional pecking. Select a point or circle, or any closed shape for its centre."
+            case .counterbore:
+                return "Widens the top of a hole to a set depth. Select a point or a closed circle."
+            case .boring:
+                return "Finishes a hole to an exact diameter. Select a point or a closed circle."
+            case .threadMilling:
+                return "Cuts a thread inside an existing hole. Select the hole. Needs a thread mill."
+            case .chamfer:
+                return "Bevels the selected edges. Needs a V-bit."
+        }
+    }
+
     /// What to select on the canvas for this operation.
     var selectionHint: String? {
         switch self {
