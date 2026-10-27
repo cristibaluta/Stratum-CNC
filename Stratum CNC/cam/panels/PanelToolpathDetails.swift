@@ -236,8 +236,10 @@ struct PanelToolpathDetails: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isGenerating)
-                .help("Build the toolpath for the selected shapes and preview it on the canvas")
+                .disabled(isGenerating || toolpath.leadInConflictsWithEntry)
+                .help(toolpath.leadInConflictsWithEntry
+                      ? "A lead-in can't be combined with a ramp or helix entry. Turn the entry off or remove the lead-in."
+                      : "Build the toolpath for the selected shapes and preview it on the canvas")
             }
         }
     }

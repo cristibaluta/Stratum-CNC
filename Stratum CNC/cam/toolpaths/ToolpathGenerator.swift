@@ -275,8 +275,9 @@ extension ToolpathGenerator {
     /// The toolpath's operation and options as StratumCAM's `SC.MachiningOperation`.
     ///
     /// Not offered: the slot patterns `.trochoidal`/`.adaptive` and `EntryStrategy.fromOpenEnd` (they only make
-    /// sense for slot outlines open at one or both ends, which the app doesn't derive yet), and
-    /// lead-in/out on contours. An engraving takes a plunge or a ramp but no helix
+    /// sense for slot outlines open at one or both ends, which the app doesn't derive yet).
+    /// A contour's lead-in can't be combined with a ramp or helix entry (see
+    /// `ToolpathData.leadInConflictsWithEntry`). An engraving takes a plunge or a ramp but no helix
     /// (see `SC.MachiningOperation.requirements`).
     ///
     /// Internal (unlike the rest of this extension) because `ToolpathData.machiningOperation`
@@ -292,8 +293,8 @@ extension ToolpathGenerator {
                 return .contour(side: toolpath.contour,
                                 direction: direction,
                                 entry: entry,
-                                leadIn: nil,
-                                leadOut: nil,
+                                leadIn: options.contourLeadIn?.libraryLeadInOut,
+                                leadOut: options.contourLeadOut?.libraryLeadInOut,
                                 tabs: options.contourTabs.map { $0.libraryTab })
 
             case .pocket:

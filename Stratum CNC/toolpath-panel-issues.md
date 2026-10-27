@@ -46,7 +46,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Problem:** the engine and form support tabs, but `ToolpathData` doesn't store them. Without tabs, a cut-out part ends up loose.
 - **Fix:** add a tabs array to `OperationSettings` (Codable, optional key), write it back in `apply`, pass it in `makeOperation`, unhide `contour.tabs`.
 
-### [ ] #5: Contour lead-in / lead-out (priority: medium)
+### [x] #5: Contour lead-in / lead-out (priority: medium)
 - **Where:** `hiddenFieldIDs` (`contour.leadIn`, `contour.leadOut`), `makeOperation` (passes `nil`).
 - **Problem:** same as #4, not stored.
 - **Fix:**

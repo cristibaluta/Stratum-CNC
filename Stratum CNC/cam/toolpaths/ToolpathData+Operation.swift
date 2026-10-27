@@ -12,7 +12,7 @@
 //  offer it:
 //   - the entry strategy: it lives in `ToolpathData.ramping`, edited by the ramping editor
 //   - contour holding tabs: edited in `HoldingTabsEditor` straight on `OperationSettings.contourTabs`
-//   - contour lead-in / lead-out, and the slot clearing pattern: not stored yet
+//   - the slot clearing pattern: not stored yet
 //
 
 import Foundation
@@ -49,8 +49,10 @@ extension ToolpathData {
             case .engrave:
                 break
 
-            case .contour(let side, _, _, _, _, _):
+            case .contour(let side, _, _, let leadIn, let leadOut, _):
                 contour = side
+                operation.contourLeadIn = leadIn.map(LeadInOutSettings.init)
+                operation.contourLeadOut = leadOut.map(LeadInOutSettings.init)
 
             case .pocket(_, let pattern, _):
                 switch pattern {

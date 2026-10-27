@@ -29,6 +29,11 @@ struct OperationSettings: Codable, Hashable {
     // Contour
     /// Holding tabs left in the cut, in the order the form lists them.
     var contourTabs: [HoldingTabSettings] = []
+    /// The approach before the cut and the move off it afterwards. `nil` = none (the tool
+    /// goes straight in / out). A lead-in can't be combined with a ramp or helix entry,
+    /// see `ToolpathData.leadInConflictsWithEntry`.
+    var contourLeadIn: LeadInOutSettings? = nil
+    var contourLeadOut: LeadInOutSettings? = nil
 
     // Facing
     /// How far the passes run past the selection's bounding box, mm.
@@ -71,7 +76,7 @@ struct OperationSettings: Codable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case kind, direction
         case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoad
-        case contourTabs
+        case contourTabs, contourLeadIn, contourLeadOut
         case facingExtension
         case slotSource, slotDepthPerPass
         case chamferWidth, chamferUsesDepth, chamferDepth, chamferSide
@@ -98,6 +103,8 @@ extension OperationSettings {
         pocketTrochoidalPitch = try c.decodeIfPresent(Double.self, forKey: .pocketTrochoidalPitch) ?? d.pocketTrochoidalPitch
         pocketAdaptiveLoad = try c.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoad) ?? d.pocketAdaptiveLoad
         contourTabs = try c.decodeIfPresent([HoldingTabSettings].self, forKey: .contourTabs) ?? d.contourTabs
+        contourLeadIn = try c.decodeIfPresent(LeadInOutSettings.self, forKey: .contourLeadIn) ?? d.contourLeadIn
+        contourLeadOut = try c.decodeIfPresent(LeadInOutSettings.self, forKey: .contourLeadOut) ?? d.contourLeadOut
         facingExtension = try c.decodeIfPresent(Double.self, forKey: .facingExtension) ?? d.facingExtension
         slotSource = try c.decodeIfPresent(SlotSource.self, forKey: .slotSource) ?? d.slotSource
         chamferWidth = try c.decodeIfPresent(Double.self, forKey: .chamferWidth) ?? d.chamferWidth
@@ -118,6 +125,45 @@ extension OperationSettings {
         threadHandedness = try c.decodeIfPresent(ThreadHandedness.self, forKey: .threadHandedness) ?? d.threadHandedness
         threadRadialPasses = try c.decodeIfPresent(Int.self, forKey: .threadRadialPasses) ?? d.threadRadialPasses
         threadTargetDiameter = try c.decodeIfPresent(Double.self, forKey: .threadTargetDiameter) ?? d.threadTargetDiameter
+    }
+}
+
+/// A contour's lead-in or lead-out: the app's own Codable copy of `SC.LeadInOut`.
+struct LeadInOutSettings: Codable, Hashable {
+
+    enum Style: Codable, Hashable {
+        /// A straight run, mm.
+        case linear(length: Double)
+        /// A quarter-circle-like arc: radius in mm, sweep in degrees.
+        case arc(radius: Double, sweepAngleDegrees: Double)
+    }
+
+    var style: Style
+    /// mm/min.
+    var feedRate: Double
+
+    init(style: Style, feedRate: Double) {
+        self.style = style
+        self.feedRate = feedRate
+    }
+
+    init(_ leadInOut: SC.LeadInOut) {
+        switch leadInOut.style {
+            case .linear(let length):
+                style = .linear(length: length)
+            case .arc(let radius, let sweep):
+                style = .arc(radius: radius, sweepAngleDegrees: sweep)
+        }
+        feedRate = leadInOut.feedRate
+    }
+
+    var libraryLeadInOut: SC.LeadInOut {
+        switch style {
+            case .linear(let length):
+                return SC.LeadInOut(style: .linear(length: length), feedRate: feedRate)
+            case .arc(let radius, let sweep):
+                return SC.LeadInOut(style: .arc(radius: radius, sweepAngleDegrees: sweep), feedRate: feedRate)
+        }
     }
 }
 

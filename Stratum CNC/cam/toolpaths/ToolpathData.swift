@@ -84,6 +84,16 @@ extension ToolpathData {
         Double(tool.toolDiameter) * stepOverFraction
     }
 
+    /// A contour with a lead-in whose entry is a ramp or helix: the library refuses that
+    /// (the entry already eases the tool in), so the panel flags it and holds back Preview.
+    /// Mirrors `ToolpathGenerator.makeEntry`: only an enabled, non-"None" ramp counts.
+    var leadInConflictsWithEntry: Bool {
+        operation.kind == .contour
+            && operation.contourLeadIn != nil
+            && ramping.enabled
+            && ramping.type != .none
+    }
+
     /// Keys of older projects, which stored the stepover in mm.
     private enum LegacyCodingKeys: String, CodingKey {
         case stepOver

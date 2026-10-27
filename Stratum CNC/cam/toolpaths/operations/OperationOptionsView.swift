@@ -53,6 +53,12 @@ struct OperationOptionsView: View {
                                 hiddenFieldIDs: kind.hiddenFieldIDs,
                                 hiddenCaseIDs: OperationKind.hiddenCaseIDs)
 
+            // The library refuses a lead-in together with a ramp or helix entry; say so here
+            // (Preview is held back too, see `PanelToolpathDetails`) instead of failing there.
+            if toolpath.leadInConflictsWithEntry {
+                leadInConflictNote
+            }
+
             // Holding tabs: a summary row that opens the editor in a popover.
             if kind == .contour {
                 HoldingTabsButton(tabs: toolpath.operation.contourTabs) {
@@ -86,6 +92,26 @@ struct OperationOptionsView: View {
         // operation (a helix, say) may be one this operation can't use.
         .onAppear { normalizeRampType() }
         .onChange(of: kind) { _, _ in normalizeRampType() }
+    }
+
+    private var leadInConflictNote: some View {
+        HStack(alignment: .top, spacing: Inspector.columnSpacing) {
+            Color.clear
+                .frame(width: Inspector.labelWidth, height: 0)
+            VStack(alignment: .leading, spacing: 6) {
+                Label("A lead-in can't be combined with a ramp or helix entry: the entry already eases the tool in. Turn the entry off or remove the lead-in.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Turn entry off") {
+                    toolpath.ramping.enabled = false
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     /// Stepover, typed as a percentage of the tool diameter; what that comes to in mm is
@@ -219,10 +245,10 @@ private extension OperationKind {
     var hiddenFieldIDs: Set<String> {
         switch self {
         case .contour:
-            // The side gets its own dedicated `ContourPicker` row above; lead-in/out
-            // isn't stored on the toolpath yet. Holding tabs have their own row and popover
-            // (`HoldingTabsEditor`) on `OperationSettings.contourTabs`.
-            return ["entry", "contour.side", "contour.leadIn", "contour.leadOut", "contour.tabs"]
+            // The side gets its own dedicated `ContourPicker` row above. Lead-in/out come from
+            // the generic form (stored on `OperationSettings.contourLeadIn/Out`). Holding tabs
+            // have their own row and popover (`HoldingTabsEditor`) on `OperationSettings.contourTabs`.
+            return ["entry", "contour.side", "contour.tabs"]
         case .pocket:
             // The clearing pattern gets its own dedicated row (`patternRow`) with icon
             // glyphs, so the generic text-only field is hidden entirely, spiral direction
