@@ -160,35 +160,7 @@ struct PanelToolpathDetails: View {
         // Side, direction, entry, diameters… whatever SC.MachiningOperation.formFields
         // defines for the chosen operation
         OperationOptionsView(toolpath: $toolpath)
-        if requirements.usesStepover {
-            // Typed as a percentage of the tool diameter; what that comes to in mm is
-            // spelled out underneath, since that's what the machine actually steps.
-            InspectorNumberField(title: "Stepover",
-                                 value: editedBinding(stepOverPercent, .stepOver),
-                                 suffix: "% of Ø")
-            InspectorNote(text: stepOverNote)
-        }
-    }
-
-    private var toolDiameter: Double {
-        Double(toolpath.tool.toolDiameter)
-    }
-
-    /// The stepover field, bound straight to the stored percentage of the tool diameter.
-    /// The only clamp (10-95 %, what the generator accepts) is `ToolpathData.stepOverRange`.
-    private var stepOverPercent: Binding<Double> {
-        Binding(
-            get: { toolpath.stepOverPercent },
-            set: { toolpath.stepOverPercent = ToolpathData.clampedStepOver($0) }
-        )
-    }
-
-    /// The same stepover in mm, shown under the field.
-    private var stepOverNote: String {
-        guard toolDiameter > 0 else {
-            return "Pick a tool to see the stepover in mm."
-        }
-        return String(format: "= %.2f mm between passes (tool Ø%.2f mm)", toolpath.stepOverMM, toolDiameter)
+        // Stepover is part of OperationOptionsView, so it sits next to the clearing pattern.
     }
 
     @ViewBuilder

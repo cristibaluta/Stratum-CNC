@@ -12,7 +12,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 
 ## A. Stepover
 
-### [ ] #1: Store stepover as % of diameter, not mm (priority: high)
+### [x] #1: Store stepover as % of diameter, not mm (priority: high)
 - **Where:** `ToolpathData.stepOver`, `PanelToolpathDetails.stepOverPercent`, `OperationDefaults.applyDefaults`, `ToolpathGenerator.makeSettings`, `ToolpathGenerator.logJobSummary`.
 - **Problem:** `stepOver` is stored in mm. The panel converts to and from % on every read and write (`stepOverPercent` binding, clamped 10–95). Side effects:
   - Changing the tool changes the effective percentage, because the mm value stays fixed.
@@ -27,7 +27,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
   - **Migration:** `init(from:)` must read the legacy mm `stepOver` key and convert it with the saved tool's diameter, so old projects keep working.
 - **Check afterwards:** switching tool keeps the percentage, and the mm note updates.
 
-### [ ] #2: Stepover sits after Entry in Pocket (priority: medium)
+### [x] #2: Stepover sits after Entry in Pocket (priority: medium)
 - **Where:** `PanelToolpathDetails.rowOperationOptions`.
 - **Problem:** the order is Direction → Pattern → Entry → Ramp angle → Ramp feed → Stepover. Stepover is about clearing, so it belongs next to the pattern.
 - **Fix:** render Stepover directly under the pattern (and its detail row), before Entry. Same for Counterbore.

@@ -58,6 +58,12 @@ struct OperationOptionsView: View {
                 patternRow
             }
 
+            // Stepover is about how the area is cleared, so it follows the pattern (or the
+            // generic fields when there is none) and comes before the entry.
+            if requirements.usesStepover {
+                stepOverRow
+            }
+
             // The entry strategy keeps its dedicated editor (angle/length preview, helix
             // diagram), but whether an operation has one is up to the library.
             if requirements.usesEntry {
@@ -68,6 +74,37 @@ struct OperationOptionsView: View {
         // operation (a helix, say) may be one this operation can't use.
         .onAppear { normalizeRampType() }
         .onChange(of: kind) { _, _ in normalizeRampType() }
+    }
+
+    /// Stepover, typed as a percentage of the tool diameter; what that comes to in mm is
+    /// spelled out underneath, since that's what the machine actually steps.
+    /// The only clamp is `ToolpathData.stepOverRange`.
+    @ViewBuilder
+    private var stepOverRow: some View {
+        InspectorNumberField(title: "Stepover", value: stepOverPercent, suffix: "% of Ø")
+        InspectorNote(text: stepOverNote)
+    }
+
+    private var stepOverPercent: Binding<Double> {
+        Binding(
+            get: { toolpath.stepOverPercent },
+            set: { newValue in
+                let clamped = ToolpathData.clampedStepOver(newValue)
+                guard clamped != toolpath.stepOverPercent else {
+                    return
+                }
+                toolpath.stepOverPercent = clamped
+                toolpath.markEdited(.stepOver)
+            }
+        )
+    }
+
+    private var stepOverNote: String {
+        let diameter = Double(toolpath.tool.toolDiameter)
+        guard diameter > 0 else {
+            return "Pick a tool to see the stepover in mm."
+        }
+        return String(format: "= %.2f mm between passes (tool Ø%.2f mm)", toolpath.stepOverMM, diameter)
     }
 
     /// The ramp types the operation accepts, taken from the entry strategies the library
