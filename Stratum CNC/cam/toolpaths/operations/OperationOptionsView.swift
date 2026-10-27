@@ -190,10 +190,6 @@ struct OperationOptionsView: View {
         if toolpath.ramping.type != .none {
             InspectorNumberField(title: "Ramp angle", value: $toolpath.ramping.angle, suffix: "°")
         }
-        InspectorNumberField(title: "Ramp feed", value: $toolpath.plungeRate, suffix: "mm/min")
-            .help(toolpath.ramping.enabled && toolpath.ramping.type != .none
-                  ? "Feed rate along the ramp entry."
-                  : "No ramping selected — used as the plunge feed rate.")
     }
 
     private var rampingButton: some View {

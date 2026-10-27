@@ -93,7 +93,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 
 ## D. Grouping and layout
 
-### [ ] #13: Plunge feed is unreachable for Drill, Bore, Thread mill, Chamfer **(verify)** (priority: high)
+### [x] #13: Plunge feed is unreachable for Drill, Bore, Thread mill, Chamfer **(verify)** (priority: high)
 - **Where:** `OperationOptionsView.rampingRow`. `plungeRate` is only edited here, and this row only shows when `requirements.usesEntry`.
 - **Problem:** operations without an entry strategy can't edit the plunge feed. If the engine uses it for drilling, that's a real gap.
 - **Fix:** see #14. With the plunge feed in the Tool section it is always available.

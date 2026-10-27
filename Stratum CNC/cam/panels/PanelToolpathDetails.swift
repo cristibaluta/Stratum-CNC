@@ -68,7 +68,7 @@ struct PanelToolpathDetails: View {
                     rowOperation
                     rowOperationOptions
                 }
-                InspectorSection(title: "Tool") {
+                InspectorSection(title: "Tool & feeds") {
                     rowTool
                 }
                 InspectorSection(title: "Depth") {
@@ -174,6 +174,11 @@ struct PanelToolpathDetails: View {
         }
         InspectorIntField(title: "Spindle", value: $toolpath.spindleRPM, suffix: "rpm")
         InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
+        // Always available, also for operations without an entry strategy (drill, bore…)
+        InspectorNumberField(title: "Plunge feed", value: $toolpath.plungeRate, suffix: "mm/min")
+            .help(toolpath.ramping.enabled && toolpath.ramping.type != .none
+                  ? "Feed rate going down into the material, also along the ramp or helix entry."
+                  : "Feed rate going down into the material.")
     }
 
     /// Fills spindle speed, feeds, stepdown and ramp angle from the picked tool's
