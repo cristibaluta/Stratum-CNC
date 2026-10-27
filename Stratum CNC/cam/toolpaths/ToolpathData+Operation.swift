@@ -72,7 +72,11 @@ extension ToolpathData {
                         operation.pocketSpiral = spiralDirection == .insideOut ? .insideOut : .outsideIn
                     case .adaptive(let settings):
                         operation.pocketPattern = .adaptive
-                        operation.pocketAdaptiveLoad = settings.optimalLoad
+                        // The library speaks mm; the app keeps a percentage of the tool diameter.
+                        let diameter = Double(tool.toolDiameter)
+                        if diameter > 0 {
+                            operation.pocketAdaptiveLoadPercent = Self.clampedAdaptiveLoad(settings.optimalLoad / diameter * 100)
+                        }
                 }
 
             case .drilling(let peckDepth):

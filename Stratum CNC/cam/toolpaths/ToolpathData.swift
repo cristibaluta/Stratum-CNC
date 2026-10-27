@@ -74,6 +74,28 @@ extension ToolpathData {
         min(max(percent, stepOverRange.lowerBound), stepOverRange.upperBound)
     }
 
+    /// Trochoidal loop pitch, % of the tool radius: what the library accepts (see
+    /// `ToolpathGenerator.parameterMessage`).
+    static let trochoidalPitchRange: ClosedRange<Double> = 5...100
+
+    static func clampedTrochoidalPitch(_ percent: Double) -> Double {
+        min(max(percent, trochoidalPitchRange.lowerBound), trochoidalPitchRange.upperBound)
+    }
+
+    /// Adaptive optimal load, % of the tool diameter: the library wants more than 0 and at
+    /// most 95 %.
+    static let adaptiveLoadRange: ClosedRange<Double> = 1...95
+
+    static func clampedAdaptiveLoad(_ percent: Double) -> Double {
+        min(max(percent, adaptiveLoadRange.lowerBound), adaptiveLoadRange.upperBound)
+    }
+
+    /// The adaptive load in mm for the current tool, which is what the library takes. Also the
+    /// read-out in the panel.
+    var adaptiveLoadMM: Double {
+        Double(tool.toolDiameter) * operation.pocketAdaptiveLoadPercent / 100
+    }
+
     /// The stepover as a fraction of the tool diameter, which is what the library takes.
     var stepOverFraction: Double {
         stepOverPercent / 100
@@ -135,6 +157,15 @@ extension ToolpathData {
 
         // Projects saved before operations existed were all contours.
         operation = try c.decodeIfPresent(OperationSettings.self, forKey: .operation) ?? OperationSettings()
+
+        // Projects saved when the adaptive load was in mm: convert it like the stepover above.
+        if let mm = operation.legacyAdaptiveLoadMM {
+            let diameter = Double(tool.toolDiameter)
+            if diameter > 0 {
+                operation.pocketAdaptiveLoadPercent = Self.clampedAdaptiveLoad(mm / diameter * 100)
+            }
+            operation.legacyAdaptiveLoadMM = nil
+        }
 
         // Absent on projects saved before defaults existed: nothing counts as edited, so those
         // projects' values are only replaced if the operation is changed.

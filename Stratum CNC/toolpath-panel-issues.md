@@ -59,7 +59,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Problem:** pockets and contours usually want a roughing pass with an allowance, then a finishing pass.
 - **Fix:** needs engine support first. Then add an allowance field (and a finishing-pass toggle) to the general fields.
 
-### [ ] #7: "Through stock" depth helper for hole operations (priority: low)
+### [x] #7: "Through stock" depth helper for hole operations (priority: low)
 - **Where:** Depth section, for Drill / Bore / Thread mill (default End Z is fixed at -3).
 - **Fix:** a button or toggle that sets End Z from the stock thickness in `PanelStockMaterial`.
 
@@ -67,12 +67,12 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 
 ## C. Field behaviour and validation
 
-### [ ] #8: Pocket loop pitch and optimal load aren't clamped (priority: medium)
+### [x] #8: Pocket loop pitch and optimal load aren't clamped (priority: medium)
 - **Where:** `OperationOptionsView.patternDetail`.
 - **Problem:** these are plain `InspectorNumberField`s. The generic fields clamp to the library range, so these are inconsistent. Errors only appear at Preview (trochoidal 5–100 %, adaptive > 0 and ≤ 95 % of Ø).
 - **Fix:** clamp to the engine's accepted ranges.
 
-### [ ] #9: Adaptive "Optimal load" unit mismatch (priority: medium)
+### [x] #9: Adaptive "Optimal load" unit mismatch (priority: medium)
 - **Where:** `patternDetail` (unit `mm`) vs `ToolpathGenerator.parameterMessage` ("at most 95 % of the tool diameter").
 - **Problem:** the field is in mm, the error talks in %. A 3 mm tool with a 3 mm load fails.
 - **Fix:** edit it as % of tool diameter, like stepover (#1), with an mm read-out. This also unifies the radial-engagement units (stepover % of Ø, loop pitch % of radius, optimal load mm).

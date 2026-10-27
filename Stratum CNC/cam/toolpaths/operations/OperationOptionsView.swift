@@ -216,6 +216,29 @@ struct OperationOptionsView: View {
         patternDetail
     }
 
+    /// Clamped to what the library accepts, like the stepover, instead of failing at Preview.
+    private var trochoidalPitch: Binding<Double> {
+        Binding(
+            get: { toolpath.operation.pocketTrochoidalPitch },
+            set: { toolpath.operation.pocketTrochoidalPitch = ToolpathData.clampedTrochoidalPitch($0) }
+        )
+    }
+
+    private var adaptiveLoad: Binding<Double> {
+        Binding(
+            get: { toolpath.operation.pocketAdaptiveLoadPercent },
+            set: { toolpath.operation.pocketAdaptiveLoadPercent = ToolpathData.clampedAdaptiveLoad($0) }
+        )
+    }
+
+    private var adaptiveLoadNote: String {
+        let diameter = Double(toolpath.tool.toolDiameter)
+        guard diameter > 0 else {
+            return "Pick a tool to see the load in mm."
+        }
+        return String(format: "= %.2f mm radial engagement (tool Ø%.2f mm)", toolpath.adaptiveLoadMM, diameter)
+    }
+
     /// The one extra control a pattern needs, if any -- which way a spiral winds in,
     /// how tightly a trochoidal loop steps forward, or how much of the tool an adaptive
     /// pass is allowed to bury in the material. These are only stored on
@@ -226,10 +249,12 @@ struct OperationOptionsView: View {
             case .spiral, .concentric:
                 EnumMenuPicker(title: "Spiral direction", selection: $toolpath.operation.pocketSpiral)
             case .trochoidal:
-                InspectorNumberField(title: "Loop pitch", value: $toolpath.operation.pocketTrochoidalPitch, suffix: "% radius")
+                InspectorNumberField(title: "Loop pitch", value: trochoidalPitch, suffix: "% radius")
+                    .help("How far each loop steps forward, 5–100 % of the tool radius.")
             case .adaptive:
-                InspectorNumberField(title: "Optimal load", value: $toolpath.operation.pocketAdaptiveLoad, suffix: "mm")
+                InspectorNumberField(title: "Optimal load", value: adaptiveLoad, suffix: "% of Ø")
                     .help("Radial engagement the tool is kept at while clearing. Smaller values mean lighter cuts and more passes.")
+                InspectorNote(text: adaptiveLoadNote)
             case .offset, .raster:
                 EmptyView()
         }

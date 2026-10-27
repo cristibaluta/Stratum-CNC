@@ -23,8 +23,12 @@ struct OperationSettings: Codable, Hashable {
     var pocketSpiral: SpiralOrder = .outsideIn// TODO: reuse model from stratum cam
     /// Trochoidal forward pitch per loop, as a percentage of the tool radius.
     var pocketTrochoidalPitch: Double = 50
-    /// Adaptive clearing: the radial engagement the tool is kept at, in mm.
-    var pocketAdaptiveLoad: Double = 1
+    /// Adaptive clearing: the radial engagement the tool is kept at, as a percentage of the
+    /// tool diameter (like the stepover). The library takes mm: see `ToolpathData.adaptiveLoadMM`.
+    var pocketAdaptiveLoadPercent: Double = 25
+    /// Only set while decoding a project saved when the load was in mm; `ToolpathData` converts
+    /// it with the saved tool's diameter and clears it. Never encoded.
+    var legacyAdaptiveLoadMM: Double? = nil
 
     // Contour
     /// Holding tabs left in the cut, in the order the form lists them.
@@ -73,9 +77,14 @@ struct OperationSettings: Codable, Hashable {
     var threadIsInternal: Bool = true
     var threadHandedness: ThreadHandedness = .rightHand
 
+    /// Keys of older projects.
+    private enum LegacyCodingKeys: String, CodingKey {
+        case pocketAdaptiveLoad
+    }
+
     private enum CodingKeys: String, CodingKey {
         case kind, direction
-        case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoad
+        case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoadPercent
         case contourTabs, contourLeadIn, contourLeadOut
         case facingExtension
         case slotSource, slotDepthPerPass
@@ -101,7 +110,13 @@ extension OperationSettings {
         pocketPattern = try c.decodeIfPresent(PocketPattern.self, forKey: .pocketPattern) ?? d.pocketPattern
         pocketSpiral = try c.decodeIfPresent(SpiralOrder.self, forKey: .pocketSpiral) ?? d.pocketSpiral
         pocketTrochoidalPitch = try c.decodeIfPresent(Double.self, forKey: .pocketTrochoidalPitch) ?? d.pocketTrochoidalPitch
-        pocketAdaptiveLoad = try c.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoad) ?? d.pocketAdaptiveLoad
+        if let percent = try c.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoadPercent) {
+            pocketAdaptiveLoadPercent = percent
+        } else {
+            // Projects saved when the load was in mm
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            legacyAdaptiveLoadMM = try legacy.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoad)
+        }
         contourTabs = try c.decodeIfPresent([HoldingTabSettings].self, forKey: .contourTabs) ?? d.contourTabs
         contourLeadIn = try c.decodeIfPresent(LeadInOutSettings.self, forKey: .contourLeadIn) ?? d.contourLeadIn
         contourLeadOut = try c.decodeIfPresent(LeadInOutSettings.self, forKey: .contourLeadOut) ?? d.contourLeadOut

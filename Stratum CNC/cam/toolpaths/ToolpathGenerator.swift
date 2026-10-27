@@ -299,7 +299,7 @@ extension ToolpathGenerator {
 
             case .pocket:
                 return .pocket(direction: direction,
-                               pattern: makePocketPattern(from: options),
+                               pattern: makePocketPattern(from: options, toolDiameter: Double(toolpath.tool.toolDiameter)),
                                entry: entry)
 
             case .facing:
@@ -352,7 +352,7 @@ extension ToolpathGenerator {
         }
     }
 
-    static func makePocketPattern(from options: OperationSettings) -> SC.PocketClearingPattern {
+    static func makePocketPattern(from options: OperationSettings, toolDiameter: Double) -> SC.PocketClearingPattern {
         switch options.pocketPattern {
             case .offset:
                 return .offset
@@ -365,7 +365,8 @@ extension ToolpathGenerator {
                 return .trochoidal(settings: SC.TrochoidalSettings(radialEngagement: options.pocketTrochoidalPitch / 100,
                                                                    loopRadius: 0))
             case .adaptive:
-                return .adaptive(settings: SC.AdaptiveSettings(optimalLoad: options.pocketAdaptiveLoad))
+                // `optimalLoad` is in mm; the app stores a percentage of the tool diameter.
+                return .adaptive(settings: SC.AdaptiveSettings(optimalLoad: toolDiameter * options.pocketAdaptiveLoadPercent / 100))
             case .concentric:
                 return .concentric(direction: options.pocketSpiral == .outsideIn ? .outsideIn : .insideOut)
         }
