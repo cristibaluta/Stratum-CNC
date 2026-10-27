@@ -174,34 +174,21 @@ struct PanelToolpathDetails: View {
         Double(toolpath.tool.toolDiameter)
     }
 
-    /// The stepover as a percentage of the tool diameter. It is still stored in mm (that is
-    /// what saved projects and the generator use), so this converts both ways. The range
-    /// matches what the generator accepts (10-95 %), so the field never shows a value the
-    /// toolpath doesn't actually use.
+    /// The stepover field, bound straight to the stored percentage of the tool diameter.
+    /// The only clamp (10-95 %, what the generator accepts) is `ToolpathData.stepOverRange`.
     private var stepOverPercent: Binding<Double> {
         Binding(
-            get: {
-                let diameter = toolDiameter
-                return diameter > 0 ? toolpath.stepOver / diameter * 100 : 0
-            },
-            set: { percent in
-                let diameter = toolDiameter
-                guard diameter > 0 else {
-                    return
-                }
-                let clamped = min(max(percent, 10), 95)
-                toolpath.stepOver = (diameter * clamped / 100 * 10_000).rounded() / 10_000
-            }
+            get: { toolpath.stepOverPercent },
+            set: { toolpath.stepOverPercent = ToolpathData.clampedStepOver($0) }
         )
     }
 
     /// The same stepover in mm, shown under the field.
     private var stepOverNote: String {
-        let diameter = toolDiameter
-        guard diameter > 0 else {
+        guard toolDiameter > 0 else {
             return "Pick a tool to see the stepover in mm."
         }
-        return String(format: "= %.2f mm between passes (tool Ø%.2f mm)", toolpath.stepOver, diameter)
+        return String(format: "= %.2f mm between passes (tool Ø%.2f mm)", toolpath.stepOverMM, toolDiameter)
     }
 
     @ViewBuilder

@@ -31,7 +31,10 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     var spindleRPM: Int
 
     var stepDown: Double
-    var stepOver: Double
+    /// Width per pass as a percentage of the tool diameter (see `stepOverRange`). Always stored
+    /// and edited as a percentage, so changing the tool keeps it; the mm value is derived
+    /// (`stepOverMM`).
+    var stepOverPercent: Double
     var safeZ: Double
 
     /// The contours (paths on the canvas) this toolpath cuts. Empty until the
@@ -55,9 +58,35 @@ struct ToolpathData: Identifiable, Codable, Hashable {
         case startZ, endZ
         case contour, ramping
         case feedRate, plungeRate, spindleRPM
-        case stepDown, stepOver, safeZ
+        case stepDown, stepOverPercent, safeZ
         case targets
         case operation, editedFields
+    }
+}
+
+extension ToolpathData {
+
+    /// The only place the stepover limits live (% of tool diameter), matching what the
+    /// generator accepts.
+    static let stepOverRange: ClosedRange<Double> = 10...95
+
+    static func clampedStepOver(_ percent: Double) -> Double {
+        min(max(percent, stepOverRange.lowerBound), stepOverRange.upperBound)
+    }
+
+    /// The stepover as a fraction of the tool diameter, which is what the library takes.
+    var stepOverFraction: Double {
+        stepOverPercent / 100
+    }
+
+    /// Read-out only: the distance between passes in mm for the current tool.
+    var stepOverMM: Double {
+        Double(tool.toolDiameter) * stepOverFraction
+    }
+
+    /// Keys of older projects, which stored the stepover in mm.
+    private enum LegacyCodingKeys: String, CodingKey {
+        case stepOver
     }
 }
 
@@ -79,8 +108,18 @@ extension ToolpathData {
         plungeRate = try c.decode(Double.self, forKey: .plungeRate)
         spindleRPM = try c.decode(Int.self, forKey: .spindleRPM)
         stepDown = try c.decode(Double.self, forKey: .stepDown)
-        stepOver = try c.decode(Double.self, forKey: .stepOver)
         safeZ = try c.decode(Double.self, forKey: .safeZ)
+
+        // Projects saved before stepover became a percentage stored it in mm: convert it with
+        // the saved tool's diameter.
+        if let percent = try c.decodeIfPresent(Double.self, forKey: .stepOverPercent) {
+            stepOverPercent = Self.clampedStepOver(percent)
+        } else {
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            let mm = try legacy.decode(Double.self, forKey: .stepOver)
+            let diameter = Double(tool.toolDiameter)
+            stepOverPercent = Self.clampedStepOver(diameter > 0 ? mm / diameter * 100 : 40)
+        }
 
         targets = try c.decodeIfPresent([PathSelection].self, forKey: .targets) ?? []
 

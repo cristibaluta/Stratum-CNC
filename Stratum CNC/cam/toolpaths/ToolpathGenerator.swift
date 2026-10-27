@@ -137,16 +137,11 @@ enum ToolpathGenerator {
     /// The machine settings (feeds, speeds, depth, safe heights) for one toolpath. Used both when
     /// generating the toolpath and when turning its result into G-code, so the two always agree.
     static func makeSettings(from toolpath: ToolpathData) -> SC.MachineSettings {
-        let diameter = Double(toolpath.tool.toolDiameter)
-
-        // The app stores stepover in mm, the library as a fraction of the tool diameter.
-        let stepoverFraction = diameter > 0 ? min(max(toolpath.stepOver / diameter, 0.1), 0.95) : 0.4
-
         let cutting = SC.CuttingData(spindleSpeed: Double(toolpath.spindleRPM),
                                      feedRate: toolpath.feedRate,
                                      plungeRate: toolpath.plungeRate,
                                      stepdown: toolpath.stepDown,
-                                     stepoverPercentage: stepoverFraction)
+                                     stepoverPercentage: toolpath.stepOverFraction)
 
         // The library measures depth down from the top of the stock (Z0).
         // `startZ` is handled afterwards by `droppingPasses(above:from:)`.
@@ -441,7 +436,7 @@ extension ToolpathGenerator {
             ? "contour/\(toolpath.contour)"
             : "\(toolpath.operation.kind)"
         PerfLog.log("gen", "job '\(toolpath.name)': \(operation) · tool Ø\(toolpath.tool.toolDiameter) · "
-                    + "stepdown \(toolpath.stepDown) · stepover \(toolpath.stepOver) · Z \(toolpath.startZ)…\(toolpath.endZ) "
+                    + "stepdown \(toolpath.stepDown) · stepover \(toolpath.stepOverPercent)% (\(String(format: "%.2f", toolpath.stepOverMM)) mm) · Z \(toolpath.startZ)…\(toolpath.endZ) "
                     + "(≈\(expectedPasses) passes) · ramp: \(ramp)")
     }
 

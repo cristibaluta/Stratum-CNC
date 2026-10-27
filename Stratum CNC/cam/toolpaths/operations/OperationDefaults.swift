@@ -69,11 +69,8 @@ extension ToolpathData {
         if !editedFields.contains(.stepDown), let stepDown = defaults.stepDown {
             self.stepDown = stepDown
         }
-        if !editedFields.contains(.stepOver),
-           let fraction = defaults.stepOverFraction,
-           tool.toolDiameter > 0 {
-            // Rounded to 2 decimals, which is what the field shows.
-            stepOver = (tool.toolDiameter * fraction * 100).rounded() / 100
+        if !editedFields.contains(.stepOver), let fraction = defaults.stepOverFraction {
+            stepOverPercent = Self.clampedStepOver(fraction * 100)
         }
     }
 

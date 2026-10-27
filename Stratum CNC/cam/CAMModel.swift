@@ -255,7 +255,7 @@ class CAMModel: ObservableObject {
                                     plungeRate: 400,
                                     spindleRPM: 12000,
                                     stepDown: 0.1,
-                                    stepOver: 0.25,
+                                    stepOverPercent: 40,
                                     safeZ: 3)
         toolpath.applyDefaults(for: toolpath.operation.kind)
         return toolpath
