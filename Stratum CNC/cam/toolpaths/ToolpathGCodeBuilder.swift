@@ -72,7 +72,7 @@ enum ToolpathGCodeBuilder {
         var plan = Plan(totalCount: toolpaths.count)
 
         for toolpath in toolpaths {
-            guard !toolpath.targets.isEmpty else {
+            guard toolpath.hasGeometry else {
                 plan.skipped.append(Skipped(name: toolpath.name, reason: "no shapes selected."))
                 continue
             }

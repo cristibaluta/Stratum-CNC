@@ -32,6 +32,26 @@
 		6D244741308958F300A01698 /* StratumLink */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = StratumLink; path = ../StratumLink; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		562C4AC730913ACA002E3781 /* Exceptions for "Stratum CNC" folder in "Stratum CNC" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"stocks-lib/StockMaterial+Thickness.swift",
+			);
+			target = 56CEA04C30356265008167CA /* Stratum CNC */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		562C4AC830913ACA002E3781 /* Exceptions for "Stratum CNC" folder in "Copy Bundle Resources" phase from "Stratum CNC" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = 56CEA04B30356265008167CA /* Resources */;
+			membershipExceptions = (
+				"stocks-lib/StockMaterial+Thickness.swift",
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		560F76AB3052C5A40017EE04 /* Stratum CNC Tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -40,6 +60,10 @@
 		};
 		56CEA04F30356265008167CA /* Stratum CNC */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				562C4AC730913ACA002E3781 /* Exceptions for "Stratum CNC" folder in "Stratum CNC" target */,
+				562C4AC830913ACA002E3781 /* Exceptions for "Stratum CNC" folder in "Copy Bundle Resources" phase from "Stratum CNC" target */,
+			);
 			path = "Stratum CNC";
 			sourceTree = "<group>";
 		};

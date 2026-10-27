@@ -42,6 +42,9 @@ struct OperationSettings: Codable, Hashable {
     // Facing
     /// How far the passes run past the selection's bounding box, mm.
     var facingExtension: Double = 1
+    /// Face the whole stock instead of the bounding box of the selected shapes. The selected
+    /// shapes are kept (so switching back restores them) but ignored while this is on.
+    var facingWholeStock: Bool = false
 
     // Slot
     var slotSource: SlotSource = .outline
@@ -86,7 +89,7 @@ struct OperationSettings: Codable, Hashable {
         case kind, direction
         case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoadPercent
         case contourTabs, contourLeadIn, contourLeadOut
-        case facingExtension
+        case facingExtension, facingWholeStock
         case slotSource, slotDepthPerPass
         case chamferWidth, chamferUsesDepth, chamferDepth, chamferSide
         case drillUsesPecking, drillPeckDepth
@@ -121,6 +124,7 @@ extension OperationSettings {
         contourLeadIn = try c.decodeIfPresent(LeadInOutSettings.self, forKey: .contourLeadIn) ?? d.contourLeadIn
         contourLeadOut = try c.decodeIfPresent(LeadInOutSettings.self, forKey: .contourLeadOut) ?? d.contourLeadOut
         facingExtension = try c.decodeIfPresent(Double.self, forKey: .facingExtension) ?? d.facingExtension
+        facingWholeStock = try c.decodeIfPresent(Bool.self, forKey: .facingWholeStock) ?? d.facingWholeStock
         slotSource = try c.decodeIfPresent(SlotSource.self, forKey: .slotSource) ?? d.slotSource
         chamferWidth = try c.decodeIfPresent(Double.self, forKey: .chamferWidth) ?? d.chamferWidth
         chamferUsesDepth = try c.decodeIfPresent(Bool.self, forKey: .chamferUsesDepth) ?? d.chamferUsesDepth

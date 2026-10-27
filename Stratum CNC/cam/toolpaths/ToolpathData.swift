@@ -106,6 +106,16 @@ extension ToolpathData {
         Double(tool.toolDiameter) * stepOverFraction
     }
 
+    /// A facing toolpath set to cover the whole stock; the selected shapes are ignored.
+    var cutsWholeStock: Bool {
+        operation.kind == .facing && operation.facingWholeStock
+    }
+
+    /// Whether there is anything to cut: selected shapes, or the whole stock.
+    var hasGeometry: Bool {
+        !targets.isEmpty || cutsWholeStock
+    }
+
     /// How far the tool goes down from the top of the stock (or from Start Z when that is
     /// lower), mm. What a single full-depth pass would cut.
     var cutDepth: Double {

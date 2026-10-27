@@ -86,7 +86,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Problem:** if `usesStepdown` is false for facing, a deep facing cut is taken in one pass.
 - **Fix:** check `requirements`. If confirmed, either expose Stepdown or warn above a depth threshold.
 
-### [ ] #12: Facing can only target the selection's bounding box (priority: low)
+### [x] #12: Facing can only target the selection's bounding box (priority: low)
 - **Fix:** add a "Whole stock" option using the stock dimensions.
 
 ---

@@ -55,7 +55,7 @@ enum ToolpathGenerator {
     /// canvas state, so call it on the main thread; then hand the `Job` to `run`.
     static func prepare(for toolpath: ToolpathData, canvasState: D2_CanvasState) throws -> Job {
 
-        guard !toolpath.targets.isEmpty else {
+        guard toolpath.hasGeometry else {
             throw GenerationError.noShapes
         }
         try validateOptions(of: toolpath)
@@ -63,14 +63,22 @@ enum ToolpathGenerator {
         let operation = makeOperation(from: toolpath)
 
         var contours: [SC.Contour] = []
-        for target in toolpath.targets {
-            guard let object = canvasState.object(withID: target.objectID) else {
-                throw GenerationError.objectNotFound
+        if toolpath.cutsWholeStock {
+            // The selected shapes are ignored: the facing covers the stock's footprint.
+            guard let stock = canvasState.stock else {
+                throw GenerationError.invalidOption("There is no stock to face. Choose a material first.")
             }
-            guard object.paths.indices.contains(target.pathIndex) else {
-                throw GenerationError.shapeNotFound
+            contours = [stock.footprintContour]
+        } else {
+            for target in toolpath.targets {
+                guard let object = canvasState.object(withID: target.objectID) else {
+                    throw GenerationError.objectNotFound
+                }
+                guard object.paths.indices.contains(target.pathIndex) else {
+                    throw GenerationError.shapeNotFound
+                }
+                contours += object.machineContours(forPathAt: target.pathIndex)
             }
-            contours += object.machineContours(forPathAt: target.pathIndex)
         }
         guard !contours.isEmpty else {
             throw GenerationError.noGeometry

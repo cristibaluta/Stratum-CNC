@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import SwiftDXF
+import StratumCAM
 
 struct StockMaterial: Identifiable, Codable, Hashable {
     let id: UUID
@@ -78,5 +80,35 @@ extension StockMaterial {
             case .disk(_, _, let depth):
                 return depth
         }
+    }
+
+    /// The stock seen from above (X by Y, mm). Round stock is covered by its bounding square.
+    var footprintSize: (width: Double, height: Double) {
+        switch geometry {
+            case .rectangular(let width, let height, _):
+                return (width, height)
+            case .cylindrical(let diameter, _):
+                return (diameter, diameter)
+            case .disk(let outerDiameter, _, _):
+                return (outerDiameter, outerDiameter)
+        }
+    }
+
+    /// A closed rectangle around the stock's footprint, from the origin (0, 0) -- the bottom-left
+    /// corner of the stock in machine coordinates -- to (width, height). What a facing toolpath
+    /// set to "Whole stock" cuts instead of the selected shapes.
+    var footprintContour: SC.Contour {
+        let size = footprintSize
+        let corners = [(0.0, 0.0), (size.width, 0.0), (size.width, size.height), (0.0, size.height)]
+        let chain = corners.indices.compactMap { index -> SC.Contour.Chained? in
+            let start = corners[index]
+            let end = corners[(index + 1) % corners.count]
+            let line = SwiftDXF.DXF.Entity.line(a: SwiftDXF.DXF.Point(start.0, start.1),
+                                                b: SwiftDXF.DXF.Point(end.0, end.1),
+                                                layer: "0",
+                                                color: 0)
+            return SC.Geometry(dxf: line).map { SC.Contour.Chained(geometry: $0, reversed: false) }
+        }
+        return SC.Contour(entities: chain, isClosed: true)
     }
 }

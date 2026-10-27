@@ -71,7 +71,7 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .pocket:
                 return "Clears the material inside a closed shape. Select closed shapes."
             case .facing:
-                return "Levels the top of the stock over the bounding box of the selection."
+                return "Levels the top of the stock over the bounding box of the selection, or over the whole stock."
             case .slotting:
                 return "Cuts a straight slot as wide as the tool. Select the slot outline or the line the tool centre follows."
             case .engrave:
@@ -97,7 +97,7 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .pocket:
                 return "Select closed shapes to clear inside."
             case .facing:
-                return "Covers the bounding box of the selection."
+                return "Covers the bounding box of the selection, or the whole stock."
             case .slotting:
                 return nil   // depends on the slot source, see OperationOptionsView
             case .engrave:

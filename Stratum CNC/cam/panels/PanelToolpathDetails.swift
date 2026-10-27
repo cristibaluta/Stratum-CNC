@@ -246,7 +246,20 @@ struct PanelToolpathDetails: View {
 
     /// How many shapes the toolpath cuts. Shapes are chosen by clicking them on
     /// the canvas while the cell is open, so there's nothing to press here.
+    @ViewBuilder
     private var rowShapes: some View {
+        // Facing can cover the whole stock instead of the selected shapes
+        if toolpath.operation.kind == .facing {
+            InspectorRow(label: "Area") {
+                Picker("", selection: $toolpath.operation.facingWholeStock) {
+                    Text("Selection").tag(false)
+                    Text("Whole stock").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .help("Face the bounding box of the selected shapes, or the whole stock")
+            }
+        }
         InspectorRow(label: "Selected") {
             shapesLabel
         }
@@ -256,8 +269,8 @@ struct PanelToolpathDetails: View {
     /// toolpath from the selected shapes and shows it on the canvas.
     @ViewBuilder
     private var rowPreview: some View {
-        // Only offered once there are shapes to cut
-        if toolpath.targets.isEmpty {
+        // Only offered once there is something to cut
+        if !toolpath.hasGeometry {
             InspectorNote(text: "Select shapes to preview the toolpath.")
         } else {
             HStack(alignment: .center, spacing: 8) {
@@ -391,11 +404,17 @@ struct PanelToolpathDetails: View {
     private var shapesLabel: some View {
         Label(shapesTitle, systemImage: "cursorarrow.click")
             .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(toolpath.targets.isEmpty ? Color.orange : Color.secondary)
+            .foregroundStyle(toolpath.hasGeometry ? Color.secondary : Color.orange)
             .help("Click shapes on the canvas to add or remove them")
     }
 
     private var shapesTitle: String {
+        if toolpath.cutsWholeStock {
+            let ignored = toolpath.targets.count
+            return ignored == 0
+                ? "Whole stock"
+                : "Whole stock (\(ignored) selected shape\(ignored == 1 ? "" : "s") ignored)"
+        }
         switch toolpath.targets.count {
             case 0: return "Click shapes to select"
             case 1: return "1 shape selected"
