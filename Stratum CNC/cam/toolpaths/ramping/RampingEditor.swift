@@ -12,6 +12,8 @@ struct RampingEditor: View {
     @Binding var ramping: RampingSettings
     let stepdown: Double
     let toolDiameter: Double
+    /// The ramp types the operation accepts, in the order they are offered.
+    var available: [RampType] = RampType.allCases
     @State private var helixDirection: HelixDirection = .outsideIn
 
     @Environment(\.dismiss)
@@ -47,7 +49,8 @@ struct RampingEditor: View {
                          angle: ramping.angle,
                          length: displayedLength,
                          stepdown: stepdown,
-                         helixDirection: helixDirection)
+                         helixDirection: helixDirection,
+                         selectable: available)
     }
 
     private var rampVizualization: some View {

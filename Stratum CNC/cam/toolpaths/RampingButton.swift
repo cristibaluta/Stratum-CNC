@@ -15,6 +15,8 @@ import SwiftUI
 struct RampingButton: View {
     @Binding var ramping: RampingSettings
     var expanded: Bool = false
+    /// The ramp types the operation accepts, in the order they are offered.
+    var available: [RampType] = RampType.allCases
     let action: () -> Void
 
     private var shownType: RampType { ramping.enabled ? ramping.type : .none }
@@ -28,7 +30,7 @@ struct RampingButton: View {
 
             if expanded {
                 HStack(spacing: 6) {
-                    ForEach(RampType.allCases, id: \.self) { candidate in
+                    ForEach(available, id: \.self) { candidate in
                         expandedButton(for: candidate)
                     }
                     Spacer()

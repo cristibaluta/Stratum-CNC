@@ -281,7 +281,8 @@ extension ToolpathGenerator {
     ///
     /// Not offered: the slot patterns `.trochoidal`/`.adaptive` and `EntryStrategy.fromOpenEnd` (they only make
     /// sense for slot outlines open at one or both ends, which the app doesn't derive yet), and
-    /// lead-in/out and holding tabs on contours.
+    /// lead-in/out and holding tabs on contours. An engraving takes a plunge or a ramp but no helix
+    /// (see `SC.MachiningOperation.requirements`).
     ///
     /// Internal (unlike the rest of this extension) because `ToolpathData.machiningOperation`
     /// reads it to build the form.
@@ -317,7 +318,7 @@ extension ToolpathGenerator {
                                  entry: entry)
 
             case .engrave:
-                return .engrave
+                return .engrave(entry: entry)
 
             case .drilling:
                 return .drilling(peckDepth: options.drillUsesPecking ? options.drillPeckDepth : nil)

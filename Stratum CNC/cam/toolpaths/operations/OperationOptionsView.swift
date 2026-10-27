@@ -70,6 +70,37 @@ struct OperationOptionsView: View {
                 rampingRow
             }
         }
+        // The ramping settings are shared by every operation, so one left over from another
+        // operation (a helix, say) may be one this operation can't use.
+        .onAppear { normalizeRampType() }
+        .onChange(of: kind) { _, _ in normalizeRampType() }
+    }
+
+    /// The ramp types the operation accepts, taken from the entry strategies the library
+    /// offers for it (an engraving has no helix, for instance).
+    private var availableRampTypes: [RampType] {
+        var types: [RampType] = []
+        for entry in requirements.entries {
+            switch entry {
+                case .plunge:      types.append(.none)
+                case .ramp:        types.append(.linear)
+                case .helix:       types.append(.helix)
+                case .fromOpenEnd: break   // not offered by the app, see `OperationKind.hiddenCaseIDs`
+            }
+        }
+        return types
+    }
+
+    /// Switches a ramp type the operation doesn't accept to the closest one it does: a
+    /// helix becomes a linear ramp at the same angle.
+    private func normalizeRampType() {
+        let available = availableRampTypes
+        guard requirements.usesEntry,
+              !available.isEmpty,
+              !available.contains(toolpath.ramping.type) else {
+            return
+        }
+        toolpath.ramping.type = available.contains(.linear) ? .linear : .none
     }
 
     /// A row of controls, side by side when compact. Expanded pickers need
@@ -109,14 +140,15 @@ struct OperationOptionsView: View {
     }
 
     private var rampingButton: some View {
-        RampingButton(ramping: $toolpath.ramping, expanded: expanded) {
+        RampingButton(ramping: $toolpath.ramping, expanded: expanded, available: availableRampTypes) {
             showRampEditor = true
         }
         .popover(isPresented: $showRampEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
             // A slot steps down by its own depth-per-pass, not by the general stepdown.
             RampingEditor(ramping: $toolpath.ramping,
                           stepdown: kind == .slotting ? toolpath.operation.slotDepthPerPass : toolpath.stepDown,
-                          toolDiameter: Double(toolpath.tool.toolDiameter))
+                          toolDiameter: Double(toolpath.tool.toolDiameter),
+                          available: availableRampTypes)
                 .frame(width: 400)
         }
     }
@@ -169,6 +201,9 @@ private extension OperationKind {
             // Only `.raster` makes sense until open-ended slots are derived.
             return ["entry", "pattern"]
         case .counterbore:
+            return ["entry"]
+        case .engrave:
+            // Same dedicated ramping row as the other operations with an entry.
             return ["entry"]
         case .chamfer:
             // The side gets its own dedicated `ContourPicker` row above.

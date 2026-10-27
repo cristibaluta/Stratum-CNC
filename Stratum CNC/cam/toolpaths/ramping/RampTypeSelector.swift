@@ -16,7 +16,8 @@ struct RampTypeSelector: View {
     var stepdown: Double
     var helixDirection: HelixDirection = .outsideIn
 
-    private let selectable: [RampType] = [.none, .linear, .helix]
+    /// The ramp types to offer, in order.
+    var selectable: [RampType] = [.none, .linear, .helix]
 
     var body: some View {
         HStack(spacing: 14) {

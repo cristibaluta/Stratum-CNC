@@ -85,10 +85,12 @@ extension SC.MachiningOperation {
                     ]))
                 ]
 
-            case .engrave:
-                // No operation-specific parameters at all -- engrave just
-                // follows the selected geometry with the tool's own compensation.
-                return []
+            case .engrave(let entry):
+                // Engrave follows the selected geometry with no tool compensation; the only
+                // thing to choose is how the tool gets down (plunge or ramp, no helix).
+                return [
+                    entry.formField(onChange: { onChange(.engrave(entry: $0)) })
+                ]
 
             case .contour(let side, let direction, let entry, let leadIn, let leadOut, let tabs):
                 return [
