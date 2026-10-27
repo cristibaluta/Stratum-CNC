@@ -122,26 +122,49 @@ struct InspectorMenuLabel<Content: View>: View {
 
 // MARK: - Number fields
 
-struct InspectorNumberField: View {
+struct InspectorNumberField<Accessory: View>: View {
     let title: String
     @Binding var value: Double
     let suffix: String
+    /// Optional control on the right of the field, on the same row (e.g. a helper button).
+    let accessory: Accessory
+
+    init(title: String, value: Binding<Double>, suffix: String,
+         @ViewBuilder accessory: () -> Accessory) {
+        self.title = title
+        self._value = value
+        self.suffix = suffix
+        self.accessory = accessory()
+    }
 
     var body: some View {
         InspectorRow(label: title) {
             HStack(spacing: 6) {
-                TextField("", value: $value,
-                          format: .number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
+                HStack(spacing: 6) {
+                    TextField("", value: $value,
+                              format: .number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
 
-                if !suffix.isEmpty {
-                    Text(suffix)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                    if !suffix.isEmpty {
+                        Text(suffix)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .inspectorField()
+
+                accessory
             }
-            .inspectorField()
+        }
+    }
+}
+
+extension InspectorNumberField where Accessory == EmptyView {
+
+    init(title: String, value: Binding<Double>, suffix: String) {
+        self.init(title: title, value: value, suffix: suffix) {
+            EmptyView()
         }
     }
 }

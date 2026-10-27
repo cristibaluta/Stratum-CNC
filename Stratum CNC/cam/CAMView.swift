@@ -242,6 +242,7 @@ struct CAMView: View {
     private func toolpathSettingsPanel(for toolpath: ToolpathData) -> some View {
         PanelToolpathDetails(toolpath: binding(for: toolpath),
                              stockMaterial: camModel.selectedStockMaterial.material,
+                             stockThickness: camModel.selectedStockMaterial.thickness,
                              siblingNames: Set(camModel.toolpaths.filter { $0.id != toolpath.id }.map(\.name)),
                              isPicking: camModel.pickingToolpathID == toolpath.id,
                              generation: camModel.generations[toolpath.id],

@@ -63,3 +63,20 @@ struct StockMaterial: Identifiable, Codable, Hashable {
         return url
     }
 }
+
+extension StockMaterial {
+
+    /// The stock's size along Z (mm): the depth of a rectangular block or a disk, the
+    /// length of a cylinder (laid flat, like the stock panel draws it). Used by the
+    /// "Through stock" helper to set End Z.
+    var thickness: Double {
+        switch geometry {
+            case .rectangular(_, _, let depth):
+                return depth
+            case .cylindrical(_, let length):
+                return length
+            case .disk(_, _, let depth):
+                return depth
+        }
+    }
+}

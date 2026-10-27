@@ -22,6 +22,9 @@ struct PanelToolpathDetails: View {
     /// The stock being cut, used to choose the tool's preset when a tool is picked.
     var stockMaterial: StockMaterialType
 
+    /// The stock's size along Z (mm), for the "Through stock" End Z helper. `nil` hides it.
+    var stockThickness: Double? = nil
+
     /// Every other toolpath's current name, so the auto-generated name for this
     /// one (see `operationKindBinding`) picks a number that isn't already taken.
     var siblingNames: Set<String> = []
@@ -192,12 +195,45 @@ struct PanelToolpathDetails: View {
         // Z range (a counterbore has its own depth instead of an End Z)
         InspectorNumberField(title: "Start Z", value: $toolpath.startZ, suffix: "mm")
         if requirements.usesEndZ {
-            InspectorNumberField(title: "End Z", value: editedBinding($toolpath.endZ, .endZ), suffix: "mm")
+            InspectorNumberField(title: "End Z", value: editedBinding($toolpath.endZ, .endZ), suffix: "mm") {
+                if isHoleOperation, let thickness = stockThickness, thickness > 0 {
+                    throughStockButton(thickness: thickness)
+                }
+            }
         }
         if requirements.usesStepdown {
             InspectorNumberField(title: "Stepdown", value: editedBinding($toolpath.stepDown, .stepDown), suffix: "mm")
         }
         InspectorNumberField(title: "Clearance Z", value: $toolpath.safeZ, suffix: "mm")
+    }
+
+    /// Drill, bore and thread mill make holes, which usually go all the way through.
+    private var isHoleOperation: Bool {
+        switch toolpath.operation.kind {
+            case .drilling, .boring, .threadMilling:
+                return true
+            default:
+                return false
+        }
+    }
+
+    /// Sets End Z to the bottom of the stock. The tip stops exactly at the underside, so
+    /// add a little extra by hand if the hole must clear the spoilboard.
+    private func throughStockButton(thickness: Double) -> some View {
+        let throughZ = -thickness
+        let isThrough = abs(toolpath.endZ - throughZ) < 1e-6
+        let format = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US"))
+        return Button {
+            toolpath.endZ = throughZ
+            toolpath.markEdited(.endZ)
+        } label: {
+            Label("Through stock", systemImage: "arrow.down.to.line")
+                .font(.system(size: 11))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .disabled(isThrough)
+        .help("Set End Z to the bottom of the stock (\(throughZ.formatted(format)) mm)")
     }
 
     /// How many shapes the toolpath cuts. Shapes are chosen by clicking them on
