@@ -26,6 +26,8 @@ struct PanelToolpaths: View {
                 onAdd?()
             }
 
+            Divider()
+
             if toolpaths.isEmpty {
                 Text("No toolpaths")
                     .foregroundStyle(.secondary)
@@ -59,33 +61,36 @@ struct PanelToolpaths: View {
         let isSelected = toolpath.id == selectedID
         let isHidden = hiddenIDs.contains(toolpath.id)
 
-        return HStack(spacing: 4) {
+        return HStack(spacing: 8) {
+            Image(systemName: toolpath.operation.kind.symbol)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+                .opacity(isHidden ? 0.5 : 1)
+
+            Button {
+                onSelect?(toolpath.id)
+            } label: {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(toolpath.name)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                    Text("\(toolpath.operation.kind.title) · \(toolpath.tool.name)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                .opacity(isHidden ? 0.5 : 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
             InspectorVisibilityButton(isVisible: !isHidden,
                                       showHelp: "Show on canvas",
                                       hideHelp: "Hide from canvas") {
                 onToggleVisibility?(toolpath.id)
             }
-
-            Button {
-                onSelect?(toolpath.id)
-            } label: {
-                HStack(spacing: 6) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(toolpath.name)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                        Text("\(toolpath.operation.kind.title) · \(toolpath.tool.name)")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    .opacity(isHidden ? 0.5 : 1)
-
-                    Spacer()
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
         }
         .inspectorListRow(isSelected: isSelected)
         .contextMenu {

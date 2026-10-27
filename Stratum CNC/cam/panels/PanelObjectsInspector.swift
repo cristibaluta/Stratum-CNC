@@ -38,6 +38,9 @@ struct PanelObjectsInspector: View {
             }
             .padding(.bottom, 8)
 
+            Divider()
+                .padding(.bottom, 8)
+
             objectsSection
 
             if let object = elements.first(where: { $0.id == selectedID }) {
@@ -71,13 +74,7 @@ struct PanelObjectsInspector: View {
     }
 
     private func objectRow(_ object: D2_Object) -> some View {
-        HStack(spacing: 4) {
-            InspectorVisibilityButton(isVisible: object.isVisible,
-                                      showHelp: "Show on canvas",
-                                      hideHelp: "Hide from canvas") {
-                onToggleVisibility?(object.id)
-            }
-
+        HStack(spacing: 8) {
             Button {
                 onSelectionChanged?(object.id)
             } label: {
@@ -89,6 +86,12 @@ struct PanelObjectsInspector: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            InspectorVisibilityButton(isVisible: object.isVisible,
+                                      showHelp: "Show on canvas",
+                                      hideHelp: "Hide from canvas") {
+                onToggleVisibility?(object.id)
+            }
         }
         .inspectorListRow(isSelected: object.id == selectedID)
         .contextMenu {

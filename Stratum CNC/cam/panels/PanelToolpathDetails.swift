@@ -40,6 +40,10 @@ struct PanelToolpathDetails: View {
     /// `scrub.stepCount` = the whole toolpath). Fires on every tick of a drag.
     var onScrub: (Int) -> Void = { _ in }
     var onDone: () -> Void = {}
+    /// Removes this toolpath (and closes the panel).
+    var onDelete: () -> Void = {}
+    /// Adds another toolpath after this one and opens it.
+    var onAddNext: () -> Void = {}
 
     /// What the last tool pick did to the cutting values, shown under the tool.
     @State private var presetNote: String?
@@ -54,7 +58,10 @@ struct PanelToolpathDetails: View {
                 rowHeader
                     .padding(.bottom, 10)
 
-                InspectorSection(title: "Operation", showsDivider: false) {
+                InspectorSection(title: "Shapes") {
+                    rowShapes
+                }
+                InspectorSection(title: "Operation") {
                     rowOperation
                     rowOperationOptions
                 }
@@ -64,11 +71,11 @@ struct PanelToolpathDetails: View {
                 InspectorSection(title: "Depth") {
                     rowDepth
                 }
-                InspectorSection(title: "Shapes") {
-                    rowShapes
-                    rowFooter
+                InspectorSection(title: "Preview") {
+                    rowPreview
+                    rowScrub
                 }
-                rowScrub
+                rowBottomBar
             }
             .padding(8)
             .onChange(of: toolpath.id) { _, _ in
@@ -84,7 +91,12 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowHeader: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Image(systemName: toolpath.operation.kind.symbol)
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+
             // Typing here is what makes a name "custom" -- from then on it stops
             // following the operation (see `operationKindBinding`).
             TextField("", text: Binding(
@@ -97,8 +109,6 @@ struct PanelToolpathDetails: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
                 .background(.background)
-            Spacer()
-            doneButton
         }
     }
 
@@ -215,11 +225,14 @@ struct PanelToolpathDetails: View {
         }
     }
 
-    /// Generation status on the left, the Generate button on the right.
+    /// Generation status on the left, the Preview button on the right. Preview builds the
+    /// toolpath from the selected shapes and shows it on the canvas.
     @ViewBuilder
-    private var rowFooter: some View {
-        // We show generate only if we have selected shapes
-        if !toolpath.targets.isEmpty {
+    private var rowPreview: some View {
+        // Only offered once there are shapes to cut
+        if toolpath.targets.isEmpty {
+            InspectorNote(text: "Select shapes to preview the toolpath.")
+        } else {
             HStack(alignment: .center, spacing: 8) {
                 generationStatus
                 Spacer(minLength: 0)
@@ -234,16 +247,49 @@ struct PanelToolpathDetails: View {
                                 .font(.system(size: 12, weight: .medium))
                         }
                     } else {
-                        Label("Generate", systemImage: "wand.and.stars")
+                        Label("Preview", systemImage: "play.fill")
                             .font(.system(size: 12, weight: .medium))
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(isGenerating)
-                .help("Generate the toolpaths for the selected shapes")
+                .help("Build the toolpath for the selected shapes and preview it on the canvas")
             }
-            .padding(.top, 4)
+        }
+    }
+
+    /// The bottom bar: delete on the left; add the next toolpath and close on the right.
+    /// Closing is the last step after previewing; Esc does the same.
+    private var rowBottomBar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.red)
+                .help("Delete this toolpath")
+
+                Spacer()
+
+                Button {
+                    onAddNext()
+                } label: {
+                    Label("Next toolpath", systemImage: "plus")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Add another toolpath")
+
+                doneButton
+            }
+            .padding(.top, 10)
         }
     }
 
@@ -281,27 +327,25 @@ struct PanelToolpathDetails: View {
            scrub.stepCount > 0 {
 
             let total = scrub.stepCount
-            InspectorSection(title: "Preview") {
-                HStack(spacing: 10) {
-                    Slider(value: Binding(
-                        get: { Double(scrubStep ?? total) },
-                        set: { newValue in
-                            let step = Int(newValue.rounded())
-                            guard step != (scrubStep ?? total) else {
-                                return
-                            }
-                            scrubStep = step
-                            onScrub(step)
+            HStack(spacing: 10) {
+                Slider(value: Binding(
+                    get: { Double(scrubStep ?? total) },
+                    set: { newValue in
+                        let step = Int(newValue.rounded())
+                        guard step != (scrubStep ?? total) else {
+                            return
                         }
-                    ), in: 0...Double(total))
-                    .controlSize(.small)
+                        scrubStep = step
+                        onScrub(step)
+                    }
+                ), in: 0...Double(total))
+                .controlSize(.small)
 
-                    Text("\(scrubStep ?? total) / \(total)")
-                        .font(.system(size: 11).monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-                .help("Scrub through the generated toolpath")
+                Text("\(scrubStep ?? total) / \(total)")
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
+            .help("Scrub through the generated toolpath")
         }
     }
 

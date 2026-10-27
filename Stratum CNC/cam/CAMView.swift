@@ -107,13 +107,6 @@ struct CAMView: View {
                                 .background(.background)// Without a background the canvas is displayed above the GroupBox background
                                 .transition(.opacity)
                                 .frame(width: 400)
-
-                            Button {
-                                camModel.addToolpath()
-                            } label: {
-                                Label("Create next toolpath", systemImage: "plus")
-                            }
-
                         }
                     }
                     .padding(16)
@@ -263,6 +256,14 @@ struct CAMView: View {
                                 withAnimation(.easeOut(duration: 0.15)) {
                                     camModel.selectedToolpathID = nil
                                 }
+                             },
+                             onDelete: {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    camModel.deleteToolpath(toolpath.id)
+                                }
+                             },
+                             onAddNext: {
+                                camModel.addToolpath()
                              }
         )
         .id(toolpath.id)
