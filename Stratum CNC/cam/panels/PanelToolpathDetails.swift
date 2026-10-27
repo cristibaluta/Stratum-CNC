@@ -161,8 +161,47 @@ struct PanelToolpathDetails: View {
         // defines for the chosen operation
         OperationOptionsView(toolpath: $toolpath)
         if requirements.usesStepover {
-            InspectorNumberField(title: "Stepover", value: editedBinding($toolpath.stepOver, .stepOver), suffix: "%")
+            // Typed as a percentage of the tool diameter; what that comes to in mm is
+            // spelled out underneath, since that's what the machine actually steps.
+            InspectorNumberField(title: "Stepover",
+                                 value: editedBinding(stepOverPercent, .stepOver),
+                                 suffix: "% of Ø")
+            InspectorNote(text: stepOverNote)
         }
+    }
+
+    private var toolDiameter: Double {
+        Double(toolpath.tool.toolDiameter)
+    }
+
+    /// The stepover as a percentage of the tool diameter. It is still stored in mm (that is
+    /// what saved projects and the generator use), so this converts both ways. The range
+    /// matches what the generator accepts (10-95 %), so the field never shows a value the
+    /// toolpath doesn't actually use.
+    private var stepOverPercent: Binding<Double> {
+        Binding(
+            get: {
+                let diameter = toolDiameter
+                return diameter > 0 ? toolpath.stepOver / diameter * 100 : 0
+            },
+            set: { percent in
+                let diameter = toolDiameter
+                guard diameter > 0 else {
+                    return
+                }
+                let clamped = min(max(percent, 10), 95)
+                toolpath.stepOver = (diameter * clamped / 100 * 10_000).rounded() / 10_000
+            }
+        )
+    }
+
+    /// The same stepover in mm, shown under the field.
+    private var stepOverNote: String {
+        let diameter = toolDiameter
+        guard diameter > 0 else {
+            return "Pick a tool to see the stepover in mm."
+        }
+        return String(format: "= %.2f mm between passes (tool Ø%.2f mm)", toolpath.stepOver, diameter)
     }
 
     @ViewBuilder

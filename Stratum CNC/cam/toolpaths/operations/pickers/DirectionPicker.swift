@@ -7,71 +7,103 @@
 
 import SwiftUI
 
-/// Chooses which way the tool cuts relative to its rotation, as a segmented control.
+/// Chooses which way the tool cuts relative to its rotation. Same look as `OperationPicker`:
+/// a pop-up field that opens a list on its left, one drawn-and-explained row per direction.
 struct DirectionPicker: View {
     @Binding var direction: CutDirectionOption
 
+    @State private var isPresented = false
+
     var body: some View {
         InspectorRow(label: "Direction") {
-            Picker("", selection: $direction) {
-                ForEach(CutDirectionOption.allCases, id: \.self) { option in
-                    Text(option.rawValue)
-                        .tag(option)
+            Button {
+                isPresented.toggle()
+            } label: {
+                InspectorMenuLabel {
+                    DirectionGlyph(direction: direction, tint: .primary)
+                        .frame(width: 22, height: 15)
+                    Text(direction.rawValue)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            .buttonStyle(.plain)
             .help(direction.selectionHint)
+            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                DirectionOptionsPopover(direction: $direction, isPresented: $isPresented)
+            }
         }
     }
 }
 
-/// The tooltip-style popover content: both directions, laid out as a row of
-/// glyph + label tiles instead of `Menu`'s single vertical list. Same layout and
-/// tile styling as `ContourGridPicker`.
-private struct DirectionGridPicker: View {
+/// The popover content: both directions as a row of drawing + name + explanation.
+private struct DirectionOptionsPopover: View {
     @Binding var direction: CutDirectionOption
     @Binding var isPresented: Bool
 
-    private let tileSize = CGSize(width: 96, height: 66)
+    @State private var hovered: CutDirectionOption?
+
+    private let width: CGFloat = 340
 
     var body: some View {
-        HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(CutDirectionOption.allCases, id: \.self) { option in
-                expandedButton(for: option)
+                row(for: option)
             }
-            Spacer()
         }
+        .padding(10)
+        .frame(width: width)
     }
 
-    private func expandedButton(for option: CutDirectionOption) -> some View {
+    private func row(for option: CutDirectionOption) -> some View {
         let isSelected = option == direction
 
         return Button {
             direction = option
             isPresented = false
         } label: {
-            VStack(spacing: 4) {
-                DirectionGlyph(direction: option, tint: isSelected ? Color.accentColor : .secondary)
-                    .frame(width: 56, height: 36)
+            HStack(alignment: .center, spacing: 12) {
+                DirectionGlyph(direction: option,
+                               tint: isSelected ? Color.accentColor : .secondary)
+                    .frame(width: 66, height: 44)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
 
-                Text(option.rawValue)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(option.rawValue)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(isSelected ? Color.accentColor : .primary)
+
+                    Text(option.selectionHint)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
             }
-            .frame(width: tileSize.width, height: tileSize.height)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(rowBackground(isSelected: isSelected, isHovered: hovered == option))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-        .foregroundStyle(isSelected ? Color.accentColor : .primary)
-        .overlay(
-            RoundedRectangle(cornerRadius: 5)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-        )
-        .help(option.selectionHint)
+        .onHover { inside in
+            hovered = inside ? option : (hovered == option ? nil : hovered)
+        }
+    }
+
+    private func rowBackground(isSelected: Bool, isHovered: Bool) -> Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.15)
+        }
+        return isHovered ? Color.primary.opacity(0.06) : Color.clear
     }
 }
 

@@ -7,7 +7,8 @@
 
 import SwiftUI
 
-/// Chooses how a pocket is cleared. Same look as `OperationPicker`.
+/// Chooses how a pocket is cleared. Same look as `OperationPicker`: a pop-up field that
+/// opens a list on its left, one drawn-and-explained row per pattern.
 struct PatternPicker: View {
     @Binding var pattern: PocketPattern
 
@@ -29,61 +30,83 @@ struct PatternPicker: View {
             }
             .buttonStyle(.plain)
             .help(pattern.selectionHint)
-            .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                PatternGridPicker(pattern: $pattern, available: available, isPresented: $isPresented)
+            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                PatternOptionsPopover(pattern: $pattern, available: available, isPresented: $isPresented)
             }
         }
     }
 }
 
-/// The tooltip-style popover content: every pattern, laid out as a row of
-/// glyph + label tiles instead of `Menu`'s single vertical list.
-private struct PatternGridPicker: View {
+/// The popover content: every pattern as a row of drawing + name + explanation.
+private struct PatternOptionsPopover: View {
     @Binding var pattern: PocketPattern
     let available: [PocketPattern]
     @Binding var isPresented: Bool
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6),
-        GridItem(.flexible(), spacing: 6)
-    ]
-    private let tileSize = CGSize(width: 70, height: 56)
+    @State private var hovered: PocketPattern?
+
+    private let width: CGFloat = 380
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(available, id: \.self) { option in
-                tile(for: option)
+                row(for: option)
             }
         }
         .padding(10)
-        .frame(width: CGFloat(columns.count) * tileSize.width + CGFloat(columns.count - 1) * 6 + 20)
+        .frame(width: width)
     }
 
-    private func tile(for option: PocketPattern) -> some View {
+    private func row(for option: PocketPattern) -> some View {
         let isSelected = option == pattern
 
         return Button {
             pattern = option
             isPresented = false
         } label: {
-            VStack(spacing: 4) {
+            HStack(alignment: .center, spacing: 12) {
                 PatternGlyph(pattern: option, tint: isSelected ? Color.accentColor : .secondary)
-                    .frame(width: 30, height: 22)
+                    .frame(width: 60, height: 44)
+                    .background(Color.primary.opacity(0.04))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
 
-                Text(option.rawValue)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(option.rawValue)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(isSelected ? Color.accentColor : .primary)
+
+                    Text(option.selectionHint)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
             }
-            .frame(width: tileSize.width, height: tileSize.height)
-            .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
-            .foregroundStyle(isSelected ? Color.accentColor : .primary)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(rowBackground(isSelected: isSelected, isHovered: hovered == option))
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(option.selectionHint)
+        .onHover { inside in
+            hovered = inside ? option : (hovered == option ? nil : hovered)
+        }
+    }
+
+    private func rowBackground(isSelected: Bool, isHovered: Bool) -> Color {
+        if isSelected {
+            return Color.accentColor.opacity(0.15)
+        }
+        return isHovered ? Color.primary.opacity(0.06) : Color.clear
     }
 }
 
