@@ -106,6 +106,15 @@ extension ToolpathData {
         Double(tool.toolDiameter) * stepOverFraction
     }
 
+    /// How far the tool goes down from the top of the stock (or from Start Z when that is
+    /// lower), mm. What a single full-depth pass would cut.
+    var cutDepth: Double {
+        abs(endZ - min(startZ, 0))
+    }
+
+    /// Facing deeper than this (mm) in one pass is hard on the tool and the machine.
+    static let facingSinglePassWarningDepth = 1.0
+
     /// A contour with a lead-in whose entry is a ramp or helix: the library refuses that
     /// (the entry already eases the tool in), so the panel flags it and holds back Preview.
     /// Mirrors `ToolpathGenerator.makeEntry`: only an enabled, non-"None" ramp counts.

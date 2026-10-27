@@ -81,7 +81,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Where:** `ToolpathGenerator.run` (`rectangleSlotCenterline`, tolerance 0.05).
 - **Fix:** when "Selection is" = Slot outline, show a note: "Outline must be Ø X mm wide".
 
-### [ ] #11: Facing may be a single full-depth pass **(verify)** (priority: medium)
+### [x] #11: Facing may be a single full-depth pass **(verify)** (priority: medium)
 - **Where:** `OperationKind.defaults` (facing has End Z only, no Stepdown).
 - **Problem:** if `usesStepdown` is false for facing, a deep facing cut is taken in one pass.
 - **Fix:** check `requirements`. If confirmed, either expose Stepdown or warn above a depth threshold.

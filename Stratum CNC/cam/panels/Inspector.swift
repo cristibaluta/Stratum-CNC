@@ -73,16 +73,25 @@ struct InspectorRow<Content: View>: View {
 /// A small caption under a control, aligned with the control column.
 struct InspectorNote: View {
     let text: String
+    /// Orange with a warning icon, for something the user should look at.
+    var isWarning: Bool = false
 
     var body: some View {
         HStack(alignment: .top, spacing: Inspector.columnSpacing) {
             Color.clear
                 .frame(width: Inspector.labelWidth, height: 0)
-            Text(text)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Group {
+                if isWarning {
+                    Label(text, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                } else {
+                    Text(text)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .font(.system(size: 11))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
