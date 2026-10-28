@@ -60,15 +60,14 @@ struct PanelToolpathDetails: View {
                     rowOperation
                     rowOperationOptions
                 }
-                // How the tool moves in the plane: stepover, stock to leave, lead-in/out…
-                // Left out for operations that have none (drilling, boring…).
+                InspectorSection(title: "Tool & feeds") {
+                    rowTool
+                }
+                // How the tool moves in the plane
                 if OperationOptionsView.hasXYMovement(for: toolpath) {
                     InspectorSection(title: "XY movement") {
                         rowXYMovement
                     }
-                }
-                InspectorSection(title: "Tool & feeds") {
-                    rowTool
                 }
                 // Start Z, End Z, the depth per pass, how the tool enters the material and the clearance height.
                 InspectorSection(title: "Z levels") {

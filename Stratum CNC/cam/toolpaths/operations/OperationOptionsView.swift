@@ -298,7 +298,7 @@ struct OperationOptionsView: View {
         guard diameter > 0 else {
             return "Pick a tool to see the stepover in mm."
         }
-        return String(format: "= %.2f mm between passes (tool Ø%.2f mm)", toolpath.stepOverMM, diameter)
+        return String(format: "= %.2f mm for a Ø%.2f mm tool", toolpath.stepOverMM, diameter)
     }
 
     /// Stock to leave and the finishing pass. The roughing stays `stockToLeave` away from the
