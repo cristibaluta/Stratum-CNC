@@ -33,6 +33,13 @@ struct ToolpathGeneration {
         return outputs.reduce(0) { $0 + $1.passes.count }
     }
 
+    /// The most passes any one toolpath of the result has (stepdowns, or a thread's radial
+    /// passes). The canvas preview draws just one of them (see `ToolpathPreviewOptions.canvas2D`).
+    var maxPassesPerToolpath: Int {
+        guard case .success(let outputs) = outcome else { return 0 }
+        return outputs.map { $0.passes.count }.max() ?? 0
+    }
+
     var outputCount: Int {
         guard case .success(let outputs) = outcome else { return 0 }
         return outputs.count

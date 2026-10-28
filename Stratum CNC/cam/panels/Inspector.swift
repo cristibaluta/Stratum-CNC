@@ -75,11 +75,16 @@ struct InspectorNote: View {
     let text: String
     /// Orange with a warning icon, for something the user should look at.
     var isWarning: Bool = false
+    /// Lined up with the control column (past the label column). Turn off for a note that
+    /// belongs to the whole section rather than to one control, so it starts at the left edge.
+    var isIndented: Bool = true
 
     var body: some View {
         HStack(alignment: .top, spacing: Inspector.columnSpacing) {
-            Color.clear
-                .frame(width: Inspector.labelWidth, height: 0)
+            if isIndented {
+                Color.clear
+                    .frame(width: Inspector.labelWidth, height: 0)
+            }
             Group {
                 if isWarning {
                     Label(text, systemImage: "exclamationmark.triangle.fill")

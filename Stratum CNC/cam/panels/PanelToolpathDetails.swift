@@ -329,7 +329,7 @@ struct PanelToolpathDetails: View {
     private var rowPreview: some View {
         // Only offered once there is something to cut
         if !toolpath.hasGeometry {
-            InspectorNote(text: "Select shapes to preview the toolpath.")
+            InspectorNote(text: "Select shapes to preview the toolpath.", isIndented: false)
         } else {
           VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             HStack(alignment: .center, spacing: 8) {
@@ -360,7 +360,13 @@ struct PanelToolpathDetails: View {
             // Warnings don't stop the toolpath, and only matter while the result is current
             if let generation, generation.isCurrent(for: toolpath) {
                 ForEach(generation.warningMessages, id: \.self) { message in
-                    InspectorNote(text: message, isWarning: true)
+                    InspectorNote(text: message, isWarning: true, isIndented: false)
+                }
+                // The canvas draws one pass per toolpath; say so, so the other passes aren't
+                // mistaken for missing.
+                if generation.errorMessage == nil, generation.maxPassesPerToolpath > 1 {
+                    InspectorNote(text: "The preview shows only the last pass. The G-code cuts all \(generation.maxPassesPerToolpath) passes.",
+                                  isIndented: false)
                 }
             }
           }
