@@ -212,8 +212,8 @@ struct LeadInOutEditor: View {
     private var notes: [Note] {
         var result: [Note] = []
         if case .arc = current.style, side == .onContour {
-            result.append(Note(text: "An arc can't be built when the tool follows the contour directly (there is no side for it to swing out to). Use a linear move, or cut inside or outside.",
-                               isWarning: true))
+            result.append(Note(text: "With the tool on the contour itself there is no inside or outside, so the arc swings out to the outside of the shape.",
+                               isWarning: false))
         }
         if case .linear = current.style, side == .inside {
             result.append(Note(text: "On a curved inside wall (a round hole, a rounded pocket) a straight run leaves the curve and cuts into the wall; the longer it is, the deeper. Prefer an arc there, or keep the run short.",
@@ -328,7 +328,6 @@ struct LeadInOutDiagram: View {
         var toolOnContour: CGPoint // where the lead meets the cut
         var toolRadius: Double
         var free: Double           // +1: the waste is above the wall on screen, -1: below
-        var isInvalid: Bool        // an arc with no side to swing out to
     }
 
     private func makeScene() -> Scene {
@@ -339,7 +338,6 @@ struct LeadInOutDiagram: View {
         let contourPoint = CGPoint(x: 0, y: pathY)
 
         var lead: [CGPoint] = []
-        var invalid = false
         var extent = 0.0
 
         switch style {
@@ -351,10 +349,7 @@ struct LeadInOutDiagram: View {
 
             case .arc(let radius, let sweepDegrees):
                 extent = radius
-                if side == .onContour {
-                    // Zero offset: the library has no centre for the arc. See `ToolpathData.leadArcOnContour`.
-                    invalid = true
-                } else {
+                do {
                     let center = CGPoint(x: 0, y: pathY + free * radius)
                     let atContour = -free * Double.pi / 2          // straight "down" to the wall, or "up"
                     let turn = free > 0 ? 1.0 : -1.0                // travelling +x: CCW above the wall, CW below
@@ -380,7 +375,7 @@ struct LeadInOutDiagram: View {
         let toolAtLead = role == .leadIn ? (lead.first ?? contourPoint) : (lead.last ?? contourPoint)
 
         return Scene(path: path, lead: lead, toolAtLead: toolAtLead, toolOnContour: contourPoint,
-                     toolRadius: toolRadius, free: free, isInvalid: invalid)
+                     toolRadius: toolRadius, free: free)
     }
 
     // MARK: Drawing
@@ -432,7 +427,6 @@ struct LeadInOutDiagram: View {
 
         let accent = Color.accentColor
         let wallY = map(CGPoint(x: 0, y: 0)).y
-        let full = CGRect(origin: .zero, size: size)
 
         // Top view: the part (stays) on one side of the wall, the material to remove on the
         // other, hatched because it is still uncut. The plunge goes into that hatched side.
@@ -486,11 +480,7 @@ struct LeadInOutDiagram: View {
         context.stroke(polyline(scene.path),
                        with: .color(Color.primary.opacity(0.75)),
                        style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-        if scene.isInvalid {
-            context.draw(Text("An arc needs a side to swing out to")
-                            .font(.system(size: 11, weight: .medium)).foregroundColor(Color.orange),
-                         at: CGPoint(x: size.width / 2, y: size.height / 2), anchor: .center)
-        } else {
+        do {
             context.stroke(polyline(scene.lead),
                            with: .color(accent),
                            style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
@@ -514,7 +504,6 @@ struct LeadInOutDiagram: View {
         // Which way the tool travels along the wall.
         context.draw(Text("cut direction →").font(.system(size: 9)).foregroundColor(Color.secondary),
                      at: CGPoint(x: size.width - 8, y: scene.free > 0 ? size.height - 8 : 22), anchor: .trailing)
-        _ = full
     }
 
     /// A small arrowhead at the end of the polyline, along its last stretch.

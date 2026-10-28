@@ -77,10 +77,6 @@ struct OperationOptionsView: View {
             if toolpath.leadInConflictsWithEntry {
                 leadInConflictNote
             }
-            if toolpath.leadArcOnContour || toolpath.leadOutArcOnContour {
-                InspectorNote(text: "An arc lead-in/out can't be built when the tool follows the contour directly: there is no side for it to swing out to. Switch it to Linear, or cut inside or outside.",
-                              isWarning: true)
-            }
 
             // Lead-in / lead-out: a switch with a summary of what it is set to, and a gear that
             // opens the editor (with a drawing of the move) in a popover.
@@ -89,12 +85,11 @@ struct OperationOptionsView: View {
                              role: .leadIn,
                              binding: $toolpath.operation.contourLeadIn,
                              isPresented: $showLeadInEditor,
-                             needsAttention: toolpath.leadInConflictsWithEntry || toolpath.leadArcOnContour)
+                             needsAttention: toolpath.leadInConflictsWithEntry)
                 leadInOutRow(title: "Lead-Out",
                              role: .leadOut,
                              binding: $toolpath.operation.contourLeadOut,
-                             isPresented: $showLeadOutEditor,
-                             needsAttention: toolpath.leadOutArcOnContour)
+                             isPresented: $showLeadOutEditor)
             }
 
             // Holding tabs: a summary row that opens the editor in a popover.
@@ -177,7 +172,7 @@ struct OperationOptionsView: View {
                               role: LeadInOutEditor.Role,
                               binding: Binding<LeadInOutSettings?>,
                               isPresented: Binding<Bool>,
-                              needsAttention: Bool) -> some View {
+                              needsAttention: Bool = false) -> some View {
         LeadInOutRow(title: title, leadInOut: binding, needsAttention: needsAttention) {
             isPresented.wrappedValue = true
         }

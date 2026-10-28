@@ -31,7 +31,6 @@ PanelToolpathDetails
       │     ├─ LeadInOutRow ×2 (Lead-In, Lead-Out) ← contour: switch + summary + gear → LeadInOutEditor popover
       │     │                                        (explanation, to-scale LeadInOutDiagram, style / length / radius / sweep / feed)
       │     ├─ leadInConflictNote                 ← contour: lead-in + ramp/helix entry
-      │     ├─ arc-on-contour warning             ← contour: arc lead-in/out with side = On Contour
       │     ├─ HoldingTabsButton                  ← contour
       │     ├─ patternRow (PatternPicker + patternDetail)   ← pocket
       │     ├─ stepOverRow (% of Ø + mm note)     ← if requirements.usesStepover, or facing
@@ -61,7 +60,7 @@ PanelToolpathDetails
       │     └─ Clearance Z
       │
       ├─ InspectorSection "Preview"
-      │  ├─ rowPreview: generationStatus + "Preview" button   (held back on a lead-in/entry conflict, or an arc lead-in/out on a contour with side = On Contour)
+      │  ├─ rowPreview: generationStatus + "Preview" button   (held back on a lead-in/entry conflict)
       │  └─ rowScrub: slider through the generated moves
       │
       └─ rowBottomBar: Delete · Next toolpath · Done (Esc)
