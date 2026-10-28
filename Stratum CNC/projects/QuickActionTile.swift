@@ -14,6 +14,8 @@ struct QuickActionTile: View {
     let subtitle: String
     let systemImage: String
     var iconRotation: Angle = .zero
+    /// A drawing to show instead of the SF Symbol, for icons SF Symbols doesn't have.
+    var glyph: AnyView? = nil
     let action: () -> Void
 
     @State private var isHovered = false
@@ -21,9 +23,15 @@ struct QuickActionTile: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .medium))
-                    .rotationEffect(iconRotation)
+                Group {
+                    if let glyph {
+                        glyph
+                    } else {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 18, weight: .medium))
+                            .rotationEffect(iconRotation)
+                    }
+                }
                     .foregroundStyle(.tint)
                     .frame(width: 36, height: 36)
                     .background(.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))

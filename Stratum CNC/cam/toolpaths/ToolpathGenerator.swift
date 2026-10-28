@@ -191,9 +191,7 @@ enum ToolpathGenerator {
                     case .counterbore:
                         return "The counterbore diameter must be larger than the tool."
                     case .threadMilling:
-                        // The only way the library refuses a tool for a thread is by its size.
-                        return toolpath?.threadToolSizeProblem
-                            ?? "The tool doesn't fit the thread: for an internal thread it has to be smaller than the thread's diameter."
+                        return toolpath?.threadToolProblem ?? "Thread milling requires a thread mill bit."
                     default:
                         if let toolpath {
                             return String(format: "The selected tool (%@, Ø%.2f mm) can't perform the %@ operation.",
@@ -309,8 +307,8 @@ extension ToolpathGenerator {
             }
         }
 
-        // The library only says "tool incompatible" for a thread; say which sizes clash.
-        if let problem = toolpath.threadToolSizeProblem {
+        // The library only says "tool incompatible" for a thread that's too small for the cutter.
+        if toolpath.threadToolIsTooLarge, let problem = toolpath.threadToolProblem {
             throw GenerationError.invalidOption(problem)
         }
 

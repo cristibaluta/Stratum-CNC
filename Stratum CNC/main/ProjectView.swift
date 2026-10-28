@@ -77,9 +77,12 @@ struct ProjectView: View {
                     Button(action: {
                         appModel.showingToolsSheet.toggle()
                     }) {
-                        Label("Tools", systemImage: "pencil.tip.crop.circle.fill")
+                        Label {
+                            Text("Tools")
+                        } icon: {
+                            EndMillIcon(size: 16)
+                        }
                     }
-                    .rotationEffect(.degrees(180))
 
                     Button(action: {
                         appModel.showingStocksSheet.toggle()

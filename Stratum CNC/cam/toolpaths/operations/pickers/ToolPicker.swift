@@ -38,7 +38,11 @@ struct ToolPicker: View {
                     Button {
                         pickFromLibrary()
                     } label: {
-                        Label("Pick from Library", systemImage: "wrench.and.screwdriver")
+                        Label {
+                            Text("Pick from Library")
+                        } icon: {
+                            EndMillIcon(size: 14)
+                        }
                     }
                 } label: {
                     InspectorMenuLabel {
@@ -54,7 +58,7 @@ struct ToolPicker: View {
                 Button {
                     pickFromLibrary()
                 } label: {
-                    Image(systemName: "wrench.and.screwdriver")
+                    EndMillIcon(size: 15)
                         .foregroundStyle(.secondary)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())

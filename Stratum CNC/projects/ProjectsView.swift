@@ -76,7 +76,7 @@ struct ProjectsView: View {
                         QuickActionTile(title: "Tools Library",
                                         subtitle: "Browse and edit your cutting tools",
                                         systemImage: "pencil.tip.crop.circle.fill",
-                                        iconRotation: .degrees(180)) {
+                                        glyph: AnyView(EndMillIcon(size: 20))) {
                             appModel.showingToolsSheet = true
                         }
                         QuickActionTile(title: "Stock Library",
