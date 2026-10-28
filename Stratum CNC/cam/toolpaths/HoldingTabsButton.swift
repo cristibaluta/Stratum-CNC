@@ -157,7 +157,7 @@ struct HoldingTabsEditor: View {
 
             Text(outlines.isEmpty
                  ? "Schematic. Select the contour on the canvas to see its real shape here."
-                 : "Approximate: the tool follows the shape offset by its radius, so real positions shift slightly. 0 → 1 runs along the shape from its start.")
+                 : "Approximate: the tool follows the shape offset by its radius, so real positions shift slightly. 0 → 1 runs along the shape from its start. The same tabs are drawn in purple on the canvas.")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

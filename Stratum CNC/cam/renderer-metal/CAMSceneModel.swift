@@ -150,6 +150,13 @@ final class CAMSceneModel: ObservableObject {
                                                                              boxColor: boxColor,
                                                                              handleColor: handleColor))
             }
+
+            // The open contour toolpath's holding tabs, drawn along the shapes it cuts
+            if let tabs = canvasState.holdingTabs {
+                overlay.append(contentsOf: CAMHoldingTabsOverlay.renderObjects(for: tabs,
+                                                                               paths: paths,
+                                                                               color: Self.rgba(NSColor.systemPurple)))
+            }
         }
 
         // The toolpath being scrubbed, if any: its cut-so-far line and the cutter marker.

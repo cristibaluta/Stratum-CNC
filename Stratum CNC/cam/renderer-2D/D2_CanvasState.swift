@@ -64,6 +64,25 @@ final class D2_CanvasState: ObservableObject, Equatable {
         toolpathsPath = path
     }
 
+    // MARK: Holding tabs preview
+
+    /// The shapes the open contour toolpath cuts and the holding tabs it leaves in them.
+    struct HoldingTabsOverlay: Equatable {
+        var targets: [PathSelection]
+        var tabs: [HoldingTabSettings]
+    }
+
+    /// The tabs drawn on the canvas: only for the open toolpath, and only when it has some.
+    @Published private(set) var holdingTabs: HoldingTabsOverlay?
+
+    /// Does nothing when the tabs are the same, so it is cheap to call after any edit.
+    func setHoldingTabs(_ overlay: HoldingTabsOverlay?) {
+        guard overlay != holdingTabs else {
+            return
+        }
+        holdingTabs = overlay
+    }
+
     // MARK: Toolpath scrub preview
     //
     // The open toolpath's generated result, drawn up to the slider's position

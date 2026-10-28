@@ -47,6 +47,7 @@ class CAMModel: ObservableObject {
             onToolpathsChanged?(toolpaths)
             // An edit can make the open toolpath's result outdated, which ends scrubbing
             syncScrub()
+            syncHoldingTabs()
         }
     }
 
@@ -57,6 +58,7 @@ class CAMModel: ObservableObject {
         didSet {
             syncPickingWithSelection()
             syncScrub()
+            syncHoldingTabs()
         }
     }
 
@@ -259,6 +261,24 @@ class CAMModel: ObservableObject {
                                     safeZ: 3)
         toolpath.applyDefaults(for: toolpath.operation.kind)
         return toolpath
+    }
+
+    // MARK: Holding tabs preview
+
+    /// Keeps the canvas's holding tabs in step with the open toolpath: they are drawn while a
+    /// contour toolpath with tabs and shapes is open, and not otherwise. A no-op while nothing
+    /// changed, so it is cheap to call after any edit.
+    private func syncHoldingTabs() {
+        guard let id = selectedToolpathID,
+              let toolpath = toolpaths.first(where: { $0.id == id }),
+              toolpath.operation.kind == .contour,
+              !toolpath.operation.contourTabs.isEmpty,
+              !toolpath.targets.isEmpty else {
+            canvasState.setHoldingTabs(nil)
+            return
+        }
+        canvasState.setHoldingTabs(D2_CanvasState.HoldingTabsOverlay(targets: toolpath.targets,
+                                                                     tabs: toolpath.operation.contourTabs))
     }
 
     // MARK: Shape picking
