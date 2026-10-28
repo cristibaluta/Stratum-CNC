@@ -206,8 +206,8 @@ extension ToolpathData {
         guard operation.kind == .threadMilling else {
             return nil
         }
-        if tool.type != .threadMill {
-            return toolTypeWarning
+        if let message = toolTypeWarning {
+            return message
         }
         if threadToolIsTooLarge {
             return "This thread mill is too large for the thread."
@@ -243,32 +243,17 @@ extension ToolpathData {
         return nil
     }
 
-    /// The tool types each operation is made for. A tool of another type isn't refused (the
-    /// library only looks at sizes and the tip angle), but it is flagged under the tool.
-    ///
-    ///  - Flat-bottomed work (facing, pocket, counterbore, bore): flat end mills and corn bits;
-    ///    a pocket and a facing also take the solder mask remover (a flat pad).
-    ///  - Contour and slot also take ball nose end mills, which cut the same walls.
-    ///  - Engraving: engraving bits, V-bits and chamfer bits, plus plain and ball end mills for
-    ///    fine work.
-    ///  - Chamfer: only a conical bit (V-bit, chamfer or engraving bit).
-    ///  - Drilling needs a drill, thread milling a thread mill.
-    private var allowedToolTypes: Set<ToolType> {
-        let flat: Set<ToolType> = [.endMill, .corn]
-        switch operation.kind {
-            case .drilling:       return [.drill]
-            case .threadMilling:  return [.threadMill]
-            case .facing, .pocket: return flat.union([.solderMaskRemover])
-            case .counterbore, .boring: return flat
-            case .contour, .slotting: return flat.union([.ballNose])
-            case .engrave:        return [.engraving, .vBit, .chamfer, .endMill, .ballNose]
-            case .chamfer:        return [.vBit, .chamfer, .engraving]
-        }
+    /// Whether the picked tool is a kind the operation is made for. What each operation is
+    /// made for is the library's rule (`SC.OperationRequirements.toolTypes`); a tool of another
+    /// kind isn't refused, only flagged under the tool.
+    private var toolSuitsOperation: Bool {
+        machiningOperation.accepts(tool: ToolpathGenerator.makeTool(from: tool, for: operation.kind))
     }
 
-    /// A short note when the picked tool isn't one of `allowedToolTypes`, naming what to pick.
+    /// A short note when the picked tool isn't a kind the operation is made for, naming what to pick.
+    /// The wording is the app's; whether the tool suits is the library's (see `toolSuitsOperation`).
     var toolTypeWarning: String? {
-        guard !allowedToolTypes.contains(tool.type) else {
+        guard !toolSuitsOperation else {
             return nil
         }
         switch operation.kind {

@@ -268,21 +268,25 @@ enum ToolpathGenerator {
 
 extension ToolpathGenerator {
 
+    /// The library's kind of tool for one of the app's: conical bits (V-bit, chamfer, engraving)
+    /// are V-bits, and the flat-bottomed cutters (end mill, corn, solder mask remover) flat end mills.
+    static func libraryType(for type: ToolType) -> SC.ToolType {
+        switch type {
+            case .endMill, .corn, .solderMaskRemover: return .flatEndMill
+            case .ballNose:                           return .ballEndMill
+            case .vBit, .chamfer, .engraving:         return .vBit
+            case .drill:                              return .drill
+            case .threadMill:                         return .threadMill
+        }
+    }
+
     static func makeTool(from tool: Tool, for kind: OperationKind) -> SC.ToolParams {
         let vAngle = tool.tipAngle.map { Double($0) }
 
-        // `Tool.type` is not mapped: a tool with a tip angle is a V-bit, anything else a flat end
-        // mill. Only a chamfer and an engraving care: a chamfer derives its depth from the
-        // V-bit's included angle, and a V-bit is what engraves fine lines.
-        let isVBit = (vAngle ?? 0) > 0
-        let type: SC.ToolType
-        if kind == .threadMilling && tool.type == .threadMill {
-            type = .threadMill
-        } else if (kind == .chamfer || kind == .engrave) && isVBit {
-            type = .vBit
-        } else {
-            type = .flatEndMill
-        }
+        // The library only knows a few kinds of tool; the app's other types are the nearest one
+        // (see `libraryType(for:)`). Which kind each operation is made for is the library's call
+        // (`SC.OperationRequirements.toolTypes`).
+        let type = libraryType(for: tool.type)
 
         // The tool's length is optional (engraving bits often have none). Nothing here depends on
         // it: how deep the tool goes is End Z, which the user sets. A missing length is passed as 0,
