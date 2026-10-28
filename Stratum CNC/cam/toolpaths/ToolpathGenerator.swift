@@ -255,7 +255,7 @@ enum ToolpathGenerator {
             case "threadMilling.targetDiameter":
                 return "The thread diameter must be greater than 0."
             case "threadMilling.radialPasses", "radialPasses":
-                return "The thread needs at least 1 radial pass."
+                return "The thread needs between 1 and 10 radial passes."
             case "chamfer.params.width":
                 return "The chamfer width must be greater than 0."
             case "chamfer.params.depth":

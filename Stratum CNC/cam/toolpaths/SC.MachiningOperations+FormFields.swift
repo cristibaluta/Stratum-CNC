@@ -88,9 +88,10 @@ extension SC.MachiningOperation {
                             onChange(.threadMilling(pitch: $0, isInternal: isInternal, direction: direction,
                                                      radialPasses: radialPasses, targetDiameter: targetDiameter))
                         }, isEnabled: isCustom)),
-                        // Must be >= 1; the last pass always lands exactly on targetDiameter.
+                        // 1...10; the thread is cut in this many laps, each deeper than the last, and
+                        // the last one always lands exactly on targetDiameter.
                         .int(.init(id: "threadMilling.radialPasses", label: "Radial Passes",
-                                   range: 1...6, value: radialPasses, onChange: {
+                                   range: SC.MachiningOperation.radialPassesRange, value: radialPasses, onChange: {
                             onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: direction,
                                                      radialPasses: $0, targetDiameter: targetDiameter))
                         }))
