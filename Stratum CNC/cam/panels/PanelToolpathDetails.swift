@@ -250,14 +250,6 @@ struct PanelToolpathDetails: View {
                 }
             }
         }
-        // Facing without a stepdown takes the whole depth in one pass: flag a deep cut.
-        if toolpath.operation.kind == .facing,
-           !requirements.usesStepdown,
-           toolpath.cutDepth > ToolpathData.facingSinglePassWarningDepth {
-            InspectorNote(text: String(format: "Facing cuts all %.2f mm in a single pass. For a deep cut, face in several runs of about %.0f mm or less.",
-                                       toolpath.cutDepth, ToolpathData.facingSinglePassWarningDepth),
-                          isWarning: true)
-        }
         // How much is cut per pass: the same idea under the name each operation gives it. A slot
         // steps down by its own depth per pass (not the general stepdown, see `rampingButton`),
         // a drill by its peck depth.

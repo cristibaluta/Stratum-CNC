@@ -18,6 +18,12 @@ struct OperationSettings: Codable, Hashable {
     var kind: OperationKind = .contour
     var direction: CutDirectionOption = .climb
 
+    // Stock to leave (pocket, and contour cut on a side: see `SC.OperationRequirements.usesAllowance`)
+    /// Material the roughing leaves on the walls and, for a pocket, the floor, mm.
+    var stockToLeave: Double = 0
+    /// Cut the stock to leave away with a finishing pass. Only matters while `stockToLeave` > 0.
+    var finishingPass: Bool = false
+
     // Pocket
     var pocketPattern: PocketPattern = .offset
     var pocketSpiral: SpiralOrder = .outsideIn// TODO: reuse model from stratum cam
@@ -87,6 +93,7 @@ struct OperationSettings: Codable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case kind, direction
+        case stockToLeave, finishingPass
         case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoadPercent
         case contourTabs, contourLeadIn, contourLeadOut
         case facingExtension, facingWholeStock
@@ -110,6 +117,8 @@ extension OperationSettings {
 
         kind = try c.decodeIfPresent(OperationKind.self, forKey: .kind) ?? d.kind
         direction = try c.decodeIfPresent(CutDirectionOption.self, forKey: .direction) ?? d.direction
+        stockToLeave = try c.decodeIfPresent(Double.self, forKey: .stockToLeave) ?? d.stockToLeave
+        finishingPass = try c.decodeIfPresent(Bool.self, forKey: .finishingPass) ?? d.finishingPass
         pocketPattern = try c.decodeIfPresent(PocketPattern.self, forKey: .pocketPattern) ?? d.pocketPattern
         pocketSpiral = try c.decodeIfPresent(SpiralOrder.self, forKey: .pocketSpiral) ?? d.pocketSpiral
         pocketTrochoidalPitch = try c.decodeIfPresent(Double.self, forKey: .pocketTrochoidalPitch) ?? d.pocketTrochoidalPitch

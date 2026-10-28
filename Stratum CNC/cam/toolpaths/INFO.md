@@ -32,6 +32,10 @@ PanelToolpathDetails
       │     ├─ HoldingTabsButton                  ← contour
       │     ├─ patternRow (PatternPicker + patternDetail)   ← pocket
       │     ├─ stepOverRow (% of Ø + mm note)     ← if requirements.usesStepover, or facing
+      │     ├─ stockToLeaveRows                   ← if requirements.usesAllowance (pocket; contour on a side)
+      │     │   ├─ Stock to leave (mm)            ← walls, and a pocket's floor
+      │     │   ├─ Finishing pass (toggle)        ← only while stock > 0
+      │     │   └─ InspectorNote                  ← what is left, or a warning when stock ≥ pocket depth
       │     └─ rampingRow (Entry, Ramp angle)     ← if requirements.usesEntry
       │
       ├─ InspectorSection "Tool & feeds"

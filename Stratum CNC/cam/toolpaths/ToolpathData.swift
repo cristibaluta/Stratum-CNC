@@ -90,6 +90,14 @@ extension ToolpathData {
         min(max(percent, adaptiveLoadRange.lowerBound), adaptiveLoadRange.upperBound)
     }
 
+    /// Stock to leave (mm). Not a library limit (it takes any value of 0 or more): a sane range
+    /// for the field, so a typo doesn't leave most of the part standing.
+    static let stockToLeaveRange: ClosedRange<Double> = 0...5
+
+    static func clampedStockToLeave(_ mm: Double) -> Double {
+        min(max(mm, stockToLeaveRange.lowerBound), stockToLeaveRange.upperBound)
+    }
+
     /// Counterbore depth (mm): what the library accepts.
     static let counterboreDepthRange: ClosedRange<Double> = 0.1...50
 
@@ -121,6 +129,18 @@ extension ToolpathData {
         Double(tool.toolDiameter) * stepOverFraction
     }
 
+    /// Whether the roughing leaves stock: some is set, and the operation (as configured) can
+    /// leave it (`requirements.usesAllowance`; a contour cut on the line has no side to leave it on).
+    var leavesStock: Bool {
+        operation.stockToLeave > 0 && machiningOperation.requirements.usesAllowance
+    }
+
+    /// A pocket leaves its floor as well, so the stock to leave has to be less than the depth.
+    /// A contour cuts all the way through and only leaves its wall.
+    var stockToLeaveExceedsDepth: Bool {
+        operation.kind == .pocket && leavesStock && operation.stockToLeave >= abs(endZ) - 1e-9
+    }
+
     /// A facing toolpath set to cover the whole stock; the selected shapes are ignored.
     var cutsWholeStock: Bool {
         operation.kind == .facing && operation.facingWholeStock
@@ -136,9 +156,6 @@ extension ToolpathData {
     var cutDepth: Double {
         abs(endZ - min(startZ, 0))
     }
-
-    /// Facing deeper than this (mm) in one pass is hard on the tool and the machine.
-    static let facingSinglePassWarningDepth = 1.0
 
     /// A contour with a lead-in whose entry is a ramp or helix: the library refuses that
     /// (the entry already eases the tool in), so the panel flags it and holds back Preview.

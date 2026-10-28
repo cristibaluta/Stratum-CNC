@@ -33,6 +33,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Fix:** render Stepover directly under the pattern (and its detail row), before Entry. Same for Counterbore.
 
 ### [x] #3: Facing has no stepover control (priority: low)
+- **Fixed for real:** the engine used a hardcoded 90 % and ignored the stepover setting. `SCEngine+Facing` now uses `CuttingData.stepoverPercentage` (capped at 100 %), and the panel shows the stepover row from `requirements.usesStepover`.
 - **Where:** `SC.MachiningOperations+FormFields.swift` (comment: the engine derives row spacing from the tool diameter).
 - **Problem:** with a large facing cutter the user can't control overlap.
 - **Fix:** ask the library to expose it, or show a read-only note with the value the engine uses.
@@ -54,9 +55,14 @@ Each issue is numbered so we can work through them one by one. Tick the box when
   - The library rejects lead-in combined with ramp/helix entry (`parameterMessage` already handles it).
   - The UI should prevent or explain that combination instead of failing at Preview.
 
-### [ ] #6: No stock to leave / finishing pass (priority: medium)
-- **Status:** blocked. It needs StratumCAM to support an allowance and a finishing pass, and the library isn't part of this project, so nothing was changed.
-- **Where:** nowhere in `ToolpathData` or `OperationSettings`.
+### [x] #6: No stock to leave / finishing pass (priority: medium)
+- **Done:**
+  - **Library:** `SC.MachineSettings` has `allowance` (mm, default 0) and `finishingPass` (default false); `SC.OperationRequirements.usesAllowance` says which operations take them (pocket, and a contour cut inside/outside, not on the line). The work is in `SCEngine+Allowance.swift`; `SCEngine.buildToolpath` hands over to it when `allowance > 0`.
+  - **Roughing:** the normal builder run with a stand-in tool of Ø + 2 × allowance, so every pattern, the island handling and a contour's side/tabs leave the stock without changes inside them; the output gets the real tool back. Stepover and trochoidal pitch are rescaled to keep their size in mm. A pocket also stops `allowance` short of End Z (floor stock); a contour cuts through.
+  - **Finishing pass** (appended to the same `OutputToolpath`, after the roughing, same stepdown): a pocket gets a floor pass (one lap of the roughing pattern at full depth, plunge entry, rapid through the cleared part), then its islands and its wall as inside/outside contours with the real tool (a helix entry becomes a ramp at the same angle). A contour is run again at its true size with its own entry, lead-in/out and tabs.
+  - **App:** `OperationSettings.stockToLeave` / `finishingPass` (optional keys, no migration), `ToolpathData.stockToLeaveRange` (0–5 mm), `leavesStock`, `stockToLeaveExceedsDepth`; `makeSettings` passes them; `validateOptions` refuses stock ≥ pocket depth; panel rows in `OperationOptionsView.stockToLeaveRows` under Stepover.
+  - **Not covered:** separate wall and floor values (one value does both), a finishing stepdown of its own, finishing with a smaller tool. **Not compiled or run** (no Swift toolchain where this was written): build it and preview a pocket and a contour with stock and finishing on.
+- **Where:** was nowhere in `ToolpathData` or `OperationSettings`.
 - **Problem:** pockets and contours usually want a roughing pass with an allowance, then a finishing pass.
 - **Fix:** needs engine support first. Then add an allowance field (and a finishing-pass toggle) to the general fields.
 
@@ -83,6 +89,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Fix:** when "Selection is" = Slot outline, show a note: "Outline must be Ø X mm wide".
 
 ### [x] #11: Facing may be a single full-depth pass **(verify)** (priority: medium)
+- **Fixed for real:** confirmed the engine cut facing in one pass whatever the stepdown. It now cuts layers of `CuttingData.stepdown` (`calculateZPasses`), the Stepdown field shows (default 0.3 mm), and the single-pass warning was removed.
 - **Where:** `OperationKind.defaults` (facing has End Z only, no Stepdown).
 - **Problem:** if `usesStepdown` is false for facing, a deep facing cut is taken in one pass.
 - **Fix:** check `requirements`. If confirmed, either expose Stepdown or warn above a depth threshold.

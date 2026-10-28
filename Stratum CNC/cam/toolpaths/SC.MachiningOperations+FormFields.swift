@@ -32,8 +32,8 @@ extension SC.MachiningOperation {
                                   onChange: {
                         onChange(.facing(direction: direction, extensionLength: $0))
                     }))
-                    // No stepover: facing derives row spacing from the tool's own
-                    // diameter (SCEngine.facingStepover), so there's nothing to expose.
+                    // The stepover and stepdown are general settings (CuttingData), read by
+                    // facing like by a pocket; the app draws them itself.
                 ]
 
             case .slotting(let depthPerPass, let pattern, let entry):

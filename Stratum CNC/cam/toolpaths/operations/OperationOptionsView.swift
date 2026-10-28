@@ -95,6 +95,11 @@ struct OperationOptionsView: View {
                 stepOverRow
             }
 
+            // Stock for a finishing pass: wherever the library says the operation can leave some.
+            if requirements.usesAllowance {
+                stockToLeaveRows
+            }
+
             // The entry strategy keeps its dedicated editor (angle/length preview, helix
             // diagram), but whether an operation has one is up to the library.
             if requirements.usesEntry {
@@ -172,12 +177,9 @@ struct OperationOptionsView: View {
         InspectorNote(text: stepOverNote)
     }
 
-    /// Whether the stepover row is shown. Facing is always included: the library doesn't report
-    /// a stepover for it yet (it derives the spacing from the tool diameter), but the value is
-    /// stored and sent in `SC.CuttingData.stepoverPercentage` like any other, so it takes
-    /// effect as soon as the library reads it for facing.
+    /// Whether the stepover row is shown: whatever the library says reads it (facing included).
     private var usesStepover: Bool {
-        requirements.usesStepover || kind == .facing
+        requirements.usesStepover
     }
 
     private var stepOverPercent: Binding<Double> {
@@ -200,6 +202,45 @@ struct OperationOptionsView: View {
             return "Pick a tool to see the stepover in mm."
         }
         return String(format: "= %.2f mm between passes (tool Ø%.2f mm)", toolpath.stepOverMM, diameter)
+    }
+
+    /// Stock to leave and the finishing pass. The roughing stays `stockToLeave` away from the
+    /// walls (and from a pocket's floor); the finishing pass, when on, cuts that stock away.
+    /// The only clamp is `ToolpathData.stockToLeaveRange`.
+    @ViewBuilder
+    private var stockToLeaveRows: some View {
+        InspectorNumberField(title: "Stock to leave", value: stockToLeave, suffix: "mm")
+            .help(kind == .pocket
+                  ? "Material left standing on the walls and the floor by the roughing. 0 cuts straight to size."
+                  : "Material left standing on the wall by the roughing. 0 cuts straight to size.")
+        if toolpath.operation.stockToLeave > 0 {
+            ToggleField(title: "Finishing pass",
+                        isOn: $toolpath.operation.finishingPass,
+                        help: kind == .pocket
+                            ? "After the roughing, cuts the floor and then the walls to size. Uses the same stepdown."
+                            : "After the roughing, cuts the contour again at its true size, with the same entry, lead-in/out and tabs. Uses the same stepdown.")
+            InspectorNote(text: stockToLeaveNote, isWarning: toolpath.stockToLeaveExceedsDepth)
+        }
+    }
+
+    private var stockToLeave: Binding<Double> {
+        Binding(
+            get: { toolpath.operation.stockToLeave },
+            set: { toolpath.operation.stockToLeave = ToolpathData.clampedStockToLeave($0) }
+        )
+    }
+
+    private var stockToLeaveNote: String {
+        let stock = toolpath.operation.stockToLeave
+        if toolpath.stockToLeaveExceedsDepth {
+            return String(format: "The stock to leave must be less than the depth (%.2f mm): the floor is left too.", abs(toolpath.endZ))
+        }
+        let amount = String(format: "%.2f", stock)
+        let place = kind == .pocket ? "the walls and the floor" : "the wall"
+        if toolpath.operation.finishingPass {
+            return "Roughing leaves \(amount) mm on \(place); the finishing pass cuts it to size."
+        }
+        return "Leaves \(amount) mm on \(place). Turn on Finishing pass to cut it, or finish it with another toolpath."
     }
 
     /// The ramp types the operation accepts, taken from the entry strategies the library

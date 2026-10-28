@@ -161,7 +161,11 @@ enum ToolpathGenerator {
         return SC.MachineSettings(cutting: cutting,
                                   safeZ: toolpath.safeZ,
                                   retractZ: min(1.0, toolpath.safeZ),
-                                  targetDepth: abs(depth))
+                                  targetDepth: abs(depth),
+                                  // Only the operations that use them read these (see
+                                  // `SC.OperationRequirements.usesAllowance`); the rest ignore them.
+                                  allowance: toolpath.operation.stockToLeave,
+                                  finishingPass: toolpath.operation.finishingPass)
     }
 
     /// A message fit for showing under the Generate button. `operation` (the operation the
@@ -195,7 +199,7 @@ enum ToolpathGenerator {
             case .invalidParameter(let name):
                 return parameterMessage(for: name)
             case .geometryCollapsed:
-                return "The tool is too large for the selected shapes — nothing is left after offsetting."
+                return "The tool is too large for the selected shapes (with the stock to leave, if any, on each wall) — nothing is left after offsetting."
             @unknown default:
                 return "Couldn't generate the toolpath (\(error))."
             }
@@ -210,6 +214,10 @@ enum ToolpathGenerator {
         switch parameter {
             case "entry":
                 return "This operation can't use that entry strategy."
+            case "allowance":
+                return "The stock to leave can't be negative."
+            case "allowance.depth":
+                return "The stock to leave must be less than the pocket's depth, because the floor is left too."
             case "contour.leadIn":
                 return "A lead-in can't be combined with a ramp or helix entry: the entry already eases the tool in."
             case "pattern.trochoidal.radialEngagement":
@@ -281,6 +289,14 @@ extension ToolpathGenerator {
         }
 
         try operation.validate(tool: makeTool(from: toolpath.tool, for: toolpath.operation.kind))
+
+        // The pocket's floor is left too, so there has to be more depth than stock.
+        if toolpath.stockToLeaveExceedsDepth {
+            throw GenerationError.invalidOption(
+                String(format: "The stock to leave (%.2f mm) must be less than the pocket's depth (%.2f mm), because the floor is left too.",
+                       toolpath.operation.stockToLeave, abs(toolpath.endZ))
+            )
+        }
     }
 
     /// The toolpath's operation and options as StratumCAM's `SC.MachiningOperation`.
@@ -448,7 +464,13 @@ extension ToolpathGenerator {
         let operation = toolpath.operation.kind == .contour
             ? "contour/\(toolpath.contour)"
             : "\(toolpath.operation.kind)"
+        var stock = ""
+        if toolpath.leavesStock {
+            let finishing = toolpath.operation.finishingPass ? " + finishing pass" : ""
+            stock = "stock to leave \(toolpath.operation.stockToLeave) mm\(finishing) · "
+        }
         PerfLog.log("gen", "job '\(toolpath.name)': \(operation) · tool Ø\(toolpath.tool.toolDiameter) · "
+                    + stock
                     + "stepdown \(toolpath.stepDown) · stepover \(toolpath.stepOverPercent)% (\(String(format: "%.2f", toolpath.stepOverMM)) mm) · Z \(toolpath.startZ)…\(toolpath.endZ) "
                     + "(≈\(expectedPasses) passes) · ramp: \(ramp)")
     }
