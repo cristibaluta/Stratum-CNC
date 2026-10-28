@@ -59,10 +59,8 @@ struct PanelToolpathDetails: View {
                     rowTool
                 }
                 // How the tool moves in the plane
-                if OperationOptionsView.hasXYMovement(for: toolpath) {
-                    InspectorSection(title: "XY movement") {
-                        rowXYMovement
-                    }
+                InspectorSection(title: "XY movement") {
+                    rowXYMovement
                 }
                 // Start Z, End Z, the depth per pass, how the tool enters the material and the clearance height.
                 InspectorSection(title: "Z levels") {
@@ -136,10 +134,6 @@ struct PanelToolpathDetails: View {
             InspectorNote(text: presetNote)
         }
         InspectorIntField(title: "Spindle", value: $toolpath.spindleRPM, suffix: "rpm")
-        InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
-        // Always available, also for operations without an entry strategy (drill, bore…)
-        InspectorNumberField(title: "Plunge feed", value: $toolpath.plungeRate, suffix: "mm/min")
-            .help(model.plungeFeedHelp(for: toolpath))
     }
 
     @ViewBuilder
@@ -176,6 +170,9 @@ struct PanelToolpathDetails: View {
         if OperationOptionsView.hasEntry(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, part: .entry)
         }
+        // Always available, also for operations without an entry strategy (drill, bore…)
+        InspectorNumberField(title: "Ramp feed", value: $toolpath.plungeRate, suffix: "mm/min")
+            .help(model.plungeFeedHelp(for: toolpath))
         InspectorNumberField(title: "Clearance Z", value: $toolpath.safeZ, suffix: "mm")
             .help("The height the tool travels at between cuts.")
     }

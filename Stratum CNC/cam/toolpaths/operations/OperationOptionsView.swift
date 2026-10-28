@@ -44,8 +44,8 @@ struct OperationOptionsView: View {
     enum Part {
         /// What the cut is: side, selection source, the library's own fields, holding tabs, pattern.
         case operation
-        /// How the tool moves in the plane: stepover, stock to leave, the pattern's extra
-        /// control, lead-in/out.
+        /// How the tool moves in the plane: cut direction, feed rate, stepover, stock to leave, the
+        /// pattern's extra control, lead-in/out.
         case xyMovement
         /// How the tool descends into the material (ramp / helix / plunge). Shown in "Z levels".
         case entry
@@ -53,15 +53,12 @@ struct OperationOptionsView: View {
 
     var part: Part = .operation
 
-    /// Whether the "XY movement" section has anything to show for this toolpath, so the panel
-    /// can leave the section out (drilling, boring… have no XY movement).
-    static func hasXYMovement(for toolpath: ToolpathData) -> Bool {
-        let requirements = toolpath.machiningOperation.requirements
-        return toolpath.operation.kind == .contour
-            || requirements.usesStepover
-            || requirements.usesAllowance
-            || !requirements.pocketPatterns.isEmpty
-    }
+    /// The cut direction (climb / conventional) fields `formFields` builds. They are shown in
+    /// the XY movement section, since they decide how the tool travels along the path, and
+    /// left out of the Operation section.
+    private static let xyDirectionFieldIDs: Set<String> = [
+        "facing.direction", "contour.direction", "pocket.direction"
+    ]
 
     /// Whether the "Z levels" section has an entry row for this toolpath.
     static func hasEntry(for toolpath: ToolpathData) -> Bool {
@@ -78,12 +75,16 @@ struct OperationOptionsView: View {
 
     // MARK: Operation
 
-    private var operationPart: some View {
-        let fields = toolpath.machiningOperation.formFields(
+    private var formFields: [SC.ParameterField] {
+        toolpath.machiningOperation.formFields(
             threadIsCustom: toolpath.operation.threadIsCustom,
             onThreadCustomChange: { toolpath.operation.threadIsCustom = $0 },
             onChange: { toolpath.machiningOperation = $0 }
         )
+    }
+
+    private var operationPart: some View {
+        let fields = formFields
 
         return VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if kind == .slotting {
@@ -104,7 +105,7 @@ struct OperationOptionsView: View {
             }
 
             ParameterFieldsView(fields: displayedFields(of: fields),
-                                hiddenFieldIDs: kind.hiddenFieldIDs,
+                                hiddenFieldIDs: kind.hiddenFieldIDs.union(Self.xyDirectionFieldIDs),
                                 hiddenCaseIDs: OperationKind.hiddenCaseIDs)
 
             if kind == .chamfer {
@@ -134,6 +135,15 @@ struct OperationOptionsView: View {
 
     private var xyMovementPart: some View {
         VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+            // Climb / conventional: how the tool travels along the path
+            let directionFields = formFields.filter { Self.xyDirectionFieldIDs.contains($0.id) }
+            if !directionFields.isEmpty {
+                ParameterFieldsView(fields: directionFields)
+            }
+
+            // Feed rate of the cutting moves in the plane (the entry's own feed is in Z levels)
+            InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
+
             // The pattern's one extra control, right at the top: it shapes how the area is cleared.
             if !offeredPatterns.isEmpty {
                 patternDetail

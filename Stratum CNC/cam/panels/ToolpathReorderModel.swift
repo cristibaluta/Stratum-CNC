@@ -10,7 +10,7 @@ import SwiftUI
 /// Owns everything about dragging a row of the toolpath list: which row is lifted, which
 /// slot it would drop into, how far it is from its own slot, and the commit/settle sequence.
 /// The view only forwards the gesture and reads offsets back.
-final class ToolpathReorderModel: ObservableObject {
+final class ToolpathReorderModel: ObservableObject, @unchecked Sendable {
 
     static let rowSpacing: CGFloat = 2
     static let listSpace = "toolpathList"
@@ -112,11 +112,11 @@ final class ToolpathReorderModel: ObservableObject {
 
         // Then let the row glide into its slot
         DispatchQueue.main.async { [weak self] in
-            withAnimation(.easeOut(duration: 0.18)) {
+            withAnimation(.easeOut(duration: 0.18)) { [weak self] in
                 self?.dragOffset = 0
                 self?.isDragActive = false
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 guard let self, !self.isDragActive else {
                     return
                 }
