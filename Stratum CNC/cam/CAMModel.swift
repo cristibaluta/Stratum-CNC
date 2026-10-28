@@ -221,6 +221,26 @@ class CAMModel: ObservableObject {
         }
     }
 
+    /// Moves a toolpath to `newIndex` in the list (its index once it has moved). The list
+    /// order is the order the toolpaths are written to the G-code program, so this is how the
+    /// user decides which one is cut first. Results stay attached to their toolpath: they are
+    /// keyed by id, so nothing needs to be generated again.
+    func moveToolpath(_ id: UUID, to newIndex: Int) {
+        guard let from = toolpaths.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let to = min(max(newIndex, 0), toolpaths.count - 1)
+        guard from != to else {
+            return
+        }
+        var reordered = toolpaths
+        reordered.insert(reordered.remove(at: from), at: to)
+        // Saves the project through `onToolpathsChanged`
+        toolpaths = reordered
+        // The preview is drawn in list order
+        updateToolpathPreview()
+    }
+
     /// Shows or hides one toolpath's generated result on the canvas.
     func toggleToolpathVisibility(_ id: UUID) {
         if hiddenToolpathIDs.contains(id) {

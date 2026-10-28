@@ -233,7 +233,7 @@ struct CAMView: View {
 
     private var toolpathListPanel: some View {
         PanelToolpaths(
-            toolpaths: $camModel.toolpaths,
+            toolpaths: camModel.toolpaths,
             selectedID: camModel.selectedToolpathID,
             hiddenIDs: camModel.hiddenToolpathIDs,
             onSelect: { id in
@@ -253,6 +253,9 @@ struct CAMView: View {
                 withAnimation(.easeOut(duration: 0.15)) {
                     camModel.addToolpath()
                 }
+            },
+            onMove: { id, index in
+                camModel.moveToolpath(id, to: index)
             }
         )
     }
