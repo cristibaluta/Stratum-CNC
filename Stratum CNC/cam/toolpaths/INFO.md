@@ -1,104 +1,102 @@
+# Toolpath panel: view tree and data flow
 
+Source of truth: `panels/PanelToolpathDetails.swift`, `toolpaths/operations/OperationOptionsView.swift`,
+`toolpaths/ParameterFieldsView.swift`. Update this file when the sections change.
+
+```
 PanelToolpathDetails
-└─ GroupBox("TOOLPATH")
-   └─ VStack (spacing: 16)
+└─ GroupBox
+   └─ VStack
       │
-      ├─ rowHeader                              [HStack]
-      │  ├─ TextField(toolpath.name)             → sets isNameCustom = true on edit
-      │  ├─ Spacer()
-      │  ├─ expandToggle                         [Button: chevron.down]
-      │  └─ doneButton                           [Button: "Done"]
+      ├─ rowHeader                         [HStack]
+      │  ├─ Image(operation symbol)
+      │  └─ TextField(toolpath.name)       → sets isNameCustom = true on edit
       │
-      ├─ Divider()
+      ├─ InspectorSection "Shapes"
+      │  └─ rowShapes
+      │     ├─ "Area" Selection / Whole stock    ← facing only
+      │     ├─ "Selected": shapesLabel           ("N shapes selected", "Whole stock", …)
+      │     └─ InspectorNote(selectionHint)      ← what to click; the slot's text follows its source
       │
-      ├─ rowOperation                            [HStack]
-      │  ├─ OperationPicker(operationKindBinding) → renames via nextName() if !isNameCustom
-      │  └─ Text(hint)
+      ├─ InspectorSection "Operation"
+      │  ├─ rowOperation: OperationPicker(operationKindBinding)   → renames via nextName() if !isNameCustom
+      │  └─ rowOperationOptions: OperationOptionsView($toolpath)
+      │     ├─ "Selection is" + width note        ← slot only
+      │     ├─ ContourPicker (Side)               ← contour, chamfer
+      │     ├─ ParameterFieldsView(formFields)    ← whatever the library defines for the operation
+      │     │   (hidden: entry, contour.side, contour.tabs, pattern, slotting.depthPerPass,
+      │     │    drilling.peckDepth, counterbore.depth, chamfer.params.side;
+      │     │    the chamfer's "Chamfer" group is flattened)
+      │     ├─ chamferDepthNote                   ← chamfer: "Depth = X mm for a Y° bit"
+      │     ├─ leadInConflictNote                 ← contour: lead-in + ramp/helix entry
+      │     ├─ HoldingTabsButton                  ← contour
+      │     ├─ patternRow (PatternPicker + patternDetail)   ← pocket
+      │     ├─ stepOverRow (% of Ø + mm note)     ← if requirements.usesStepover, or facing
+      │     └─ rampingRow (Entry, Ramp angle)     ← if requirements.usesEntry
       │
-      ├─ Divider()
+      ├─ InspectorSection "Tool & feeds"
+      │  └─ rowTool
+      │     ├─ ToolPicker(toolpath.tool)
+      │     ├─ InspectorNote(toolCompatibilityWarning)   ← tool can't do the operation
+      │     ├─ InspectorNote(presetNote)
+      │     ├─ Spindle
+      │     ├─ Feed rate
+      │     └─ Plunge feed                        ← always, also for drill / bore / thread mill
       │
-      ├─ rowOperationOptions                     [VStack]
-      │  ├─ OperationOptionsView(toolpath, expanded: isExpanded)
-      │  │   └─ ParameterFieldsView(fields: formFields(...))   ← built elsewhere
-      │  │       ├─ ChoiceControl / NumberField / IntField / ToggleField ...
-      │  │       └─ .row / .group / .list nested blocks
-      │  └─ NumberField("STEPOVER")               ← only if usesStepover
+      ├─ InspectorSection "Z levels"
+      │  └─ rowDepth
+      │     ├─ Start Z
+      │     ├─ End Z                              ← counterbore: its own depth, shown as End Z
+      │     │   └─ "Through stock" button         ← drill, bore, thread mill
+      │     ├─ facing single-pass warning         ← facing without a stepdown, deep cut
+      │     ├─ Depth per pass | Stepdown          ← slot has its own depth per pass
+      │     ├─ Peck drilling + Peck depth         ← drill only
+      │     └─ Clearance Z
       │
-      ├─ Divider()
+      ├─ InspectorSection "Preview"
+      │  ├─ rowPreview: generationStatus + "Preview" button   (held back on a lead-in/entry conflict)
+      │  └─ rowScrub: slider through the generated moves
       │
-      ├─ rowTool                                 [VStack]
-      │  ├─ ToolPicker(toolpath.tool)
-      │  ├─ Divider()
-      │  └─ HStack
-      │     ├─ IntField("SPINDLE SPEED")
-      │     └─ NumberField("FEED RATE")
-      │
-      ├─ Divider()
-      │
-      ├─ rowZ                                    [HStack]
-      │  ├─ NumberField("START Z")
-      │  ├─ NumberField("END Z")                  ← only if usesEndZ
-      │  ├─ NumberField("STEPDOWN")                ← only if usesStepdown
-      │  └─ NumberField("SAFE Z")
-      │
-      ├─ Divider()
-      │
-      └─ rowFooter                               [HStack, height 36]
-         ├─ shapesLabel                           [Label: "N shapes selected"]
-         ├─ Spacer()
-         └─ (if targets not empty)
-            ├─ Divider()
-            └─ HStack
-               ├─ generationStatus                [Label: error / outdated / success]
-               └─ Button("Generate")               → onGenerate()
+      └─ rowBottomBar: Delete · Next toolpath · Done (Esc)
+```
 
-   .overlay: orange RoundedRectangle border, only while isPicking
+## Data flow
 
-
+```
 CAMView.toolpathSettingsPanel(for:)
-   │
-   │  toolpath: Binding<ToolpathData>  (via binding(for:))
-   │  siblingNames: Set<String>        (camModel.toolpaths, self excluded)
-   │  isPicking / generation / isGenerating   (looked up from camModel by id)
-   │  onGenerate: () -> Void  →  camModel.generateToolpaths(for:)
-   │  onDone: () -> Void      →  camModel.selectedToolpathID = nil
+   │  toolpath:       Binding<ToolpathData>   (via binding(for:))
+   │  stockMaterial / stockThickness          (camModel.selectedStockMaterial)
+   │  siblingNames:   Set<String>             (other toolpaths' names, for nextName)
+   │  isPicking:      camModel.pickingToolpathID == toolpath.id
+   │  generation / isGenerating               (looked up from camModel by id)
+   │  onGenerate → camModel.generateToolpaths(for:)
+   │  onScrub    → camModel.setToolpathScrubStep(_:)
+   │  onDone     → camModel.selectedToolpathID = nil
+   │  onDelete   → camModel.deleteToolpath(_:)
+   │  onAddNext  → adds the next toolpath and opens it
    ▼
 PanelToolpathDetails
-   │
-   ├─▶ rowHeader
-   │      asks for: toolpath.name (custom get/set Binding)
-   │      side effect on set: toolpath.isNameCustom = true
-   │      also renders: expandToggle, doneButton  (no external data — use own @State / onDone)
-   │
-   ├─▶ rowOperation
-   │      asks OperationPicker for: kind — via operationKindBinding, not $toolpath.operation.kind directly
-   │         operationKindBinding reads:  toolpath.operation.kind, toolpath.isNameCustom
-   │         operationKindBinding writes: toolpath.operation.kind, toolpath.name
-   │                                       (name write also needs siblingNames + newKind.nextName(among:))
-   │      asks Text for: hint  (derived from toolpath.operation.kind / slotSource)
-   │
-   ├─▶ rowOperationOptions
-   │      asks OperationOptionsView for: $toolpath (whole binding, not just operation)
-   │                                     expanded: isExpanded
-   │         which itself asks toolpath.machiningOperation for: formFields(onChange:)
-   │            → produces [SC.ParameterField], each already carrying its own onChange
-   │         which it hands to ParameterFieldsView(fields:, expanded:, hiddenFieldIDs:, hiddenCaseIDs:)
-   │            → ParameterFieldsView asks each field for its own value + onChange
-   │              to build NumberField / IntField / ToggleField / ChoiceControl / .row / .group / .list
-   │      asks NumberField for: $toolpath.stepOver   (only if usesStepover — conditional ask)
-   │
-   ├─▶ rowTool
-   │      asks ToolPicker for: $toolpath.tool
-   │      asks IntField for: $toolpath.spindleRPM
-   │      asks NumberField for: $toolpath.feedRate
-   │
-   ├─▶ rowZ
-   │      asks NumberField for: $toolpath.startZ            (always)
-   │      asks NumberField for: $toolpath.endZ               (only if usesEndZ)
-   │      asks NumberField for: $toolpath.stepDown            (only if usesStepdown)
-   │      asks NumberField for: $toolpath.safeZ              (always)
-   │
-   └─▶ rowFooter
-          asks shapesLabel for: toolpath.targets.count
-          asks generationStatus for: generation  (passed-in, not toolpath-derived)
-          asks Button for: onGenerate()  (passed-in callback, gated on isGenerating)
+   ├─ operationKindBinding: writes operation.kind, applyDefaults(for:), and the name
+   ├─ OperationOptionsView
+   │    reads  toolpath.machiningOperation  (= ToolpathGenerator.makeOperation)
+   │    writes toolpath.machiningOperation  (= ToolpathData.apply, in ToolpathData+Operation)
+   │    stepover:   toolpath.stepOverPercent (% of Ø, clamped 10–95); mm is a read-out only
+   │    pattern:    operation.pocketTrochoidalPitch (% radius), pocketAdaptiveLoadPercent (% Ø)
+   │    tabs / lead-in/out: operation.contourTabs / contourLeadIn / contourLeadOut
+   │    entry:      toolpath.ramping (shared by every operation with an entry)
+   └─ rowTool / rowDepth write the general fields directly
+        (End Z, Stepdown and Stepover are marked in editedFields, so a later change of
+         operation keeps them: see OperationDefaults)
+```
+
+## Where each value lives
+
+| Value | Stored in | Notes |
+|---|---|---|
+| Stepover | `ToolpathData.stepOverPercent` | % of tool Ø; old projects stored mm and are converted on decode |
+| Plunge feed | `ToolpathData.plungeRate` | also the ramp/helix feed |
+| Stepdown | `ToolpathData.stepDown` | not used by slot |
+| Slot depth per pass | `OperationSettings.slotDepthPerPass` | edited in Z levels |
+| Peck depth | `OperationSettings.drillPeckDepth` (+ `drillUsesPecking`) | edited in Z levels |
+| Counterbore depth | `OperationSettings.counterboreDepth` (positive) | shown as End Z, with the "−" in front |
+| End Z | `ToolpathData.endZ` (negative) | typed as a positive depth |

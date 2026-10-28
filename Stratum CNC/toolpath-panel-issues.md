@@ -55,6 +55,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
   - The UI should prevent or explain that combination instead of failing at Preview.
 
 ### [ ] #6: No stock to leave / finishing pass (priority: medium)
+- **Status:** blocked. It needs StratumCAM to support an allowance and a finishing pass, and the library isn't part of this project, so nothing was changed.
 - **Where:** nowhere in `ToolpathData` or `OperationSettings`.
 - **Problem:** pockets and contours usually want a roughing pass with an allowance, then a finishing pass.
 - **Fix:** needs engine support first. Then add an allowance field (and a finishing-pass toggle) to the general fields.
@@ -77,7 +78,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Problem:** the field is in mm, the error talks in %. A 3 mm tool with a 3 mm load fails.
 - **Fix:** edit it as % of tool diameter, like stepover (#1), with an mm read-out. This also unifies the radial-engagement units (stepover % of Ø, loop pitch % of radius, optimal load mm).
 
-### [ ] #10: Slot outline must equal tool width, shown only as an error (priority: low)
+### [x] #10: Slot outline must equal tool width, shown only as an error (priority: low)
 - **Where:** `ToolpathGenerator.run` (`rectangleSlotCenterline`, tolerance 0.05).
 - **Fix:** when "Selection is" = Slot outline, show a note: "Outline must be Ø X mm wide".
 
@@ -98,12 +99,14 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Problem:** operations without an entry strategy can't edit the plunge feed. If the engine uses it for drilling, that's a real gap.
 - **Fix:** see #14. With the plunge feed in the Tool section it is always available.
 
-### [ ] #14: Feeds are split between sections, and "Ramp feed" is mislabelled (priority: medium)
+### [x] #14: Feeds are split between sections, and "Ramp feed" is mislabelled (priority: medium)
+- **Done:** the plunge feed is now in the "Tool & feeds" section as "Plunge feed" (the md was out of date on this one); Entry and Ramp angle stay in Operation.
 - **Where:** `rowTool` (Spindle, Feed rate) vs `rampingRow` (Ramp feed).
 - **Problem:** the plunge feed sits in Operation and is called "Ramp feed" even when Entry is Off.
 - **Fix:** move it next to Feed rate in the Tool section as "Plunge feed". Consider renaming the section "Tool & feeds". Keep Entry and Ramp angle in Operation.
 
-### [ ] #15: Stepdown-like values are scattered (priority: medium)
+### [x] #15: Stepdown-like values are scattered (priority: medium)
+- **Done:** the Z section (renamed, see #17) now holds Depth per pass (slot), Stepdown, and Peck drilling / Peck depth (drill), instead of Operation. `slotDepthPerPass` stays its own value rather than mapping onto `stepDown`, so saved projects are unaffected.
 - **Where:**
   - Stepdown → Depth section.
   - Slot "Depth per pass" → Operation (`slotDepthPerPass`).
@@ -111,31 +114,35 @@ Each issue is numbered so we can work through them one by one. Tick the box when
   - Counterbore "Depth" → Operation.
 - **Fix:** one place in Depth, where the field's meaning depends on the operation (stepdown / depth per pass / peck depth). Could map `slotDepthPerPass` onto `toolpath.stepDown`. Note that `rampingButton` already special-cases the slot.
 
-### [ ] #16: Counterbore depth: wrong section and wrong sign convention (priority: medium)
+### [x] #16: Counterbore depth: wrong section and wrong sign convention (priority: medium)
+- **Done:** shown as "End Z" with the same "−" prefix as other operations. Stored unchanged as the positive `counterboreDepth`, so no migration.
 - **Where:** `OperationSettings.counterboreDepth` (positive) vs End Z (negative); `ToolpathGenerator.makeSettings` uses `abs(depth)`.
 - **Problem:** the Depth section shows Start Z, Stepdown, Clearance Z but no depth.
 - **Fix:** show it in the Depth section as End Z, using the same sign as other operations (or label it clearly).
 
-### [ ] #17: "Clearance Z" is a height inside a section called "Depth" (priority: low)
+### [x] #17: "Clearance Z" is a height inside a section called "Depth" (priority: low)
+- **Done:** the section is now called "Z levels".
 - **Fix:** rename the section ("Z levels" or "Heights").
 
-### [ ] #18: Optional fields show a generic "Value" row (priority: low)
+### [x] #18: Optional fields show a generic "Value" row (priority: low)
 - **Where:** `ParameterFieldsView`, `.optionalDouble` (title hardcoded "Value").
 - **Problem:** Peck depth, Dwell time and Depth override all show a toggle followed by a row labelled "Value".
 - **Fix:** use the field's own label for the number row.
 
-### [ ] #19: Chamfer layout (priority: low)
+### [x] #19: Chamfer layout (priority: low)
+- **Done:** the "Chamfer" subheader is gone, Side sits first in the options, and a note shows "Depth = X mm for a Y° bit" (or the fixed depth). The depth formula is `width / tan(angle / 2)`; compare it with the library's `resolvedDepth(for:)`.
 - **Where:** `OperationOptionsView.body`, `hiddenFieldIDs` (`chamfer.params.side`).
 - **Problems:**
   - The Side picker sits above the "Chamfer" subheader instead of inside it. The subheader is also redundant, since the operation is already Chamfer.
   - The resulting depth (derived from width and V-bit angle) is never shown.
 - **Fix:** drop the subheader or put Side inside the group, and add a note: "Depth = X mm for a Y° bit".
 
-### [ ] #20: Selection hint is hidden (priority: medium)
+### [x] #20: Selection hint is hidden (priority: medium)
 - **Where:** `OperationKind.selectionHint` is only used as a `.help` tooltip on the Type button. The Shapes section comes before the operation is chosen.
 - **Fix:** show it as an `InspectorNote` in the Shapes section, next to "Selected: N shapes". Slot still needs its source-dependent text.
 
-### [ ] #21: No tool compatibility feedback (priority: medium)
+### [x] #21: No tool compatibility feedback (priority: medium)
+- **Done:** the Tool section warns for Chamfer (no tip angle and no Depth Override) and Counterbore (diameter not larger than the tool). **Not covered:** Thread mill, because `Tool.type` isn't mapped in the app, so it can't tell whether a tool is a thread mill. Boring wasn't added because the library's rule for it isn't known.
 - **Where:** `ToolPicker`, `ToolpathGenerator.message`.
 - **Problem:** Chamfer needs a V-bit, Thread mill needs a thread mill, and Counterbore needs a diameter larger than the tool. These only fail at Preview.
 - **Fix:** a warning note in the Tool section when the tool doesn't fit the operation.
@@ -144,20 +151,22 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 
 ## E. Smaller UX and copy fixes
 
-### [ ] #22: Thread mill: hint and summary vs the Internal toggle (priority: low)
+### [x] #22: Thread mill: hint and summary vs the Internal toggle (priority: low)
 - **Where:** `OperationKind.summary` / `selectionHint` say "existing hole", but `threadIsInternal` allows external threads.
 - **Fix:** align the copy with what the toggle allows (or drop external threads).
 
-### [ ] #23: Typo in thread mill hint (priority: low)
+### [x] #23: Typo in thread mill hint (priority: low)
 - "Select and existing hole" → "Select an existing hole".
 
-### [ ] #24: Thread mill has no climb/conventional choice (priority: low)
+### [x] #24: Thread mill has no climb/conventional choice (priority: low)
+- **Checked:** `SC.MachiningOperation.threadMilling` has handedness, internal/external, pitch and passes but no climb/conventional option, so nothing to add in the app. Ask the library if it is wanted.
 - **Fix:** check whether the library offers it for thread milling.
 
-### [ ] #25: Bore: "Shift before retract" needs a help text (priority: low)
+### [x] #25: Bore: "Shift before retract" needs a help text (priority: low)
 - **Fix:** add a `.help` or note explaining what it does (e.g. moving the tool off the wall before retracting, to avoid marking the bore).
 
-### [ ] #26: Engrave tool mapping TODO (priority: low)
+### [x] #26: Engrave tool mapping TODO (priority: low)
+- **Done:** a tool with a tip angle is now mapped to a V-bit for engraving too (as for chamfer). A missing tool length is passed as 0 ("unknown"), since nothing in the app depends on it: depth is End Z. Not tested against the engine.
 - **Where:** `ToolpathGenerator.makeTool`: "engraving tool length can be nil" and `Tool.type` isn't mapped (everything is a flat end mill except chamfer).
 - **Fix:** decide how to handle a nil length and map V-bits for engraving.
 
@@ -165,11 +174,11 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 
 ## F. Stale code and docs
 
-### [ ] #27: `toolpaths/INFO.md` describes the old panel (priority: low)
+### [x] #27: `toolpaths/INFO.md` describes the old panel (priority: low)
 - It lists rowFooter, Generate, "SPINDLE SPEED", "SAFE Z", etc., and not the current Shapes / Operation / Tool / Depth / Preview sections.
 - **Fix:** regenerate it from the current view tree.
 
-### [ ] #28: `GenerationError.noShapes` message refers to a removed button (priority: low)
+### [x] #28: `GenerationError.noShapes` message refers to a removed button (priority: low)
 - **Where:** `ToolpathGenerator.swift`: "use \"Select shapes\" and click them on the canvas".
 - **Fix:** "Click shapes on the canvas to select them."
 

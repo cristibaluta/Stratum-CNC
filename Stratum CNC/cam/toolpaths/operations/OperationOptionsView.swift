@@ -39,6 +39,11 @@ struct OperationOptionsView: View {
         VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if kind == .slotting {
                 EnumMenuPicker(title: "Selection is", selection: $toolpath.operation.slotSource)
+                // The engine only accepts an outline exactly as wide as the tool; say so here
+                // instead of at Preview (see `ToolpathGenerator.run`).
+                if toolpath.operation.slotSource == .outline {
+                    InspectorNote(text: slotOutlineNote)
+                }
             }
 
             // Which side of the boundary the tool follows -- same glyph-based picker
@@ -49,9 +54,13 @@ struct OperationOptionsView: View {
                 ContourPicker(selection: $toolpath.operation.chamferSide)
             }
 
-            ParameterFieldsView(fields: fields,
+            ParameterFieldsView(fields: displayedFields(of: fields),
                                 hiddenFieldIDs: kind.hiddenFieldIDs,
                                 hiddenCaseIDs: OperationKind.hiddenCaseIDs)
+
+            if kind == .chamfer {
+                chamferDepthNote
+            }
 
             // The library refuses a lead-in together with a ramp or helix entry; say so here
             // (Preview is held back too, see `PanelToolpathDetails`) instead of failing there.
@@ -92,6 +101,42 @@ struct OperationOptionsView: View {
         // operation (a helix, say) may be one this operation can't use.
         .onAppear { normalizeRampType() }
         .onChange(of: kind) { _, _ in normalizeRampType() }
+    }
+
+    /// The form's fields as the panel shows them. A chamfer's parameters come in a group titled
+    /// "Chamfer", which only repeats the operation's own name, so they are shown directly (with
+    /// the side picker first, above them).
+    private func displayedFields(of fields: [SC.ParameterField]) -> [SC.ParameterField] {
+        guard kind == .chamfer else {
+            return fields
+        }
+        return fields.flatMap { field -> [SC.ParameterField] in
+            if case .group(let group) = field, group.id == "chamfer.params" {
+                return group.fields
+            }
+            return [field]
+        }
+    }
+
+    /// How deep the chamfer goes: the fixed depth, or what the V-bit's angle gives for the width.
+    /// A tool without a tip angle is flagged under the tool instead (`toolCompatibilityWarning`).
+    @ViewBuilder
+    private var chamferDepthNote: some View {
+        if let depth = toolpath.chamferResolvedDepth {
+            if toolpath.operation.chamferUsesDepth {
+                InspectorNote(text: String(format: "Depth = %.2f mm (fixed).", depth))
+            } else if let angle = toolpath.toolTipAngle {
+                InspectorNote(text: String(format: "Depth = %.2f mm for a %.0f° bit.", depth, angle))
+            }
+        }
+    }
+
+    private var slotOutlineNote: String {
+        let diameter = Double(toolpath.tool.toolDiameter)
+        guard diameter > 0 else {
+            return "The outline must be a straight-sided rectangle as wide as the tool. Pick a tool to see the width."
+        }
+        return String(format: "The outline must be a straight-sided rectangle exactly Ø%.2f mm wide, the tool's diameter.", diameter)
     }
 
     private var leadInConflictNote: some View {
@@ -276,10 +321,15 @@ private extension OperationKind {
             // and trochoidal pitch included.
             return ["entry", "pattern"]
         case .slotting:
-            // Only `.raster` makes sense until open-ended slots are derived.
-            return ["entry", "pattern"]
+            // Only `.raster` makes sense until open-ended slots are derived. The depth per
+            // pass is edited in the Z levels section, next to the other depths.
+            return ["entry", "pattern", "slotting.depthPerPass"]
+        case .drilling:
+            // The peck depth is edited in the Z levels section (`PanelToolpathDetails.rowDepth`).
+            return ["drilling.peckDepth"]
         case .counterbore:
-            return ["entry"]
+            // The depth is edited in the Z levels section, as the End Z.
+            return ["entry", "counterbore.depth"]
         case .engrave:
             // Same dedicated ramping row as the other operations with an entry.
             return ["entry"]
@@ -330,9 +380,11 @@ struct EnumMenuPicker<Value: Hashable & CaseIterable & RawRepresentable>: View w
 struct ToggleField: View {
     let title: String
     @Binding var isOn: Bool
+    /// Tooltip saying what the switch does, for the ones the label alone doesn't explain.
+    var help: String? = nil
 
     var body: some View {
-        InspectorRow(label: title) {
+        let row = InspectorRow(label: title) {
             HStack(spacing: 8) {
                 Toggle("", isOn: $isOn)
                     .labelsHidden()
@@ -343,6 +395,11 @@ struct ToggleField: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
+        }
+        if let help {
+            row.help(help)
+        } else {
+            row
         }
     }
 }

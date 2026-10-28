@@ -90,6 +90,21 @@ extension ToolpathData {
         min(max(percent, adaptiveLoadRange.lowerBound), adaptiveLoadRange.upperBound)
     }
 
+    /// Counterbore depth (mm): what the library accepts.
+    static let counterboreDepthRange: ClosedRange<Double> = 0.1...50
+
+    static func clampedCounterboreDepth(_ depth: Double) -> Double {
+        min(max(depth, counterboreDepthRange.lowerBound), counterboreDepthRange.upperBound)
+    }
+
+    /// A slot's depth per pass and a drill's peck depth (mm): what the library accepts
+    /// (greater than 0; its form allows 0.05 to 20).
+    static let depthPerPassRange: ClosedRange<Double> = 0.05...20
+
+    static func clampedDepthPerPass(_ depth: Double) -> Double {
+        min(max(depth, depthPerPassRange.lowerBound), depthPerPassRange.upperBound)
+    }
+
     /// The adaptive load in mm for the current tool, which is what the library takes. Also the
     /// read-out in the panel.
     var adaptiveLoadMM: Double {
@@ -133,6 +148,49 @@ extension ToolpathData {
             && operation.contourLeadIn != nil
             && ramping.enabled
             && ramping.type != .none
+    }
+
+    /// The tool's V-bit included angle in degrees, if it has a tip angle.
+    var toolTipAngle: Double? {
+        guard let angle = tool.tipAngle.map({ Double($0) }), angle > 0 else {
+            return nil
+        }
+        return angle
+    }
+
+    /// How deep a chamfer cuts, mm: the fixed depth when one is set, otherwise what the V-bit's
+    /// angle gives for the width (the flank runs `width` sideways for `width / tan(angle / 2)`
+    /// down). `nil` when the tool has no tip angle, so the depth can't be worked out.
+    var chamferResolvedDepth: Double? {
+        if operation.chamferUsesDepth {
+            return operation.chamferDepth
+        }
+        guard let angle = toolTipAngle else {
+            return nil
+        }
+        return operation.chamferWidth / tan(angle / 2 * .pi / 180)
+    }
+
+    /// Why the picked tool can't do the operation, if it can't. These are the cases the
+    /// library would otherwise only refuse at Preview (see `ToolpathGenerator.message`).
+    /// Whether a tool is a thread mill isn't known to the app (`Tool.type` isn't mapped),
+    /// so a thread mill can't be checked here.
+    var toolCompatibilityWarning: String? {
+        let diameter = Double(tool.toolDiameter)
+        switch operation.kind {
+            case .chamfer:
+                if toolTipAngle == nil && !operation.chamferUsesDepth {
+                    return "A chamfer needs a V-bit: this tool has no tip angle. Pick a V-bit, or turn on Depth Override."
+                }
+            case .counterbore:
+                if diameter > 0 && operation.counterboreDiameter <= diameter {
+                    return String(format: "The counterbore diameter (%.2f mm) must be larger than the tool (Ø%.2f mm).",
+                                  operation.counterboreDiameter, diameter)
+                }
+            case .boring, .threadMilling, .contour, .pocket, .facing, .slotting, .engrave, .drilling:
+                break
+        }
+        return nil
     }
 
     /// Keys of older projects, which stored the stepover in mm.

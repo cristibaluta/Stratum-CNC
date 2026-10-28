@@ -84,7 +84,7 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .boring:
                 return "Finishes a hole to an exact diameter. Select a point or a closed circle."
             case .threadMilling:
-                return "Cuts a thread inside an existing hole. Select the hole. Needs a thread mill."
+                return "Cuts a thread inside an existing hole, or on the outside of a stud when Internal is off. Select the hole or stud. Needs a thread mill."
             case .chamfer:
                 return "Bevels the selected edges. Needs a V-bit."
         }
@@ -100,7 +100,7 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .facing:
                 return "Covers the bounding box of the selection, or the whole stock."
             case .slotting:
-                return nil   // depends on the slot source, see OperationOptionsView
+                return nil   // depends on the slot source, see `selectionHint(slotSource:)`
             case .engrave:
                 return "Follows the selected lines and text."
             case .drilling:
@@ -108,9 +108,23 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .counterbore, .boring:
                 return "Select a point or a closed circle."
             case .threadMilling:
-                return "Select and existing hole. Needs a threading bit."
+                return "Select an existing hole (or a stud for an external thread). Needs a thread mill."
             case .chamfer:
                 return "Bevels the selected edges. Needs a V-bit."
+        }
+    }
+
+    /// `selectionHint`, with the slot's text taken from what the selection is
+    /// (the slot walls or the line the tool centre follows). Shown in the Shapes section.
+    func selectionHint(slotSource: SlotSource) -> String? {
+        guard self == .slotting else {
+            return selectionHint
+        }
+        switch slotSource {
+            case .outline:
+                return "Select the slot outline: a straight-sided rectangle exactly as wide as the tool."
+            case .centerline:
+                return "Select the line the tool centre follows."
         }
     }
 

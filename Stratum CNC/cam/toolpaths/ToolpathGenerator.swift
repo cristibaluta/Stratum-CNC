@@ -22,7 +22,7 @@ enum ToolpathGenerator {
         var errorDescription: String? {
             switch self {
             case .noShapes:
-                return "No shapes selected — use \"Select shapes\" and click them on the canvas."
+                return "Click shapes on the canvas to select them."
             case .invalidDepth:
                 return "End Z must be below Start Z."
             case .objectNotFound:
@@ -251,12 +251,15 @@ extension ToolpathGenerator {
     static func makeTool(from tool: Tool, for kind: OperationKind) -> SC.ToolParams {
         let vAngle = tool.tipAngle.map { Double($0) }
 
-        // `Tool.type` is not mapped yet: everything is a flat end mill, except for a chamfer,
-        // the one operation that looks at the tool type — it derives its depth from a V-bit's
-        // included angle. A tool with a tip angle is taken as a V-bit there.
-        let type: SC.ToolType = (kind == .chamfer && (vAngle ?? 0) > 0) ? .vBit : .flatEndMill
+        // `Tool.type` is not mapped: a tool with a tip angle is a V-bit, anything else a flat end
+        // mill. Only a chamfer and an engraving care: a chamfer derives its depth from the
+        // V-bit's included angle, and a V-bit is what engraves fine lines.
+        let isVBit = (vAngle ?? 0) > 0
+        let type: SC.ToolType = ((kind == .chamfer || kind == .engrave) && isVBit) ? .vBit : .flatEndMill
 
-        // TODO: engraving tool length can be nil, how do we handle?
+        // The tool's length is optional (engraving bits often have none). Nothing here depends on
+        // it: how deep the tool goes is End Z, which the user sets. A missing length is passed as 0,
+        // meaning "unknown", rather than inventing one.
         return SC.ToolParams(id: tool.id,
                              name: tool.name,
                              type: type,

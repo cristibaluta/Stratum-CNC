@@ -34,6 +34,13 @@ struct ParameterFieldsView: View {
         fields.filter { !hiddenFieldIDs.contains($0.id) }
     }
 
+    /// Tooltips for the on/off fields whose label alone doesn't say what they do, by field id.
+    private static let helpTexts: [String: String] = [
+        "boring.shiftRetract": "Before pulling the tool out, move it sideways off the bore wall, so the retract doesn't drag along the finished surface and leave a mark.",
+        "boring.dwellTime": "Pause at the bottom of the bore before retracting, so the tool finishes cutting a full circle.",
+        "chamfer.params.depth": "Cut to this depth instead of the one the V-bit's angle gives for the width."
+    ]
+
     // MARK: Simple fields
 
     @ViewBuilder
@@ -51,7 +58,8 @@ struct ParameterFieldsView: View {
                                   suffix: "")
             case .bool(let f):
                 ToggleField(title: f.label,
-                            isOn: Binding(get: { f.value }, set: { f.onChange($0) }))
+                            isOn: Binding(get: { f.value }, set: { f.onChange($0) }),
+                            help: Self.helpTexts[f.id])
             case .choice(let f) where f.isCutDirection:
                 // Climb / conventional: a segmented control, same as the contour side.
                 DirectionPicker(direction: Binding(get: { f.cutDirection },
@@ -73,12 +81,13 @@ struct ParameterFieldsView: View {
         switch field {
 
             case .optionalDouble(let f):
-                // A switch, and the value once it's on.
-                ToggleField(title: f.label,
+                // A switch ("Use peck depth"), and the value under the field's own label once it's on.
+                ToggleField(title: "Use \(f.label.lowercased())",
                             isOn: Binding(get: { f.value != nil },
-                                          set: { f.onChange($0 ? f.defaultValueWhenEnabled : nil) }))
+                                          set: { f.onChange($0 ? f.defaultValueWhenEnabled : nil) }),
+                            help: Self.helpTexts[f.id])
                 if let value = f.value {
-                    InspectorNumberField(title: "Value",
+                    InspectorNumberField(title: f.label,
                                          value: Binding(get: { value },
                                                         set: { f.onChange(clamp($0, to: f.range)) }),
                                          suffix: f.unit ?? "")

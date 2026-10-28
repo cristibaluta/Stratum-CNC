@@ -71,7 +71,8 @@ struct PanelToolpathDetails: View {
                 InspectorSection(title: "Tool & feeds") {
                     rowTool
                 }
-                InspectorSection(title: "Depth") {
+                // Start Z, End Z, the depth per pass and the clearance height: levels along Z.
+                InspectorSection(title: "Z levels") {
                     rowDepth
                 }
                 InspectorSection(title: "Preview") {
@@ -169,6 +170,10 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowTool: some View {
         ToolPicker(tool: $toolpath.tool, onToolPicked: applyPreset(of:))
+        // A tool the operation can't use, flagged here instead of failing at Preview
+        if let warning = toolpath.toolCompatibilityWarning {
+            InspectorNote(text: warning, isWarning: true)
+        }
         if let presetNote {
             InspectorNote(text: presetNote)
         }
@@ -204,11 +209,38 @@ struct PanelToolpathDetails: View {
         )
     }
 
+    /// A counterbore's depth, shown as its End Z: typed as a positive depth below the top with
+    /// the "−" in front, like every other operation's End Z. It is stored as the positive
+    /// `counterboreDepth` the library takes, so nothing about saved projects changes.
+    private var counterboreEndDepth: Binding<Double> {
+        Binding(
+            get: { toolpath.operation.counterboreDepth },
+            set: { toolpath.operation.counterboreDepth = ToolpathData.clampedCounterboreDepth(abs($0)) }
+        )
+    }
+
+    private var slotDepthPerPass: Binding<Double> {
+        Binding(
+            get: { toolpath.operation.slotDepthPerPass },
+            set: { toolpath.operation.slotDepthPerPass = ToolpathData.clampedDepthPerPass(abs($0)) }
+        )
+    }
+
+    private var drillPeckDepth: Binding<Double> {
+        Binding(
+            get: { toolpath.operation.drillPeckDepth },
+            set: { toolpath.operation.drillPeckDepth = ToolpathData.clampedDepthPerPass(abs($0)) }
+        )
+    }
+
     @ViewBuilder
     private var rowDepth: some View {
-        // Z range (a counterbore has its own depth instead of an End Z)
+        // Z range (a counterbore has its own depth instead of an End Z; it is shown as one)
         InspectorNumberField(title: "Start Z", value: $toolpath.startZ, suffix: "mm")
-        if requirements.usesEndZ {
+        if toolpath.operation.kind == .counterbore {
+            InspectorNumberField(title: "End Z", value: counterboreEndDepth, suffix: "mm", prefix: "−")
+                .help("How deep the counterbore goes below the top of the stock.")
+        } else if requirements.usesEndZ {
             InspectorNumberField(title: "End Z", value: editedBinding(endDepth, .endZ), suffix: "mm", prefix: "−") {
                 if isHoleOperation, let thickness = stockThickness, thickness > 0 {
                     throughStockButton(thickness: thickness)
@@ -223,10 +255,24 @@ struct PanelToolpathDetails: View {
                                        toolpath.cutDepth, ToolpathData.facingSinglePassWarningDepth),
                           isWarning: true)
         }
-        if requirements.usesStepdown {
+        // How much is cut per pass: the same idea under the name each operation gives it. A slot
+        // steps down by its own depth per pass (not the general stepdown, see `rampingButton`),
+        // a drill by its peck depth.
+        if toolpath.operation.kind == .slotting {
+            InspectorNumberField(title: "Depth per pass", value: slotDepthPerPass, suffix: "mm")
+        } else if requirements.usesStepdown {
             InspectorNumberField(title: "Stepdown", value: editedBinding($toolpath.stepDown, .stepDown), suffix: "mm")
         }
+        if toolpath.operation.kind == .drilling {
+            ToggleField(title: "Peck drilling",
+                        isOn: $toolpath.operation.drillUsesPecking,
+                        help: "Drill in steps of the peck depth, retracting in between to clear the chips.")
+            if toolpath.operation.drillUsesPecking {
+                InspectorNumberField(title: "Peck depth", value: drillPeckDepth, suffix: "mm")
+            }
+        }
         InspectorNumberField(title: "Clearance Z", value: $toolpath.safeZ, suffix: "mm")
+            .help("The height the tool travels at between cuts.")
     }
 
     /// Drill, bore and thread mill make holes, which usually go all the way through.
@@ -276,6 +322,10 @@ struct PanelToolpathDetails: View {
         }
         InspectorRow(label: "Selected") {
             shapesLabel
+        }
+        // What to click on the canvas for this operation (the slot's text follows its source)
+        if let hint = toolpath.operation.kind.selectionHint(slotSource: toolpath.operation.slotSource) {
+            InspectorNote(text: hint)
         }
     }
 
