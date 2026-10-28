@@ -62,8 +62,7 @@ struct PanelToolpaths: View {
         let isHidden = hiddenIDs.contains(toolpath.id)
 
         return HStack(spacing: 8) {
-            Image(systemName: toolpath.operation.kind.symbol)
-                .font(.system(size: 13))
+            OperationIcon(kind: toolpath.operation.kind, size: 13)
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
                 .opacity(isHidden ? 0.5 : 1)

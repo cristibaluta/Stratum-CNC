@@ -17,7 +17,7 @@ struct OperationPicker: View {
                 isPresented.toggle()
             } label: {
                 InspectorMenuLabel {
-                    Image(systemName: kind.symbol)
+                    OperationIcon(kind: kind, size: 13)
                         .foregroundStyle(.secondary)
                     Text(kind.title)
                 }
@@ -68,8 +68,7 @@ private struct OperationGridPicker: View {
             isPresented = false
         } label: {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: option.symbol)
-                    .font(.system(size: 18))
+                OperationIcon(kind: option, size: 18)
                     .frame(width: 28, height: 28)
                     .foregroundStyle(isSelected ? Color.accentColor : .secondary)
 

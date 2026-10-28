@@ -99,8 +99,7 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowHeader: some View {
         HStack(spacing: 8) {
-            Image(systemName: toolpath.operation.kind.symbol)
-                .font(.system(size: 16))
+            OperationIcon(kind: toolpath.operation.kind, size: 16)
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
 

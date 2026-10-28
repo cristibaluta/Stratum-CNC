@@ -16,42 +16,60 @@ struct ToolPicker: View {
 
     var body: some View {
         InspectorRow(label: "Tool") {
-            Menu {
-                // The last 5 tools used, most recent first (persisted in UserDefaults).
-                ForEach(appModel.recentTools) { candidate in
-                    Button {
-                        select(candidate)
-                    } label: {
-                        if candidate.id == tool.id {
-                            Label(title(for: candidate), systemImage: "checkmark")
-                        } else {
-                            Text(title(for: candidate))
+            HStack(spacing: 6) {
+                Menu {
+                    // The last 5 tools used, most recent first (persisted in UserDefaults).
+                    ForEach(appModel.recentTools) { candidate in
+                        Button {
+                            select(candidate)
+                        } label: {
+                            if candidate.id == tool.id {
+                                Label(title(for: candidate), systemImage: "checkmark")
+                            } else {
+                                Text(title(for: candidate))
+                            }
                         }
                     }
-                }
 
-                if !appModel.recentTools.isEmpty {
-                    Divider()
-                }
+                    if !appModel.recentTools.isEmpty {
+                        Divider()
+                    }
 
-                Button {
-                    Task {
-                        if let picked = await appModel.pickTool() {
-                            select(picked)
-                        }
+                    Button {
+                        pickFromLibrary()
+                    } label: {
+                        Label("Pick from Library", systemImage: "wrench.and.screwdriver")
                     }
                 } label: {
-                    Label("Pick from Library", systemImage: "wrench.and.screwdriver")
+                    InspectorMenuLabel {
+                        Text("T\(tool.displayName)")
+                        Text("Ø\(tool.toolDiameter, specifier: "%.1f")")
+                            .foregroundStyle(.secondary)
+                    }
                 }
-            } label: {
-                InspectorMenuLabel {
-                    Text("T\(tool.displayName)")
-                    Text("Ø\(tool.toolDiameter, specifier: "%.1f")")
+                .menuIndicator(.hidden)
+                .buttonStyle(.plain)
+
+                // Same as "Pick from Library" in the menu, without having to open it first.
+                Button {
+                    pickFromLibrary()
+                } label: {
+                    Image(systemName: "wrench.and.screwdriver")
                         .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help("Pick from the tool library")
             }
-            .menuIndicator(.hidden)
-            .buttonStyle(.plain)
+        }
+    }
+
+    private func pickFromLibrary() {
+        Task {
+            if let picked = await appModel.pickTool() {
+                select(picked)
+            }
         }
     }
 
