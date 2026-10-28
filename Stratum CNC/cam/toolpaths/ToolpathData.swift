@@ -207,7 +207,7 @@ extension ToolpathData {
             return nil
         }
         if tool.type != .threadMill {
-            return "Thread milling requires a thread mill bit."
+            return toolTypeWarning
         }
         if threadToolIsTooLarge {
             return "This thread mill is too large for the thread."
@@ -219,6 +219,12 @@ extension ToolpathData {
     /// library would otherwise only refuse at Preview (see `ToolpathGenerator.message`).
     var toolCompatibilityWarning: String? {
         let diameter = Double(tool.toolDiameter)
+
+        // First, is it the kind of tool the operation is made for?
+        if let message = toolTypeWarning {
+            return message
+        }
+
         switch operation.kind {
             case .threadMilling:
                 return threadToolProblem
@@ -231,10 +237,52 @@ extension ToolpathData {
                     return String(format: "The counterbore diameter (%.2f mm) must be larger than the tool (Ø%.2f mm).",
                                   operation.counterboreDiameter, diameter)
                 }
-            case .boring, .contour, .pocket, .facing, .slotting, .engrave, .drilling:
+            case .drilling, .boring, .contour, .pocket, .facing, .slotting, .engrave:
                 break
         }
         return nil
+    }
+
+    /// The tool types each operation is made for. A tool of another type isn't refused (the
+    /// library only looks at sizes and the tip angle), but it is flagged under the tool.
+    ///
+    ///  - Flat-bottomed work (facing, pocket, counterbore, bore): flat end mills and corn bits;
+    ///    a pocket and a facing also take the solder mask remover (a flat pad).
+    ///  - Contour and slot also take ball nose end mills, which cut the same walls.
+    ///  - Engraving: engraving bits, V-bits and chamfer bits, plus plain and ball end mills for
+    ///    fine work.
+    ///  - Chamfer: only a conical bit (V-bit, chamfer or engraving bit).
+    ///  - Drilling needs a drill, thread milling a thread mill.
+    private var allowedToolTypes: Set<ToolType> {
+        let flat: Set<ToolType> = [.endMill, .corn]
+        switch operation.kind {
+            case .drilling:       return [.drill]
+            case .threadMilling:  return [.threadMill]
+            case .facing, .pocket: return flat.union([.solderMaskRemover])
+            case .counterbore, .boring: return flat
+            case .contour, .slotting: return flat.union([.ballNose])
+            case .engrave:        return [.engraving, .vBit, .chamfer, .endMill, .ballNose]
+            case .chamfer:        return [.vBit, .chamfer, .engraving]
+        }
+    }
+
+    /// A short note when the picked tool isn't one of `allowedToolTypes`, naming what to pick.
+    var toolTypeWarning: String? {
+        guard !allowedToolTypes.contains(tool.type) else {
+            return nil
+        }
+        switch operation.kind {
+            case .drilling:      return "Drilling requires a drill bit."
+            case .threadMilling: return "Thread milling requires a thread mill bit."
+            case .facing:        return "Facing requires an end mill."
+            case .pocket:        return "A pocket requires an end mill."
+            case .counterbore:   return "A counterbore requires an end mill."
+            case .boring:        return "Boring requires an end mill."
+            case .contour:       return "A contour requires an end mill."
+            case .slotting:      return "A slot requires an end mill."
+            case .engrave:       return "Engraving requires an engraving bit or a V-bit."
+            case .chamfer:       return "A chamfer requires a V-bit or a chamfer bit."
+        }
     }
 
     /// Keys of older projects, which stored the stepover in mm.
