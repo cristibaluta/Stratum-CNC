@@ -181,8 +181,10 @@ enum FusionToolsImporter {
             return .vBit
         case "drill", "center drill":
             return .drill
+        case "thread mill":
+            return .threadMill
         default:
-            return nil          // holder, probe, tap, thread mill, …
+            return nil          // holder, probe, tap, …
         }
     }
 

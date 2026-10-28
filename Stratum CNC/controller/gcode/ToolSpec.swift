@@ -31,6 +31,7 @@ struct ToolSpec: Identifiable, Hashable {
         case vBit = "V-Bit"
         case drill = "Drill"
         case engraver = "Engraver"
+        case threadMill = "Thread Mill"
     }
 
     var summary: String {

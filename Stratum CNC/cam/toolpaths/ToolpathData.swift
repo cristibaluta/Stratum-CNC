@@ -188,13 +188,44 @@ extension ToolpathData {
         return operation.chamferWidth / tan(angle / 2 * .pi / 180)
     }
 
+    /// Why the picked tool is too big for the thread, if it is: the library refuses (as
+    /// `SC.Error.toolIncompatible`) an internal thread whose finished diameter is not larger
+    /// than the cutter, because the cutter orbits inside the hole at (thread - tool) / 2.
+    /// An external thread always fits. `nil` for other operations or when the tool fits.
+    var threadToolSizeProblem: String? {
+        guard operation.kind == .threadMilling, operation.threadIsInternal else {
+            return nil
+        }
+        let diameter = Double(tool.toolDiameter)
+        let target = operation.threadTargetDiameter
+        guard diameter > 0, target > 0, diameter >= target - 2e-6 else {
+            return nil
+        }
+        let thread = SC.standardThreads.first { abs($0.diameter - target) < 0.001 && abs($0.pitch - operation.threadPitch) < 0.001 }
+        let label = thread.map { "\($0.designation) (Ø\(Self.mm(target)) mm)" } ?? "Ø\(Self.mm(target)) mm"
+        return "The tool \"\(tool.name)\" (Ø\(Self.mm(diameter)) mm) is too large for an internal \(label) thread: "
+            + "the cutter has to be smaller than the thread's diameter to orbit inside the hole. "
+            + "Pick a thread mill under Ø\(Self.mm(target)) mm, or increase the thread's diameter above Ø\(Self.mm(diameter)) mm."
+    }
+
+    private static func mm(_ value: Double) -> String {
+        String(format: "%.2f", value)
+    }
+
     /// Why the picked tool can't do the operation, if it can't. These are the cases the
     /// library would otherwise only refuse at Preview (see `ToolpathGenerator.message`).
-    /// Whether a tool is a thread mill isn't known to the app (`Tool.type` isn't mapped),
-    /// so a thread mill can't be checked here.
     var toolCompatibilityWarning: String? {
         let diameter = Double(tool.toolDiameter)
         switch operation.kind {
+            case .threadMilling:
+                if let problem = threadToolSizeProblem {
+                    return problem
+                }
+                // Not blocking: the library accepts any tool whose size fits.
+                if tool.type != .threadMill {
+                    return "Thread milling is meant for a thread mill: \"\(tool.name)\" is a \(tool.type.displayName.lowercased()). "
+                        + "Add a Thread Mill in the tool library (Type: Thread Mill) and pick it here."
+                }
             case .chamfer:
                 if toolTipAngle == nil && !operation.chamferUsesDepth {
                     return "A chamfer needs a V-bit: this tool has no tip angle. Pick a V-bit, or turn on Depth Override."
@@ -204,7 +235,7 @@ extension ToolpathData {
                     return String(format: "The counterbore diameter (%.2f mm) must be larger than the tool (Ø%.2f mm).",
                                   operation.counterboreDiameter, diameter)
                 }
-            case .boring, .threadMilling, .contour, .pocket, .facing, .slotting, .engrave, .drilling:
+            case .boring, .contour, .pocket, .facing, .slotting, .engrave, .drilling:
                 break
         }
         return nil

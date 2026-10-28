@@ -190,6 +190,9 @@ struct MakeraCAMHeaderParser: GCodeHeaderParser {
         if t.contains("ball") {
             return .ballNose
         }
+        if t.contains("thread") {
+            return .threadMill
+        }
         if t.contains("flat") || t.contains("end mill") {
             return .endMill
         }

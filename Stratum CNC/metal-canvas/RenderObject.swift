@@ -639,7 +639,7 @@ extension RenderObject {
     /// `tipPosition`. The body is a surface of revolution around the vertical
     /// axis, shaped by `kind` the same way `ToolFootprint` shapes the cut:
     ///
-    /// - `.endMill`, `.drill`: flat-bottomed cylinder.
+    /// - `.endMill`, `.drill`, `.threadMill`: flat-bottomed cylinder.
     /// - `.ballNose`: hemispherical tip, radius = tool radius.
     /// - `.vBit`, `.engraver`: cone from the tip up to the full diameter,
     ///   half-angle from `tipAngleDegrees` (flat if none is on file, same
@@ -715,7 +715,7 @@ extension RenderObject {
                     addFlat(0, 0, radius, 0)
                 }
 
-            case .endMill, .drill:
+            case .endMill, .drill, .threadMill:
                 addFlat(0, 0, radius, 0)
         }
 

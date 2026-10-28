@@ -158,6 +158,7 @@ enum MakeraGCodeHeaderWriter {
         case .corn:               return "Corn"
         case .chamfer:            return "Chamfer"
         case .solderMaskRemover:  return "Solder Mask Remover"
+        case .threadMill:         return "Thread Mill"
         }
     }
 

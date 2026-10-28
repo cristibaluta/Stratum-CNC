@@ -169,8 +169,9 @@ enum ToolpathGenerator {
     }
 
     /// A message fit for showing under the Generate button. `operation` (the operation the
-    /// error came from) lets a few generic engine errors say what actually went wrong.
-    static func message(for error: Error, operation: OperationKind? = nil) -> String {
+    /// error came from) lets a few generic engine errors say what actually went wrong; `toolpath`
+    /// (the settings it was generated from) lets them name the tool and the sizes involved.
+    static func message(for error: Error, operation: OperationKind? = nil, toolpath: ToolpathData? = nil) -> String {
         if let error = error as? GenerationError {
             return error.errorDescription ?? "Couldn't generate the toolpath."
         }
@@ -189,7 +190,15 @@ enum ToolpathGenerator {
                         return "A chamfer needs a V-bit: pick a tool with a tip angle, or turn on Fixed depth."
                     case .counterbore:
                         return "The counterbore diameter must be larger than the tool."
+                    case .threadMilling:
+                        // The only way the library refuses a tool for a thread is by its size.
+                        return toolpath?.threadToolSizeProblem
+                            ?? "The tool doesn't fit the thread: for an internal thread it has to be smaller than the thread's diameter."
                     default:
+                        if let toolpath {
+                            return String(format: "The selected tool (%@, Ø%.2f mm) can't perform the %@ operation.",
+                                          toolpath.tool.name, toolpath.tool.toolDiameter, toolpath.operation.kind.title.lowercased())
+                        }
                         return "The selected tool can't perform this operation."
                 }
             case .invalidParameter(let name):
@@ -268,7 +277,14 @@ extension ToolpathGenerator {
         // mill. Only a chamfer and an engraving care: a chamfer derives its depth from the
         // V-bit's included angle, and a V-bit is what engraves fine lines.
         let isVBit = (vAngle ?? 0) > 0
-        let type: SC.ToolType = ((kind == .chamfer || kind == .engrave) && isVBit) ? .vBit : .flatEndMill
+        let type: SC.ToolType
+        if kind == .threadMilling && tool.type == .threadMill {
+            type = .threadMill
+        } else if (kind == .chamfer || kind == .engrave) && isVBit {
+            type = .vBit
+        } else {
+            type = .flatEndMill
+        }
 
         // The tool's length is optional (engraving bits often have none). Nothing here depends on
         // it: how deep the tool goes is End Z, which the user sets. A missing length is passed as 0,
@@ -291,6 +307,11 @@ extension ToolpathGenerator {
             guard toolpath.endZ < toolpath.startZ else {
                 throw GenerationError.invalidDepth
             }
+        }
+
+        // The library only says "tool incompatible" for a thread; say which sizes clash.
+        if let problem = toolpath.threadToolSizeProblem {
+            throw GenerationError.invalidOption(problem)
         }
 
         try operation.validate(tool: makeTool(from: toolpath.tool, for: toolpath.operation.kind))

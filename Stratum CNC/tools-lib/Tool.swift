@@ -157,6 +157,9 @@ enum ToolType: String, Codable, CaseIterable, Hashable {
     case corn
     case chamfer
     case solderMaskRemover
+    /// Thread mill: `toolDiameter` is the diameter over the cutting teeth (DC); the neck behind
+    /// them is smaller so the teeth can cut the thread. Used by the Thread mill operation.
+    case threadMill
 
     var displayName: String {
         switch self {
@@ -176,6 +179,8 @@ enum ToolType: String, Codable, CaseIterable, Hashable {
             "Chamfer"
         case .solderMaskRemover:
             "Solder Mask Remover"
+        case .threadMill:
+            "Thread Mill"
         }
     }
 }

@@ -149,7 +149,7 @@ Each issue is numbered so we can work through them one by one. Tick the box when
 - **Fix:** show it as an `InspectorNote` in the Shapes section, next to "Selected: N shapes". Slot still needs its source-dependent text.
 
 ### [x] #21: No tool compatibility feedback (priority: medium)
-- **Done:** the Tool section warns for Chamfer (no tip angle and no Depth Override) and Counterbore (diameter not larger than the tool). **Not covered:** Thread mill, because `Tool.type` isn't mapped in the app, so it can't tell whether a tool is a thread mill. Boring wasn't added because the library's rule for it isn't known.
+- **Done:** the Tool section warns for Chamfer (no tip angle and no Depth Override) and Counterbore (diameter not larger than the tool). Thread mill too, now that `ToolType.threadMill` exists: a note when the tool isn't a thread mill, and an error naming the tool and thread sizes when an internal thread is not larger than the cutter (`ToolpathData.threadToolSizeProblem`). **Not covered:** Boring wasn't added because the library's rule for it isn't known.
 - **Where:** `ToolPicker`, `ToolpathGenerator.message`.
 - **Problem:** Chamfer needs a V-bit, Thread mill needs a thread mill, and Counterbore needs a diameter larger than the tool. These only fail at Preview.
 - **Fix:** a warning note in the Tool section when the tool doesn't fit the operation.

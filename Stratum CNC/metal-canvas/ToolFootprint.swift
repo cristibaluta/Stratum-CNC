@@ -40,7 +40,7 @@ enum ToolFootprint {
         guard d >= 0, d <= r, r > 0 else { return nil }
 
         switch tool.kind {
-            case .endMill, .drill:
+            case .endMill, .drill, .threadMill:
                 // Flat-bottomed footprint. A drill's conical point matters
                 // for plunge clearance, not for what a 2.5D heightmap shows,
                 // so it's modeled the same as a flat end mill here.

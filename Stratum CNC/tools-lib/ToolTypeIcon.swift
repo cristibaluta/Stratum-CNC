@@ -104,6 +104,13 @@ private extension ToolTypeIcon {
             p.addRect(CGRect(x: 0.22 * size.width, y: 0.08 * size.height,
                              width: 0.56 * size.width, height: 0.84 * size.height))
 
+        case .threadMill:
+            // Narrow neck ending in a slightly wider toothed head (teeth drawn as detail).
+            p.addRect(CGRect(x: 0.4 * size.width, y: 0.08 * size.height,
+                             width: 0.2 * size.width, height: 0.4 * size.height))
+            p.addRect(CGRect(x: 0.28 * size.width, y: 0.48 * size.height,
+                             width: 0.44 * size.width, height: 0.44 * size.height))
+
         case .solderMaskRemover:
             // Thin stem ending in a wide flat pad.
             p.addRect(CGRect(x: 0.42 * size.width, y: 0.08 * size.height,
@@ -129,6 +136,12 @@ private extension ToolTypeIcon {
             }
             p.move(to: pt(0.5, 0.08))
             p.addLine(to: pt(0.5, 0.92))
+        case .threadMill:
+            // Thread teeth across the head.
+            for y in stride(from: 0.56, through: 0.88, by: 0.1) {
+                p.move(to: pt(0.28, y))
+                p.addLine(to: pt(0.72, y))
+            }
         case .drill:
             // Flute hint.
             p.move(to: pt(0.3, 0.3))

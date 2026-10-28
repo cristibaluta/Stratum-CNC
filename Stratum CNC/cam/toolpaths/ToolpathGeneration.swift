@@ -49,7 +49,7 @@ struct ToolpathGeneration {
 
     var errorMessage: String? {
         guard case .failure(let error) = outcome else { return nil }
-        return ToolpathGenerator.message(for: error, operation: source.operation.kind)
+        return ToolpathGenerator.message(for: error, operation: source.operation.kind, toolpath: source)
     }
 
     /// False once the toolpath's settings or shapes were edited after generating.
