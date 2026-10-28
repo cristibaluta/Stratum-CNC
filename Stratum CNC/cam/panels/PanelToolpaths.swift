@@ -7,14 +7,6 @@
 
 import SwiftUI
 
-/// The toolpath list. Rows are reordered by dragging them; the
-/// order is the order the toolpaths end up in the G-code program.
-///
-/// The reorder is done with a plain `DragGesture` on the row instead of `onDrag`/`onDrop`:
-/// a drag-and-drop session never started from a row that holds a `Button`, was never
-/// cancelled when dropped outside the list, and rewrote `camModel.toolpaths` (and so saved
-/// the project) on every row the pointer crossed. Here the rows are only moved visually
-/// while dragging, and the model is changed once, on release, through `onMove`.
 struct PanelToolpaths: View {
 
     let toolpaths: [ToolpathData]
@@ -25,31 +17,10 @@ struct PanelToolpaths: View {
     var onToggleVisibility: ((UUID) -> Void)?
     var onDelete: ((UUID) -> Void)?
     var onAdd: (() -> Void)?
-    /// Called once when a drag ends: the toolpath to move and the index it should have in
-    /// the list afterwards.
+    /// Called once when a drag ends:
     var onMove: ((UUID, Int) -> Void)?
 
-    // MARK: Drag state
-
-    /// The row being dragged, or settling into its new place after the drop.
-    @State private var draggingID: UUID?
-    /// Where the dragged row started, and the slot it would drop into right now.
-    @State private var dragFrom: Int?
-    @State private var dragTarget: Int?
-    /// How far the dragged row is from its own slot.
-    @State private var dragOffset: CGFloat = 0
-    /// True from the first movement of the drag until the row has settled.
-    @State private var isDragActive = false
-
-    @State private var rowHeight: CGFloat = 38
-
-    private static let rowSpacing: CGFloat = 2
-    private static let listSpace = "toolpathList"
-
-    /// Distance between the tops of two neighbouring rows.
-    private var rowStride: CGFloat {
-        rowHeight + Self.rowSpacing
-    }
+    @StateObject private var reorder = ToolpathReorderModel()
 
     private var canReorder: Bool {
         toolpaths.count > 1
@@ -69,9 +40,9 @@ struct PanelToolpaths: View {
                     .font(.system(size: 12))
                     .padding(.vertical, 2)
             } else {
-                VStack(alignment: .leading, spacing: Self.rowSpacing) {
+                VStack(alignment: .leading, spacing: ToolpathReorderModel.rowSpacing) {
                     ForEach(Array(toolpaths.enumerated()), id: \.element.id) { index, toolpath in
-                        let isLifted = isDragActive && toolpath.id == draggingID
+                        let isLifted = reorder.isLifted(toolpath.id)
 
                         toolpathRow(toolpath, at: index)
                             .background(
@@ -87,8 +58,8 @@ struct PanelToolpaths: View {
                                         .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
                                 }
                             }
-                            .offset(y: yOffset(for: toolpath, at: index))
-                            .zIndex(toolpath.id == draggingID ? 1 : 0)
+                            .offset(y: reorder.yOffset(for: toolpath.id, at: index))
+                            .zIndex(toolpath.id == reorder.draggingID ? 1 : 0)
                             // The lifted row follows the pointer, so it must not animate
                             .transaction { transaction in
                                 if isLifted {
@@ -97,10 +68,10 @@ struct PanelToolpaths: View {
                             }
                     }
                 }
-                .coordinateSpace(name: Self.listSpace)
+                .coordinateSpace(name: ToolpathReorderModel.listSpace)
                 .onPreferenceChange(ToolpathRowHeightKey.self) { height in
                     if height > 0 {
-                        rowHeight = height
+                        reorder.rowHeight = height
                     }
                 }
             }
@@ -167,92 +138,21 @@ struct PanelToolpaths: View {
 
     // MARK: - Reordering
 
-    /// Vertical offset of a row while a drag is in progress: the dragged row follows the
-    /// pointer, the rows it passes over step aside by one slot.
-    private func yOffset(for toolpath: ToolpathData, at index: Int) -> CGFloat {
-        if toolpath.id == draggingID {
-            return dragOffset
-        }
-        guard let from = dragFrom, let target = dragTarget else {
-            return 0
-        }
-        if from < target, index > from, index <= target {
-            return -rowStride
-        }
-        if from > target, index >= target, index < from {
-            return rowStride
-        }
-        return 0
-    }
-
-    /// The pointer's vertical travel, held so the row can't leave the list.
-    private func clampedTravel(_ travel: CGFloat, from: Int) -> CGFloat {
-        let lowest = -CGFloat(from) * rowStride
-        let highest = CGFloat(toolpaths.count - 1 - from) * rowStride
-        return min(max(travel, lowest), highest)
-    }
-
     private func dragGesture(for toolpath: ToolpathData, at index: Int) -> some Gesture {
         // Measured in the list's own space: the row moves under the pointer while it is
         // dragged, so a translation in the row's space would feed back into itself.
-        DragGesture(minimumDistance: 4, coordinateSpace: .named(Self.listSpace))
+        DragGesture(minimumDistance: 4, coordinateSpace: .named(ToolpathReorderModel.listSpace))
             .onChanged { value in
-                if dragFrom == nil {
-                    // Ignore a new grab while another row is still settling
-                    guard draggingID == nil || draggingID == toolpath.id else {
-                        return
-                    }
-                    draggingID = toolpath.id
-                    dragFrom = index
-                    dragTarget = index
-                    isDragActive = true
-                }
-                guard let from = dragFrom, draggingID == toolpath.id else {
-                    return
-                }
-                let travel = clampedTravel(value.translation.height, from: from)
-                dragOffset = travel
-
-                let slot = from + Int((travel / rowStride).rounded())
-                let target = min(max(slot, 0), toolpaths.count - 1)
-                if target != dragTarget {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        dragTarget = target
-                    }
-                }
+                reorder.dragChanged(id: toolpath.id,
+                                    index: index,
+                                    translation: value.translation.height,
+                                    count: toolpaths.count)
             }
             .onEnded { value in
-                guard let from = dragFrom, draggingID == toolpath.id else {
-                    return
-                }
-                let travel = clampedTravel(value.translation.height, from: from)
-                let target = dragTarget ?? from
-
-                // Commit without animation. The row is re-offset by exactly the distance
-                // its slot moved, and the rows that stepped aside lose their shift at the
-                // same moment they take their new place, so nothing visibly jumps.
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    if target != from {
-                        onMove?(toolpath.id, target)
-                    }
-                    dragFrom = nil
-                    dragTarget = nil
-                    dragOffset = travel - CGFloat(target - from) * rowStride
-                }
-
-                // Then let the row glide into its slot
-                DispatchQueue.main.async {
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        dragOffset = 0
-                        isDragActive = false
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        if !isDragActive {
-                            draggingID = nil
-                        }
-                    }
+                reorder.dragEnded(id: toolpath.id,
+                                  translation: value.translation.height,
+                                  count: toolpaths.count) { id, target in
+                    onMove?(id, target)
                 }
             }
     }

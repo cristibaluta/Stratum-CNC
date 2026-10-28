@@ -40,12 +40,7 @@ struct PanelToolpathDetails: View {
     /// panel (where the holding tabs sit). Called only when a drawing is shown.
     var targetShapes: () -> [CGPath] = { [] }
 
-    /// What the last tool pick did to the cutting values, shown under the tool.
-    @State private var presetNote: String?
-
-    /// Where the preview slider is; nil = at the end (the whole toolpath), which is where a
-    /// new result starts. Kept here rather than in the model so a drag only redraws this panel.
-    @State private var scrubStep: Int?
+    @StateObject private var model = ToolpathDetailsModel()
 
     var body: some View {
         GroupBox {
@@ -81,11 +76,10 @@ struct PanelToolpathDetails: View {
             }
             .padding(8)
             .onChange(of: toolpath.id) { _, _ in
-                presetNote = nil
-                scrubStep = nil
+                model.reset()
             }
             // A new Generate starts its preview from the end again, like the canvas does
-            .onChange(of: generation?.id) { _, _ in scrubStep = nil }
+            .onChange(of: generation?.id) { _, _ in model.resetScrub() }
         }
     }
 
@@ -100,13 +94,7 @@ struct PanelToolpathDetails: View {
 
             // Typing here is what makes a name "custom" -- from then on it stops
             // following the operation (see `operationKindBinding`).
-            TextField("", text: Binding(
-                get: { toolpath.name },
-                set: {
-                    toolpath.name = $0
-                    toolpath.isNameCustom = true
-                }
-            ))
+            TextField("", text: model.nameBinding($toolpath))
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
                 .background(.background)
@@ -115,45 +103,12 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowOperation: some View {
-        OperationPicker(kind: operationKindBinding)
+        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames))
     }
 
-    /// Changing the operation also renames the toolpath to match -- "Contour 1",
-    /// "Pocket 1", ... -- but only while the name is still the auto-generated one;
-    /// once the user has typed their own title it stops following the operation.
-    private var operationKindBinding: Binding<OperationKind> {
-        Binding(
-            get: { toolpath.operation.kind },
-            set: { newKind in
-                toolpath.operation.kind = newKind
-                // Untouched fields take the new operation's defaults; edited ones stay.
-                toolpath.applyDefaults(for: newKind)
-                if !toolpath.isNameCustom {
-                    toolpath.name = newKind.nextName(among: siblingNames)
-                }
-            }
-        )
-    }
-
-    /// A binding that also records the field as edited when the user changes its value,
-    /// so changing the operation later leaves it alone.
-    private func editedBinding(_ value: Binding<Double>, _ field: ToolpathField) -> Binding<Double> {
-        Binding(
-            get: { value.wrappedValue },
-            set: { newValue in
-                guard newValue != value.wrappedValue else {
-                    return
-                }
-                value.wrappedValue = newValue
-                toolpath.markEdited(field)
-            }
-        )
-    }
-
-    /// Which of the general fields (End Z, Stepdown, Stepover) the operation reads, as the
-    /// library defines it for the operation's current values.
+    /// Which of the general fields (End Z, Stepdown, Stepover) the operation reads.
     private var requirements: SC.OperationRequirements {
-        toolpath.machiningOperation.requirements
+        model.requirements(for: toolpath)
     }
 
     @ViewBuilder
@@ -170,68 +125,21 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowTool: some View {
-        ToolPicker(tool: $toolpath.tool, onToolPicked: applyPreset(of:))
+        ToolPicker(tool: $toolpath.tool, onToolPicked: { tool in
+            model.applyPreset(of: tool, to: $toolpath, stockMaterial: stockMaterial)
+        })
         // A tool the operation can't use, flagged here instead of failing at Preview
         if let warning = toolpath.toolCompatibilityWarning {
             InspectorNote(text: warning, isWarning: true)
         }
-        if let presetNote {
+        if let presetNote = model.presetNote {
             InspectorNote(text: presetNote)
         }
         InspectorIntField(title: "Spindle", value: $toolpath.spindleRPM, suffix: "rpm")
         InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
         // Always available, also for operations without an entry strategy (drill, bore…)
         InspectorNumberField(title: "Plunge feed", value: $toolpath.plungeRate, suffix: "mm/min")
-            .help(toolpath.ramping.enabled && toolpath.ramping.type != .none
-                  ? "Feed rate going down into the material, also along the ramp or helix entry."
-                  : "Feed rate going down into the material.")
-    }
-
-    /// Fills spindle speed, feeds, stepdown and ramp angle from the picked tool's
-    /// preset for the current stock. Only runs on an explicit pick, so opening a
-    /// toolpath never overwrites its values.
-    private func applyPreset(of tool: Tool) {
-        if let preset = tool.preset(for: stockMaterial) {
-            toolpath.apply(preset)
-            presetNote = "Applied the \"\(preset.name)\" preset"
-        } else if tool.presets.isEmpty {
-            presetNote = "This tool has no presets; values unchanged"
-        } else {
-            presetNote = "No preset for \(stockMaterial.displayName); values unchanged"
-        }
-    }
-
-    /// End Z is typed as a positive depth below the top (the "−" is shown in front of the
-    /// field), but stored and sent on as the negative Z value. A minus typed anyway is ignored.
-    private var endDepth: Binding<Double> {
-        Binding(
-            get: { -toolpath.endZ },
-            set: { toolpath.endZ = -abs($0) }
-        )
-    }
-
-    /// A counterbore's depth, shown as its End Z: typed as a positive depth below the top with
-    /// the "−" in front, like every other operation's End Z. It is stored as the positive
-    /// `counterboreDepth` the library takes, so nothing about saved projects changes.
-    private var counterboreEndDepth: Binding<Double> {
-        Binding(
-            get: { toolpath.operation.counterboreDepth },
-            set: { toolpath.operation.counterboreDepth = ToolpathData.clampedCounterboreDepth(abs($0)) }
-        )
-    }
-
-    private var slotDepthPerPass: Binding<Double> {
-        Binding(
-            get: { toolpath.operation.slotDepthPerPass },
-            set: { toolpath.operation.slotDepthPerPass = ToolpathData.clampedDepthPerPass(abs($0)) }
-        )
-    }
-
-    private var drillPeckDepth: Binding<Double> {
-        Binding(
-            get: { toolpath.operation.drillPeckDepth },
-            set: { toolpath.operation.drillPeckDepth = ToolpathData.clampedDepthPerPass(abs($0)) }
-        )
+            .help(model.plungeFeedHelp(for: toolpath))
     }
 
     @ViewBuilder
@@ -239,11 +147,11 @@ struct PanelToolpathDetails: View {
         // Z range (a counterbore has its own depth instead of an End Z; it is shown as one)
         InspectorNumberField(title: "Start Z", value: $toolpath.startZ, suffix: "mm")
         if toolpath.operation.kind == .counterbore {
-            InspectorNumberField(title: "End Z", value: counterboreEndDepth, suffix: "mm", prefix: "−")
+            InspectorNumberField(title: "End Z", value: model.counterboreEndDepth($toolpath), suffix: "mm", prefix: "−")
                 .help("How deep the counterbore goes below the top of the stock.")
         } else if requirements.usesEndZ {
-            InspectorNumberField(title: "End Z", value: editedBinding(endDepth, .endZ), suffix: "mm", prefix: "−") {
-                if isHoleOperation, let thickness = stockThickness, thickness > 0 {
+            InspectorNumberField(title: "End Z", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), suffix: "mm", prefix: "−") {
+                if model.isHoleOperation(toolpath), let thickness = stockThickness, thickness > 0 {
                     throughStockButton(thickness: thickness)
                 }
             }
@@ -252,16 +160,16 @@ struct PanelToolpathDetails: View {
         // steps down by its own depth per pass (not the general stepdown, see `rampingButton`),
         // a drill by its peck depth.
         if toolpath.operation.kind == .slotting {
-            InspectorNumberField(title: "Depth per pass", value: slotDepthPerPass, suffix: "mm")
+            InspectorNumberField(title: "Depth per pass", value: model.slotDepthPerPass($toolpath), suffix: "mm")
         } else if requirements.usesStepdown {
-            InspectorNumberField(title: "Stepdown", value: editedBinding($toolpath.stepDown, .stepDown), suffix: "mm")
+            InspectorNumberField(title: "Stepdown", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), suffix: "mm")
         }
         if toolpath.operation.kind == .drilling {
             ToggleField(title: "Peck drilling",
                         isOn: $toolpath.operation.drillUsesPecking,
                         help: "Drill in steps of the peck depth, retracting in between to clear the chips.")
             if toolpath.operation.drillUsesPecking {
-                InspectorNumberField(title: "Peck depth", value: drillPeckDepth, suffix: "mm")
+                InspectorNumberField(title: "Peck depth", value: model.drillPeckDepth($toolpath), suffix: "mm")
             }
         }
         // How the tool gets down into the material: ramp, helix or plunge.
@@ -272,33 +180,17 @@ struct PanelToolpathDetails: View {
             .help("The height the tool travels at between cuts.")
     }
 
-    /// Drill, bore and thread mill make holes, which usually go all the way through.
-    private var isHoleOperation: Bool {
-        switch toolpath.operation.kind {
-            case .drilling, .boring, .threadMilling:
-                return true
-            default:
-                return false
-        }
-    }
-
-    /// Sets End Z to the bottom of the stock. The tip stops exactly at the underside, so
-    /// add a little extra by hand if the hole must clear the spoilboard.
     private func throughStockButton(thickness: Double) -> some View {
-        let throughZ = -thickness
-        let isThrough = abs(toolpath.endZ - throughZ) < 1e-6
-        let format = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US"))
-        return Button {
-            toolpath.endZ = throughZ
-            toolpath.markEdited(.endZ)
+        Button {
+            model.applyThroughStock(to: $toolpath, thickness: thickness)
         } label: {
             Label("Through stock", systemImage: "arrow.down.to.line")
                 .font(.system(size: 11))
         }
         .buttonStyle(.bordered)
         .controlSize(.small)
-        .disabled(isThrough)
-        .help("Set End Z to the bottom of the stock (\(throughZ.formatted(format)) mm)")
+        .disabled(model.isThroughStock(toolpath, thickness: thickness))
+        .help(model.throughStockHelp(thickness: thickness))
     }
 
     /// How many shapes the toolpath cuts. Shapes are chosen by clicking them on
@@ -356,9 +248,7 @@ struct PanelToolpathDetails: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(isGenerating || toolpath.leadInConflictsWithEntry)
-                .help(toolpath.leadInConflictsWithEntry
-                      ? "A lead-in can't be combined with a ramp or helix entry. Turn the entry off or remove the lead-in."
-                      : "Build the toolpath for the selected shapes and preview it on the canvas")
+                .help(model.previewButtonHelp(for: toolpath))
             }
             // Warnings don't stop the toolpath, and only matter while the result is current
             if let generation, generation.isCurrent(for: toolpath) {
@@ -368,8 +258,7 @@ struct PanelToolpathDetails: View {
                 // The canvas draws one pass per toolpath; say so, so the other passes aren't
                 // mistaken for missing.
                 if generation.errorMessage == nil, generation.maxPassesPerToolpath > 1 {
-                    InspectorNote(text: "The preview shows only the last pass. The G-code cuts all \(generation.maxPassesPerToolpath) passes.",
-                                  isIndented: false)
+                    InspectorNote(text: model.multiPassNote(for: generation), isIndented: false)
                 }
             }
           }
@@ -424,7 +313,7 @@ struct PanelToolpathDetails: View {
                     .font(.system(size: 11))
                     .multilineTextAlignment(.trailing)
             } else {
-                Label(successText(for: generation), systemImage: "checkmark.circle.fill")
+                Label(model.successText(for: generation), systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.system(size: 11))
                     .multilineTextAlignment(.trailing)
@@ -445,20 +334,10 @@ struct PanelToolpathDetails: View {
 
             let total = scrub.stepCount
             HStack(spacing: 10) {
-                Slider(value: Binding(
-                    get: { Double(scrubStep ?? total) },
-                    set: { newValue in
-                        let step = Int(newValue.rounded())
-                        guard step != (scrubStep ?? total) else {
-                            return
-                        }
-                        scrubStep = step
-                        onScrub(step)
-                    }
-                ), in: 0...Double(total))
-                .controlSize(.small)
+                Slider(value: model.scrubBinding(total: total, onScrub: onScrub), in: 0...Double(total))
+                    .controlSize(.small)
 
-                Text("\(scrubStep ?? total) / \(total)")
+                Text(model.scrubLabel(total: total))
                     .font(.system(size: 11).monospacedDigit())
                     .foregroundStyle(.secondary)
             }
@@ -466,35 +345,15 @@ struct PanelToolpathDetails: View {
         }
     }
 
-    private func successText(for generation: ToolpathGeneration) -> String {
-        let toolpaths = generation.outputCount
-        let passes = generation.passCount
-        return "\(toolpaths) toolpath\(toolpaths == 1 ? "" : "s") · \(passes) pass\(passes == 1 ? "" : "es")"
-    }
-
     // MARK: Shapes
 
     /// How many shapes the toolpath cuts. Shapes are chosen by clicking them on
     /// the canvas while the cell is open, so there's nothing to press here.
     private var shapesLabel: some View {
-        Label(shapesTitle, systemImage: "cursorarrow.click")
+        Label(model.shapesTitle(for: toolpath), systemImage: "cursorarrow.click")
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(toolpath.hasGeometry ? Color.secondary : Color.orange)
             .help("Click shapes on the canvas to add or remove them")
-    }
-
-    private var shapesTitle: String {
-        if toolpath.cutsWholeStock {
-            let ignored = toolpath.targets.count
-            return ignored == 0
-                ? "Whole stock"
-                : "Whole stock (\(ignored) selected shape\(ignored == 1 ? "" : "s") ignored)"
-        }
-        switch toolpath.targets.count {
-            case 0: return "Click shapes to select"
-            case 1: return "1 shape selected"
-            default: return "\(toolpath.targets.count) shapes selected"
-        }
     }
 
     /// Esc does the same.
