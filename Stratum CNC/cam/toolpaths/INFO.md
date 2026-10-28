@@ -24,11 +24,14 @@ PanelToolpathDetails
       │     ├─ "Selection is" + width note        ← slot only
       │     ├─ ContourPicker (Side)               ← contour, chamfer
       │     ├─ ParameterFieldsView(formFields)    ← whatever the library defines for the operation
-      │     │   (hidden: entry, contour.side, contour.tabs, pattern, slotting.depthPerPass,
+      │     │   (hidden: entry, contour.side, contour.tabs, contour.leadIn, contour.leadOut, pattern, slotting.depthPerPass,
       │     │    drilling.peckDepth, counterbore.depth, chamfer.params.side;
       │     │    the chamfer's "Chamfer" group is flattened)
       │     ├─ chamferDepthNote                   ← chamfer: "Depth = X mm for a Y° bit"
+      │     ├─ LeadInOutRow ×2 (Lead-In, Lead-Out) ← contour: switch + summary + gear → LeadInOutEditor popover
+      │     │                                        (explanation, to-scale LeadInOutDiagram, style / length / radius / sweep / feed)
       │     ├─ leadInConflictNote                 ← contour: lead-in + ramp/helix entry
+      │     ├─ arc-on-contour warning             ← contour: arc lead-in/out with side = On Contour
       │     ├─ HoldingTabsButton                  ← contour
       │     ├─ patternRow (PatternPicker + patternDetail)   ← pocket
       │     ├─ stepOverRow (% of Ø + mm note)     ← if requirements.usesStepover, or facing
@@ -58,7 +61,7 @@ PanelToolpathDetails
       │     └─ Clearance Z
       │
       ├─ InspectorSection "Preview"
-      │  ├─ rowPreview: generationStatus + "Preview" button   (held back on a lead-in/entry conflict)
+      │  ├─ rowPreview: generationStatus + "Preview" button   (held back on a lead-in/entry conflict, or an arc lead-in/out on a contour with side = On Contour)
       │  └─ rowScrub: slider through the generated moves
       │
       └─ rowBottomBar: Delete · Next toolpath · Done (Esc)

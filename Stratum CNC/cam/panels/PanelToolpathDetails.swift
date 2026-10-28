@@ -352,10 +352,12 @@ struct PanelToolpathDetails: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isGenerating || toolpath.leadInConflictsWithEntry)
+                .disabled(isGenerating || toolpath.leadInConflictsWithEntry || toolpath.leadArcOnContour || toolpath.leadOutArcOnContour)
                 .help(toolpath.leadInConflictsWithEntry
                       ? "A lead-in can't be combined with a ramp or helix entry. Turn the entry off or remove the lead-in."
-                      : "Build the toolpath for the selected shapes and preview it on the canvas")
+                      : (toolpath.leadArcOnContour || toolpath.leadOutArcOnContour)
+                        ? "An arc lead-in/out needs a side to swing out to. Use a linear one, or cut inside or outside."
+                        : "Build the toolpath for the selected shapes and preview it on the canvas")
             }
             // Warnings don't stop the toolpath, and only matter while the result is current
             if let generation, generation.isCurrent(for: toolpath) {

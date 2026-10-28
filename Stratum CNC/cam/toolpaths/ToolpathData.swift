@@ -167,6 +167,26 @@ extension ToolpathData {
             && ramping.type != .none
     }
 
+    /// An arc lead-in on a contour the tool follows directly (`.onContour`): the library places
+    /// the arc's centre by the side offset, which is zero there, so the arc has no centre and
+    /// the move is invalid. The panel flags it and holds back Preview.
+    var leadArcOnContour: Bool {
+        guard operation.kind == .contour, contour == .onContour,
+              case .arc? = operation.contourLeadIn?.style else {
+            return false
+        }
+        return true
+    }
+
+    /// Same as `leadArcOnContour`, for the lead-out.
+    var leadOutArcOnContour: Bool {
+        guard operation.kind == .contour, contour == .onContour,
+              case .arc? = operation.contourLeadOut?.style else {
+            return false
+        }
+        return true
+    }
+
     /// The tool's V-bit included angle in degrees, if it has a tip angle.
     var toolTipAngle: Double? {
         guard let angle = tool.tipAngle.map({ Double($0) }), angle > 0 else {

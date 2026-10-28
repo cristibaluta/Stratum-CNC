@@ -19,6 +19,8 @@ struct OperationOptionsView: View {
 
     @State private var showRampEditor = false
     @State private var showTabsEditor = false
+    @State private var showLeadInEditor = false
+    @State private var showLeadOutEditor = false
 
     private var kind: OperationKind {
         toolpath.operation.kind
@@ -74,6 +76,25 @@ struct OperationOptionsView: View {
             // (Preview is held back too, see `PanelToolpathDetails`) instead of failing there.
             if toolpath.leadInConflictsWithEntry {
                 leadInConflictNote
+            }
+            if toolpath.leadArcOnContour || toolpath.leadOutArcOnContour {
+                InspectorNote(text: "An arc lead-in/out can't be built when the tool follows the contour directly: there is no side for it to swing out to. Switch it to Linear, or cut inside or outside.",
+                              isWarning: true)
+            }
+
+            // Lead-in / lead-out: a switch with a summary of what it is set to, and a gear that
+            // opens the editor (with a drawing of the move) in a popover.
+            if kind == .contour {
+                leadInOutRow(title: "Lead-In",
+                             role: .leadIn,
+                             binding: $toolpath.operation.contourLeadIn,
+                             isPresented: $showLeadInEditor,
+                             needsAttention: toolpath.leadInConflictsWithEntry || toolpath.leadArcOnContour)
+                leadInOutRow(title: "Lead-Out",
+                             role: .leadOut,
+                             binding: $toolpath.operation.contourLeadOut,
+                             isPresented: $showLeadOutEditor,
+                             needsAttention: toolpath.leadOutArcOnContour)
             }
 
             // Holding tabs: a summary row that opens the editor in a popover.
@@ -150,6 +171,23 @@ struct OperationOptionsView: View {
             return "The outline must be a straight-sided rectangle as wide as the tool. Pick a tool to see the width."
         }
         return String(format: "The outline must be a straight-sided rectangle exactly Ø%.2f mm wide, the tool's diameter.", diameter)
+    }
+
+    private func leadInOutRow(title: String,
+                              role: LeadInOutEditor.Role,
+                              binding: Binding<LeadInOutSettings?>,
+                              isPresented: Binding<Bool>,
+                              needsAttention: Bool) -> some View {
+        LeadInOutRow(title: title, leadInOut: binding, needsAttention: needsAttention) {
+            isPresented.wrappedValue = true
+        }
+        .popover(isPresented: isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            LeadInOutEditor(role: role,
+                            leadInOut: binding,
+                            side: toolpath.contour,
+                            toolDiameter: Double(toolpath.tool.toolDiameter))
+                .frame(width: 400)
+        }
     }
 
     private var leadInConflictNote: some View {
@@ -360,10 +398,10 @@ private extension OperationKind {
     var hiddenFieldIDs: Set<String> {
         switch self {
         case .contour:
-            // The side gets its own dedicated `ContourPicker` row above. Lead-in/out come from
-            // the generic form (stored on `OperationSettings.contourLeadIn/Out`). Holding tabs
+            // The side gets its own dedicated `ContourPicker` row above. Lead-in/out have their own rows:
+            // `LeadInOutRow` + popover (stored on `OperationSettings.contourLeadIn/Out`). Holding tabs
             // have their own row and popover (`HoldingTabsEditor`) on `OperationSettings.contourTabs`.
-            return ["entry", "contour.side", "contour.tabs"]
+            return ["entry", "contour.side", "contour.tabs", "contour.leadIn", "contour.leadOut"]
         case .pocket:
             // The clearing pattern gets its own dedicated row (`patternRow`) with icon
             // glyphs, so the generic text-only field is hidden entirely, spiral direction
