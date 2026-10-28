@@ -39,14 +39,53 @@ struct OperationOptionsView: View {
         requirements.pocketPatterns.map { PocketPattern($0) }
     }
 
+    /// Which section of the panel this instance fills. The panel places one of each, so the
+    /// operation's controls are grouped by what they do instead of sitting in one list.
+    enum Part {
+        /// What the cut is: side, selection source, the library's own fields, holding tabs, pattern.
+        case operation
+        /// How the tool moves in the plane: stepover, stock to leave, the pattern's extra
+        /// control, lead-in/out.
+        case xyMovement
+        /// How the tool descends into the material (ramp / helix / plunge). Shown in "Z levels".
+        case entry
+    }
+
+    var part: Part = .operation
+
+    /// Whether the "XY movement" section has anything to show for this toolpath, so the panel
+    /// can leave the section out (drilling, boring… have no XY movement).
+    static func hasXYMovement(for toolpath: ToolpathData) -> Bool {
+        let requirements = toolpath.machiningOperation.requirements
+        return toolpath.operation.kind == .contour
+            || requirements.usesStepover
+            || requirements.usesAllowance
+            || !requirements.pocketPatterns.isEmpty
+    }
+
+    /// Whether the "Z levels" section has an entry row for this toolpath.
+    static func hasEntry(for toolpath: ToolpathData) -> Bool {
+        toolpath.machiningOperation.requirements.usesEntry
+    }
+
     var body: some View {
+        switch part {
+            case .operation: operationPart
+            case .xyMovement: xyMovementPart
+            case .entry: entryPart
+        }
+    }
+
+    // MARK: Operation
+
+    private var operationPart: some View {
         let fields = toolpath.machiningOperation.formFields(
             threadIsCustom: toolpath.operation.threadIsCustom,
             onThreadCustomChange: { toolpath.operation.threadIsCustom = $0 },
             onChange: { toolpath.machiningOperation = $0 }
         )
 
-        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+        return VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if kind == .slotting {
                 EnumMenuPicker(title: "Selection is", selection: $toolpath.operation.slotSource)
                 // The engine only accepts an outline exactly as wide as the tool; say so here
@@ -72,6 +111,44 @@ struct OperationOptionsView: View {
                 chamferDepthNote
             }
 
+            // Holding tabs: a summary row that opens the editor in a popover.
+            if kind == .contour {
+                HoldingTabsButton(tabs: toolpath.operation.contourTabs) {
+                    showTabsEditor = true
+                }
+                .popover(isPresented: $showTabsEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                    HoldingTabsEditor(tabs: $toolpath.operation.contourTabs, shapes: targetShapes)
+                        .frame(width: 400)
+                }
+            }
+
+            // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
+            // `ContourTypeGlyph`). Its extra control (spiral direction, loop pitch…) is in XY movement.
+            if !offeredPatterns.isEmpty {
+                PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns)
+            }
+        }
+    }
+
+    // MARK: XY movement
+
+    private var xyMovementPart: some View {
+        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+            // The pattern's one extra control, right at the top: it shapes how the area is cleared.
+            if !offeredPatterns.isEmpty {
+                patternDetail
+            }
+
+            // Stepover is about how the area is cleared (facing included).
+            if usesStepover {
+                stepOverRow
+            }
+
+            // Stock for a finishing pass: wherever the library says the operation can leave some.
+            if requirements.usesAllowance {
+                stockToLeaveRows
+            }
+
             // The library refuses a lead-in together with a ramp or helix entry; say so here
             // (Preview is held back too, see `PanelToolpathDetails`) instead of failing there.
             if toolpath.leadInConflictsWithEntry {
@@ -91,39 +168,22 @@ struct OperationOptionsView: View {
                              binding: $toolpath.operation.contourLeadOut,
                              isPresented: $showLeadOutEditor)
             }
+        }
+    }
 
-            // Holding tabs: a summary row that opens the editor in a popover.
-            if kind == .contour {
-                HoldingTabsButton(tabs: toolpath.operation.contourTabs) {
-                    showTabsEditor = true
-                }
-                .popover(isPresented: $showTabsEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                    HoldingTabsEditor(tabs: $toolpath.operation.contourTabs, shapes: targetShapes)
-                        .frame(width: 400)
-                }
-            }
+    // MARK: Entry (shown in the Z levels section)
 
-            // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
-            // `ContourTypeGlyph`), same idea as the entry strategy below.
-            if !offeredPatterns.isEmpty {
-                patternRow
-            }
-
-            // Stepover is about how the area is cleared, so it follows the pattern (or the
-            // generic fields when there is none) and comes before the entry.
-            if usesStepover {
-                stepOverRow
-            }
-
-            // Stock for a finishing pass: wherever the library says the operation can leave some.
-            if requirements.usesAllowance {
-                stockToLeaveRows
-            }
-
-            // The entry strategy keeps its dedicated editor (angle/length preview, helix
-            // diagram), but whether an operation has one is up to the library.
+    private var entryPart: some View {
+        // The entry strategy keeps its dedicated editor (angle/length preview, helix
+        // diagram), but whether an operation has one is up to the library.
+        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if requirements.usesEntry {
                 rampingRow
+                // The full explanation (and the fix) is next to the lead-in, in XY movement.
+                if toolpath.leadInConflictsWithEntry {
+                    InspectorNote(text: "Conflicts with the lead-in (see XY movement): turn the entry off or remove the lead-in.",
+                                  isWarning: true)
+                }
             }
         }
         // The ramping settings are shared by every operation, so one left over from another
@@ -333,12 +393,6 @@ struct OperationOptionsView: View {
         }
     }
 
-    @ViewBuilder
-    private var patternRow: some View {
-        PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns)
-        patternDetail
-    }
-
     /// Clamped to what the library accepts, like the stepover, instead of failing at Preview.
     private var trochoidalPitch: Binding<Double> {
         Binding(
@@ -398,7 +452,7 @@ private extension OperationKind {
             // have their own row and popover (`HoldingTabsEditor`) on `OperationSettings.contourTabs`.
             return ["entry", "contour.side", "contour.tabs", "contour.leadIn", "contour.leadOut"]
         case .pocket:
-            // The clearing pattern gets its own dedicated row (`patternRow`) with icon
+            // The clearing pattern gets its own dedicated picker in the Operation section with icon
             // glyphs, so the generic text-only field is hidden entirely, spiral direction
             // and trochoidal pitch included.
             return ["entry", "pattern"]

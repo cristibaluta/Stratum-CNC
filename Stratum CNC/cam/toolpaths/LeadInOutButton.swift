@@ -167,7 +167,7 @@ struct LeadInOutEditor: View {
                         InspectorNumberField(title: "Radius", value: radius, suffix: "mm")
                             .help("Radius of the arc the tool centre follows. The arc must fit in the free space beside the wall.")
                         InspectorNumberField(title: "Sweep", value: sweep, suffix: "°")
-                            .help("How much of the circle the tool travels. 90° is a quarter turn.")
+                            .help("How much of the circle the tool travels. 90° is a quarter turn. A negative angle swings the arc to the other side of the contour.")
                 }
                 InspectorNumberField(title: "Feed rate", value: feedRate, suffix: "mm/min")
                     .help("Speed of this move. The plunge itself uses the plunge feed.")
@@ -218,6 +218,10 @@ struct LeadInOutEditor: View {
         if case .linear = current.style, side == .inside {
             result.append(Note(text: "On a curved inside wall (a round hole, a rounded pocket) a straight run leaves the curve and cuts into the wall; the longer it is, the deeper. Prefer an arc there, or keep the run short.",
                                isWarning: false))
+        }
+        if case .arc(_, let sweep) = current.style, sweep < 0, side != .onContour {
+            result.append(Note(text: "A negative sweep mirrors the arc to the other side of the contour: it now \(role == .leadIn ? "comes from" : "leaves toward") the material instead of the free space. Use a positive angle for the usual free-space approach.",
+                               isWarning: true))
         }
         if role == .leadIn {
             result.append(Note(text: "A lead-in can't be combined with a ramp or helix entry. It repeats at every depth pass.",
@@ -278,7 +282,7 @@ struct LeadInOutEditor: View {
             },
             set: { newValue in
                 if case .arc(let radius, _) = current.style {
-                    leadInOut?.style = .arc(radius: radius, sweepAngleDegrees: Self.clamp(newValue, 1...180))
+                    leadInOut?.style = .arc(radius: radius, sweepAngleDegrees: Self.clampSweep(newValue))
                 }
             }
         )
@@ -293,6 +297,12 @@ struct LeadInOutEditor: View {
 
     private static func clamp(_ value: Double, _ range: ClosedRange<Double>) -> Double {
         min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    /// Sweep is -180...-1 or 1...180; the sign picks the side the arc swings to.
+    private static func clampSweep(_ value: Double) -> Double {
+        let magnitude = clamp(abs(value), 1...180)
+        return value < 0 ? -magnitude : magnitude
     }
 }
 
@@ -350,10 +360,12 @@ struct LeadInOutDiagram: View {
             case .arc(let radius, let sweepDegrees):
                 extent = radius
                 do {
-                    let center = CGPoint(x: 0, y: pathY + free * radius)
-                    let atContour = -free * Double.pi / 2          // straight "down" to the wall, or "up"
-                    let turn = free > 0 ? 1.0 : -1.0                // travelling +x: CCW above the wall, CW below
-                    let sweep = sweepDegrees * Double.pi / 180
+                    // A negative sweep mirrors the arc to the other side of the path (same as the library).
+                    let arcFree = sweepDegrees < 0 ? -free : free
+                    let center = CGPoint(x: 0, y: pathY + arcFree * radius)
+                    let atContour = -arcFree * Double.pi / 2        // straight "down" to the wall, or "up"
+                    let turn = arcFree > 0 ? 1.0 : -1.0             // travelling +x: CCW above the wall, CW below
+                    let sweep = abs(sweepDegrees) * Double.pi / 180
                     let steps = 32
                     for i in 0...steps {
                         let f = Double(i) / Double(steps)

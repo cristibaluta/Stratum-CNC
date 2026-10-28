@@ -5,14 +5,6 @@
 //  Created by Cristian Baluta on 14.10.2026.
 //
 
-
-//
-//  PanelToolpathDetails.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 24.08.2026.
-//
-
 import SwiftUI
 import StratumCAM
 
@@ -26,7 +18,7 @@ struct PanelToolpathDetails: View {
     var stockThickness: Double? = nil
 
     /// Every other toolpath's current name, so the auto-generated name for this
-    /// one (see `operationKindBinding`) picks a number that isn't already taken.
+    /// one  picks a number that isn't already taken.
     var siblingNames: Set<String> = []
 
     /// True while the canvas is picking shapes for this toolpath. That's the case
@@ -39,11 +31,8 @@ struct PanelToolpathDetails: View {
     var isGenerating: Bool = false
     /// Builds the toolpaths from the selected shapes.
     var onGenerate: () -> Void = {}
-    /// The preview slider moved to this step (0 = nothing cut yet, up to the generation's
-    /// `scrub.stepCount` = the whole toolpath). Fires on every tick of a drag.
     var onScrub: (Int) -> Void = { _ in }
     var onDone: () -> Void = {}
-    /// Removes this toolpath (and closes the panel).
     var onDelete: () -> Void = {}
     /// Adds another toolpath after this one and opens it.
     var onAddNext: () -> Void = {}
@@ -71,10 +60,17 @@ struct PanelToolpathDetails: View {
                     rowOperation
                     rowOperationOptions
                 }
+                // How the tool moves in the plane: stepover, stock to leave, lead-in/out…
+                // Left out for operations that have none (drilling, boring…).
+                if OperationOptionsView.hasXYMovement(for: toolpath) {
+                    InspectorSection(title: "XY movement") {
+                        rowXYMovement
+                    }
+                }
                 InspectorSection(title: "Tool & feeds") {
                     rowTool
                 }
-                // Start Z, End Z, the depth per pass and the clearance height: levels along Z.
+                // Start Z, End Z, the depth per pass, how the tool enters the material and the clearance height.
                 InspectorSection(title: "Z levels") {
                     rowDepth
                 }
@@ -163,10 +159,14 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowOperationOptions: some View {
-        // Side, direction, entry, diameters… whatever SC.MachiningOperation.formFields
-        // defines for the chosen operation
-        OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes)
-        // Stepover is part of OperationOptionsView, so it sits next to the clearing pattern.
+        // Side, direction, diameters… whatever SC.MachiningOperation.formFields
+        // defines for the chosen operation, plus the holding tabs and the clearing pattern.
+        OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, part: .operation)
+    }
+
+    @ViewBuilder
+    private var rowXYMovement: some View {
+        OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, part: .xyMovement)
     }
 
     @ViewBuilder
@@ -264,6 +264,10 @@ struct PanelToolpathDetails: View {
             if toolpath.operation.drillUsesPecking {
                 InspectorNumberField(title: "Peck depth", value: drillPeckDepth, suffix: "mm")
             }
+        }
+        // How the tool gets down into the material: ramp, helix or plunge.
+        if OperationOptionsView.hasEntry(for: toolpath) {
+            OperationOptionsView(toolpath: $toolpath, part: .entry)
         }
         InspectorNumberField(title: "Clearance Z", value: $toolpath.safeZ, suffix: "mm")
             .help("The height the tool travels at between cuts.")

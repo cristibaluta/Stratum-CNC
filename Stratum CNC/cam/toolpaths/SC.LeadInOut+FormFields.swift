@@ -44,7 +44,7 @@ extension SC.LeadInOut {
                 .double(.init(id: "\(idPrefix).style.sweep",
                               label: "Sweep Angle",
                               unit: "°",
-                              range: 1.0...180.0,
+                              range: -180.0...180.0, // negative: the arc swings to the other side of the contour
                               value: currentArcSweep,
                               onChange: {
                                   onChange(.init(style: .arc(radius: currentArcRadius, sweepAngleDegrees: $0), feedRate: feedRate))
