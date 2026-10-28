@@ -179,10 +179,6 @@ enum ToolpathGenerator {
             case .contourNotClosed:
                 return "This operation needs closed shapes, but a selected shape is open."
             case .invalidContour:
-                if operation == .threadMilling {
-                    return "Thread milling needs each selected shape to be one closed circle (the existing hole). "
-                        + "SVG circles are stored as lines and aren't recognised — use a DXF or drill-file circle."
-                }
                 return "A selected shape has no usable geometry."
             case .missingDrillPoint:
                 return "A selected shape isn't a point or a closed circle. "
@@ -205,6 +201,15 @@ enum ToolpathGenerator {
             }
         }
         return error.localizedDescription
+    }
+
+    /// A remark about a toolpath that was generated anyway (see `SC.Warning`).
+    static func message(for warning: SC.Warning) -> String {
+        switch warning {
+            case .threadHoleLargerThanTarget(let available, let target):
+                return String(format: "The selected shape is %.2f mm wide, already more than the %.2f mm thread, so there is little to cut. Check the thread size or the shape.",
+                              available, target)
+        }
     }
 
     /// What to tell the user about a parameter the library refused (`SC.Error.invalidParameter`).

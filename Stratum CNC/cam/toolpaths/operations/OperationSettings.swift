@@ -85,6 +85,8 @@ struct OperationSettings: Codable, Hashable {
     var threadRadialPasses: Int = 3
     var threadIsInternal: Bool = true
     var threadHandedness: ThreadHandedness = .rightHand
+    /// "Custom" was picked in the standard thread dropdown, which unlocks the diameter and pitch.
+    var threadIsCustom: Bool = false
 
     /// Keys of older projects.
     private enum LegacyCodingKeys: String, CodingKey {
@@ -102,7 +104,7 @@ struct OperationSettings: Codable, Hashable {
         case drillUsesPecking, drillPeckDepth
         case counterboreDiameter, counterboreDepth
         case boreTargetDiameter, boreUsesDwell, boreDwellTime, boreShiftRetract
-        case threadPitch, threadIsInternal, threadHandedness, threadRadialPasses, threadTargetDiameter
+        case threadPitch, threadIsInternal, threadHandedness, threadRadialPasses, threadTargetDiameter, threadIsCustom
     }
 }
 
@@ -153,6 +155,7 @@ extension OperationSettings {
         threadHandedness = try c.decodeIfPresent(ThreadHandedness.self, forKey: .threadHandedness) ?? d.threadHandedness
         threadRadialPasses = try c.decodeIfPresent(Int.self, forKey: .threadRadialPasses) ?? d.threadRadialPasses
         threadTargetDiameter = try c.decodeIfPresent(Double.self, forKey: .threadTargetDiameter) ?? d.threadTargetDiameter
+        threadIsCustom = try c.decodeIfPresent(Bool.self, forKey: .threadIsCustom) ?? d.threadIsCustom
     }
 }
 

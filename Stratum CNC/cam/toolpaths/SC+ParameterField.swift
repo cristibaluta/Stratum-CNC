@@ -59,6 +59,9 @@ extension SC.ParameterField {
         public var range: ClosedRange<Double>
         public var value: Double
         public var onChange: (Double) -> Void
+        /// False shows the value but doesn't let it be edited (e.g. a thread's diameter and
+        /// pitch while a standard size is picked).
+        public var isEnabled: Bool = true
     }
 
     /// A numeric value that can be absent (`nil` == feature disabled), e.g.

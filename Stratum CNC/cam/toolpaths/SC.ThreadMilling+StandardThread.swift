@@ -4,12 +4,12 @@
 //
 //  Created by Cristian Baluta on 23.09.2026.
 //
-//  The "Standard Thread" dropdown on thread milling. This is purely a
-//  convenience over the two real fields (`pitch`, `targetDiameter`) -- there
-//  is no separate stored selection. Picking a preset sets both values at
-//  once; hand-editing either field afterwards just changes what the dropdown
-//  reports back, since its `selectedId` is recomputed from whatever the
-//  current diameter/pitch pair happens to be.
+//  The "Standard Thread" dropdown on thread milling. Picking a preset sets the two
+//  real fields (`pitch`, `targetDiameter`) at once and shows them grayed out; the
+//  fields only become editable once "Custom" is chosen. Whether "Custom" was chosen
+//  is the one piece of state the library's operation has no room for, so the app
+//  keeps it (`OperationSettings.threadIsCustom`) and passes it in as `isCustom`.
+//  Values that match no preset (older projects, hand-edited) count as custom too.
 //
 
 import Foundation
@@ -56,19 +56,30 @@ extension SC {
         }?.id ?? customThreadId
     }
 
-    /// Builds the dropdown itself. `onSelect` is only called for a real
-    /// preset -- picking "Custom" is a no-op, since it isn't a size, just
-    /// what the menu shows when nothing else matches.
+    /// Whether the diameter/pitch pair is one of the standard sizes.
+    static func isStandardThread(diameter: Double, pitch: Double) -> Bool {
+        matchingStandardThreadId(diameter: diameter, pitch: pitch) != customThreadId
+    }
+
+    /// Builds the dropdown itself. `isCustom` pins it on "Custom" even when the current
+    /// values happen to match a preset. `onSelect` is called for a real preset,
+    /// `onSelectCustom` when "Custom" is picked (the values are left as they are).
     static func standardThreadChoice(id: String,
                                       label: String = "Standard Thread",
                                       diameter: Double,
                                       pitch: Double,
+                                      isCustom: Bool = false,
+                                      onSelectCustom: @escaping () -> Void = {},
                                       onSelect: @escaping (StandardThread) -> Void) -> ParameterField.ChoiceField {
         .init(id: id,
               label: label,
               options: [.init(id: customThreadId, label: "Custom")] + standardThreads.map { .init(id: $0.id, label: $0.designation) },
-              selectedId: matchingStandardThreadId(diameter: diameter, pitch: pitch),
+              selectedId: isCustom ? customThreadId : matchingStandardThreadId(diameter: diameter, pitch: pitch),
               onChange: { selectedId in
+                  if selectedId == customThreadId {
+                      onSelectCustom()
+                      return
+                  }
                   guard let thread = standardThreads.first(where: { $0.id == selectedId }) else { return }
                   onSelect(thread)
               })

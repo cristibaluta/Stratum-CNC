@@ -16,7 +16,13 @@ extension SC.MachiningOperation {
     /// every time any field, at any nesting depth, changes -- the caller
     /// (typically a view model) is responsible for writing that value back
     /// into whatever holds the operation, e.g. `OutputToolpath.operation`.
-    public func formFields(onChange: @escaping (SC.MachiningOperation) -> Void) -> [SC.ParameterField] {
+    ///
+    /// `threadIsCustom` / `onThreadCustomChange` carry the one thing the thread milling form
+    /// needs that the operation itself doesn't hold: whether "Custom" was picked in the
+    /// standard thread dropdown (which is what unlocks the diameter and pitch fields).
+    public func formFields(threadIsCustom: Bool = false,
+                           onThreadCustomChange: @escaping (Bool) -> Void = { _ in },
+                           onChange: @escaping (SC.MachiningOperation) -> Void) -> [SC.ParameterField] {
         switch self {
 
             case .facing(let direction, let extensionLength):
@@ -47,12 +53,18 @@ extension SC.MachiningOperation {
                 ]
 
             case .threadMilling(let pitch, let isInternal, let direction, let radialPasses, let targetDiameter):
+                // Diameter and pitch are only editable under "Custom", whether it was picked
+                // or the values match no standard size.
+                let isCustom = threadIsCustom || !SC.isStandardThread(diameter: targetDiameter, pitch: pitch)
                 return [
                     .row(.init(id: "threadMilling.params", fields: [
                         .choice(SC.standardThreadChoice(id: "threadMilling.standard",
                                                          diameter: targetDiameter,
                                                          pitch: pitch,
+                                                         isCustom: isCustom,
+                                                         onSelectCustom: { onThreadCustomChange(true) },
                                                          onSelect: { thread in
+                            onThreadCustomChange(false)
                             onChange(.threadMilling(pitch: thread.pitch, isInternal: isInternal, direction: direction,
                                                      radialPasses: radialPasses, targetDiameter: thread.diameter))
                         })),
@@ -70,12 +82,12 @@ extension SC.MachiningOperation {
                                       range: 0.5...200.0, value: targetDiameter, onChange: {
                             onChange(.threadMilling(pitch: pitch, isInternal: isInternal, direction: direction,
                                                      radialPasses: radialPasses, targetDiameter: $0))
-                        })),
+                        }, isEnabled: isCustom)),
                         .double(.init(id: "threadMilling.pitch", label: "Pitch", unit: "mm",
                                       range: 0.1...10.0, value: pitch, onChange: {
                             onChange(.threadMilling(pitch: $0, isInternal: isInternal, direction: direction,
                                                      radialPasses: radialPasses, targetDiameter: targetDiameter))
-                        })),
+                        }, isEnabled: isCustom)),
                         // Must be >= 1; the last pass always lands exactly on targetDiameter.
                         .int(.init(id: "threadMilling.radialPasses", label: "Radial Passes",
                                    range: 1...6, value: radialPasses, onChange: {

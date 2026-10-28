@@ -332,6 +332,7 @@ struct PanelToolpathDetails: View {
         if !toolpath.hasGeometry {
             InspectorNote(text: "Select shapes to preview the toolpath.")
         } else {
+          VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             HStack(alignment: .center, spacing: 8) {
                 generationStatus
                 Spacer(minLength: 0)
@@ -357,6 +358,13 @@ struct PanelToolpathDetails: View {
                       ? "A lead-in can't be combined with a ramp or helix entry. Turn the entry off or remove the lead-in."
                       : "Build the toolpath for the selected shapes and preview it on the canvas")
             }
+            // Warnings don't stop the toolpath, and only matter while the result is current
+            if let generation, generation.isCurrent(for: toolpath) {
+                ForEach(generation.warningMessages, id: \.self) { message in
+                    InspectorNote(text: message, isWarning: true)
+                }
+            }
+          }
         }
     }
 

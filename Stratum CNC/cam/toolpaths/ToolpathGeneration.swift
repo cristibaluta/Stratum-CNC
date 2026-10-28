@@ -38,6 +38,15 @@ struct ToolpathGeneration {
         return outputs.count
     }
 
+    /// Remarks about a result that was generated successfully; they never block it.
+    var warningMessages: [String] {
+        guard case .success(let outputs) = outcome else { return [] }
+        var seen = Set<String>()
+        return outputs.flatMap(\.warnings)
+            .map { ToolpathGenerator.message(for: $0) }
+            .filter { seen.insert($0).inserted }
+    }
+
     var errorMessage: String? {
         guard case .failure(let error) = outcome else { return nil }
         return ToolpathGenerator.message(for: error, operation: source.operation.kind)

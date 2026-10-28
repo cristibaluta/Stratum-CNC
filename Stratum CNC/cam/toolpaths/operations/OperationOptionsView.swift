@@ -38,7 +38,11 @@ struct OperationOptionsView: View {
     }
 
     var body: some View {
-        let fields = toolpath.machiningOperation.formFields { toolpath.machiningOperation = $0 }
+        let fields = toolpath.machiningOperation.formFields(
+            threadIsCustom: toolpath.operation.threadIsCustom,
+            onThreadCustomChange: { toolpath.operation.threadIsCustom = $0 },
+            onChange: { toolpath.machiningOperation = $0 }
+        )
 
         VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if kind == .slotting {

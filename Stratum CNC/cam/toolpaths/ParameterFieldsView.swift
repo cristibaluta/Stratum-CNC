@@ -51,6 +51,8 @@ struct ParameterFieldsView: View {
                                      value: Binding(get: { f.value },
                                                     set: { f.onChange(clamp($0, to: f.range)) }),
                                      suffix: f.unit ?? "")
+                    .disabled(!f.isEnabled)
+                    .opacity(f.isEnabled ? 1 : 0.5)
             case .int(let f):
                 InspectorIntField(title: f.label,
                                   value: Binding(get: { f.value },
