@@ -283,6 +283,14 @@ struct CAMView: View {
                              },
                              onAddNext: {
                                 camModel.addToolpath()
+                             },
+                             targetShapes: {
+                                // Read when asked (the holding tabs popover), not on every redraw
+                                let targets = camModel.toolpaths.first { $0.id == toolpath.id }?.targets ?? []
+                                return targets.compactMap { target in
+                                    camModel.canvasState.object(withID: target.objectID)?
+                                        .worldCGPath(forPathAt: target.pathIndex)
+                                }
                              }
         )
         .id(toolpath.id)

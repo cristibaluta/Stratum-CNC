@@ -13,6 +13,10 @@ struct OperationOptionsView: View {
 
     @Binding var toolpath: ToolpathData
 
+    /// The selected shapes' outlines (see `PanelToolpathDetails.targetShapes`), for the holding
+    /// tabs drawing.
+    var targetShapes: () -> [CGPath] = { [] }
+
     @State private var showRampEditor = false
     @State private var showTabsEditor = false
 
@@ -74,7 +78,7 @@ struct OperationOptionsView: View {
                     showTabsEditor = true
                 }
                 .popover(isPresented: $showTabsEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                    HoldingTabsEditor(tabs: $toolpath.operation.contourTabs)
+                    HoldingTabsEditor(tabs: $toolpath.operation.contourTabs, shapes: targetShapes)
                         .frame(width: 400)
                 }
             }

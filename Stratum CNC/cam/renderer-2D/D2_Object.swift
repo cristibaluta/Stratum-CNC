@@ -8,6 +8,7 @@
 import Foundation
 import SwiftDXF
 import StratumCAM
+import CoreGraphics
 
 final class D2_Object {
 
@@ -183,5 +184,43 @@ final class D2_Object {
         let angle = rotationDegrees * .pi / 180
         return CGPoint(x: scaled.x * cos(angle) - scaled.y * sin(angle),
                        y: scaled.x * sin(angle) + scaled.y * cos(angle))
+    }
+}
+
+// MARK: Shape for previews
+
+extension D2_Object {
+
+    /// The outline behind `paths[index]` in world/machine space (y up, like the CNC), with this
+    /// object's *current* position, scale and rotation. Same mapping as `machineContours`, so
+    /// it is the shape a toolpath is built from; used to draw it in the panel (see
+    /// `HoldingTabsEditor`).
+    func worldCGPath(forPathAt index: Int) -> CGPath? {
+        guard paths.indices.contains(index) else {
+            return nil
+        }
+        let result = CGMutablePath()
+        paths[index].cgPath.applyWithBlock { pointer in
+            let element = pointer.pointee
+            let p = element.points
+            switch element.type {
+                case .moveToPoint:
+                    result.move(to: worldPoint(fromLocal: p[0]))
+                case .addLineToPoint:
+                    result.addLine(to: worldPoint(fromLocal: p[0]))
+                case .addQuadCurveToPoint:
+                    result.addQuadCurve(to: worldPoint(fromLocal: p[1]),
+                                        control: worldPoint(fromLocal: p[0]))
+                case .addCurveToPoint:
+                    result.addCurve(to: worldPoint(fromLocal: p[2]),
+                                    control1: worldPoint(fromLocal: p[0]),
+                                    control2: worldPoint(fromLocal: p[1]))
+                case .closeSubpath:
+                    result.closeSubpath()
+                @unknown default:
+                    break
+            }
+        }
+        return result
     }
 }

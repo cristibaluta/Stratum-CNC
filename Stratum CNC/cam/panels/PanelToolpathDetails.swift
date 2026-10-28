@@ -47,6 +47,9 @@ struct PanelToolpathDetails: View {
     var onDelete: () -> Void = {}
     /// Adds another toolpath after this one and opens it.
     var onAddNext: () -> Void = {}
+    /// The outlines of the selected shapes in world space, one per shape, for drawings in the
+    /// panel (where the holding tabs sit). Called only when a drawing is shown.
+    var targetShapes: () -> [CGPath] = { [] }
 
     /// What the last tool pick did to the cutting values, shown under the tool.
     @State private var presetNote: String?
@@ -163,7 +166,7 @@ struct PanelToolpathDetails: View {
     private var rowOperationOptions: some View {
         // Side, direction, entry, diameters… whatever SC.MachiningOperation.formFields
         // defines for the chosen operation
-        OperationOptionsView(toolpath: $toolpath)
+        OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes)
         // Stepover is part of OperationOptionsView, so it sits next to the clearing pattern.
     }
 
