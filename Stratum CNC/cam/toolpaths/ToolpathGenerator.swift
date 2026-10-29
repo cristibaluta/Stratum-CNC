@@ -222,10 +222,10 @@ enum ToolpathGenerator {
         }
 
         var direction = SC.CutDirection.climb
-        var entry = SC.EntryStrategy.plunge
-        if case .pocket(let pocketDirection, _, let pocketEntry) = job.operation {
+        // Always a plunge in the middle of the corner's two wall ends.
+        let entry = SC.EntryStrategy.plunge
+        if case .pocket(let pocketDirection, _, _) = job.operation {
             direction = pocketDirection
-            entry = pocketEntry
         }
         let rest = try engine.generateRestToolpaths(corners: corners,
                                                     tool: job.tool,

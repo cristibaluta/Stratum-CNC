@@ -102,7 +102,8 @@ struct OperationOptionsView: View {
 
     /// Whether the "Entry" section has an entry row for this toolpath.
     static func hasEntry(for toolpath: ToolpathData) -> Bool {
-        toolpath.machiningOperation.requirements.usesEntry
+        // A rest pass always plunges in the middle of a corner's two wall ends.
+        toolpath.operation.kind != .restMachining && toolpath.machiningOperation.requirements.usesEntry
     }
 
     /// The library's own fields of the operation, as the "operation" section shows them: not

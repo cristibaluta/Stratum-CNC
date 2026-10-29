@@ -121,6 +121,8 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowOperation: some View {
         OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames))
+            // A rest operation is created from a pocket and stays one.
+            .disabled(toolpath.operation.kind == .restMachining)
     }
 
     /// Which of the general fields (End Z, Stepdown, Stepover) the operation reads.

@@ -218,6 +218,9 @@ class CAMModel: ObservableObject {
         rest.operation.pocketPattern = .offset
         rest.operation.stockToLeave = 0
         rest.operation.finishingPass = false
+        // One plunge to the pocket's End Z: stepdown equals the depth (both editable afterwards).
+        rest.endZ = source.endZ
+        rest.stepDown = max(abs(source.endZ), 0.01)
         rest.name = OperationKind.restMachining.nextName(among: Set(toolpaths.map(\.name)))
 
         // A tool half the pocket's size, to start from; the user picks the real one in the panel.
