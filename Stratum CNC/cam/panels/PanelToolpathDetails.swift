@@ -50,6 +50,11 @@ struct PanelToolpathDetails: View {
                     rowHeader
                     rowOperation
                     InspectorNote(text: toolpath.operation.kind.summary)
+                    // The operation's own settings, right under its type: a thread's standard
+                    // and pitch, a bore's diameter, a chamfer's width…
+                    if OperationOptionsView.hasOperationFields(for: toolpath) {
+                        OperationOptionsView(toolpath: $toolpath, part: .operation)
+                    }
                 }
                 .padding(.bottom, 12)
 
@@ -63,9 +68,13 @@ struct PanelToolpathDetails: View {
                 InspectorSection(title: "XY plane") {
                     rowXYMovement
                 }
-                // Start Z, End Z, the depth per pass, how the tool enters the material and the clearance height.
+                // Start Z, End Z, the depth per pass, the holding tabs and the clearance height.
                 InspectorSection(title: "Z axis") {
                     rowDepth
+                }
+                // How the tool gets into the cut: ramp or helix, the feed going down, lead-in/out
+                InspectorSection(title: "Entry") {
+                    rowEntry
                 }
                 InspectorSection(title: "Preview") {
                     rowPreview
@@ -133,6 +142,21 @@ struct PanelToolpathDetails: View {
         InspectorIntField(title: "Spindle", value: $toolpath.spindleRPM, suffix: "rpm")
     }
 
+    /// The ramp or helix, the feed going down and, for a contour, the lead-in and lead-out.
+    @ViewBuilder
+    private var rowEntry: some View {
+        // How the tool gets down into the material: ramp, helix or plunge.
+        if OperationOptionsView.hasEntry(for: toolpath) {
+            OperationOptionsView(toolpath: $toolpath, part: .entry)
+        }
+        // Always available, also for operations without an entry strategy (drill, bore…)
+        InspectorNumberField(title: "Entry feed", value: $toolpath.plungeRate, suffix: "mm/min")
+            .help(model.plungeFeedHelp(for: toolpath))
+        if OperationOptionsView.hasLeadInOut(for: toolpath) {
+            OperationOptionsView(toolpath: $toolpath, part: .leadInOut)
+        }
+    }
+
     @ViewBuilder
     private var rowDepth: some View {
         // Z range (a counterbore has its own depth instead of an End Z; it is shown as one)
@@ -142,7 +166,7 @@ struct PanelToolpathDetails: View {
                 .help("How deep the counterbore goes below the top of the stock.")
         } else if requirements.usesEndZ {
             InspectorNumberField(title: "End Z", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), suffix: "mm", prefix: "−") {
-                if model.isHoleOperation(toolpath), let thickness = stockThickness, thickness > 0 {
+                if model.offersThroughStock(toolpath), let thickness = stockThickness, thickness > 0 {
                     throughStockButton(thickness: thickness)
                 }
             }
@@ -153,8 +177,10 @@ struct PanelToolpathDetails: View {
         // a drill by its peck depth.
         if toolpath.operation.kind == .slotting {
             InspectorNumberField(title: "Depth per pass", value: model.slotDepthPerPass($toolpath), suffix: "mm")
+            passesNote(stepdown: toolpath.operation.slotDepthPerPass)
         } else if requirements.usesStepdown {
             InspectorNumberField(title: "Stepdown", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), suffix: "mm")
+            passesNote(stepdown: toolpath.stepDown)
         }
         if toolpath.operation.kind == .drilling {
             ToggleField(title: "Peck drilling",
@@ -168,19 +194,20 @@ struct PanelToolpathDetails: View {
         if OperationOptionsView.hasDepthFields(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, part: .depth)
         }
-        // How the tool gets down into the material: ramp, helix or plunge.
-        if OperationOptionsView.hasEntry(for: toolpath) {
-            OperationOptionsView(toolpath: $toolpath, part: .entry)
-        }
-        // Always available, also for operations without an entry strategy (drill, bore…)
-        InspectorNumberField(title: "Entry feed", value: $toolpath.plungeRate, suffix: "mm/min")
-            .help(model.plungeFeedHelp(for: toolpath))
         // Holding tabs (contour): material left standing at the bottom of the cut
         if OperationOptionsView.hasTabs(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, part: .tabs)
         }
         InspectorNumberField(title: "Clearance Z", value: $toolpath.safeZ, suffix: "mm")
             .help("The height the tool travels at between cuts.")
+    }
+
+    /// How many passes Start Z, End Z and the stepdown come to, under the field that sets it.
+    @ViewBuilder
+    private func passesNote(stepdown: Double) -> some View {
+        if let note = model.passesNote(for: toolpath, stepdown: stepdown) {
+            InspectorNote(text: note.text, isWarning: note.isWarning)
+        }
     }
 
     private func throughStockButton(thickness: Double) -> some View {
@@ -193,7 +220,7 @@ struct PanelToolpathDetails: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .disabled(model.isThroughStock(toolpath, thickness: thickness))
-        .help(model.throughStockHelp(thickness: thickness))
+        .help(model.throughStockHelp(for: toolpath, thickness: thickness))
     }
 
     /// How many shapes the toolpath cuts. Shapes are chosen by clicking them on
@@ -212,6 +239,10 @@ struct PanelToolpathDetails: View {
                 .help("Face the bounding box of the selected shapes, or the whole stock")
             }
         }
+        // A slot's selection is its outline or the line the tool centre follows
+        if toolpath.operation.kind == .slotting {
+            OperationOptionsView(toolpath: $toolpath, part: .shapes)
+        }
         InspectorRow(label: "Selected") {
             shapesLabel
         }
@@ -221,11 +252,9 @@ struct PanelToolpathDetails: View {
     /// toolpath from the selected shapes and shows it on the canvas.
     @ViewBuilder
     private var rowPreview: some View {
-        // Only offered once there is something to cut
-        if !toolpath.hasGeometry {
-            InspectorNote(text: "Select shapes to preview the toolpath.", isIndented: false)
-        } else {
-          VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+        // Without shapes the button is there but disabled; what to do about it is said once,
+        // in orange, under Shapes (see `shapesLabel`).
+        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             HStack(alignment: .center, spacing: 8) {
                 generationStatus
                 Spacer(minLength: 0)
@@ -246,7 +275,7 @@ struct PanelToolpathDetails: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isGenerating || toolpath.leadInConflictsWithEntry)
+                .disabled(isGenerating || !toolpath.hasGeometry || toolpath.leadInConflictsWithEntry)
                 .help(model.previewButtonHelp(for: toolpath))
             }
             // Warnings don't stop the toolpath, and only matter while the result is current
@@ -260,7 +289,6 @@ struct PanelToolpathDetails: View {
                     InspectorNote(text: model.multiPassNote(for: generation), isIndented: false)
                 }
             }
-          }
         }
     }
 

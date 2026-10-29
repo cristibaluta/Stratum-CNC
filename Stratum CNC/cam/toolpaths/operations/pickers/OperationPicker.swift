@@ -12,7 +12,7 @@ struct OperationPicker: View {
     @State private var isPresented = false
 
     var body: some View {
-        InspectorRow(label: "Type") {
+        InspectorRow(label: "Operation") {
             Button {
                 isPresented.toggle()
             } label: {

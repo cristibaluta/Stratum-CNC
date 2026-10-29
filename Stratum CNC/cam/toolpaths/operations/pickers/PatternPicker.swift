@@ -18,7 +18,7 @@ struct PatternPicker: View {
     @State private var isPresented = false
 
     var body: some View {
-        InspectorRow(label: "Pattern") {
+        InspectorRow(label: "Clearing pattern") {
             Button {
                 isPresented.toggle()
             } label: {

@@ -4,7 +4,8 @@
 //
 //  The controls that change with the chosen operation: a contour has a side, a drill has an
 //  optional peck depth, a counterbore has a diameter and a depth… They are placed by what they
-//  do: in the plane (XY movement) or down into the material (Z levels).
+//  do: what the operation is (under the operation picker), in the plane (XY plane), down into
+//  the material (Z axis) or how the tool gets into the cut (Entry).
 //
 
 import SwiftUI
@@ -43,59 +44,103 @@ struct OperationOptionsView: View {
     /// Which section of the panel this instance fills. The panel places one of each, so the
     /// operation's controls are grouped by what they do instead of sitting in one list.
     enum Part {
-        /// How the tool moves in the plane, and what the cut is in it: side, selection source,
-        /// the library's own fields (sizes, thread, extension), cut direction, feed rate, pattern,
-        /// stepover, stock to leave, lead-in/out.
+        /// What the selection is, where the operation needs to know (a slot: its outline or the
+        /// line the tool centre follows). Shown in "Shapes".
+        case shapes
+        /// What the operation is, shown in the header under the operation picker: the side of a
+        /// contour or chamfer, a pocket's clearing pattern, and the library's fields that are
+        /// neither a direction nor a depth (a thread's standard, pitch and diameter, the diameter
+        /// of a bore or a counterbore, a chamfer's width, a facing's extension).
+        case operation
+        /// How the tool moves in the plane: cut direction, feed rate, stepover, stock to leave.
         case xyMovement
         /// The operation's own depth settings (dwell, shift before retract, a chamfer's depth
-        /// override). Shown in "Z levels".
+        /// override). Shown in "Z axis".
         case depth
-        /// How the tool descends into the material (ramp / helix / plunge). Shown in "Z levels".
+        /// How the tool descends into the material (ramp / helix / plunge). Shown in "Entry".
         case entry
-        /// The holding tabs of a contour, which leave material standing at the bottom. Shown in "Z levels".
+        /// A contour's lead-in and lead-out, with the note when the lead-in clashes with the entry.
+        /// Shown in "Entry".
+        case leadInOut
+        /// The holding tabs of a contour, which leave material standing at the bottom. Shown in "Z axis".
         case tabs
     }
 
     var part: Part = .xyMovement
 
     /// The cut direction (climb / conventional) fields `formFields` builds. They are shown in
-    /// the XY movement section next to the other movement settings.
+    /// the XY plane section next to the other movement settings.
     private static let xyDirectionFieldIDs: Set<String> = [
         "facing.direction", "contour.direction", "pocket.direction",
         "counterbore.direction", "chamfer.params.direction"
     ]
 
     /// The library's fields that are about the depth: the bottom of a bore and its retract, how
-    /// deep a chamfer goes. They are shown in the Z levels section, the rest in XY movement.
+    /// deep a chamfer goes. They are shown in the Z axis section, the rest in the operation's own.
     private static let zFieldIDs: Set<String> = [
         "boring.dwellTime", "boring.shiftRetract", "chamfer.params.depth"
     ]
 
-    /// Whether the "Z levels" section has fields of the operation's own (see `zFieldIDs`).
+    /// Whether the "Z axis" section has fields of the operation's own (see `zFieldIDs`).
     static func hasDepthFields(for toolpath: ToolpathData) -> Bool {
         toolpath.operation.kind == .boring || toolpath.operation.kind == .chamfer
     }
 
-    /// Whether the "Z levels" section has a holding tabs row for this toolpath.
+    /// Whether the "Z axis" section has a holding tabs row for this toolpath.
     static func hasTabs(for toolpath: ToolpathData) -> Bool {
         toolpath.operation.kind == .contour
     }
 
-    /// Whether the "Z levels" section has an entry row for this toolpath.
+    /// Whether the "Entry" section has a lead-in and lead-out for this toolpath.
+    static func hasLeadInOut(for toolpath: ToolpathData) -> Bool {
+        toolpath.operation.kind == .contour
+    }
+
+    /// Whether the "Entry" section has an entry row for this toolpath.
     static func hasEntry(for toolpath: ToolpathData) -> Bool {
         toolpath.machiningOperation.requirements.usesEntry
     }
 
+    /// The library's own fields of the operation, as the "operation" section shows them: not
+    /// a direction or a depth (those sit in the XY plane and Z axis sections) and not something
+    /// the app draws with a control of its own.
+    private static func operationFields(of toolpath: ToolpathData) -> [SC.ParameterField] {
+        let kind = toolpath.operation.kind
+        let fields = displayedFields(of: toolpath.machiningOperation.formFields(onChange: { _ in }), kind: kind)
+        let hiddenIDs = hiddenOperationFieldIDs(for: kind)
+        return fields.filter { !hiddenIDs.contains($0.id) }
+    }
+
+    /// Field ids that belong to another section (direction, depth) or to a control of the app's own.
+    private static func hiddenOperationFieldIDs(for kind: OperationKind) -> Set<String> {
+        kind.hiddenFieldIDs.union(xyDirectionFieldIDs).union(zFieldIDs)
+    }
+
+    /// Whether the operation has settings of its own to show under its type.
+    static func hasOperationFields(for toolpath: ToolpathData) -> Bool {
+        switch toolpath.operation.kind {
+            case .contour, .chamfer:
+                return true   // the side
+            default:
+                break
+        }
+        return !toolpath.machiningOperation.requirements.pocketPatterns.isEmpty
+            || !operationFields(of: toolpath).isEmpty
+    }
+
     var body: some View {
         switch part {
+            case .shapes: shapesPart
+            case .operation: operationPart
             case .xyMovement: xyMovementPart
             case .depth: depthPart
             case .entry: entryPart
+            case .leadInOut: leadInOutPart
             case .tabs: tabsPart
         }
     }
 
-    // MARK: Operation
+    // MARK: Form
 
     private var formFields: [SC.ParameterField] {
         toolpath.machiningOperation.formFields(
@@ -105,14 +150,11 @@ struct OperationOptionsView: View {
         )
     }
 
-    // MARK: XY movement
+    // MARK: Shapes
 
-    private var xyMovementPart: some View {
-        let fields = displayedFields(of: formFields)
-        let hiddenIDs = kind.hiddenFieldIDs.union(Self.xyDirectionFieldIDs).union(Self.zFieldIDs)
-        let ownFields = fields.filter { !hiddenIDs.contains($0.id) }
-
-        return VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+    /// A slot's selection is either its outline or the line the tool centre follows.
+    private var shapesPart: some View {
+        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if kind == .slotting {
                 EnumMenuPicker(title: "Selection is", selection: $toolpath.operation.slotSource)
                 // The engine only accepts an outline exactly as wide as the tool; say so here
@@ -121,7 +163,18 @@ struct OperationOptionsView: View {
                     InspectorNote(text: slotOutlineNote)
                 }
             }
+        }
+    }
 
+    // MARK: Operation
+
+    /// What the library defines for the operation besides the direction and the depths:
+    /// a chamfer's width, the diameter of a counterbore or a bore, a thread, a facing's extension.
+    private var operationPart: some View {
+        let hiddenIDs = Self.hiddenOperationFieldIDs(for: kind)
+        let fields = displayedFields(of: formFields).filter { !hiddenIDs.contains($0.id) }
+
+        return VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             // Which side of the boundary the tool follows -- same glyph-based picker
             // for both, since `ContourPicker` is generic over `CutSideOption`.
             if kind == .contour {
@@ -130,22 +183,11 @@ struct OperationOptionsView: View {
                 ContourPicker(selection: $toolpath.operation.chamferSide)
             }
 
-            // What the library defines for the operation besides the direction and the depths:
-            // a chamfer's width, the diameter of a counterbore or a bore, a thread, a facing's extension.
-            if !ownFields.isEmpty {
-                ParameterFieldsView(fields: ownFields,
+            if !fields.isEmpty {
+                ParameterFieldsView(fields: fields,
                                     hiddenFieldIDs: hiddenIDs,
                                     hiddenCaseIDs: OperationKind.hiddenCaseIDs)
             }
-
-            // Climb / conventional: how the tool travels along the path
-            let directionFields = fields.filter { Self.xyDirectionFieldIDs.contains($0.id) }
-            if !directionFields.isEmpty {
-                ParameterFieldsView(fields: directionFields)
-            }
-
-            // Feed rate of the cutting moves in the plane (the entry's own feed is in Z levels)
-            InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
 
             // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
             // `ContourTypeGlyph`), followed by its one extra control: it shapes how the area is cleared.
@@ -153,6 +195,23 @@ struct OperationOptionsView: View {
                 PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns)
                 patternDetail
             }
+        }
+    }
+
+    // MARK: XY plane
+
+    private var xyMovementPart: some View {
+        let fields = displayedFields(of: formFields)
+
+        return VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+            // Climb / conventional: how the tool travels along the path
+            let directionFields = fields.filter { Self.xyDirectionFieldIDs.contains($0.id) }
+            if !directionFields.isEmpty {
+                ParameterFieldsView(fields: directionFields)
+            }
+
+            // Feed rate of the cutting moves in the plane (the entry's own feed is in the Entry section)
+            InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
 
             // Stepover is about how the area is cleared (facing included).
             if usesStepover {
@@ -163,7 +222,13 @@ struct OperationOptionsView: View {
             if requirements.usesAllowance {
                 stockToLeaveRows
             }
+        }
+    }
 
+    // MARK: Lead-in / lead-out (shown in the Entry section)
+
+    private var leadInOutPart: some View {
+        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             // The library refuses a lead-in together with a ramp or helix entry; say so here
             // (Preview is held back too, see `PanelToolpathDetails`) instead of failing there.
             if toolpath.leadInConflictsWithEntry {
@@ -186,7 +251,7 @@ struct OperationOptionsView: View {
         }
     }
 
-    // MARK: Depth (shown in the Z levels section)
+    // MARK: Depth (shown in the Z axis section)
 
     private var depthPart: some View {
         let depthFields = displayedFields(of: formFields).filter { Self.zFieldIDs.contains($0.id) }
@@ -201,7 +266,7 @@ struct OperationOptionsView: View {
         }
     }
 
-    // MARK: Holding tabs (shown in the Z levels section)
+    // MARK: Holding tabs (shown in the Z axis section)
 
     /// A summary row that opens the editor in a popover.
     @ViewBuilder
@@ -217,7 +282,7 @@ struct OperationOptionsView: View {
         }
     }
 
-    // MARK: Entry (shown in the Z levels section)
+    // MARK: Entry (shown in the Entry section)
 
     private var entryPart: some View {
         // The entry strategy keeps its dedicated editor (angle/length preview, helix
@@ -225,11 +290,6 @@ struct OperationOptionsView: View {
         VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if requirements.usesEntry {
                 rampingRow
-                // The full explanation (and the fix) is next to the lead-in, in XY movement.
-                if toolpath.leadInConflictsWithEntry {
-                    InspectorNote(text: "Conflicts with the lead-in (see Horizontal plane): turn the entry off or remove the lead-in.",
-                                  isWarning: true)
-                }
             }
         }
         // The ramping settings are shared by every operation, so one left over from another
@@ -242,6 +302,10 @@ struct OperationOptionsView: View {
     /// "Chamfer", which only repeats the operation's own name, so they are shown directly (with
     /// the side picker first, above them).
     private func displayedFields(of fields: [SC.ParameterField]) -> [SC.ParameterField] {
+        Self.displayedFields(of: fields, kind: kind)
+    }
+
+    private static func displayedFields(of fields: [SC.ParameterField], kind: OperationKind) -> [SC.ParameterField] {
         guard kind == .chamfer else {
             return fields
         }
@@ -505,13 +569,13 @@ private extension OperationKind {
             return ["entry", "pattern"]
         case .slotting:
             // Only `.raster` makes sense until open-ended slots are derived. The depth per
-            // pass is edited in the Z levels section, next to the other depths.
+            // pass is edited in the Z axis section, next to the other depths.
             return ["entry", "pattern", "slotting.depthPerPass"]
         case .drilling:
-            // The peck depth is edited in the Z levels section (`PanelToolpathDetails.rowDepth`).
+            // The peck depth is edited in the Z axis section (`PanelToolpathDetails.rowDepth`).
             return ["drilling.peckDepth"]
         case .counterbore:
-            // The depth is edited in the Z levels section, as the End Z.
+            // The depth is edited in the Z axis section, as the End Z.
             return ["entry", "counterbore.depth"]
         case .engrave:
             // Same dedicated ramping row as the other operations with an entry.

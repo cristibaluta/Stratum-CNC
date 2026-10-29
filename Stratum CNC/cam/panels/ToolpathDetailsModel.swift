@@ -107,7 +107,7 @@ final class ToolpathDetailsModel: ObservableObject {
             : "Feed rate going down into the material."
     }
 
-    // MARK: Z levels
+    // MARK: Z axis
 
     /// A binding that also records the field as edited when the user changes its value,
     /// so changing the operation later leaves it alone.
@@ -162,43 +162,102 @@ final class ToolpathDetailsModel: ObservableObject {
         )
     }
 
-    /// Drill, bore and thread mill make holes, which usually go all the way through.
-    func isHoleOperation(_ toolpath: ToolpathData) -> Bool {
+    /// Drill, bore and thread mill make holes, which usually go all the way through; so does a
+    /// contour, which cuts the part free of the stock.
+    func offersThroughStock(_ toolpath: ToolpathData) -> Bool {
         switch toolpath.operation.kind {
-            case .drilling, .boring, .threadMilling:
+            case .drilling, .boring, .threadMilling, .contour:
                 return true
             default:
                 return false
         }
     }
 
-    /// The Z the "Through stock" helper sets: the underside of the stock.
-    func throughStockZ(thickness: Double) -> Double {
-        -thickness
+    /// How far below the underside of the stock a contour goes, mm, so the part comes free
+    /// even when Z0 is a few hundredths off. Holes stop exactly at the underside.
+    static let contourOvercut: Double = 0.2
+
+    /// The overcut `applyThroughStock` adds for this operation.
+    func overcut(for toolpath: ToolpathData) -> Double {
+        toolpath.operation.kind == .contour ? Self.contourOvercut : 0
+    }
+
+    /// The Z the "Through stock" helper sets: the underside of the stock, plus the overcut.
+    func throughStockZ(for toolpath: ToolpathData, thickness: Double) -> Double {
+        -(thickness + overcut(for: toolpath))
     }
 
     func isThroughStock(_ toolpath: ToolpathData, thickness: Double) -> Bool {
-        abs(toolpath.endZ - throughStockZ(thickness: thickness)) < 1e-6
+        abs(toolpath.endZ - throughStockZ(for: toolpath, thickness: thickness)) < 1e-6
     }
 
-    /// Sets End Z to the bottom of the stock. The tip stops exactly at the underside, so
-    /// add a little extra by hand if the hole must clear the spoilboard.
+    /// Sets End Z to the bottom of the stock (a contour a little below it, see `overcut`). A hole's
+    /// tip stops exactly at the underside, so add a little extra by hand if it must clear the spoilboard.
     func applyThroughStock(to toolpath: Binding<ToolpathData>, thickness: Double) {
-        toolpath.wrappedValue.endZ = throughStockZ(thickness: thickness)
+        toolpath.wrappedValue.endZ = throughStockZ(for: toolpath.wrappedValue, thickness: thickness)
         toolpath.wrappedValue.markEdited(.endZ)
     }
 
-    func throughStockHelp(thickness: Double) -> String {
+    func throughStockHelp(for toolpath: ToolpathData, thickness: Double) -> String {
         let format = FloatingPointFormatStyle<Double>.number
             .precision(.fractionLength(0...2))
             .locale(Locale(identifier: "en_US"))
-        return "Set End Z to the bottom of the stock (\(throughStockZ(thickness: thickness).formatted(format)) mm)"
+        let z = throughStockZ(for: toolpath, thickness: thickness).formatted(format)
+        let extra = overcut(for: toolpath)
+        guard extra > 0 else {
+            return "Set End Z to the bottom of the stock (\(z) mm)"
+        }
+        return "Set End Z to the bottom of the stock plus a \(extra.formatted(format)) mm overcut (\(z) mm), so the part comes free. Needs a spoilboard under the stock."
+    }
+
+    // MARK: Passes
+
+    /// A caption under Stepdown (or a slot's Depth per pass) saying how many passes the
+    /// Z range comes to, so a wrong stepdown or End Z shows at a glance.
+    struct PassesNote {
+        let text: String
+        let isWarning: Bool
+    }
+
+    /// The passes from the top of the cut down to End Z in steps of `stepdown`, the last one
+    /// shorter when the depth isn't a multiple of it. The top of the cut is Start Z, or Z0 when
+    /// Start Z is above it (the library starts at the top of the stock, see
+    /// `ToolpathGenerator.droppingPasses`). A counterbore cuts down to its own depth, not End Z.
+    /// `nil` when the stepdown isn't usable (the field's own clamp deals with it).
+    func passesNote(for toolpath: ToolpathData, stepdown: Double) -> PassesNote? {
+        guard stepdown > 0 else {
+            return nil
+        }
+        let top = min(toolpath.startZ, 0)
+        let bottom = toolpath.operation.kind == .counterbore
+            ? -toolpath.operation.counterboreDepth
+            : toolpath.endZ
+        let depth = top - bottom
+        guard depth > 1e-9 else {
+            return PassesNote(text: "End Z is not below Start Z: nothing to cut.", isWarning: true)
+        }
+
+        // The small offset keeps 1.1 / 0.1 (= 11.000000000000002) at 11 passes instead of 12.
+        let count = max(1, Int((depth / stepdown - 1e-9).rounded(.up)))
+        let format = FloatingPointFormatStyle<Double>.number
+            .precision(.fractionLength(0...2))
+            .locale(Locale(identifier: "en_US"))
+        var text = "\(count) pass\(count == 1 ? "" : "es") to Z \u{2212}\(abs(bottom).formatted(format))"
+
+        let last = depth - Double(count - 1) * stepdown
+        if count > 1, abs(last - stepdown) > 1e-6 {
+            text += " (last one \(last.formatted(format)) mm)"
+        }
+        return PassesNote(text: text, isWarning: false)
     }
 
     // MARK: Preview
 
     func previewButtonHelp(for toolpath: ToolpathData) -> String {
-        toolpath.leadInConflictsWithEntry
+        if !toolpath.hasGeometry {
+            return "Click shapes on the canvas first: there is nothing to preview yet."
+        }
+        return toolpath.leadInConflictsWithEntry
             ? "A lead-in can't be combined with a ramp or helix entry. Turn the entry off or remove the lead-in."
             : "Build the toolpath for the selected shapes and preview it on the canvas"
     }

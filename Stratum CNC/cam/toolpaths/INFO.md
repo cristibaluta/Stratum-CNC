@@ -11,56 +11,50 @@ PanelToolpathDetails
       ├─ rowHeader                         [HStack]
       │  ├─ Image(operation symbol)
       │  └─ TextField(toolpath.name)       → sets isNameCustom = true on edit
+      ├─ rowOperation: OperationPicker(operationKindBinding)   → renames via nextName() if !isNameCustom
+      ├─ InspectorNote(operation summary)
+      ├─ the operation's own fields         [OperationOptionsView, part .operation]
+      │     contour / chamfer: Side (ContourPicker)
+      │     pocket: Clearing pattern (PatternPicker + patternDetail)
+      │     thread: standard, handedness, Internal, target diameter, pitch, radial passes
+      │     bore / counterbore: target diameter / diameter · chamfer: width · facing: extension length
+      │     (everything the library defines except direction, depths and what the app draws itself)
       │
       ├─ InspectorSection "Shapes"
-      │  └─ rowShapes
-      │     ├─ "Area" Selection / Whole stock    ← facing only
-      │     ├─ "Selected": shapesLabel           ("N shapes selected", "Whole stock", …)
-      │     └─ InspectorNote(selectionHint)      ← what to click; the slot's text follows its source
+      │  ├─ "Area" Selection / Whole stock    ← facing only
+      │  ├─ "Selection is" + width note       ← slot only (OperationOptionsView, part .shapes)
+      │  └─ "Selected": shapesLabel           ("N shapes selected", "Whole stock", orange "Click shapes to select")
       │
-      ├─ InspectorSection "Operation"
-      │  ├─ rowOperation: OperationPicker(operationKindBinding)   → renames via nextName() if !isNameCustom
-      │  └─ rowOperationOptions: OperationOptionsView($toolpath)
-      │     ├─ "Selection is" + width note        ← slot only
-      │     ├─ ContourPicker (Side)               ← contour, chamfer
-      │     ├─ ParameterFieldsView(formFields)    ← whatever the library defines for the operation
-      │     │   (hidden: entry, contour.side, contour.tabs, contour.leadIn, contour.leadOut, pattern, slotting.depthPerPass,
-      │     │    drilling.peckDepth, counterbore.depth, chamfer.params.side;
-      │     │    the chamfer's "Chamfer" group is flattened)
-      │     ├─ chamferDepthNote                   ← chamfer: "Depth = X mm for a Y° bit"
-      │     ├─ LeadInOutRow ×2 (Lead-In, Lead-Out) ← contour: switch + summary + gear → LeadInOutEditor popover
-      │     │                                        (explanation, to-scale LeadInOutDiagram, style / length / radius / sweep / feed)
-      │     ├─ leadInConflictNote                 ← contour: lead-in + ramp/helix entry
-      │     ├─ HoldingTabsButton                  ← contour
-      │     ├─ patternRow (PatternPicker + patternDetail)   ← pocket
-      │     ├─ stepOverRow (% of Ø + mm note)     ← if requirements.usesStepover, or facing
-      │     ├─ stockToLeaveRows                   ← if requirements.usesAllowance (pocket; contour on a side)
-      │     │   ├─ Stock to leave (mm)            ← walls, and a pocket's floor
-      │     │   ├─ Finishing pass (toggle)        ← only while stock > 0
-      │     │   └─ InspectorNote                  ← what is left, or a warning when stock ≥ pocket depth
-      │     └─ rampingRow (Entry, Ramp angle)     ← if requirements.usesEntry
+      ├─ InspectorSection "Tool"
+      │  ├─ ToolPicker(toolpath.tool)
+      │  ├─ InspectorNote(toolCompatibilityWarning)   ← tool can't do the operation
+      │  ├─ InspectorNote(presetNote)
+      │  └─ Spindle
       │
-      ├─ InspectorSection "Tool & feeds"
-      │  └─ rowTool
-      │     ├─ ToolPicker(toolpath.tool)
-      │     ├─ InspectorNote(toolCompatibilityWarning)   ← tool can't do the operation
-      │     ├─ InspectorNote(presetNote)
-      │     ├─ Spindle
-      │     ├─ Feed rate
-      │     └─ Plunge feed                        ← always, also for drill / bore / thread mill
+      ├─ InspectorSection "XY plane"          [OperationOptionsView, part .xyMovement]
+      │  ├─ cut direction (climb / conventional)
+      │  ├─ Feed rate
+      │  ├─ stepOverRow (% of Ø + mm note)     ← if requirements.usesStepover, or facing
+      │  └─ stockToLeaveRows                   ← if requirements.usesAllowance (pocket; contour on a side)
       │
-      ├─ InspectorSection "Z levels"
-      │  └─ rowDepth
-      │     ├─ Start Z
-      │     ├─ End Z                              ← counterbore: its own depth, shown as End Z
-      │     │   └─ "Through stock" button         ← drill, bore, thread mill
-      │     ├─ facing single-pass warning         ← facing without a stepdown, deep cut
-      │     ├─ Depth per pass | Stepdown          ← slot has its own depth per pass
-      │     ├─ Peck drilling + Peck depth         ← drill only
-      │     └─ Clearance Z
+      ├─ InspectorSection "Z axis"
+      │  ├─ Start Z
+      │  ├─ End Z                              ← counterbore: its own depth, shown as End Z
+      │  │   └─ "Through stock" button         ← drill, bore, thread mill (exactly to the underside); contour (underside + 0.2 mm overcut)
+      │  ├─ Depth per pass (slot) | Stepdown   ← each with a passes caption: "5 passes to Z −3 (last one 0.4 mm)"
+      │  ├─ Peck drilling + Peck depth         ← drill only
+      │  ├─ the operation's own depth fields   ← bore dwell / shift before retract, chamfer depth override (+ depth note)
+      │  ├─ HoldingTabsButton                  ← contour
+      │  └─ Clearance Z
+      │
+      ├─ InspectorSection "Entry"
+      │  ├─ rampingRow (Entry, Entry angle)    ← if requirements.usesEntry
+      │  ├─ Entry feed                         ← always, also for drill / bore / thread mill
+      │  ├─ leadInConflictNote                 ← contour: lead-in + ramp/helix entry
+      │  └─ LeadInOutRow ×2 (Lead-In, Lead-Out) ← contour: switch + summary + gear → LeadInOutEditor popover
       │
       ├─ InspectorSection "Preview"
-      │  ├─ rowPreview: generationStatus + "Preview" button   (held back on a lead-in/entry conflict)
+      │  ├─ rowPreview: generationStatus + "Preview" button   (disabled without shapes, and on a lead-in/entry conflict)
       │  └─ rowScrub: slider through the generated moves
       │
       └─ rowBottomBar: Delete · Next toolpath · Done (Esc)
@@ -90,7 +84,7 @@ PanelToolpathDetails
    │    pattern:    operation.pocketTrochoidalPitch (% radius), pocketAdaptiveLoadPercent (% Ø)
    │    tabs / lead-in/out: operation.contourTabs / contourLeadIn / contourLeadOut
    │    entry:      toolpath.ramping (shared by every operation with an entry)
-   └─ rowTool / rowDepth write the general fields directly
+   └─ rowTool / rowDepth / rowEntry write the general fields directly
         (End Z, Stepdown and Stepover are marked in editedFields, so a later change of
          operation keeps them: see OperationDefaults)
 ```
@@ -102,7 +96,7 @@ PanelToolpathDetails
 | Stepover | `ToolpathData.stepOverPercent` | % of tool Ø; old projects stored mm and are converted on decode |
 | Plunge feed | `ToolpathData.plungeRate` | also the ramp/helix feed |
 | Stepdown | `ToolpathData.stepDown` | not used by slot |
-| Slot depth per pass | `OperationSettings.slotDepthPerPass` | edited in Z levels |
-| Peck depth | `OperationSettings.drillPeckDepth` (+ `drillUsesPecking`) | edited in Z levels |
+| Slot depth per pass | `OperationSettings.slotDepthPerPass` | edited in Z axis |
+| Peck depth | `OperationSettings.drillPeckDepth` (+ `drillUsesPecking`) | edited in Z axis |
 | Counterbore depth | `OperationSettings.counterboreDepth` (positive) | shown as End Z, with the "−" in front |
 | End Z | `ToolpathData.endZ` (negative) | typed as a positive depth |
