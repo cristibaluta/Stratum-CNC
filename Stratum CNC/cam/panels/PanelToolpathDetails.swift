@@ -45,14 +45,16 @@ struct PanelToolpathDetails: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 0) {
-                rowHeader
-                    .padding(.bottom, 10)
+                // The title, the operation it does and what that operation does
+                VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+                    rowHeader
+                    rowOperation
+                    InspectorNote(text: toolpath.operation.kind.summary)
+                }
+                .padding(.bottom, 12)
 
                 InspectorSection(title: "Shapes") {
                     rowShapes
-                }
-                InspectorSection(title: "Operation") {
-                    rowOperation
                 }
                 InspectorSection(title: "Tool & feeds") {
                     rowTool
@@ -212,10 +214,6 @@ struct PanelToolpathDetails: View {
         }
         InspectorRow(label: "Selected") {
             shapesLabel
-        }
-        // What to click on the canvas for this operation (the slot's text follows its source)
-        if let hint = toolpath.operation.kind.selectionHint(slotSource: toolpath.operation.slotSource) {
-            InspectorNote(text: hint)
         }
     }
 
