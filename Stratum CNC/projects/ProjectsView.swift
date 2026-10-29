@@ -13,6 +13,8 @@ struct ProjectsView: View {
     @ObservedObject var appModel: AppModel
     @ObservedObject var projectsStore: ProjectsStore
 
+    @Environment(\.openSettings) private var openSettings
+
     private enum PickerKind { case projectFolder, gcode }
 
     /// What the open file picker is for. Kept after the picker closes (only
@@ -22,83 +24,161 @@ struct ProjectsView: View {
     @State private var isPicking = false
     @State private var errorMessage: String?
 
-    private let quickColumns = [
-        GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 12)
-    ]
+    /// Width of the left column (Quick Start + Libraries).
+    private let sidebarWidth: CGFloat = 344
 
     private let columns = [
-        GridItem(.adaptive(minimum: 280, maximum: 420), spacing: 20)
+        GridItem(.adaptive(minimum: 240, maximum: 360), spacing: 16, alignment: .top)
     ]
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-              VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 32) {
 
-                // Group 1: ways in that don't start from a saved project.
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionTitle("QUICK START")
-                    LazyVGrid(columns: quickColumns, spacing: 12) {
-                        QuickActionTile(title: "New Project",
-                                        subtitle: "Start a new CAM project",
-                                        systemImage: "plus") {
-                            appModel.showingNewProject = true
-                        }
-                        QuickActionTile(title: "Open Project Folder",
-                                        subtitle: "Open a Stratum project from a folder on disk",
-                                        systemImage: "folder") {
-                            picker = .projectFolder
-                            isPicking = true
-                        }
-                        QuickActionTile(title: "Try Without Project",
-                                        subtitle: "Explore CAM without creating a saved project",
-                                        systemImage: "arrow.right.circle") {
-                            projectsStore.openZombieProject()
-                        }
-                        QuickActionTile(title: "Open Controller",
-                                        subtitle: "Connect to and control the CNC machine",
-                                        systemImage: "dial.medium") {
-                            projectsStore.openZombieProject(tab: .controller)
-                        }
-                        QuickActionTile(title: "Import G-code",
-                                        subtitle: "Load a G-code file in the Controller to preview and run",
-                                        systemImage: "chevron.left.forwardslash.chevron.right") {
-                            picker = .gcode
-                            isPicking = true
-                        }
+                header
+
+                HStack(alignment: .top, spacing: 32) {
+                    VStack(alignment: .leading, spacing: 24) {
+                        quickStart
+                        libraries
                     }
-                }
+                    .frame(width: sidebarWidth)
 
-                // Group 2: shared libraries.
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionTitle("LIBRARIES")
-                    LazyVGrid(columns: quickColumns, spacing: 12) {
-                        QuickActionTile(title: "Tools Library",
-                                        subtitle: "Browse and edit your cutting tools",
-                                        systemImage: "pencil.tip.crop.circle.fill",
-                                        glyph: AnyView(EndMillIcon(size: 20))) {
-                            appModel.showingToolsSheet = true
-                        }
-                        QuickActionTile(title: "Stock Library",
-                                        subtitle: "Browse and edit your stock materials",
-                                        systemImage: "cube") {
-                            appModel.showingStocksSheet = true
-                        }
+                    // Only this column scrolls; the header and the left column stay put.
+                    projects
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                .frame(maxHeight: .infinity)
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        // The usage tints can be reset on the Appearance tab.
+                        SettingsTab.appearance.select()
+                        openSettings()
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
                     }
+                    .help("Open Settings")
                 }
+            }
+        }
+        .fileImporter(isPresented: $isPicking,
+                      allowedContentTypes: picker == .gcode ? GCodeStore.allowedContentTypes : [.folder],
+                      allowsMultipleSelection: false) { result in
+            handle(result, for: picker)
+        }
+        .alert("Couldn't open",
+               isPresented: Binding(get: { errorMessage != nil },
+                                    set: { if !$0 { errorMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
+        .navigationSubtitle("Select or create project...")
+    }
 
-                // Group 3: the saved projects.
-                VStack(alignment: .leading, spacing: 10) {
-                    sectionTitle("PROJECTS")
-                LazyVGrid(columns: columns, spacing: 20) {
+    // MARK: - Sections
 
-                    // The New Project card used to be the first cell here; it now
-                    // lives in Quick Start as a tile. `NewProjectCard` is kept
-                    // as-is, so putting it back is just un-commenting this.
-                    // NewProjectCard {
-                    //     appModel.showingNewProject = true
-                    // }
+    private var header: some View {
+        HStack(spacing: 20) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 64, height: 64)
 
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Stratum CNC")
+                    .font(.system(size: 30, weight: .bold))
+                Text("CAM for your CNC machine. Set up stock and tools, generate toolpaths, simulate the cut and send the job to your controller, all in one app.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: 560, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var quickStart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Quick Start")
+            QuickActionGroup {
+                QuickActionRow(usageID: .newProject,
+                               title: "New Project",
+                               subtitle: "Start a new CAM project",
+                               systemImage: "plus") {
+                    appModel.showingNewProject = true
+                }
+                rowDivider
+                QuickActionRow(usageID: .openProjectFolder,
+                               title: "Open Project Folder",
+                               subtitle: "From a folder on disk",
+                               systemImage: "folder") {
+                    picker = .projectFolder
+                    isPicking = true
+                }
+                rowDivider
+                QuickActionRow(usageID: .tryWithoutProject,
+                               title: "Try Without Project",
+                               subtitle: "Explore without saving",
+                               systemImage: "arrow.right.circle") {
+                    projectsStore.openZombieProject()
+                }
+                rowDivider
+                QuickActionRow(usageID: .openController,
+                               title: "Open Controller",
+                               subtitle: "Connect to your machine",
+                               systemImage: "dial.medium") {
+                    projectsStore.openZombieProject(tab: .controller)
+                }
+                rowDivider
+                QuickActionRow(usageID: .importGCode,
+                               title: "Import G-code",
+                               subtitle: "Preview and run a file",
+                               systemImage: "chevron.left.forwardslash.chevron.right") {
+                    picker = .gcode
+                    isPicking = true
+                }
+            }
+        }
+    }
+
+    private var libraries: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Libraries")
+            QuickActionGroup {
+                QuickActionRow(usageID: .toolsLibrary,
+                               title: "Tools Library",
+                               subtitle: "Your cutting tools",
+                               systemImage: "pencil.tip.crop.circle.fill",
+                               glyph: AnyView(EndMillIcon(size: 20))) {
+                    appModel.showingToolsSheet = true
+                }
+                rowDivider
+                QuickActionRow(usageID: .stockLibrary,
+                               title: "Stock Library",
+                               subtitle: "Your stock materials",
+                               systemImage: "cube") {
+                    appModel.showingStocksSheet = true
+                }
+            }
+        }
+    }
+
+    private var projects: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Projects")
+
+            if projectsStore.projects.isEmpty {
+                Text("No projects yet. Start with New Project.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+                    .padding(.top, 4)
+            } else {
+                ScrollView {
+                  LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(projectsStore.projects) { project in
                         ProjectCard(project: project, previewImage: projectsStore.previewImage(for: project))
                             .onTapGesture(count: 2) {
@@ -123,32 +203,29 @@ struct ProjectsView: View {
                                 }
                             }
                     }
+                  }
+                  // Room for the hover shadow and scale, which the scroll view
+                  // would otherwise clip at its edges.
+                  .padding(6)
                 }
-                }
-              }
-                .padding(24)
+                .padding(.horizontal, -6)
             }
         }
-        .fileImporter(isPresented: $isPicking,
-                      allowedContentTypes: picker == .gcode ? GCodeStore.allowedContentTypes : [.folder],
-                      allowsMultipleSelection: false) { result in
-            handle(result, for: picker)
-        }
-        .alert("Couldn't open",
-               isPresented: Binding(get: { errorMessage != nil },
-                                    set: { if !$0 { errorMessage = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "")
-        }
-        .navigationSubtitle("Select or create project...")
+    }
+
+    private var rowDivider: some View {
+        // Inset to line up with the text, past the icon chip.
+        Divider().padding(.leading, 54)
     }
 
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
-            .font(.caption.weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
+            .padding(.leading, 4)
     }
+
+    // MARK: - Actions
 
     private func handle(_ result: Result<[URL], Error>, for kind: PickerKind) {
         switch result {

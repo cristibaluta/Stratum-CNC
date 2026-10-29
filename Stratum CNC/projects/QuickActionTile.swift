@@ -10,6 +10,8 @@ import SwiftUI
 
 struct QuickActionTile: View {
 
+    /// Which tile this is, for the usage tracking that drives the icon tint.
+    let usageID: QuickActionID
     let title: String
     let subtitle: String
     let systemImage: String
@@ -18,23 +20,29 @@ struct QuickActionTile: View {
     var glyph: AnyView? = nil
     let action: () -> Void
 
+    @ObservedObject private var usage = QuickActionUsage.shared
     @State private var isHovered = false
 
     var body: some View {
-        Button(action: action) {
+        // 0 = rarely used (plain icon), 1 = most used (fully tinted).
+        let intensity = usage.intensity(for: usageID)
+
+        Button(action: {
+            usage.recordClick(usageID)
+            action()
+        }) {
             HStack(spacing: 12) {
-                Group {
-                    if let glyph {
-                        glyph
-                    } else {
-                        Image(systemName: systemImage)
-                            .font(.system(size: 18, weight: .medium))
-                            .rotationEffect(iconRotation)
-                    }
+                ZStack {
+                    icon.foregroundStyle(.secondary)
+                    icon.foregroundStyle(.tint).opacity(intensity)
                 }
-                    .foregroundStyle(.tint)
                     .frame(width: 36, height: 36)
-                    .background(.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
+                    .background {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.secondary.opacity(0.10))
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(.tint.opacity(0.14 * intensity))
+                    }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -62,5 +70,16 @@ struct QuickActionTile: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        if let glyph {
+            glyph
+        } else {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .medium))
+                .rotationEffect(iconRotation)
+        }
     }
 }

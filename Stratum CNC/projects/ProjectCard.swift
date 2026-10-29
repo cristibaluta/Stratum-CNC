@@ -18,37 +18,39 @@ struct ProjectCard: View {
         VStack(alignment: .leading, spacing: 0) {
 
             ProjectPreview(image: previewImage)
-                .frame(height: 180)
+                .frame(height: 150)
                 .frame(maxWidth: .infinity)
                 .background(.quaternary.opacity(0.5))
-                .clipShape(
-                    RoundedRectangle(cornerRadius: 10)
-                )
+                .clipped()
 
-            VStack(alignment: .leading, spacing: 5) {
+            Divider()
+
+            VStack(alignment: .leading, spacing: 1) {
                 Text(project.name)
-                    .font(.headline)
+                    .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
 
                 Text(project.modifiedAt, format: .dateTime.year().month().day())
-                    .font(.caption)
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
-            .padding(12)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
-        .background(.background)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor))
         .contentShape(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 10)
         )
         .clipShape(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 10)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isHovered ? .primary : .quaternary)
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(isHovered ? Color.primary.opacity(0.4) : Color(nsColor: .separatorColor))
         }
-        .shadow(color: .black.opacity(isHovered ? 0.10 : 0), radius: isHovered ? 10 : 0, x: 0, y: 4)
-        .scaleEffect(isHovered ? 1.03 : 1.0)
+        .shadow(color: .black.opacity(isHovered ? 0.10 : 0), radius: isHovered ? 8 : 0, x: 0, y: 3)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
         .onHover { hovering in
             isHovered = hovering
         }

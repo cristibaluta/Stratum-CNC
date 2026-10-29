@@ -34,6 +34,7 @@ struct SettingsView: View {
 
     @ObservedObject var appModel: AppModel
     @AppStorage(SettingsTab.storageKey) private var selectedTab: SettingsTab = .appearance
+    @State private var confirmingUsageReset = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -42,10 +43,11 @@ struct SettingsView: View {
                 .tag(SettingsTab.appearance)
 
             // `showsCloseButton: false`: the Settings window has its own close button.
-            CanvasControlsSettingsView(showsCloseButton: false)
+            CanvasControlsSettingsView()
                 .tabItem { Label("Canvas", systemImage: "computermouse") }
                 .tag(SettingsTab.canvas)
         }
+        .frame(width: 420, height: 500)
         // The Settings window is its own scene, outside ContentView, so it has
         // to apply the app-wide appearance itself.
         .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
@@ -61,11 +63,30 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
             } header: {
                 Text("Appearance")
-            } footer: {
-                Text("Applies to every screen: Projects, CAM and Controller.")
+            }
+
+            Section {
+                Text("The icons on the Quick Start and Libraries buttons of the projects page are tinted by how often you use them. The button you click most gets the full accent color, rarely used ones stay plain, and the rest fall in between. Recent clicks count more than old ones, so the tints follow your habits as they change.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button("Reset Usage Tints…", role: .destructive) {
+                    confirmingUsageReset = true
+                }
+            } header: {
+                Text("Button Usage")
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: 390)
+        .confirmationDialog("Reset button usage?",
+                            isPresented: $confirmingUsageReset) {
+            Button("Reset", role: .destructive) {
+                QuickActionUsage.shared.reset()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All Quick Start and Libraries icons go back to the plain, untinted look and start learning again from zero.")
+        }
     }
 }

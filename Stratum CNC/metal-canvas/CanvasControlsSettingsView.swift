@@ -11,11 +11,6 @@ struct CanvasControlsSettingsView: View {
     @ObservedObject private var settings = CanvasInputSettings.shared
     @Environment(\.dismiss) private var dismiss
 
-    /// Whether this is being shown as a sheet (needs its own Close button)
-    /// or hosted some other way (e.g. a `Settings` scene, which macOS
-    /// already gives a window close button).
-    var showsCloseButton: Bool = true
-
     var body: some View {
         Form {
             Section {
@@ -27,9 +22,9 @@ struct CanvasControlsSettingsView: View {
                     }
                 }
             } header: {
-                Text("Mouse Controls")
+                Text("Mouse & Trackpad Controls")
             } footer: {
-                Text("Pinch to zoom always zooms and can't be reassigned. Snap to Face jumps between the five standard views (bottom excluded), one per swipe, and is only available for scroll inputs.")
+                Text("Pinch to zoom always zooms and can't be reassigned. Snap to Face jumps between the five standard views (bottom excluded).")
             }
 
             Section {
@@ -39,15 +34,7 @@ struct CanvasControlsSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 420, height: showsCloseButton ? 430 : 390)
-        .navigationTitle("Canvas Controls")
-        .toolbar {
-            if showsCloseButton {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
+        .navigationTitle("Stratum CNC Settings")
     }
 
     private func binding(for trigger: CanvasInputTrigger) -> Binding<CanvasControlAction> {
