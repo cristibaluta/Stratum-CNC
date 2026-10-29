@@ -145,6 +145,8 @@ struct PanelToolpathDetails: View {
     /// The ramp or helix, the feed going down and, for a contour, the lead-in and lead-out.
     @ViewBuilder
     private var rowEntry: some View {
+        InspectorNumberField(title: "Entry Z", value: $toolpath.entryZ, suffix: "mm")
+            .help("Height above the stock where the entry starts. The tool rapids down to here, then feeds in and the entry strategy (plunge, ramp or helix) is applied.")
         // How the tool gets down into the material: ramp, helix or plunge.
         if OperationOptionsView.hasEntry(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, part: .entry)
