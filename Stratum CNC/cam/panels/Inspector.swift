@@ -23,7 +23,7 @@ enum Inspector {
 
 /// A titled group of rows, separated from the previous one by a hairline.
 struct InspectorSection<Content: View>: View {
-    let title: String
+    var title: String? = nil
     var showsDivider: Bool = true
     @ViewBuilder var content: Content
 
@@ -32,11 +32,15 @@ struct InspectorSection<Content: View>: View {
             if showsDivider {
                 Divider()
             }
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.top, 10)
-                .padding(.bottom, 10)
+            if let title {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 10)
+                    .padding(.bottom, 10)
+            } else {
+                Spacer().frame(height: 10)
+            }
 
             VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
                 content

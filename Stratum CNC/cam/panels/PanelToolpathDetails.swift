@@ -58,7 +58,7 @@ struct PanelToolpathDetails: View {
                 }
                 .padding(.bottom, 12)
 
-                InspectorSection(title: "Shapes") {
+                InspectorSection {
                     rowShapes
                 }
                 InspectorSection(title: "Tool") {
