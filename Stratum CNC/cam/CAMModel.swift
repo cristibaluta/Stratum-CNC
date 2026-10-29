@@ -45,6 +45,8 @@ class CAMModel: ObservableObject {
         didSet {
             revision &+= 1
             onToolpathsChanged?(toolpaths)
+            // Switching a rest toolpath to another operation starts (or ends) shape picking
+            syncPickingWithSelection()
             // Editing or deleting a pocket outdates the rest toolpaths linked to it
             refreshLinkedGenerations()
             updateRestRegions()
@@ -182,6 +184,12 @@ class CAMModel: ObservableObject {
     func addToolpath(targets: [PathSelection] = []) {
         var toolpath = toolpaths.last ?? Self.defaultToolpath()
         toolpath.id = UUID()
+        // A rest toolpath is tied to its pocket, so a copy of it would be one too: start from
+        // the pocket's kind of operation instead.
+        if toolpath.operation.kind == .restMachining {
+            toolpath.operation.kind = .pocket
+            toolpath.operation.restSourceID = nil
+        }
         // A fresh copy gets its own auto name for its operation.
         toolpath.name = toolpath.operation.kind.nextName(among: Set(toolpaths.map(\.name)))
         toolpath.targets = targets
@@ -351,14 +359,18 @@ class CAMModel: ObservableObject {
     /// one starts picking shapes for it, switching moves picking over to the new
     /// one, closing it stops picking.
     private func syncPickingWithSelection() {
-        guard pickingToolpathID != selectedToolpathID else {
+        // A rest toolpath has no shapes of its own, so nothing is picked while one is open
+        let wanted = selectedToolpathID.flatMap { id in
+            toolpaths.first { $0.id == id }?.operation.kind == .restMachining ? nil : id
+        }
+        guard pickingToolpathID != wanted else {
             return
         }
         if pickingToolpathID != nil {
             endPicking()
         }
-        if let id = selectedToolpathID {
-            beginPicking(for: id)
+        if let wanted {
+            beginPicking(for: wanted)
         }
     }
 
@@ -470,11 +482,11 @@ class CAMModel: ObservableObject {
                     + "total click → applied: \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
     }
 
-    /// Shows the corners of the open pocket on the canvas: only while its result is current, the
-    /// switch is on, and nothing is being scrubbed.
+    /// Shows the corners of the open pocket on the canvas: only while its result is current and
+    /// the switch is on. Scrubbing doesn't hide them: an open pocket with a current result is
+    /// always being scrubbed.
     private func updateRestRegions() {
         guard showsRestAreas,
-              canvasState.toolpathScrub == nil,
               let id = selectedToolpathID,
               let toolpath = toolpaths.first(where: { $0.id == id }),
               toolpath.operation.kind == .pocket,

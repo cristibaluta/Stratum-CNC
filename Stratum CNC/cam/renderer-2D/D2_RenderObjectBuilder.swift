@@ -149,16 +149,57 @@ enum D2_RenderObjectBuilder {
         return lineListObject(from: simdSubpaths, color: color)
     }
 
-    /// `state.restRegionsPath` as one `RenderObject` (outlines), or nil when there is none.
+    /// `state.restRegionsPath` as one `RenderObject`: each corner filled (lit triangles) with a
+    /// lighter outline on top, or nil when there is none. Each subpath is one corner as built by
+    /// `ToolpathPathBuilder.restPath`: first the wall point, second the sharp corner, then the other
+    /// wall point and the arc. The fill is a fan from the sharp corner, which sees the whole region.
     static func restRegionsRenderObject(for state: D2_CanvasState,
-                                        color: SIMD4<Float> = SIMD4<Float>(1.0, 0.25, 0.75, 1.0)) -> RenderObject? {
+                                        color: SIMD4<Float> = SIMD4<Float>(1.0, 0.25, 0.75, 1.0),
+                                        outlineColor: SIMD4<Float> = SIMD4<Float>(1.0, 0.6, 0.9, 1.0)) -> RenderObject? {
         guard let path = state.restRegionsPath else {
             return nil
         }
-        let simdSubpaths = flattenedSubpaths(path).map { subpath in
-            subpath.map { SIMD3<Float>(Float($0.x), Float($0.y), 0) }
+        // Just above the stock's top face (z = 0), so the fill isn't fighting it for depth
+        let fillZ: Float = 0.02
+        let outlineZ: Float = 0.03
+        let up = SIMD3<Float>(0, 0, 1)
+
+        var outline: [SIMD3<Float>] = []
+        var triangles: [SolidVertex] = []
+
+        for subpath in flattenedSubpaths(path) {
+            var ring = subpath
+            if ring.count > 1, let first = ring.first, let last = ring.last,
+               hypot(first.x - last.x, first.y - last.y) < 1e-9 {
+                ring.removeLast()   // the path is closed: don't repeat the first point
+            }
+            guard ring.count >= 3 else {
+                continue
+            }
+
+            for i in ring.indices {
+                let a = ring[i]
+                let b = ring[(i + 1) % ring.count]
+                outline.append(SIMD3<Float>(Float(a.x), Float(a.y), outlineZ))
+                outline.append(SIMD3<Float>(Float(b.x), Float(b.y), outlineZ))
+            }
+
+            let apex = SIMD3<Float>(Float(ring[1].x), Float(ring[1].y), fillZ)
+            for i in ring.indices {
+                let a = ring[i]
+                let b = ring[(i + 1) % ring.count]
+                triangles.append(SolidVertex(position: apex, normal: up))
+                triangles.append(SolidVertex(position: SIMD3<Float>(Float(a.x), Float(a.y), fillZ), normal: up))
+                triangles.append(SolidVertex(position: SIMD3<Float>(Float(b.x), Float(b.y), fillZ), normal: up))
+            }
         }
-        return lineListObject(from: simdSubpaths, color: color)
+        guard !triangles.isEmpty else {
+            return nil
+        }
+        return RenderObject(points: outline,
+                            color: color,
+                            primitive: .lineList,
+                            solidTriangles: triangles)
     }
 
     // MARK: Shared geometry helpers
