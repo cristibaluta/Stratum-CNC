@@ -159,8 +159,16 @@ struct PanelToolpaths: View {
                     .help("Pocketing: \(toolpath.operation.pocketPattern.rawValue)")
             }
 
-            // The same hint as in the details panel: orange while nothing is selected yet
-            if !toolpath.cutsWholeStock {
+            if toolpath.operation.kind == .restMachining {
+                // Linked to a pocket instead of shapes
+                let source = toolpaths.first { $0.id == toolpath.operation.restSourceID }
+                Label(source?.name ?? "Source missing", systemImage: "link")
+                    .labelStyle(CompactLabelStyle())
+                    .foregroundStyle(source == nil ? Color.orange : Color.secondary)
+                    .lineLimit(1)
+                    .help(source.map { "Cuts the corners of \($0.name)" } ?? "The pocket this belongs to was deleted")
+            } else if !toolpath.cutsWholeStock {
+                // The same hint as in the details panel: orange while nothing is selected yet
                 Label("\(toolpath.targets.count)", systemImage: "cursorarrow.click")
                     .labelStyle(CompactLabelStyle())
                     .foregroundStyle(toolpath.hasGeometry ? Color.secondary : Color.orange)

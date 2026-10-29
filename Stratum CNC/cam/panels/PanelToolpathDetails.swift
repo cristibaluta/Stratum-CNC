@@ -29,6 +29,12 @@ struct PanelToolpathDetails: View {
     var generation: ToolpathGeneration? = nil
     /// True while the generation is running in the background.
     var isGenerating: Bool = false
+    /// A rest toolpath only: the pocket it is linked to, nil when that one is gone.
+    var restSource: ToolpathData? = nil
+    /// Draw the corners a pocket's tool couldn't reach on the canvas.
+    var showsRestAreas: Binding<Bool> = .constant(true)
+    /// Adds a rest toolpath after this pocket and opens it.
+    var onCreateRest: () -> Void = {}
     /// Builds the toolpaths from the selected shapes.
     var onGenerate: () -> Void = {}
     var onScrub: (Int) -> Void = { _ in }
@@ -235,6 +241,25 @@ struct PanelToolpathDetails: View {
     /// the canvas while the cell is open, so there's nothing to press here.
     @ViewBuilder
     private var rowShapes: some View {
+        // A rest toolpath has no shapes of its own: it cuts the corners of its pocket
+        if toolpath.operation.kind == .restMachining {
+            InspectorRow(label: "Source") {
+                Label(restSource?.name ?? "Source missing", systemImage: "link")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(restSource == nil ? Color.orange : Color.secondary)
+                    .help("The pocket whose corners this operation cuts")
+            }
+            if let restSource, toolpath.tool.toolDiameter >= restSource.tool.toolDiameter {
+                InspectorNote(text: "The tool has to be smaller than the pocket's tool (Ø\(restSource.tool.toolDiameter) mm) to reach its corners.",
+                              isWarning: true)
+            }
+        } else {
+            shapePickingRows
+        }
+    }
+
+    @ViewBuilder
+    private var shapePickingRows: some View {
         // Facing can cover the whole stock instead of the selected shapes
         if toolpath.operation.kind == .facing {
             InspectorRow(label: "Area") {
@@ -296,7 +321,34 @@ struct PanelToolpathDetails: View {
                 if generation.errorMessage == nil, generation.maxPassesPerToolpath > 1 {
                     InspectorNote(text: model.multiPassNote(for: generation), isIndented: false)
                 }
+                // The corners this pocket's tool couldn't reach: offer to clean them with a smaller tool
+                if toolpath.operation.kind == .pocket, generation.errorMessage == nil, !generation.restCorners.isEmpty {
+                    restAreasRows(cornerCount: generation.restCorners.count)
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func restAreasRows(cornerCount: Int) -> some View {
+        InspectorNote(text: cornerCount == 1
+                          ? "The tool leaves material in 1 corner."
+                          : "The tool leaves material in \(cornerCount) corners.",
+                      isIndented: false)
+        ToggleField(title: "Show rest areas",
+                    isOn: showsRestAreas,
+                    help: "Outline the corners this tool couldn't reach on the canvas.")
+        HStack {
+            Spacer(minLength: 0)
+            Button {
+                onCreateRest()
+            } label: {
+                Label("Create rest operation", systemImage: "angle")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Add a toolpath after this one that cuts these corners with a smaller tool")
         }
     }
 

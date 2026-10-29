@@ -99,3 +99,14 @@ PanelToolpathDetails
 | Peck depth | `OperationSettings.drillPeckDepth` (+ `drillUsesPecking`) | edited in Z axis |
 | Counterbore depth | `OperationSettings.counterboreDepth` (positive) | shown as End Z, with the "−" in front |
 | End Z | `ToolpathData.endZ` (negative) | typed as a positive depth |
+
+## Rest machining
+
+A rest toolpath (`OperationKind.restMachining`) cleans the corners a pocket's larger tool couldn't reach, with a smaller tool.
+
+- **Link:** `OperationSettings.restSourceID` is the pocket's `ToolpathData.id`. Corners are never stored: every Preview runs the pocket again (`ToolpathGenerator.runRest`), reads `restCorners` from its output and cuts them with `SCEngine.generateRestToolpaths`.
+- **Created** from a previewed pocket ("Create rest operation", `CAMModel.addRestToolpath(from:)`), inserted right after it. It isn't in `OperationKind.groups`.
+- **Outdated:** `CAMModel.refreshLinkedGenerations()` flags a rest result when its pocket changes (the name is ignored) or is deleted; `ToolpathGeneration.isCurrent(for:)` then returns false. A deleted source is kept and reported as "no longer in the list".
+- **Overlay:** the pocket's `ToolpathGeneration.restPath` is drawn on the canvas while the pocket is open and current (`CAMModel.showsRestAreas`).
+- **Limits:** only line-to-line corners, only the pocket's outer boundary (islands ignored), regions are geometric (wall minus the tool circle), not the roughing actually cut.
+

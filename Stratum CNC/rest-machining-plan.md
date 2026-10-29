@@ -6,7 +6,7 @@ Goal: after a pocket is previewed, show the corners its tool couldn't reach, and
 
 Work in order. Each step should build and be checked before starting the next.
 
-Status: nothing is implemented in the app yet. The library (`../StratumCAM`, outside this workspace) was not re-checked in this revision; verify Steps 1–2 there.
+Status: Steps 1–6 done, 7 partly. Nothing has been run in the app yet. The library lives in `../StratumCAM` (outside this workspace, edited there).
 
 ## What changed since rev. 1
 
@@ -18,7 +18,7 @@ Status: nothing is implemented in the app yet. The library (`../StratumCAM`, out
 
 ---
 
-## Step 1: Harden `restCorners` (library)
+## Step 1: Harden `restCorners` (library) ✅ DONE
 
 File: `StratumCAM/toolpaths-engine/SCEngine+RestCorners.swift`
 
@@ -34,7 +34,7 @@ Done when: unit tests cover a square, a rectangle, an L-shape, a 64-gon circle (
 
 ---
 
-## Step 2: Rest toolpath generation (library)
+## Step 2: Rest toolpath generation (library) ✅ DONE
 
 New file: `SCEngine+RestMachining.swift`
 
@@ -60,7 +60,7 @@ Done when: a 20x20 square pocket cut with a 6 mm tool, then a 2 mm rest pass, gi
 
 ---
 
-## Step 3: Model and validation (app)
+## Step 3: Model and validation (app) ✅ DONE
 
 Files: `operations/OperationKind.swift`, `OperationSettings.swift`, `ToolpathData.swift`, `ToolpathData+Operation.swift`, `ToolpathGenerator.swift`, `ToolpathDetailsModel.swift`
 
@@ -74,7 +74,7 @@ Done when: a rest toolpath can be created in code, saved, and reloaded.
 
 ---
 
-## Step 4: Generation of a linked rest toolpath (app)
+## Step 4: Generation of a linked rest toolpath (app) ✅ DONE
 
 Files: `ToolpathGenerator.swift`, `CAMModel.swift`, `ToolpathGeneration.swift`
 
@@ -90,7 +90,7 @@ Done when: editing the pocket's tool or shape and pressing Preview on the rest t
 
 ---
 
-## Step 5: Preview overlay for rest regions (app)
+## Step 5: Preview overlay for rest regions (app) ✅ DONE
 
 Files: `ToolpathGeneration.swift`, `CAMModel.swift`, `D2_CanvasState.swift`, `D2_RenderObjectBuilder.swift`, `ToolpathPathBuilder.swift`
 
@@ -106,7 +106,7 @@ Done when: previewing a pocket with a large tool shows the corner regions on top
 
 ---
 
-## Step 6: UI (app)
+## Step 6: UI (app) ✅ DONE
 
 Files: `panels/PanelToolpathDetails.swift`, `ToolpathDetailsModel.swift`, `OperationOptionsView.swift`, `CAMView.swift`, `panels/PanelToolpaths.swift`
 
@@ -121,7 +121,7 @@ Done when: the full flow works: preview pocket, see regions, click create, new t
 
 ---
 
-## Step 7: G-code and checks
+## Step 7: G-code and checks 🟡 PARTLY
 
 Files: `ToolpathGCodeBuilder.swift`, `MakeraGCodeHeaderWriter.swift`
 
@@ -143,3 +143,20 @@ Files: `ToolpathGCodeBuilder.swift`, `MakeraGCodeHeaderWriter.swift`
 - Only line-to-line corners are detected.
 - Pockets with islands: only the outer boundary is checked.
 - The regions are geometric (final wall minus the tool circle). They don't model the roughing paths actually cut.
+
+
+Done: `minDepth` (default 0.03), clamped short walls (closed by a chord), tool-centre-inside check, `RestCorner.incomingWallLength/outgoingWallLength`, tests in `RestCorners_Tests.swift`. Pocket output already carries `restCorners` (`SCEngine+Pocketing.swift`, `SCEngine+Allowance.swift`), so the app doesn't call `restCorners` itself: it reads `outputs.flatMap(\.restCorners)`.
+Note: `StratumCAM/Tests/.../Facing_Tests.swift` doesn't compile (pre-existing: calls private `facingScanlines`), which blocks `swift test` for the package; it was set aside temporarily to run the new tests.
+
+Done: public `SCEngine.generateRestToolpaths(corners:tool:settings:direction:entry:)` in `SCEngine+RestMachining.swift`; new `SC.Warning.restCornersSkipped(count:)` (handled in `ToolpathGenerator.message(for: SC.Warning)`); tests in `RestMachining_Tests.swift`. Returns `[]` when nothing was cut. Ignores `allowance`/`finishingPass`.
+
+Done: `OperationKind.restMachining` (title "Rest", symbol `angle`, summary, defaults; deliberately **not** in `OperationKind.groups`: it's created from a pocket, not picked), `OperationSettings.restSourceID` (`decodeIfPresent`), `makeOperation` describes it as an offset pocket, `hasGeometry` is `restSourceID != nil`, pattern picker and stock-to-leave rows hidden for it. App builds. Model tests are in `RestMachiningModelTests.swift`, but the test target doesn't compile for an unrelated, pre-existing reason (`ProjectPathsRegressionTests` uses `ProjectPaths.projectsRoot`), so they haven't been run. Validation that needs the other toolpaths (source exists, is a pocket, tool smaller) moves to Step 4.
+
+Done (builds): `Job.restSource` + `prepareRest` (validates source exists, is a pocket, tool smaller) + `runRest` (runs the pocket, reads `outputs.flatMap(\.restCorners)`, calls `generateRestToolpaths`) in `ToolpathGenerator`; new `GenerationError` cases; `ToolpathGeneration.sourceSnapshot` / `isLinkedSourceOutdated` / `restCorners`; `CAMModel.refreshLinkedGenerations()` marks a rest result outdated when its pocket is edited (name ignored) or deleted, so `isCurrent(for:)` keeps its signature; `beginPicking` skips rest toolpaths. Deleting the source keeps the rest toolpath, which then fails with "no longer in the list". Not exercised in the running app yet.
+Caution: edits to app files were made on disk; if Xcode shows an old version of a file, reload it from disk before saving.
+
+Done (builds): `ToolpathPathBuilder.restPath(for:)`, `ToolpathGeneration.restPath` (built in the background task), `D2_CanvasState.restRegionsPath`, `D2_RenderObjectBuilder.restRegionsRenderObject` (pink outline, drawn after the toolpath in `CAMSceneModel.rebuild`), `CAMModel.showsRestAreas` + `updateRestRegions()` (only for the open pocket, while its result is current and nothing is scrubbed). Outline only; no fill.
+
+Done (builds): panel shows "Show rest areas" and **Create rest operation** under Preview for a pocket with corners; `CAMModel.addRestToolpath(from:)` inserts the rest toolpath right after the pocket with a new tool (half the Ø, own id, so the G-code header numbers it as another tool) and opens it; a rest toolpath's panel shows "Source: <pocket>" (orange when missing) and warns when its tool isn't smaller; the list row shows the source name. Not done: `INFO.md` update.
+
+Checked by reading: `ToolpathGCodeBuilder.plan` accepts a rest toolpath (it has geometry via its link) and `MakeraGCodeHeaderWriter` numbers tools by id, so the rest tool becomes its own T. Not done: warning when a rest toolpath is dragged above its pocket, and the manual test list below (needs the running app).

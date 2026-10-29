@@ -19,12 +19,16 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
     case boring
     case threadMilling
     case chamfer
+    /// Cleans the corners a pocket's larger tool couldn't reach, with a smaller tool. Not
+    /// picked from the list: it is created from a previewed pocket (see `OperationSettings.restSourceID`).
+    case restMachining
 
     var id: String {
         rawValue
     }
 
-    /// The order and grouping used by the picker menu.
+    /// The order and grouping used by the picker menu. `.restMachining` isn't in it: a rest
+    /// toolpath needs a source pocket, so it's made with "Create rest operation" on a pocket.
     static let groups: [[OperationKind]] = [
         [.facing],
         [.pocket, .contour, .slotting],
@@ -44,6 +48,7 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .boring:        return "Bore"
             case .threadMilling: return "Thread mill"
             case .chamfer:       return "Chamfer"
+            case .restMachining: return "Rest"
         }
     }
 
@@ -60,6 +65,7 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .boring:        return "circle.dashed"
             case .threadMilling: return "screwdriver"
             case .chamfer:       return "diamond"
+            case .restMachining: return "angle"
         }
     }
 
@@ -87,6 +93,8 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
                 return "Cuts a thread inside an existing hole, or on the outside of a stud when Internal is off. Select the hole or stud. Needs a thread mill."
             case .chamfer:
                 return "Bevels the selected edges. Needs a V-bit."
+            case .restMachining:
+                return "Cuts the corners the pocket's larger tool couldn't reach, with a smaller tool. Linked to its pocket: no shapes to select."
         }
     }
 
@@ -111,6 +119,8 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
                 return "Select an existing hole (or a stud for an external thread). Needs a thread mill."
             case .chamfer:
                 return "Bevels the selected edges. Needs a V-bit."
+            case .restMachining:
+                return nil   // linked to a pocket, nothing to select
         }
     }
 

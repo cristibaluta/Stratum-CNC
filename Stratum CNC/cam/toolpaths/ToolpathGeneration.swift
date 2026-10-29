@@ -28,6 +28,24 @@ struct ToolpathGeneration {
     /// built together with `previewPath`. Nil on failure, or when nothing is cut.
     var scrub: ToolpathScrubData? = nil
 
+    /// The corners a pocket's tool couldn't reach, as outlines for the canvas (see
+    /// `ToolpathPathBuilder.restPath`). Built together with `previewPath`. Nil when there are none.
+    var restPath: CGPath? = nil
+
+    /// A rest toolpath only: the pocket it is linked to, as it was when this was generated
+    /// (`nil` when that pocket was gone).
+    var sourceSnapshot: ToolpathData? = nil
+    /// A rest toolpath only: set by `CAMModel` once the linked pocket no longer matches
+    /// `sourceSnapshot`, which makes this result outdated too.
+    var isLinkedSourceOutdated = false
+
+    /// The sharp corners the pocket's tool left, for the "Create rest operation" button and
+    /// the overlay. Only a pocket's result has them.
+    var restCorners: [SC.RestCorner] {
+        guard case .success(let outputs) = outcome else { return [] }
+        return outputs.flatMap(\.restCorners)
+    }
+
     var passCount: Int {
         guard case .success(let outputs) = outcome else { return 0 }
         return outputs.reduce(0) { $0 + $1.passes.count }
@@ -61,6 +79,6 @@ struct ToolpathGeneration {
 
     /// False once the toolpath's settings or shapes were edited after generating.
     func isCurrent(for toolpath: ToolpathData) -> Bool {
-        source == toolpath
+        source == toolpath && !isLinkedSourceOutdated
     }
 }

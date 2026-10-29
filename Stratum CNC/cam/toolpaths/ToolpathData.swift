@@ -149,7 +149,10 @@ extension ToolpathData {
 
     /// Whether there is anything to cut: selected shapes, or the whole stock.
     var hasGeometry: Bool {
-        !targets.isEmpty || cutsWholeStock
+        if operation.kind == .restMachining {
+            return operation.restSourceID != nil   // its geometry is its source pocket's corners
+        }
+        return !targets.isEmpty || cutsWholeStock
     }
 
     /// How far the tool goes down from the top of the stock (or from Start Z when that is
@@ -228,7 +231,7 @@ extension ToolpathData {
                     return String(format: "The counterbore diameter (%.2f mm) must be larger than the tool (Ø%.2f mm).",
                                   operation.counterboreDiameter, diameter)
                 }
-            case .drilling, .boring, .contour, .pocket, .facing, .slotting, .engrave:
+            case .drilling, .boring, .contour, .pocket, .facing, .slotting, .engrave, .restMachining:
                 break
         }
         return nil
@@ -258,6 +261,7 @@ extension ToolpathData {
             case .slotting:      return "A slot requires an end mill."
             case .engrave:       return "Engraving requires an engraving bit or a V-bit."
             case .chamfer:       return "A chamfer requires a V-bit or a chamfer bit."
+            case .restMachining: return "A rest operation requires an end mill."
         }
     }
 

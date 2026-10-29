@@ -52,6 +52,8 @@ extension OperationKind {
                 return OperationDefaults(stepDown: 0.5, stepOverFraction: 0.4)
             case .chamfer:
                 return OperationDefaults()
+            case .restMachining:
+                return OperationDefaults(endZ: -1, stepDown: 0.5, stepOverFraction: 0.4)
         }
     }
 }

@@ -444,3 +444,54 @@ extension ToolpathPathBuilder {
         }
     }
 }
+
+// MARK: - Rest areas
+
+extension ToolpathPathBuilder {
+
+    /// The material a pocket's tool couldn't reach, as closed outlines: each corner's two walls
+    /// and the tool-circle arc between them (an arc is drawn as straight chords). nil when there
+    /// are no corners.
+    static func restPath(for corners: [SC.RestCorner]) -> CGPath? {
+        let path = CGMutablePath()
+
+        for corner in corners {
+            var isFirst = true
+            for segment in corner.region {
+                switch segment {
+                    case .line(let start, let end):
+                        if isFirst {
+                            path.move(to: start)
+                            isFirst = false
+                        }
+                        path.addLine(to: end)
+
+                    case .arc(let center, let radius, let startAngle, let endAngle, let isCCW):
+                        let start = CGPoint(x: center.x + radius * cos(startAngle), y: center.y + radius * sin(startAngle))
+                        if isFirst {
+                            path.move(to: start)
+                            isFirst = false
+                        } else {
+                            path.addLine(to: start)
+                        }
+                        var sweep = (isCCW ? endAngle - startAngle : startAngle - endAngle)
+                            .truncatingRemainder(dividingBy: 2 * .pi)
+                        if sweep < 0 {
+                            sweep += 2 * .pi
+                        }
+                        let steps = max(4, Int((sweep / (.pi / 32)).rounded(.up)))
+                        let direction: Double = isCCW ? 1 : -1
+                        for i in 1...steps {
+                            let angle = startAngle + direction * sweep * Double(i) / Double(steps)
+                            path.addLine(to: CGPoint(x: center.x + radius * cos(angle),
+                                                     y: center.y + radius * sin(angle)))
+                        }
+                }
+            }
+            if !isFirst {
+                path.closeSubpath()
+            }
+        }
+        return path.isEmpty ? nil : path
+    }
+}

@@ -132,11 +132,13 @@ final class CAMSceneModel: ObservableObject {
         // appearance*, so build under the one the view is actually in.
         var paths: [D2_RenderPath] = []
         var toolpath: RenderObject?
+        var restRegions: RenderObject?
         var background = SIMD4<Float>(0.2, 0.2, 0.2, 1)
         var overlay: [RenderObject] = []
         appearance.performAsCurrentDrawingAppearance {
             paths = D2_RenderObjectBuilder.renderPaths(for: canvasState)
             toolpath = D2_RenderObjectBuilder.toolpathRenderObject(for: canvasState)
+            restRegions = D2_RenderObjectBuilder.restRegionsRenderObject(for: canvasState)
             background = Self.rgba(NSColor.textBackgroundColor)
 
             // Dashed box + rotation-center handle for whichever objects
@@ -191,6 +193,9 @@ final class CAMSceneModel: ObservableObject {
         }
         if let toolpath {
             objects.append(toolpath)
+        }
+        if let restRegions {
+            objects.append(restRegions)
         }
         if let scrubPath {
             objects.append(scrubPath)

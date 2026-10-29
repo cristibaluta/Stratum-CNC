@@ -149,6 +149,18 @@ enum D2_RenderObjectBuilder {
         return lineListObject(from: simdSubpaths, color: color)
     }
 
+    /// `state.restRegionsPath` as one `RenderObject` (outlines), or nil when there is none.
+    static func restRegionsRenderObject(for state: D2_CanvasState,
+                                        color: SIMD4<Float> = SIMD4<Float>(1.0, 0.25, 0.75, 1.0)) -> RenderObject? {
+        guard let path = state.restRegionsPath else {
+            return nil
+        }
+        let simdSubpaths = flattenedSubpaths(path).map { subpath in
+            subpath.map { SIMD3<Float>(Float($0.x), Float($0.y), 0) }
+        }
+        return lineListObject(from: simdSubpaths, color: color)
+    }
+
     // MARK: Shared geometry helpers
 
     /// Splits `path` into subpaths and flattens any curves in each to a

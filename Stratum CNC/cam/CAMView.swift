@@ -266,6 +266,14 @@ struct CAMView: View {
                              isPicking: camModel.pickingToolpathID == toolpath.id,
                              generation: camModel.generations[toolpath.id],
                              isGenerating: camModel.generatingIDs.contains(toolpath.id),
+                             restSource: toolpath.operation.restSourceID.flatMap { sourceID in
+                                 camModel.toolpaths.first { $0.id == sourceID }
+                             },
+                             showsRestAreas: $camModel.showsRestAreas,
+                             onCreateRest: {
+                                 projectModel.saveIfNeeded()
+                                 camModel.addRestToolpath(from: toolpath.id)
+                             },
                              onGenerate: {
                                  projectModel.saveIfNeeded()
                                  camModel.generateToolpaths(for: toolpath.id)

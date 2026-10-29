@@ -254,6 +254,9 @@ final class ToolpathDetailsModel: ObservableObject {
     // MARK: Preview
 
     func previewButtonHelp(for toolpath: ToolpathData) -> String {
+        if toolpath.operation.kind == .restMachining {
+            return "Cut the corners of the linked pocket with this tool and preview it on the canvas"
+        }
         if !toolpath.hasGeometry {
             return "Click shapes on the canvas first: there is nothing to preview yet."
         }

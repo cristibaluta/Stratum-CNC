@@ -38,7 +38,11 @@ struct OperationOptionsView: View {
     /// (`requirements.slotPatterns`), which the app doesn't offer until open-ended slots can
     /// be derived from the drawing.
     private var offeredPatterns: [PocketPattern] {
-        requirements.pocketPatterns.map { PocketPattern($0) }
+        // A rest pass always clears each corner with offset rings.
+        guard kind != .restMachining else {
+            return []
+        }
+        return requirements.pocketPatterns.map { PocketPattern($0) }
     }
 
     /// Which section of the panel this instance fills. The panel places one of each, so the
@@ -220,7 +224,7 @@ struct OperationOptionsView: View {
             }
 
             // Stock for a finishing pass: wherever the library says the operation can leave some.
-            if requirements.usesAllowance {
+            if requirements.usesAllowance, kind != .restMachining {
                 stockToLeaveRows
             }
         }
@@ -537,7 +541,7 @@ private extension OperationKind {
             // `LeadInOutRow` + popover (stored on `OperationSettings.contourLeadIn/Out`). Holding tabs
             // have their own row and popover (`HoldingTabsEditor`) on `OperationSettings.contourTabs`.
             return ["entry", "contour.side", "contour.tabs", "contour.leadIn", "contour.leadOut"]
-        case .pocket:
+        case .pocket, .restMachining:
             // The clearing pattern gets its own dedicated picker in the Operation section with icon
             // glyphs, so the generic text-only field is hidden entirely, spiral direction
             // and trochoidal pitch included.

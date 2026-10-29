@@ -36,6 +36,11 @@ struct OperationSettings: Codable, Hashable {
     /// it with the saved tool's diameter and clears it. Never encoded.
     var legacyAdaptiveLoadMM: Double? = nil
 
+    // Rest machining
+    /// The pocket this rest operation cleans the corners of (`OperationKind.restMachining`).
+    /// Linked by id: the corners are recomputed from that pocket on every Generate.
+    var restSourceID: UUID? = nil
+
     // Contour
     /// Holding tabs left in the cut, in the order the form lists them.
     var contourTabs: [HoldingTabSettings] = []
@@ -95,6 +100,7 @@ struct OperationSettings: Codable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case kind, direction
         case stockToLeave, finishingPass
+        case restSourceID
         case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoadPercent
         case contourTabs, contourLeadIn, contourLeadOut
         case facingExtension, facingWholeStock
@@ -120,6 +126,7 @@ extension OperationSettings {
         direction = try c.decodeIfPresent(CutDirectionOption.self, forKey: .direction) ?? d.direction
         stockToLeave = try c.decodeIfPresent(Double.self, forKey: .stockToLeave) ?? d.stockToLeave
         finishingPass = try c.decodeIfPresent(Bool.self, forKey: .finishingPass) ?? d.finishingPass
+        restSourceID = try c.decodeIfPresent(UUID.self, forKey: .restSourceID)
         pocketPattern = try c.decodeIfPresent(PocketPattern.self, forKey: .pocketPattern) ?? d.pocketPattern
         pocketSpiral = try c.decodeIfPresent(SpiralOrder.self, forKey: .pocketSpiral) ?? d.pocketSpiral
         pocketTrochoidalPitch = try c.decodeIfPresent(Double.self, forKey: .pocketTrochoidalPitch) ?? d.pocketTrochoidalPitch

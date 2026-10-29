@@ -18,6 +18,14 @@ enum ToolpathGenerator {
         case shapeNotFound
         case noGeometry
         case invalidOption(String)
+        /// Rest machining: the linked pocket was deleted.
+        case restSourceMissing
+        /// Rest machining: the linked toolpath isn't a pocket (any more).
+        case restSourceNotPocket
+        /// Rest machining: the tool isn't smaller than the pocket's tool.
+        case restToolNotSmaller
+        /// Rest machining: the pocket's tool left nothing the smaller one can cut.
+        case noRestCorners
 
         var errorDescription: String? {
             switch self {
@@ -33,6 +41,14 @@ enum ToolpathGenerator {
                 return "The selected shapes have no machinable geometry."
             case .invalidOption(let message):
                 return message
+            case .restSourceMissing:
+                return "The pocket this rest operation belongs to is no longer in the list."
+            case .restSourceNotPocket:
+                return "A rest operation needs a pocket as its source, and the linked toolpath isn't one."
+            case .restToolNotSmaller:
+                return "The tool has to be smaller than the pocket's tool to reach its corners."
+            case .noRestCorners:
+                return "Nothing left to machine in the corners."
             }
         }
     }
@@ -45,15 +61,33 @@ enum ToolpathGenerator {
         let settings: SC.MachineSettings
         let operation: SC.MachiningOperation
         let startZ: Double
+        /// Rest machining only: the pocket whose corners are cut. The job runs it first to get the
+        /// corners its tool left (`contours` is empty then, a rest toolpath has no shapes of its own).
+        let restSource: RestSource?
         /// The selected shapes are slot *outlines*: turn each into the centre line the
         /// engine's `.slotting` expects before generating (see `run`).
         let derivesSlotCenterline: Bool
     }
 
+    /// The pocket a rest toolpath is linked to, as the engine needs it.
+    struct RestSource: Sendable {
+        let contours: [SC.Contour]
+        let tool: SC.ToolParams
+        let settings: SC.MachineSettings
+        let operation: SC.MachiningOperation
+    }
+
     /// Validates the toolpath and resolves its shapes against the objects'
     /// *current* position/scale/rotation on the canvas. Cheap, but reads
     /// canvas state, so call it on the main thread; then hand the `Job` to `run`.
-    static func prepare(for toolpath: ToolpathData, canvasState: D2_CanvasState) throws -> Job {
+    ///
+    /// - Parameter source: for a rest toolpath, the toolpath it is linked to (`nil` when that
+    ///   one is gone). Ignored by every other operation.
+    static func prepare(for toolpath: ToolpathData, source: ToolpathData? = nil, canvasState: D2_CanvasState) throws -> Job {
+
+        if toolpath.operation.kind == .restMachining {
+            return try prepareRest(for: toolpath, source: source, canvasState: canvasState)
+        }
 
         guard toolpath.hasGeometry else {
             throw GenerationError.noShapes
@@ -91,8 +125,37 @@ enum ToolpathGenerator {
                    settings: makeSettings(from: toolpath),
                    operation: operation,
                    startZ: toolpath.startZ,
+                   restSource: nil,
                    derivesSlotCenterline: toolpath.operation.kind == .slotting
                        && toolpath.operation.slotSource == .outline)
+    }
+
+    /// A rest toolpath: checks the link to its pocket and the tool, and captures the pocket's own
+    /// job so `run` can find the corners it leaves.
+    private static func prepareRest(for toolpath: ToolpathData, source: ToolpathData?, canvasState: D2_CanvasState) throws -> Job {
+
+        guard toolpath.operation.restSourceID != nil, let source else {
+            throw GenerationError.restSourceMissing
+        }
+        guard source.operation.kind == .pocket else {
+            throw GenerationError.restSourceNotPocket
+        }
+        guard toolpath.tool.toolDiameter < source.tool.toolDiameter else {
+            throw GenerationError.restToolNotSmaller
+        }
+        try validateOptions(of: toolpath)
+
+        let sourceJob = try prepare(for: source, canvasState: canvasState)
+        return Job(contours: [],
+                   tool: makeTool(from: toolpath.tool, for: .pocket),
+                   settings: makeSettings(from: toolpath),
+                   operation: makeOperation(from: toolpath),
+                   startZ: toolpath.startZ,
+                   restSource: RestSource(contours: sourceJob.contours,
+                                          tool: sourceJob.tool,
+                                          settings: sourceJob.settings,
+                                          operation: sourceJob.operation),
+                   derivesSlotCenterline: false)
     }
 
     /// The slow part: runs StratumCAM. Touches no shared state, so it's safe
@@ -122,10 +185,14 @@ enum ToolpathGenerator {
                 PerfLog.log("gen", "derived \(contours.count) slot centre line(s) from the selected outlines")
             }
 
-            outputs = try engine.generateToolpaths(from: contours,
-                                                   tool: job.tool,
-                                                   settings: job.settings,
-                                                   operation: job.operation)
+            if let restSource = job.restSource {
+                outputs = try runRest(job, source: restSource, engine: engine)
+            } else {
+                outputs = try engine.generateToolpaths(from: contours,
+                                                       tool: job.tool,
+                                                       settings: job.settings,
+                                                       operation: job.operation)
+            }
         } catch {
             PerfLog.log("gen", "engine: FAILED after \(PerfLog.fmt(PerfLog.ms(since: t0))): \(message(for: error))")
             throw error
@@ -140,6 +207,35 @@ enum ToolpathGenerator {
             PerfLog.log("gen", "dropped \(before - after) pass(es) above startZ=\(job.startZ) (\(before) → \(after))")
         }
         return trimmed
+    }
+
+    /// The pocket's toolpath gives the corners its tool left; the rest tool then cuts them.
+    private static func runRest(_ job: Job, source: RestSource, engine: SCEngine) throws -> [SC.OutputToolpath] {
+        let pocket = try engine.generateToolpaths(from: source.contours,
+                                                  tool: source.tool,
+                                                  settings: source.settings,
+                                                  operation: source.operation)
+        let corners = pocket.flatMap(\.restCorners)
+        PerfLog.log("gen", "rest: the pocket leaves \(corners.count) corner(s)")
+        guard !corners.isEmpty else {
+            throw GenerationError.noRestCorners
+        }
+
+        var direction = SC.CutDirection.climb
+        var entry = SC.EntryStrategy.plunge
+        if case .pocket(let pocketDirection, _, let pocketEntry) = job.operation {
+            direction = pocketDirection
+            entry = pocketEntry
+        }
+        let rest = try engine.generateRestToolpaths(corners: corners,
+                                                    tool: job.tool,
+                                                    settings: job.settings,
+                                                    direction: direction,
+                                                    entry: entry)
+        guard !rest.isEmpty else {
+            throw GenerationError.noRestCorners
+        }
+        return rest
     }
 
     /// The machine settings (feeds, speeds, depth, safe heights) for one toolpath. Used both when
@@ -161,7 +257,6 @@ enum ToolpathGenerator {
         return SC.MachineSettings(cutting: cutting,
                                   safeZ: toolpath.safeZ,
                                   retractZ: min(toolpath.retractZ, toolpath.safeZ),
-                                  entryZ: toolpath.entryZ,
                                   targetDepth: abs(depth),
                                   // Only the operations that use them read these (see
                                   // `SC.OperationRequirements.usesAllowance`); the rest ignore them.
@@ -217,6 +312,10 @@ enum ToolpathGenerator {
             case .threadHoleLargerThanTarget(let available, let target):
                 return String(format: "The selected shape is %.2f mm wide, already more than the %.2f mm thread, so there is little to cut. Check the thread size or the shape.",
                               available, target)
+            case .restCornersSkipped(let count):
+                return count == 1
+                    ? "1 corner was skipped: this tool can't improve on what the pocket's tool left there."
+                    : "\(count) corners were skipped: this tool can't improve on what the pocket's tool left there."
         }
     }
 
@@ -354,6 +453,12 @@ extension ToolpathGenerator {
                 return .pocket(direction: direction,
                                pattern: makePocketPattern(from: options, toolDiameter: Double(toolpath.tool.toolDiameter)),
                                entry: entry)
+
+            case .restMachining:
+                // Not a library operation: the rest pass is generated by `generateRestToolpaths`.
+                // It is described as an offset pocket, which is what it cuts in each corner, so
+                // the form and the requirements (End Z, stepdown, stepover, entry) are the pocket's.
+                return .pocket(direction: direction, pattern: .offset, entry: entry)
 
             case .facing:
                 return .facing(direction: direction,

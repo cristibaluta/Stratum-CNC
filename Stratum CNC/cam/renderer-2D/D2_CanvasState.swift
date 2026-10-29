@@ -64,6 +64,17 @@ final class D2_CanvasState: ObservableObject, Equatable {
         toolpathsPath = path
     }
 
+    /// The corners the open pocket's tool couldn't reach, in world coordinates; nil when none
+    /// are to be shown.
+    @Published private(set) var restRegionsPath: CGPath?
+
+    func setRestRegionsPath(_ path: CGPath?) {
+        guard path !== restRegionsPath else {
+            return
+        }
+        restRegionsPath = path
+    }
+
     // MARK: Holding tabs preview
 
     /// The shapes the open contour toolpath cuts and the holding tabs it leaves in them.

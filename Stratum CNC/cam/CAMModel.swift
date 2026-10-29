@@ -45,6 +45,9 @@ class CAMModel: ObservableObject {
         didSet {
             revision &+= 1
             onToolpathsChanged?(toolpaths)
+            // Editing or deleting a pocket outdates the rest toolpaths linked to it
+            refreshLinkedGenerations()
+            updateRestRegions()
             // An edit can make the open toolpath's result outdated, which ends scrubbing
             syncScrub()
             syncHoldingTabs()
@@ -59,6 +62,7 @@ class CAMModel: ObservableObject {
             syncPickingWithSelection()
             syncScrub()
             syncHoldingTabs()
+            updateRestRegions()
         }
     }
 
@@ -94,6 +98,13 @@ class CAMModel: ObservableObject {
     /// `.canvas3D` to keep them all. Read when a generation starts, so a change
     /// applies from the next Generate, not to results already on screen.
     var previewOptions: ToolpathPreviewOptions = .canvas2D
+
+    /// Draw the corners the open pocket's tool couldn't reach (see `updateRestRegions`).
+    @Published var showsRestAreas = true {
+        didSet {
+            updateRestRegions()
+        }
+    }
 
     /// Which generation the canvas is scrubbing right now (see `syncScrub`).
     private var scrubbedGenerationID: UUID?
@@ -178,6 +189,41 @@ class CAMModel: ObservableObject {
         // Opening it starts picking, seeded with `targets` (see `beginPicking`),
         // which also clears the plain canvas selection they came from.
         selectedToolpathID = toolpath.id
+    }
+
+    /// "Create rest operation" on a previewed pocket: a new toolpath right after it that cuts the
+    /// corners the pocket's tool couldn't reach, with a smaller tool. Everything else (feeds,
+    /// Z levels, entry, direction) is copied from the pocket. Linked, not copied: the corners are
+    /// recomputed from the pocket on every Preview (see `OperationSettings.restSourceID`).
+    func addRestToolpath(from sourceID: UUID) {
+        guard let index = toolpaths.firstIndex(where: { $0.id == sourceID }),
+              toolpaths[index].operation.kind == .pocket else {
+            return
+        }
+        let source = toolpaths[index]
+
+        var rest = source
+        rest.id = UUID()
+        rest.targets = []
+        rest.operation.kind = .restMachining
+        rest.operation.restSourceID = sourceID
+        rest.operation.pocketPattern = .offset
+        rest.operation.stockToLeave = 0
+        rest.operation.finishingPass = false
+        rest.name = OperationKind.restMachining.nextName(among: Set(toolpaths.map(\.name)))
+
+        // A tool half the pocket's size, to start from; the user picks the real one in the panel.
+        // It needs an id of its own: the G-code header numbers tools by id.
+        let diameter = max(0.1, (source.tool.toolDiameter / 2 * 10).rounded() / 10)
+        rest.tool = Tool(name: String(format: "%gmm", diameter),
+                         shankDiameter: min(source.tool.shankDiameter, max(diameter, 3)),
+                         toolDiameter: diameter,
+                         length: source.tool.length,
+                         type: source.tool.type,
+                         tipAngle: source.tool.tipAngle)
+
+        toolpaths.insert(rest, at: index + 1)
+        selectedToolpathID = rest.id
     }
 
     /// The shapes selected with the mouse that a new toolpath could be built from.
@@ -320,6 +366,10 @@ class CAMModel: ObservableObject {
         guard let toolpath = toolpaths.first(where: { $0.id == id }) else {
             return
         }
+        // A rest toolpath has no shapes of its own: it is linked to a pocket
+        guard toolpath.operation.kind != .restMachining else {
+            return
+        }
         // Set before seeding the canvas: seeding can prune stale targets and
         // report that back through applyPickedPaths, which needs this id.
         pickingToolpathID = id
@@ -347,13 +397,20 @@ class CAMModel: ObservableObject {
         let requestedAt = PerfLog.now()
         PerfLog.log("gen", "▶ Generate requested for '\(toolpath.name)' (\(canvasState.objects.count) object(s) on canvas)")
 
+        // A rest toolpath is generated from the pocket it is linked to
+        let linkedSource = toolpath.operation.restSourceID.flatMap { sourceID in
+            toolpaths.first { $0.id == sourceID }
+        }
+
         let job: ToolpathGenerator.Job
         do {
-            job = try ToolpathGenerator.prepare(for: toolpath, canvasState: canvasState)
+            job = try ToolpathGenerator.prepare(for: toolpath, source: linkedSource, canvasState: canvasState)
         } catch {
             // Bad input (no shapes, invalid depth…): report it right away.
             PerfLog.log("gen", "prepare failed: \(ToolpathGenerator.message(for: error))")
-            generations[id] = ToolpathGeneration(source: toolpath, outcome: .failure(error), previewPath: nil)
+            var failed = ToolpathGeneration(source: toolpath, outcome: .failure(error), previewPath: nil)
+            failed.sourceSnapshot = linkedSource
+            generations[id] = failed
             return
         }
         PerfLog.log("gen", "prepare (main thread) took \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
@@ -370,20 +427,24 @@ class CAMModel: ObservableObject {
                     let pathStart = PerfLog.now()
                     let previewPath = ToolpathPathBuilder.path(for: outputs, options: previewOptions)
                     let scrub = ToolpathPathBuilder.scrubData(for: outputs, options: previewOptions)
+                    let restPath = ToolpathPathBuilder.restPath(for: outputs.flatMap(\.restCorners))
                     PerfLog.log("gen", "background work finished; preview path + scrub data took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
                     return ComputedGeneration(outcome: .success(outputs),
                                               previewPath: previewPath,
-                                              scrub: scrub)
+                                              scrub: scrub,
+                                              restPath: restPath)
                 } catch {
-                    return ComputedGeneration(outcome: .failure(error), previewPath: nil, scrub: nil)
+                    return ComputedGeneration(outcome: .failure(error), previewPath: nil, scrub: nil, restPath: nil)
                 }
             }.value
 
-            self?.finishGeneration(id: id, token: token, source: toolpath, computed: computed, requestedAt: requestedAt)
+            self?.finishGeneration(id: id, token: token, source: toolpath, linkedSource: linkedSource,
+                                   computed: computed, requestedAt: requestedAt)
         }
     }
 
-    private func finishGeneration(id: UUID, token: UUID, source: ToolpathData, computed: ComputedGeneration, requestedAt: UInt64) {
+    private func finishGeneration(id: UUID, token: UUID, source: ToolpathData, linkedSource: ToolpathData?,
+                                  computed: ComputedGeneration, requestedAt: UInt64) {
         guard generationTokens[id] == token else {
             PerfLog.log("gen", "result for '\(source.name)' discarded (superseded, or canvas objects changed while it ran) "
                         + "after \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
@@ -400,9 +461,52 @@ class CAMModel: ObservableObject {
         generations[id] = ToolpathGeneration(source: source,
                                              outcome: computed.outcome,
                                              previewPath: computed.previewPath,
-                                             scrub: computed.scrub)
+                                             scrub: computed.scrub,
+                                             restPath: computed.restPath,
+                                             sourceSnapshot: linkedSource)
+        // The pocket may have been edited while this was running
+        refreshLinkedGenerations()
         PerfLog.log("gen", "◼ applied in \(PerfLog.fmt(PerfLog.ms(since: applyStart))) (state update + preview overlay); "
                     + "total click → applied: \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
+    }
+
+    /// Shows the corners of the open pocket on the canvas: only while its result is current, the
+    /// switch is on, and nothing is being scrubbed.
+    private func updateRestRegions() {
+        guard showsRestAreas,
+              canvasState.toolpathScrub == nil,
+              let id = selectedToolpathID,
+              let toolpath = toolpaths.first(where: { $0.id == id }),
+              toolpath.operation.kind == .pocket,
+              let generation = generations[id],
+              generation.isCurrent(for: toolpath) else {
+            canvasState.setRestRegionsPath(nil)
+            return
+        }
+        canvasState.setRestRegionsPath(generation.restPath)
+    }
+
+    /// A rest toolpath's result is outdated once the pocket it is linked to is edited or deleted.
+    /// The pocket's name is ignored: renaming it changes nothing that is cut.
+    private func refreshLinkedGenerations() {
+        for (id, generation) in generations where generation.source.operation.kind == .restMachining {
+            let current = generation.source.operation.restSourceID.flatMap { sourceID in
+                toolpaths.first { $0.id == sourceID }
+            }
+            let outdated = !Self.sameCut(current, generation.sourceSnapshot)
+            if outdated != generation.isLinkedSourceOutdated {
+                generations[id]?.isLinkedSourceOutdated = outdated
+            }
+        }
+    }
+
+    private static func sameCut(_ a: ToolpathData?, _ b: ToolpathData?) -> Bool {
+        guard var a, var b else {
+            return a == nil && b == nil
+        }
+        a.name = ""
+        b.name = ""
+        return a == b
     }
 
     /// Drops every result and abandons runs in flight (their tokens no longer match).
@@ -435,6 +539,8 @@ class CAMModel: ObservableObject {
         let paths = canvasState.toolpathScrub != nil ? [] : toolpaths
             .filter { !hiddenToolpathIDs.contains($0.id) }
             .compactMap { generations[$0.id]?.previewPath }
+
+        updateRestRegions()
 
         switch paths.count {
             case 0:
@@ -597,4 +703,5 @@ private struct ComputedGeneration: @unchecked Sendable {
     let outcome: Result<[SC.OutputToolpath], Error>
     let previewPath: CGPath?
     let scrub: ToolpathScrubData?
+    let restPath: CGPath?
 }
