@@ -2,7 +2,7 @@
 //  RampingButton.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 24.08.2026.
+//  Created by Cristian Baluta on 29.10.2026.
 //
 
 import SwiftUI
@@ -17,16 +17,16 @@ struct RampingButton: View {
     private var shownType: RampType { ramping.enabled ? ramping.type : .none }
 
     var body: some View {
-        InspectorRow(label: "Entry") {
+        InspectorRow(label: "Entry strategy") {
             Button(action: action) {
                 InspectorMenuLabel {
                     RampTypeGlyph(type: shownType, tint: ramping.enabled ? .primary : .secondary)
                         .frame(width: 18, height: 14)
-                    Text(ramping.enabled ? ramping.type.rawValue : "Off")
+                    Text(shownType.title)
                 }
             }
             .buttonStyle(.plain)
-            .help("Ramp angle, length, return path and spiral direction")
+            .help("How the tool goes down into the material: plunge, linear ramp or helix, and its angle")
         }
     }
 }

@@ -20,7 +20,7 @@ struct RampTypeCard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(.rampCardBackground))
-                // For `.none` this renders as a plain empty box — no icon, by design.
+                // A plunge is drawn from above as the single point the tool goes down at.
                 RampVisualization(
                     type: type,
                     angle: angle,
@@ -37,7 +37,7 @@ struct RampTypeCard: View {
                     .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
             )
             .shadow(color: .black.opacity(isSelected ? 0.12 : 0), radius: 6, y: 2)
-            Text(type.rawValue)
+            Text(type.title)
                 .font(.caption)
                 .fontWeight(isSelected ? .semibold : .regular)
                 .foregroundStyle(isSelected ? Color.accentColor : .secondary)

@@ -7,28 +7,64 @@
 
 import SwiftUI
 
+/// The popover behind the Entry strategy row: the strategy picker (animated previews) on top,
+/// then a drawing of the entry that follows the settings, and the fields. Same layout as `LeadInOutEditor`.
 struct RampingEditor: View {
 
     @Binding var ramping: RampingSettings
+    /// The feed rate of the entry move (the toolpath's plunge rate).
+    @Binding var feedRate: Double
     let stepdown: Double
     let toolDiameter: Double
     /// The ramp types the operation accepts, in the order they are offered.
     var available: [RampType] = RampType.allCases
     @State private var helixDirection: HelixDirection = .outsideIn
 
-    @Environment(\.dismiss)
-    private var dismiss
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            rampSelector
-                .padding(.vertical, 10)
-            rampVizualization
-                .padding(.vertical, 10)
-            if ramping.type != .none {
-                rampParams
+        VStack(alignment: .leading, spacing: 12) {
+            RampTypeSelector(type: strategy,
+                             angle: ramping.angle,
+                             length: displayedLength,
+                             stepdown: stepdown,
+                             helixDirection: helixDirection,
+                             selectable: available)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+
+            EntryDiagram(type: ramping.type,
+                         angle: ramping.angle,
+                         stepdown: stepdown,
+                         toolDiameter: toolDiameter)
+
+            Text(strategyExplanation)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+                if ramping.type != .none {
+                    InspectorNumberField(title: "Entry angle", value: $ramping.angle, suffix: "°")
+                        .help("How steeply the tool goes down, measured from the surface.")
+                }
+                if ramping.type == .helix {
+                    InspectorRow(label: "Spiral") {
+                        Picker("", selection: $helixDirection) {
+                            ForEach(HelixDirection.allCases) { direction in
+                                Text(direction.rawValue).tag(direction)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
+                }
+                InspectorNumberField(title: "Entry feed", value: $feedRate, suffix: "mm/min")
+                    .help("Feed rate going down into the material.")
+                if let note = angleNote {
+                    InspectorNote(text: note, isIndented: false)
+                }
             }
         }
+        .padding(16)
         .onAppear {
             syncLinearRampLength()
         }
@@ -41,137 +77,59 @@ struct RampingEditor: View {
         .onChange(of: stepdown) { _, _ in
             syncLinearRampLength()
         }
-        .padding(16)
     }
 
-    private var rampSelector: some View {
-        RampTypeSelector(type: $ramping.type,
-                         angle: ramping.angle,
-                         length: displayedLength,
-                         stepdown: stepdown,
-                         helixDirection: helixDirection,
-                         selectable: available)
-    }
+    // MARK: Bindings
 
-    private var rampVizualization: some View {
-        Group {
-            RampVisualization(type: ramping.type,
-                              angle: ramping.angle,
-                              length: displayedLength,
-                              stepdown: stepdown,
-                              mode: .profileDetail,
-                              helixDirection: helixDirection)
-                .frame(height: RampGeometry.detailSize)
-                .background(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(Color(.rampCardBackground))
-                )
-                .animation(.easeInOut(duration: 0.2), value: ramping.type)
-
-            if ramping.type == .helix {
-                Picker("Spiral direction", selection: $helixDirection) {
-                    ForEach(HelixDirection.allCases) { dir in
-                        Text(dir.rawValue).tag(dir)
-                    }
-                }
-                .pickerStyle(.segmented)
+    /// Picking a strategy also switches the entry on: the generator ignores the type while
+    /// `enabled` is off, so a pick has to turn it back on.
+    private var strategy: Binding<RampType> {
+        Binding(
+            get: { ramping.enabled ? ramping.type : .none },
+            set: { newType in
+                ramping.type = newType
+                ramping.enabled = true
             }
+        )
+    }
 
-            Text(rampDescription)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    /// What the selector's previews receive as "length": the stored ramp length for a linear
+    /// ramp, the tool-derived diameter for a helix.
+    private var displayedLength: Double {
+        ramping.type == .helix ? RampMath.helixDiameter(toolDiameter: toolDiameter) : ramping.length
+    }
 
-//            if !rampMetrics.isEmpty {
-//                Text(rampMetrics)
-//                    .font(.caption.monospacedDigit())
-//                    .foregroundStyle(.secondary)
-//            }
+    // MARK: Copy
+
+    private var strategyExplanation: String {
+        switch ramping.type {
+            case .none:   return "Straight down at 90°."
+            case .linear: return "Down a slope, out and back along the same line."
+            case .helix:  return "Spirals down in a circle as wide as the tool."
         }
     }
 
-    private var rampParams: some View {
-        Group {
-            HStack {
-                Text("Ramp angle")
-                TextField("", value: $ramping.angle, format: .number)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 100)
-                Text("°")
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-
-            if ramping.type == .linear {
-                HStack {
-                    Text("Required ramp distance ")
-                    Text(String(format: "%.2f mm", linearRampLength))
-                        .font(.body.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-                Text("Calculated automatically from the angle and current stepdown. It is not editable.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    /// Only the helix has a figure worth stating: the drawing already measures the ramp's run.
+    private var angleNote: String? {
+        guard ramping.type == .helix else {
+            return nil
         }
+        let diameter = RampMath.helixDiameter(toolDiameter: toolDiameter)
+        let turns = RampMath.helixTurnsNeeded(angle: ramping.angle, diameter: diameter, stepdown: stepdown)
+        return "About \(Self.format(turns)) turns, \(Self.format(diameter)) mm wide."
     }
 
+    // MARK: Linear ramp length
+
+    /// The stored length follows the angle and the stepdown, it is not typed.
     private func syncLinearRampLength() {
         guard ramping.type == .linear else {
             return
         }
-        ramping.length = linearRampLength
+        ramping.length = RampMath.linearRequiredLength(angle: ramping.angle, stepdown: stepdown)
     }
 
-    private var helixDiameter: Double {
-        RampMath.helixDiameter(toolDiameter: toolDiameter)
+    private static func format(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
     }
-
-    /// What the drawings receive as "length": the stored ramp length for a
-    /// linear ramp, the tool-derived diameter for a helix.
-    private var displayedLength: Double {
-        ramping.type == .helix ? helixDiameter : ramping.length
-    }
-
-    private var linearRampLength: Double {
-        RampMath.linearRequiredLength(angle: ramping.angle, stepdown: stepdown)
-    }
-
-    private var rampDescription: String {
-        switch ramping.type {
-            case .none:
-                return "The tool plunges vertically."
-            case .linear:
-                let result = RampMath.linearRampOutcome(angle: ramping.angle, length: ramping.length, stepdown: stepdown)
-                if result.reachesStepdown {
-                    return "The tool descends at \(String(format: "%.1f", ramping.angle))° over half of the ramp distance, then returns to the start point descending the rest of the way, reaching the \(String(format: "%.2f", stepdown)) mm stepdown. The distance is calculated automatically."
-                } else {
-                    return "⚠️ At this angle, \(String(format: "%.1f", ramping.length)) mm of ramp length only reaches \(String(format: "%.2f", result.depth)) mm — short of the \(String(format: "%.2f", stepdown)) mm stepdown. Increase length or use a shallower angle."
-                }
-            case .helix:
-                switch helixDirection {
-                    case .outsideIn:
-                        return "The tool spirals downward from the outside edge inward, shown here from above."
-                    case .insideOut:
-                        return "The tool spirals downward from the center outward, shown here from above."
-                }
-        }
-    }
-
-    private var rampMetrics: String {
-        switch ramping.type {
-            case .linear:
-                let result = RampMath.linearRampOutcome(angle: ramping.angle, length: ramping.length, stepdown: stepdown)
-                if result.reachesStepdown {
-                    return String(format: "Required distance: %.2f mm at %.1f°", result.usedLength, RampMath.clampedAngle(ramping.angle))
-                } else {
-                    return String(format: "Needs ≥ %.1f mm at this angle to reach stepdown", RampMath.linearRequiredLength(angle: ramping.angle, stepdown: stepdown))
-                }
-            case .helix:
-                let turns = RampMath.helixTurnsNeeded(angle: ramping.angle, diameter: helixDiameter, stepdown: stepdown)
-                return String(format: "%.1f turns to reach the %.2f mm stepdown", turns, stepdown)
-            case .none:
-                return ""
-        }
-    }
-
 }

@@ -172,7 +172,7 @@ struct PanelToolpathDetails: View {
             OperationOptionsView(toolpath: $toolpath, part: .entry)
         }
         // Always available, also for operations without an entry strategy (drill, bore…)
-        InspectorNumberField(title: "Ramp feed", value: $toolpath.plungeRate, suffix: "mm/min")
+        InspectorNumberField(title: "Entry feed", value: $toolpath.plungeRate, suffix: "mm/min")
             .help(model.plungeFeedHelp(for: toolpath))
         // Holding tabs (contour): material left standing at the bottom of the cut
         if OperationOptionsView.hasTabs(for: toolpath) {

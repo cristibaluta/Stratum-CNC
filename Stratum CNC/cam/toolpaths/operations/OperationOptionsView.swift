@@ -398,7 +398,7 @@ struct OperationOptionsView: View {
     private var rampingRow: some View {
         rampingButton
         if toolpath.ramping.type != .none {
-            InspectorNumberField(title: "Ramp angle", value: $toolpath.ramping.angle, suffix: "°")
+            InspectorNumberField(title: "Entry angle", value: $toolpath.ramping.angle, suffix: "°")
         }
     }
 
@@ -409,6 +409,7 @@ struct OperationOptionsView: View {
         .popover(isPresented: $showRampEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
             // A slot steps down by its own depth-per-pass, not by the general stepdown.
             RampingEditor(ramping: $toolpath.ramping,
+                          feedRate: $toolpath.plungeRate,
                           stepdown: kind == .slotting ? toolpath.operation.slotDepthPerPass : toolpath.stepDown,
                           toolDiameter: Double(toolpath.tool.toolDiameter),
                           available: availableRampTypes)
