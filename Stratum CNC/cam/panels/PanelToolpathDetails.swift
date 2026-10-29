@@ -149,6 +149,7 @@ struct PanelToolpathDetails: View {
                     throughStockButton(thickness: thickness)
                 }
             }
+            .help(model.endZHelp)
         }
         // How much is cut per pass: the same idea under the name each operation gives it. A slot
         // steps down by its own depth per pass (not the general stepdown, see `rampingButton`),

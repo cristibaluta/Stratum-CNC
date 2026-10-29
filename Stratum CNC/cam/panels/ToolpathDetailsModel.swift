@@ -118,6 +118,9 @@ final class ToolpathDetailsModel: ObservableObject {
         )
     }
 
+    /// Tooltip of the End Z field.
+    let endZHelp = "The depth the cut reaches, measured from the probed Z0, not from Start Z. Only depths below Z0 are supported: type it as a positive number and it is applied as a negative Z value."
+
     /// A counterbore's depth, shown as its End Z: typed as a positive depth below the top with
     /// the "−" in front, like every other operation's End Z. It is stored as the positive
     /// `counterboreDepth` the library takes, so nothing about saved projects changes.
