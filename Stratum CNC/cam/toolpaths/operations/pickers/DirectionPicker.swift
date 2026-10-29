@@ -63,7 +63,7 @@ private struct DirectionOptionsPopover: View {
             HStack(alignment: .center, spacing: 12) {
                 DirectionGlyph(direction: option,
                                tint: isSelected ? Color.accentColor : .secondary)
-                    .frame(width: 66, height: 44)
+                    .frame(width: 90, height: 60)
                     .background(Color.primary.opacity(0.04))
                     .clipShape(RoundedRectangle(cornerRadius: 5))
 
@@ -110,8 +110,8 @@ private struct DirectionOptionsPopover: View {
 private extension CutDirectionOption {
     var selectionHint: String {
         switch self {
-            case .climb:        return "Cutter rotation and feed agree at the edge — smoother finish, lighter chips at the end of each pass."
-            case .conventional: return "Cutter rotation and feed oppose at the edge — safer bite on rigid setups and older machines."
+            case .climb:        return "Each tooth bites at full chip thickness and leaves at the finished wall with none. Usually the better finish and less tool wear, but it pulls the tool into the cut, so it needs a rigid setup without backlash."
+            case .conventional: return "Each tooth starts at the finished wall with no chip and leaves at full thickness. It rubs before it bites, which wears the tool faster, but it is safer on machines with backlash or a loose setup."
         }
     }
 }
