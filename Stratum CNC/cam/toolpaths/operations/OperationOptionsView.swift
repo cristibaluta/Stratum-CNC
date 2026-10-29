@@ -42,13 +42,15 @@ struct OperationOptionsView: View {
     /// Which section of the panel this instance fills. The panel places one of each, so the
     /// operation's controls are grouped by what they do instead of sitting in one list.
     enum Part {
-        /// What the cut is: side, selection source, the library's own fields, holding tabs, pattern.
+        /// What the cut is: side, selection source, the library's own fields, pattern.
         case operation
         /// How the tool moves in the plane: cut direction, feed rate, stepover, stock to leave, the
         /// pattern's extra control, lead-in/out.
         case xyMovement
         /// How the tool descends into the material (ramp / helix / plunge). Shown in "Z levels".
         case entry
+        /// The holding tabs of a contour, which leave material standing at the bottom. Shown in "Z levels".
+        case tabs
     }
 
     var part: Part = .operation
@@ -60,6 +62,11 @@ struct OperationOptionsView: View {
         "facing.direction", "contour.direction", "pocket.direction"
     ]
 
+    /// Whether the "Z levels" section has a holding tabs row for this toolpath.
+    static func hasTabs(for toolpath: ToolpathData) -> Bool {
+        toolpath.operation.kind == .contour
+    }
+
     /// Whether the "Z levels" section has an entry row for this toolpath.
     static func hasEntry(for toolpath: ToolpathData) -> Bool {
         toolpath.machiningOperation.requirements.usesEntry
@@ -70,6 +77,7 @@ struct OperationOptionsView: View {
             case .operation: operationPart
             case .xyMovement: xyMovementPart
             case .entry: entryPart
+            case .tabs: tabsPart
         }
     }
 
@@ -110,17 +118,6 @@ struct OperationOptionsView: View {
 
             if kind == .chamfer {
                 chamferDepthNote
-            }
-
-            // Holding tabs: a summary row that opens the editor in a popover.
-            if kind == .contour {
-                HoldingTabsButton(tabs: toolpath.operation.contourTabs) {
-                    showTabsEditor = true
-                }
-                .popover(isPresented: $showTabsEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                    HoldingTabsEditor(tabs: $toolpath.operation.contourTabs, shapes: targetShapes)
-                        .frame(width: 400)
-                }
             }
 
             // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
@@ -177,6 +174,22 @@ struct OperationOptionsView: View {
                              role: .leadOut,
                              binding: $toolpath.operation.contourLeadOut,
                              isPresented: $showLeadOutEditor)
+            }
+        }
+    }
+
+    // MARK: Holding tabs (shown in the Z levels section)
+
+    /// A summary row that opens the editor in a popover.
+    @ViewBuilder
+    private var tabsPart: some View {
+        if Self.hasTabs(for: toolpath) {
+            HoldingTabsButton(tabs: toolpath.operation.contourTabs) {
+                showTabsEditor = true
+            }
+            .popover(isPresented: $showTabsEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                HoldingTabsEditor(tabs: $toolpath.operation.contourTabs, shapes: targetShapes)
+                    .frame(width: 400)
             }
         }
     }
