@@ -49,6 +49,8 @@ struct ProjectsView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
                 .frame(maxHeight: .infinity)
+
+                footer
             }
             .padding(32)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -119,13 +121,6 @@ struct ProjectsView: View {
                     isPicking = true
                 }
                 rowDivider
-                QuickActionRow(usageID: .tryWithoutProject,
-                               title: "Try Without Project",
-                               subtitle: "Explore without saving",
-                               systemImage: "arrow.right.circle") {
-                    projectsStore.openZombieProject()
-                }
-                rowDivider
                 QuickActionRow(usageID: .openController,
                                title: "Open Controller",
                                subtitle: "Connect to your machine",
@@ -139,6 +134,13 @@ struct ProjectsView: View {
                                systemImage: "chevron.left.forwardslash.chevron.right") {
                     picker = .gcode
                     isPicking = true
+                }
+                rowDivider
+                QuickActionRow(usageID: .tryWithoutProject,
+                               title: "Look Around",
+                               subtitle: "Explore without creating a project",
+                               systemImage: "arrow.right.circle") {
+                    projectsStore.openZombieProject()
                 }
             }
         }
@@ -178,39 +180,50 @@ struct ProjectsView: View {
                     .padding(.top, 4)
             } else {
                 ScrollView {
-                  LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(projectsStore.projects) { project in
-                        ProjectCard(project: project, previewImage: projectsStore.previewImage(for: project))
-                            .onTapGesture(count: 2) {
-                                open(project)
-                            }
-                            .onTapGesture(count: 1) {
-                                print("select project \(project.name)")
-                            }
-                            .contextMenu {
-                                Button("Open") {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(projectsStore.projects) { project in
+                            ProjectCard(project: project, previewImage: projectsStore.previewImage(for: project))
+                                .onTapGesture(count: 2) {
                                     open(project)
                                 }
-
-                                Button("Show in Finder") {
-                                    showInFinder(project)
+                                .onTapGesture(count: 1) {
+                                    print("select project \(project.name)")
                                 }
+                                .contextMenu {
+                                    Button("Open") {
+                                        open(project)
+                                    }
 
-                                Divider()
+                                    Button("Show in Finder") {
+                                        showInFinder(project)
+                                    }
 
-                                Button(project.isExternal ? "Remove from List" : "Delete", role: .destructive) {
-                                    delete(project)
+                                    Divider()
+
+                                    Button(project.isExternal ? "Remove from List" : "Delete", role: .destructive) {
+                                        delete(project)
+                                    }
                                 }
-                            }
+                        }
                     }
-                  }
-                  // Room for the hover shadow and scale, which the scroll view
-                  // would otherwise clip at its edges.
-                  .padding(6)
+                    // Room for the hover shadow and scale, which the scroll view
+                    // would otherwise clip at its edges.
+                    .padding(6)
                 }
                 .padding(.horizontal, -6)
             }
         }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 4) {
+            Text("This opensource software is work in progress and does not guarantee that all the features work as expected ·")
+            Link("Contribute or leave feedback on GitHub",
+                 destination: URL(string: "https://github.com/cristibaluta/Stratum-CNC")!)
+        }
+        .font(.body)
+        .foregroundStyle(.secondary)
+        .padding(.leading, 4)
     }
 
     private var rowDivider: some View {
