@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 struct PanelToolpaths: View {
 
@@ -21,10 +22,6 @@ struct PanelToolpaths: View {
     var onMove: ((UUID, Int) -> Void)?
 
     @StateObject private var reorder = ToolpathReorderModel()
-
-    private var canReorder: Bool {
-        toolpaths.count > 1
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -89,13 +86,6 @@ struct PanelToolpaths: View {
         let isHidden = hiddenIDs.contains(toolpath.id)
 
         return HStack(spacing: 6) {
-            if canReorder {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary.opacity(0.7))
-                    .frame(width: 12)
-            }
-
             OperationIcon(kind: toolpath.operation.kind, size: 13)
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
@@ -105,10 +95,7 @@ struct PanelToolpaths: View {
                 Text(toolpath.name)
                     .font(.system(size: 12))
                     .lineLimit(1)
-                Text("\(toolpath.operation.kind.title) · \(toolpath.tool.name)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                subtitle(for: toolpath)
             }
             .opacity(isHidden ? 0.5 : 1)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,6 +120,96 @@ struct PanelToolpaths: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+        }
+    }
+
+    // MARK: - Subtitle
+
+    /// What the toolpath does, without the operation's name (the title already says it): the
+    /// tool, how it enters, how a pocket is cleared and where it ends.
+    private func subtitle(for toolpath: ToolpathData) -> some View {
+        let requirements = toolpath.machiningOperation.requirements
+        let entryType: RampType = toolpath.ramping.enabled ? toolpath.ramping.type : .none
+        let toolText = "Ø\(Self.number(Double(toolpath.tool.toolDiameter))) \(Self.title(of: toolpath.tool.type))"
+
+        return HStack(spacing: 6) {
+            // The one that gives way when the row is narrow; the icons and the depth keep their size
+            Text(toolText)
+                .lineLimit(1)
+                .help("Tool: \(toolpath.tool.name)")
+
+            if let side = Self.cutSide(of: toolpath) {
+                ContourTypeGlyph(position: side, tint: .secondary)
+                    .frame(width: 20, height: 13)
+                    .help("Side: \(side.label)")
+            }
+
+            if requirements.usesEntry {
+                // The glyph is drawn in absolute points (18x14), so it is scaled down, not resized
+                RampTypeGlyph(type: entryType, tint: .secondary)
+                    .frame(width: 18, height: 14)
+                    .scaleEffect(0.65)
+                    .frame(width: 12, height: 9)
+                    .help("Entry: \(entryType.title)")
+            }
+
+            if !requirements.pocketPatterns.isEmpty {
+                PatternGlyph(pattern: toolpath.operation.pocketPattern, tint: .secondary)
+                    .frame(width: 18, height: 14)
+                    .help("Pocketing: \(toolpath.operation.pocketPattern.rawValue)")
+            }
+
+            // The same hint as in the details panel: orange while nothing is selected yet
+            if !toolpath.cutsWholeStock {
+                Label("\(toolpath.targets.count)", systemImage: "cursorarrow.click")
+                    .labelStyle(CompactLabelStyle())
+                    .foregroundStyle(toolpath.hasGeometry ? Color.secondary : Color.orange)
+                    .fixedSize()
+                    .help(toolpath.targets.count == 1 ? "1 shape selected" : "\(toolpath.targets.count) shapes selected")
+            }
+
+            Text(Self.endZText(of: toolpath))
+                .lineLimit(1)
+                .fixedSize()
+                .help("End Z")
+        }
+        .font(.system(size: 11))
+        .foregroundStyle(.secondary)
+    }
+
+    /// The side of the shape the tool follows, for the operations that have one.
+    private static func cutSide(of toolpath: ToolpathData) -> SC.CutSide? {
+        switch toolpath.operation.kind {
+            case .contour: return toolpath.contour
+            case .chamfer: return toolpath.operation.chamferSide.position
+            default:       return nil
+        }
+    }
+
+    /// A counterbore keeps its depth apart from `endZ`, as a positive number below the top.
+    private static func endZText(of toolpath: ToolpathData) -> String {
+        let z = toolpath.operation.kind == .counterbore
+            ? -toolpath.operation.counterboreDepth
+            : toolpath.endZ
+        // Depth below the top, so shown without the sign: "Z1.5"
+        return "Z\(number(abs(z)))"
+    }
+
+    private static func number(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    private static func title(of type: ToolType) -> String {
+        switch type {
+            case .endMill:           return "End mill"
+            case .ballNose:          return "Ball nose"
+            case .engraving:         return "Engraving"
+            case .drill:             return "Drill"
+            case .vBit:              return "V-bit"
+            case .corn:              return "Corn"
+            case .chamfer:           return "Chamfer"
+            case .solderMaskRemover: return "Solder mask"
+            case .threadMill:        return "Thread mill"
         }
     }
 
@@ -164,5 +241,15 @@ private struct ToolpathRowHeightKey: PreferenceKey {
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
+    }
+}
+
+/// Icon and text close together, for the row's subtitle.
+private struct CompactLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 3) {
+            configuration.icon
+            configuration.title
+        }
     }
 }

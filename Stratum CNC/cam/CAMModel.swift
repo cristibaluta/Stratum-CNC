@@ -171,9 +171,7 @@ class CAMModel: ObservableObject {
     func addToolpath(targets: [PathSelection] = []) {
         var toolpath = toolpaths.last ?? Self.defaultToolpath()
         toolpath.id = UUID()
-        // A fresh copy hasn't been renamed by hand yet, whatever the toolpath
-        // it was copied from -- it gets its own auto name for its operation.
-        toolpath.isNameCustom = false
+        // A fresh copy gets its own auto name for its operation.
         toolpath.name = toolpath.operation.kind.nextName(among: Set(toolpaths.map(\.name)))
         toolpath.targets = targets
         toolpaths.append(toolpath)

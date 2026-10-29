@@ -90,12 +90,15 @@ struct PanelToolpathDetails: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
 
-            // Typing here is what makes a name "custom" -- from then on it stops
-            // following the operation (see `operationKindBinding`).
+            // The name is reset to the operation's auto name whenever the operation is
+            // changed (see `operationKindBinding`), and is free text otherwise.
             TextField("", text: model.nameBinding($toolpath))
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
                 .background(.background)
+                // A field being edited ignores outside changes to its text; a new
+                // identity per operation makes it show the renamed title.
+                .id(toolpath.operation.kind)
         }
     }
 

@@ -54,7 +54,7 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .pocket:        return "square.inset.filled"
             case .facing:        return "rectangle.compress.vertical"
             case .slotting:      return "capsule"
-            case .engrave:       return "pencil.tip"
+            case .engrave:       return "scribble"
             case .drilling:      return "smallcircle.filled.circle"
             case .counterbore:   return "circle.circle"
             case .boring:        return "circle.dashed"

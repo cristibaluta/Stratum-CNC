@@ -13,11 +13,6 @@ struct ToolpathData: Identifiable, Codable, Hashable {
 
     var name: String
 
-    /// True once the user has typed their own name for this toolpath. Until then,
-    /// `name` follows the chosen operation automatically (see `PanelToolpathDetails`)
-    /// and gets renamed whenever the operation changes.
-    var isNameCustom: Bool = false
-
     var tool: Tool
 
     var startZ: Double
@@ -54,7 +49,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     // Explicit so the legacy single-contour `target` key can be read on decode
     // (see init(from:) below) without being written back on encode.
     private enum CodingKeys: String, CodingKey {
-        case id, name, isNameCustom, tool
+        case id, name, tool
         case startZ, endZ
         case contour, ramping
         case feedRate, plungeRate, spindleRPM
@@ -283,8 +278,6 @@ extension ToolpathData {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
-        // Absent on projects saved before renaming existed -- treat as auto-generated.
-        isNameCustom = try c.decodeIfPresent(Bool.self, forKey: .isNameCustom) ?? false
         tool = try c.decode(Tool.self, forKey: .tool)
         startZ = try c.decode(Double.self, forKey: .startZ)
         endZ = try c.decode(Double.self, forKey: .endZ)

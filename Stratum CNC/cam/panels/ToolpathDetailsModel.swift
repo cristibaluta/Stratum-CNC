@@ -23,6 +23,7 @@ final class ToolpathDetailsModel: ObservableObject {
     func reset() {
         presetNote = nil
         scrubStep = nil
+        replacedName = nil
     }
 
     /// A new Generate starts its preview from the end again, like the canvas does.
@@ -32,31 +33,47 @@ final class ToolpathDetailsModel: ObservableObject {
 
     // MARK: Header / operation
 
-    /// Typing a name is what makes it "custom" -- from then on it stops following the
-    /// operation (see `operationKindBinding`).
+    /// The name the last operation change replaced, for this open toolpath only. A title
+    /// field that was still being edited shows that old text and writes it back when it ends
+    /// editing, which would undo the rename.
+    private var replacedName: String?
+
+    /// What is typed in the title is written as it is. The name is only touched again when
+    /// the operation changes (see `operationKindBinding`); nothing is flagged or saved.
     func nameBinding(_ toolpath: Binding<ToolpathData>) -> Binding<String> {
         Binding(
             get: { toolpath.wrappedValue.name },
-            set: {
-                toolpath.wrappedValue.name = $0
-                toolpath.wrappedValue.isNameCustom = true
+            set: { [weak self] newValue in
+                // A TextField can write its binding on focus/commit with unchanged text.
+                guard newValue != toolpath.wrappedValue.name else {
+                    return
+                }
+                // The stale text of a field that missed the automatic rename.
+                if newValue == self?.replacedName {
+                    return
+                }
+                self?.replacedName = nil
+                toolpath.wrappedValue.name = newValue
             }
         )
     }
 
-    /// Changing the operation also renames the toolpath to match -- "Contour 1",
-    /// "Pocket 1", ... -- but only while the name is still the auto-generated one;
-    /// once the user has typed their own title it stops following the operation.
+    /// Changing the operation always renames the toolpath to match -- "Contour 1" ->
+    /// "Pocket 1" -- whatever its name was. Editing the name never triggers this, only
+    /// picking an operation does.
     func operationKindBinding(_ toolpath: Binding<ToolpathData>,
                               siblingNames: Set<String>) -> Binding<OperationKind> {
         Binding(
             get: { toolpath.wrappedValue.operation.kind },
-            set: { newKind in
+            set: { [weak self] newKind in
                 toolpath.wrappedValue.operation.kind = newKind
                 // Untouched fields take the new operation's defaults; edited ones stay.
                 toolpath.wrappedValue.applyDefaults(for: newKind)
-                if !toolpath.wrappedValue.isNameCustom {
-                    toolpath.wrappedValue.name = newKind.nextName(among: siblingNames)
+                let oldName = toolpath.wrappedValue.name
+                let newName = newKind.nextName(among: siblingNames)
+                if newName != oldName {
+                    self?.replacedName = oldName
+                    toolpath.wrappedValue.name = newName
                 }
             }
         )
