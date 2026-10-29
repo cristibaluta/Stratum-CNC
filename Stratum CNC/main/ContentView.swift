@@ -25,13 +25,11 @@ struct ContentView: View {
         .frame(minWidth: 800, minHeight: 600)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $appModel.showingNewProject) {
-            NewProjectSheet { name in
-                do {
-                    let project = try projectsStore.createProject(name: name)
-                    projectsStore.open(project)
-                } catch {
-                    print("Failed to create project: \(error)")
-                }
+            // `folder` is nil for a project managed by the app; errors are thrown
+            // back so the sheet can stay open and show them.
+            NewProjectSheet { name, folder in
+                let project = try projectsStore.createProject(name: name, in: folder)
+                projectsStore.open(project)
             }
         }
         // `onDismiss` also fires after a normal pick, but by then the continuation

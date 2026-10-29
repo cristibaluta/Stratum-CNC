@@ -14,6 +14,19 @@ struct ProjectCard: View {
     let previewImage: NSImage?
     @State private var isHovered: Bool = false
 
+    /// The path with the user's real home folder shown as `~`. In a sandboxed
+    /// app `NSHomeDirectory()` is the app's container, so ask the system.
+    private static func displayPath(_ path: String) -> String {
+        let home = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
+        if path == home {
+            return "~"
+        }
+        if path.hasPrefix(home + "/") {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
 
@@ -33,6 +46,21 @@ struct ProjectCard: View {
                 Text(project.modifiedAt, format: .dateTime.year().month().day())
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+
+                // Projects saved outside the app show where they live.
+                if project.isExternal, let path = project.path {
+                    Label {
+                        Text(Self.displayPath(path))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } icon: {
+                        Image(systemName: "folder")
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                    .help(path)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
