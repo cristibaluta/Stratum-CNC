@@ -1,10 +1,20 @@
-# Rest machining: implementation plan
+# Rest machining: implementation plan (rev. 2)
 
 Goal: after a pocket is previewed, show the corners its tool couldn't reach, and let the user create a **rest operation** (smaller tool) from them. The rest operation is a normal entry in the toolpaths panel.
 
-**Decision: linked.** A rest toolpath stores the ID of its source pocket and recomputes the corners from it on every Generate. It never keeps a copy of the corners.
+**Decision: linked.** A rest toolpath stores the ID of its source pocket in `OperationSettings.restSourceID: UUID?` and recomputes the corners from it on every Generate. It never keeps a copy of the corners.
 
 Work in order. Each step should build and be checked before starting the next.
+
+Status: nothing is implemented in the app yet. The library (`../StratumCAM`, outside this workspace) was not re-checked in this revision; verify Steps 1–2 there.
+
+## What changed since rev. 1
+
+- `ToolpathGenerator.prepare(for:canvasState:)` returns a `Job` (contours, tool, settings, operation, startZ, derivesSlotCenterline). `ToolpathGenerator.run(_:)` is static and thread-safe. Generation is in `CAMModel.generateToolpaths(for:)`, which builds a `ComputedGeneration` (outcome, `previewPath`, `scrub`) in a detached task and applies it in `finishGeneration`.
+- `OperationKind` is switched over exhaustively in several places (`title`, `symbol`, `summary`, `selectionHint`, `groups`, `ToolpathGenerator.makeOperation`). A new case must be handled in all of them.
+- `ToolpathGeneration.isCurrent(for:)` is only `source == toolpath`.
+- There is now a scrub preview (`scrubbableGeneration`, `syncScrub`) and hidden toolpaths (`hiddenToolpathIDs`). The overlay must respect both.
+- `PanelToolpathDetails` is a plain struct with closure callbacks (`onGenerate`, `onAddNext`, ...), and shape picking is driven by `CAMModel.syncPickingWithSelection`.
 
 ---
 
@@ -12,13 +22,13 @@ Work in order. Each step should build and be checked before starting the next.
 
 File: `StratumCAM/toolpaths-engine/SCEngine+RestCorners.swift`
 
-Verified correct: line-to-line convex corners, CW and CCW, reflex corners ignored. Fix the gaps found in review:
+Verified correct earlier: line-to-line convex corners, CW and CCW, reflex corners ignored. Fix the gaps:
 
 1. **Minimum depth filter.** Skip a corner when `centerDistance - toolRadius < minDepth`. Add a `minDepth` parameter, default about 0.03 mm. Without it, an SVG circle imported as 64 lines reports 64 corners about 0.002 mm deep.
 2. **Don't drop corners silently.** When a wall is shorter than the tangent distance, keep the corner and clamp the tangent points to the wall ends (or report it as skipped). Decide which and document it.
-3. **Tool fit check.** Skip a corner if the tool centre `o` would fall outside the pocket (pocket narrower than the tool).
-4. **Stock to leave.** Callers that leave an allowance on the walls should pass `toolRadius + allowance`, so the regions match what is really left. Check the two call sites (`SCEngine+Pocketing.swift` line ~318 and `SCEngine+Allowance.swift` line ~80).
-5. **Out of scope for now (write down as known limits):** line-to-arc corners, concave arcs tighter than the tool, islands.
+3. **Tool fit check.** Skip a corner if the tool centre `o` would fall outside the pocket.
+4. **Stock to leave.** Callers pass `toolRadius + allowance`, so the regions match what is really left. `ToolpathGenerator.makeSettings` already passes `stockToLeave` as `allowance`; the app must use the same value when asking for corners. Check the two library call sites (`SCEngine+Pocketing.swift` ~318, `SCEngine+Allowance.swift` ~80).
+5. **Known limits:** line-to-arc corners, concave arcs tighter than the tool, islands.
 
 Done when: unit tests cover a square, a rectangle, an L-shape, a 64-gon circle (no corners), and a short-wall triangle.
 
@@ -28,8 +38,6 @@ Done when: unit tests cover a square, a rectangle, an L-shape, a 64-gon circle (
 
 New file: `SCEngine+RestMachining.swift`
 
-Signature (adjust to taste):
-
 ```swift
 func generateRestToolpaths(corners: [SC.RestCorner],
                            tool: SC.ToolParams,       // the smaller tool
@@ -37,28 +45,30 @@ func generateRestToolpaths(corners: [SC.RestCorner],
 ```
 
 Per corner:
-1. Build a small **corner polygon**: the corner point, extended along both walls past the big tool's tangent points by a margin of at least the small tool's radius, then closed through area the big tool already cleared.
+1. Build a small **corner polygon**: the corner point, extended along both walls past the big tool's tangent points by at least the small tool's radius, then closed through area the big tool already cleared.
 2. Run it through the existing pocket engine (offset pattern) with the small tool, same Z layers as the settings.
-3. Return one `OutputToolpath` per corner, or merge them into one with rapids between corners.
+3. Return one `OutputToolpath` per corner, or merge them with rapids between corners.
 
 Rules:
 - Throw `toolIncompatible` if `tool.diameter >= corner.toolRadius * 2`.
-- Skip a corner when the small tool can't improve it (leftover smaller than the small tool's own corner rounding), and report how many were skipped.
-- Do not use `region` directly as the pocket boundary: its tip has zero width and the offset collapses (`geometryCollapsed`).
+- Skip a corner the small tool can't improve, and report how many were skipped.
+- Don't use `region` directly as the pocket boundary (zero-width tip collapses: `geometryCollapsed`).
 
-Done when: a 20x20 square pocket cut with a 6 mm tool, then a 2 mm rest pass, gives valid passes for all four corners that stay within the corner polygons.
+**Decision:** the app calls this function directly. Do not add a `.restMachining` case to `SC.MachiningOperation`: a rest operation has no contours of its own, so it doesn't fit that model.
+
+Done when: a 20x20 square pocket cut with a 6 mm tool, then a 2 mm rest pass, gives valid passes for all four corners within the corner polygons.
 
 ---
 
 ## Step 3: Model and validation (app)
 
-Files: `toolpaths/operations/OperationKind.swift`, `OperationSettings.swift`, `OperationDefaults.swift`, `ToolpathData.swift`, `ToolpathData+Operation.swift`
+Files: `operations/OperationKind.swift`, `OperationSettings.swift`, `ToolpathData.swift`, `ToolpathData+Operation.swift`, `ToolpathGenerator.swift`, `ToolpathDetailsModel.swift`
 
-1. Add `OperationKind.restMachining`: title, symbol, `nextName` ("Rest 1"), defaults.
-2. Add `OperationSettings.restSourceID: UUID?`.
-3. Keep decoding of old projects working (new optional keys use `decodeIfPresent`).
-4. Define what the rest operation uses: tool, feeds, Z levels, stepover. It does **not** use selected shapes, so `hasGeometry` must be true when `restSourceID` is set.
-5. Validation: source must exist and be a pocket, and the rest tool must be smaller than the source tool.
+1. Add `OperationKind.restMachining`: title "Rest", symbol, summary, `selectionHint` (nil), added to `groups` after `.pocket`. `nextName` gives "Rest 1" from the title.
+2. Add `OperationSettings.restSourceID: UUID?` (`decodeIfPresent`, so old projects load). Cover it in `ProjectPersistenceTests`.
+3. `ToolpathGenerator.makeOperation(from:)` and `ToolpathData.machiningOperation` have no library equivalent for rest. Give rest an explicit branch (reuse `.pocket` with the rest tool for requirements, i.e. End Z and stepdown yes, tabs and lead-in no) so the form and `validateOptions` keep working. Make sure no exhaustive switch is left unhandled.
+4. `hasGeometry` is true for a rest toolpath when `restSourceID != nil`. Selected shapes are not used. `toolCompatibilityWarning` gets a rest case.
+5. Validation that needs other toolpaths (source exists, is a pocket, rest tool smaller than source tool) can't live in `validateOptions(of:)`. Do it in `ToolpathGenerator.prepare`, which receives the source.
 
 Done when: a rest toolpath can be created in code, saved, and reloaded.
 
@@ -68,14 +78,15 @@ Done when: a rest toolpath can be created in code, saved, and reloaded.
 
 Files: `ToolpathGenerator.swift`, `CAMModel.swift`, `ToolpathGeneration.swift`
 
-1. `ToolpathGenerator.prepare`: for a rest toolpath, resolve the source `ToolpathData` and build the source `Job` too.
-2. Get the source corners: reuse `generations[sourceID]` when `isCurrent(for:)` is true, otherwise run the source job first. Do both in the same background task.
-3. Pass corners and the rest tool to the Step 2 function.
-4. Outdated detection: `isCurrent` compares only the toolpath's own data today. For a rest toolpath it must also compare the source toolpath's data, so editing the pocket marks the rest preview outdated.
-5. Errors to show: source deleted, source not a pocket, source has no corners ("Nothing left to machine in the corners").
-6. `deleteToolpath` on a source: decide whether rest toolpaths linked to it are deleted, or kept and shown with a "source missing" state. Recommended: keep and flag.
+1. Make the job a rest variant, e.g. `Job.rest(source: Job, restTool:, settings:, ...)`. `prepare` takes the source `ToolpathData` too (`prepare(for:source:canvasState:)`), and the rest branch runs **before** the `hasGeometry` / `.noShapes` guard.
+2. `run` for a rest job, in one detached task: run the source job, compute `restCorners` (with `toolRadius + allowance`), call `generateRestToolpaths`, then `droppingPasses(above:)`.
+3. Always compute corners for a pocket source and store them (`restCorners: [SC.RestCorner]`) in `ComputedGeneration` / `ToolpathGeneration`. The overlay (Step 5) and the "Create rest operation" button use them. The rest job recomputes from its own run of the source, so it doesn't depend on another generation being current.
+4. **Outdated detection.** `ToolpathGeneration` stores `sourceSnapshot: ToolpathData?` (the pocket's data at generation time). `isCurrent(for:)` becomes `isCurrent(for toolpath:, linkedSource: ToolpathData?)`: own data equal and, for rest, snapshot equal to the current source. Update all callers: `PanelToolpathDetails` (several), `scrubbableGeneration`, `ToolpathGCodeBuilder` if it checks currency.
+5. New `GenerationError` cases and messages: `sourceMissing`, `sourceNotPocket`, `noRestCorners` ("Nothing left to machine in the corners"), `restToolNotSmaller`.
+6. Deleting a source: keep the rest toolpath and show "source missing" (error from item 5). Don't cascade.
+7. Picking: `syncPickingWithSelection` must not start picking for a rest toolpath.
 
-Done when: editing the pocket's tool or shape and pressing Generate on the rest toolpath gives updated corners.
+Done when: editing the pocket's tool or shape and pressing Preview on the rest toolpath gives updated corners, and the rest preview shows "Outdated" after the pocket is edited.
 
 ---
 
@@ -83,11 +94,13 @@ Done when: editing the pocket's tool or shape and pressing Generate on the rest 
 
 Files: `ToolpathGeneration.swift`, `CAMModel.swift`, `D2_CanvasState.swift`, `D2_RenderObjectBuilder.swift`, `ToolpathPathBuilder.swift`
 
-1. `ToolpathPathBuilder.restPath(for:)`: turn each `corner.region` (two lines and an arc) into a `CGPath`, chord-approximating the arc like the existing code.
-2. Build it in the background step of `generateToolpaths` next to `previewPath`; store as `restPath` on `ToolpathGeneration`.
-3. `D2_CanvasState.restRegionsPath` with a setter, like `setToolpathsPath`.
-4. `D2_RenderObjectBuilder.restRegionsRenderObject` in a distinct colour (outline first; filled needs a triangle primitive, later).
-5. Show regions only for the open toolpath, and only when "Show rest areas" is on. Hide them while scrubbing.
+Follow the existing `previewPath` pattern.
+
+1. `ToolpathPathBuilder.restPath(for:)`: each `corner.region` (two lines and an arc) as a `CGPath`, chord-approximating the arc like the existing code.
+2. Build it in the detached task in `generateToolpaths` next to `previewPath`; store as `restPath` in `ComputedGeneration` and `ToolpathGeneration`.
+3. `D2_CanvasState.restRegionsPath` with a `setRestRegionsPath`, like `setToolpathsPath`.
+4. `D2_RenderObjectBuilder.restRegionsRenderObject` in a distinct colour (outline first; fill later).
+5. Show only for the open pocket whose generation is current, and only when "Show rest areas" is on (state in `CAMModel`, like `hiddenToolpathIDs`). Hide while `toolpathScrub != nil`. Clear it when the selection changes or generations are discarded (`discardGenerations`).
 
 Done when: previewing a pocket with a large tool shows the corner regions on top of the shapes.
 
@@ -95,15 +108,16 @@ Done when: previewing a pocket with a large tool shows the corner regions on top
 
 ## Step 6: UI (app)
 
-Files: `panels/PanelToolpathDetails.swift`, `toolpaths/operations/OperationOptionsView.swift`, `CAMView.swift`, `panels/PanelToolpaths.swift`
+Files: `panels/PanelToolpathDetails.swift`, `ToolpathDetailsModel.swift`, `OperationOptionsView.swift`, `CAMView.swift`, `panels/PanelToolpaths.swift`
 
-1. In the Preview section: toggle "Show rest areas", and a button **"Create rest operation"** shown only when the current generation has rest corners.
-2. The button calls `CAMModel.addRestToolpath(from: id)`: copies settings and Z levels from the source, sets `restSourceID`, picks a default smaller tool, adds it to `toolpaths`, opens it.
-3. Panel for a rest toolpath: hide "Shapes", show "Source: <pocket name>", keep Tool & feeds and Z levels. Warn when the tool is not smaller than the source tool.
-4. Toolpaths list row: show the rest operation with its icon and the source name as subtitle.
-5. Update `toolpaths/INFO.md` with the new sections.
+1. `PanelToolpathDetails` new inputs: `restCornerCount: Int = 0`, `restSourceName: String? = nil`, `showRestAreas` (binding or value + callback), `onCreateRest: () -> Void = {}`.
+2. In `rowPreview`: "Show rest areas" toggle and a **"Create rest operation"** button, shown only for a pocket whose generation is current and has `restCornerCount > 0`.
+3. `CAMModel.addRestToolpath(from:)`: copies settings and Z levels from the source, sets `restSourceID`, picks a default smaller tool, inserts it right after the source in `toolpaths` (so list order is machining order), and opens it.
+4. For a rest toolpath: `rowShapes` shows "Source: <pocket name>" (or "Source missing" in orange) instead of the click-to-select label; hide the facing/slot/tab parts. Update `ToolpathDetailsModel.shapesTitle` and `previewButtonHelp`. Warn when the tool is not smaller than the source tool.
+5. Toolpaths list row: rest icon, source name as subtitle.
+6. Update `cam/toolpaths/INFO.md`.
 
-Done when: the full flow works: preview pocket, see regions, click create, new toolpath appears in the list, Generate shows the small-tool paths.
+Done when: the full flow works: preview pocket, see regions, click create, new toolpath appears after the pocket, Preview shows the small-tool paths.
 
 ---
 
@@ -111,13 +125,15 @@ Done when: the full flow works: preview pocket, see regions, click create, new t
 
 Files: `ToolpathGCodeBuilder.swift`, `MakeraGCodeHeaderWriter.swift`
 
-1. Confirm the G-code builder handles the rest toolpath's `OutputToolpath` without changes; check tool-change handling when the rest tool differs from the pocket tool.
-2. Make sure toolpath order in the list is the machining order (rest after its source).
+1. `ToolpathGCodeBuilder` uses `ToolpathGenerator.makeSettings(from: generation.source)`; this works for rest because the rest toolpath's own data is the source. Confirm, check tool-change handling when the rest tool differs from the pocket tool, and that the header lists both tools.
+2. Rest must come after its source in the list; reordering (`ToolpathDropDelegate`) should warn or keep that order.
 3. Manual test list:
    - square pocket, 6 mm then 2 mm
    - SVG circle pocket (no rest corners expected)
+   - pocket with stock to leave
    - delete the source
    - change the source tool after creating the rest toolpath, then regenerate
+   - edit the source and check the rest preview shows "Outdated"
    - save and reload the project
 
 ---
