@@ -267,12 +267,14 @@ struct CAMView: View {
                              generation: camModel.generations[toolpath.id],
                              isGenerating: camModel.generatingIDs.contains(toolpath.id),
                              onGenerate: {
+                                 projectModel.saveIfNeeded()
                                  camModel.generateToolpaths(for: toolpath.id)
                              },
                              onScrub: { step in
                                  camModel.setToolpathScrubStep(step)
                              },
                              onDone: {
+                                projectModel.saveIfNeeded()
                                 withAnimation(.easeOut(duration: 0.15)) {
                                     camModel.selectedToolpathID = nil
                                 }
@@ -283,6 +285,7 @@ struct CAMView: View {
                                 }
                              },
                              onAddNext: {
+                                projectModel.saveIfNeeded()
                                 camModel.addToolpath()
                              },
                              targetShapes: {

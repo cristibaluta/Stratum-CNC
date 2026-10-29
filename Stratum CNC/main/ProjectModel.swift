@@ -74,7 +74,6 @@ class ProjectModel: ObservableObject {
     @Published var projectData: ProjectData {
         didSet {
             hasUnsavedChanges = true
-            saveMetadataTrigger.send(())
         }
     }
     @Published var toolpaths: [ToolpathData]?
@@ -101,13 +100,10 @@ class ProjectModel: ObservableObject {
     private let beginFolderAccess: @MainActor () -> Bool
     private let endFolderAccess: @MainActor () -> Void
 
-    // Rapid-fire edits (dragging an object, nudging it, live-typing in the
-    // inspector) each call through to here — writing to disk on every one
-    // would mean dozens of writes per second. Every save request goes
-    // through this subject instead of hitting disk directly; `debounce`
-    // waits for a quiet gap before actually saving, so a burst of changes
-    // collapses into a single write once the user pauses.
-    private let saveMetadataTrigger = PassthroughSubject<Void, Never>()
+    // Rapid-fire edits (dragging an object, nudging it, live-typing in the inspector) only mark
+    // the project as having unsaved changes. They reach the disk on a timer (`autosaveInterval`),
+    // on the key actions of the toolpath panel (`saveIfNeeded`), and when the project closes.
+    private static let autosaveInterval: TimeInterval = 30
     private var cancellables = Set<AnyCancellable>()
     private var loadedAssetNames = Set<String>()
 
@@ -178,7 +174,6 @@ class ProjectModel: ObservableObject {
         camModel.onToolpathsChanged = { [weak self] toolpaths in
             self?.toolpaths = toolpaths
             self?.hasUnsavedChanges = true
-            try? self?.saveToolpaths()
         }
 
         // Wired up only after the initial load/restore above has finished:
@@ -191,13 +186,10 @@ class ProjectModel: ObservableObject {
             self?.updateAssetTransforms(from: objects)
         }
 
-        saveMetadataTrigger
-            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
-            .sink { [weak self] in
-                guard let self else { return }
-                if (try? self.saveProjectMetadata()) != nil {
-                    self.hasUnsavedChanges = false
-                }
+        Timer.publish(every: Self.autosaveInterval, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.saveIfNeeded()
             }
             .store(in: &cancellables)
 
@@ -291,6 +283,13 @@ class ProjectModel: ObservableObject {
 
     /// Flush pending edits before closing or quitting; debounce alone can lose
     /// the final edit when this model is released before its timer fires.
+    /// Writes the project if something changed since the last save. Called by the timer and by
+    /// the key actions (Done, Preview, new toolpath).
+    func saveIfNeeded() {
+        guard hasUnsavedChanges else { return }
+        try? save()
+    }
+
     func save() throws {
         try saveProjectMetadata()
         try saveToolpaths()

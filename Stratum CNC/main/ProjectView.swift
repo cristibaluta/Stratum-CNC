@@ -103,10 +103,10 @@ struct ProjectView: View {
                 }
             }
         }
-        // A tinted, textured bar so it stands out from the canvas under it, where the Liquid Glass
-        // toolbar would otherwise blend into the content.
-        .toolbarBackground(ToolbarTexture.paint, for: .windowToolbar)
-        .toolbarBackground(.visible, for: .windowToolbar)
+        // A thin line between the toolbar and the content, so they stay apart on Liquid Glass.
+        .overlay(alignment: .top) {
+            Divider()
+        }
         .navigationTitle(title)
         .navigationSubtitle(subtitle)
     }
