@@ -84,22 +84,25 @@ struct ProjectView: View {
             if projectModel.activeTab == .cam {
                 ToolbarItem(placement: .primaryAction) {
                     ControlGroup {
-                    Button(action: {
-                        appModel.showingToolsSheet.toggle()
-                    }) {
-                        Label {
-                            Text("Tools")
-                        } icon: {
-                            EndMillIcon(size: 16)
+                        Button(action: {
+                            appModel.showingToolsSheet.toggle()
+                        }) {
+                            Label {
+                                Text("Tools")
+                            } icon: {
+                                endMillTemplateImage(size: 16)
+                            }
                         }
-                    }
+                        .help("Tools library")
 
-                    Button(action: {
-                        appModel.showingStocksSheet.toggle()
-                    }) {
-                        Label("Stock", systemImage: "cube")
+                        Button(action: {
+                            appModel.showingStocksSheet.toggle()
+                        }) {
+                            Label("Stock", systemImage: "cube")
+                        }
+                        .help("Stocks library")
                     }
-                    }
+                    .controlGroupStyle(.navigation)
                 }
             }
         }

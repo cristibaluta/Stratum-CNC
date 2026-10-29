@@ -56,6 +56,20 @@ struct EndMillIcon: View {
     }
 }
 
+/// Template `Image` of the end mill. Toolbars only tint image-backed icons, so a plain Shape
+/// can render invisible there; this rasterizes it as a template image.
+@MainActor
+func endMillTemplateImage(size: CGFloat = 16) -> Image {
+    let renderer = ImageRenderer(content: EndMillIcon(size: size).foregroundStyle(.black))
+    renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+    guard let cg = renderer.cgImage else {
+        return Image(systemName: "wrench.and.screwdriver")
+    }
+    let ns = NSImage(cgImage: cg, size: NSSize(width: size, height: size))
+    ns.isTemplate = true
+    return Image(nsImage: ns)
+}
+
 #Preview {
     HStack(spacing: 20) {
         EndMillShape().stroke(lineWidth: 1.5).frame(width: 64, height: 64)

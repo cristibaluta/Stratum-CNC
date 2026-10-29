@@ -30,7 +30,10 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     /// and edited as a percentage, so changing the tool keeps it; the mm value is derived
     /// (`stepOverMM`).
     var stepOverPercent: Double
+    /// The high travel height (mm): where the tool starts and ends and rapids between cuts far apart.
     var safeZ: Double
+    /// The low travel height (mm) for the hops between passes. Never above `safeZ` (see `ToolpathGenerator.makeSettings`).
+    var retractZ: Double = 1
 
     /// The contours (paths on the canvas) this toolpath cuts. Empty until the
     /// user picks some — picked on the canvas while the toolpath is open (see CAMModel.selectedToolpathID).
@@ -53,7 +56,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
         case startZ, endZ
         case contour, ramping
         case feedRate, plungeRate, spindleRPM
-        case stepDown, stepOverPercent, safeZ
+        case stepDown, stepOverPercent, safeZ, retractZ
         case targets
         case operation, editedFields
     }
@@ -278,6 +281,8 @@ extension ToolpathData {
         spindleRPM = try c.decode(Int.self, forKey: .spindleRPM)
         stepDown = try c.decode(Double.self, forKey: .stepDown)
         safeZ = try c.decode(Double.self, forKey: .safeZ)
+        // Projects saved before Retract Z existed used a fixed 1 mm.
+        retractZ = try c.decodeIfPresent(Double.self, forKey: .retractZ) ?? 1
 
         // Projects saved before stepover became a percentage stored it in mm: convert it with
         // the saved tool's diameter.

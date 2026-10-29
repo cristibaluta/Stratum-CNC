@@ -160,7 +160,7 @@ enum ToolpathGenerator {
 
         return SC.MachineSettings(cutting: cutting,
                                   safeZ: toolpath.safeZ,
-                                  retractZ: min(1.0, toolpath.safeZ),
+                                  retractZ: min(toolpath.retractZ, toolpath.safeZ),
                                   targetDepth: abs(depth),
                                   // Only the operations that use them read these (see
                                   // `SC.OperationRequirements.usesAllowance`); the rest ignore them.

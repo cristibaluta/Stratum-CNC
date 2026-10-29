@@ -212,6 +212,7 @@ struct OperationOptionsView: View {
 
             // Feed rate of the cutting moves in the plane (the entry's own feed is in the Entry section)
             InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
+                .help("How fast the tool moves while cutting in the XY plane.")
 
             // Stepover is about how the area is cleared (facing included).
             if usesStepover {
@@ -354,6 +355,7 @@ struct OperationOptionsView: View {
     @ViewBuilder
     private var stepOverRow: some View {
         InspectorNumberField(title: "Stepover", value: stepOverPercent, suffix: "% of Ø")
+            .help("Distance between neighbouring passes, as a percentage of the tool diameter. Smaller means a smoother finish and more passes.")
         InspectorNote(text: stepOverNote)
     }
 

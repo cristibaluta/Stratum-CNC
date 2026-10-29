@@ -68,7 +68,7 @@ struct PanelToolpathDetails: View {
                 InspectorSection(title: "XY plane") {
                     rowXYMovement
                 }
-                // Start Z, End Z, the depth per pass, the holding tabs and the clearance height.
+                // Start Z, End Z, the depth per pass, the holding tabs, and the Safe and Retract heights.
                 InspectorSection(title: "Z axis") {
                     rowDepth
                 }
@@ -161,6 +161,7 @@ struct PanelToolpathDetails: View {
     private var rowDepth: some View {
         // Z range (a counterbore has its own depth instead of an End Z; it is shown as one)
         InspectorNumberField(title: "Start Z", value: $toolpath.startZ, suffix: "mm")
+            .help("The height where cutting starts. 0 is the top of the stock; passes above it are skipped.")
         if toolpath.operation.kind == .counterbore {
             InspectorNumberField(title: "End Z", value: model.counterboreEndDepth($toolpath), suffix: "mm", prefix: "−")
                 .help("How deep the counterbore goes below the top of the stock.")
@@ -177,9 +178,11 @@ struct PanelToolpathDetails: View {
         // a drill by its peck depth.
         if toolpath.operation.kind == .slotting {
             InspectorNumberField(title: "Depth per pass", value: model.slotDepthPerPass($toolpath), suffix: "mm")
+                .help("How deep the slot is cut in each pass.")
             passesNote(stepdown: toolpath.operation.slotDepthPerPass)
         } else if requirements.usesStepdown {
             InspectorNumberField(title: "Stepdown", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), suffix: "mm")
+                .help("How deep the tool cuts in each pass. Smaller means lighter cuts and more passes.")
             passesNote(stepdown: toolpath.stepDown)
         }
         if toolpath.operation.kind == .drilling {
@@ -188,6 +191,7 @@ struct PanelToolpathDetails: View {
                         help: "Drill in steps of the peck depth, retracting in between to clear the chips.")
             if toolpath.operation.drillUsesPecking {
                 InspectorNumberField(title: "Peck depth", value: model.drillPeckDepth($toolpath), suffix: "mm")
+                    .help("How deep the drill goes before retracting to clear the chips.")
             }
         }
         // The operation's own depth settings: a bore's dwell and retract, a chamfer's depth
@@ -198,8 +202,10 @@ struct PanelToolpathDetails: View {
         if OperationOptionsView.hasTabs(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, part: .tabs)
         }
-        InspectorNumberField(title: "Clearance Z", value: $toolpath.safeZ, suffix: "mm")
-            .help("The height the tool travels at between cuts.")
+        InspectorNumberField(title: "Safe Z", value: $toolpath.safeZ, suffix: "mm")
+            .help("The height the tool starts and ends at, and travels at between distant cuts.")
+        InspectorNumberField(title: "Retract Z", value: $toolpath.retractZ, suffix: "mm")
+            .help("The height the tool lifts to between passes. Not higher than Safe Z.")
     }
 
     /// How many passes Start Z, End Z and the stepdown come to, under the field that sets it.
