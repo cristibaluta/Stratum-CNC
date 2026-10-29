@@ -31,6 +31,10 @@ struct ToolsSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
+    private static let importDialogMessage = "Fusion 360 tool library (.tools, .zip, .json)"
+
+    private static let importHelp = "Import tools from a Fusion 360 tool library (.tools, or a .zip / .json export). Cutting tools such as end mills, drills and V-bits are added; holders and taps are ignored, and tools already in the library are skipped."
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -153,6 +157,7 @@ struct ToolsSheet: View {
             } label: {
                 Label("Import", systemImage: "square.and.arrow.down")
             }
+            .help(Self.importHelp)
 
         }
         .padding(.horizontal, 20)
@@ -163,6 +168,8 @@ struct ToolsSheet: View {
         ) { result in
             handleImport(result)
         }
+        .fileDialogMessage(Self.importDialogMessage)
+        .fileDialogConfirmationLabel("Import")
         .alert("Import Tools", isPresented: Binding(
             get: { importMessage != nil },
             set: { if !$0 { importMessage = nil } }
