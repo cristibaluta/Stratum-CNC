@@ -171,10 +171,30 @@ struct LeadInOutSettings: Codable, Hashable {
     var style: Style
     /// mm/min.
     var feedRate: Double
+    /// Moves the move along a closed contour, 0...1 of its length. A lead-in starts the cut
+    /// there; a lead-out carries the cut on that far past where it would end.
+    var positionRatio: Double = 0
+    /// Linear leads only: the angle to the contour in degrees. 0 = in line with it, positive
+    /// leans towards the free side, negative towards the material.
+    var angleDegrees: Double = 0
 
-    init(style: Style, feedRate: Double) {
+    init(style: Style, feedRate: Double, positionRatio: Double = 0, angleDegrees: Double = 0) {
         self.style = style
         self.feedRate = feedRate
+        self.positionRatio = positionRatio
+        self.angleDegrees = angleDegrees
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case style, feedRate, positionRatio, angleDegrees
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        style = try c.decode(Style.self, forKey: .style)
+        feedRate = try c.decode(Double.self, forKey: .feedRate)
+        positionRatio = try c.decodeIfPresent(Double.self, forKey: .positionRatio) ?? 0
+        angleDegrees = try c.decodeIfPresent(Double.self, forKey: .angleDegrees) ?? 0
     }
 
     init(_ leadInOut: SC.LeadInOut) {
@@ -185,14 +205,16 @@ struct LeadInOutSettings: Codable, Hashable {
                 style = .arc(radius: radius, sweepAngleDegrees: sweep)
         }
         feedRate = leadInOut.feedRate
+        positionRatio = leadInOut.positionRatio
+        angleDegrees = leadInOut.angleDegrees
     }
 
     var libraryLeadInOut: SC.LeadInOut {
         switch style {
             case .linear(let length):
-                return SC.LeadInOut(style: .linear(length: length), feedRate: feedRate)
+                return SC.LeadInOut(style: .linear(length: length), feedRate: feedRate, positionRatio: positionRatio, angleDegrees: angleDegrees)
             case .arc(let radius, let sweep):
-                return SC.LeadInOut(style: .arc(radius: radius, sweepAngleDegrees: sweep), feedRate: feedRate)
+                return SC.LeadInOut(style: .arc(radius: radius, sweepAngleDegrees: sweep), feedRate: feedRate, positionRatio: positionRatio, angleDegrees: angleDegrees)
         }
     }
 }

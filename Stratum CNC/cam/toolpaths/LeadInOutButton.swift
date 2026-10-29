@@ -163,12 +163,27 @@ struct LeadInOutEditor: View {
                     case .linear:
                         InspectorNumberField(title: "Length", value: length, suffix: "mm")
                             .help("How far before the contour the tool plunges, measured along the line the cut starts on.")
+                        InspectorNumberField(title: "Angle", value: angle, suffix: "°")
+                            .help("Angle between the run and the contour. 0° is in line with it; a positive angle comes in from the free side, a negative one from the material side.")
                     case .arc:
                         InspectorNumberField(title: "Radius", value: radius, suffix: "mm")
                             .help("Radius of the arc the tool centre follows. The arc must fit in the free space beside the wall.")
                         InspectorNumberField(title: "Sweep", value: sweep, suffix: "°")
                             .help("How much of the circle the tool travels. 90° is a quarter turn. A negative angle swings the arc to the other side of the contour.")
                 }
+                InspectorRow(label: role == .leadIn ? "Start point" : "Extend by") {
+                    HStack(spacing: 8) {
+                        Slider(value: position, in: 0...1)
+                            .controlSize(.small)
+                        Text("\(Int((current.positionRatio * 100).rounded())) %")
+                            .font(.system(size: 11).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
+                .help(role == .leadIn
+                      ? "Where along a closed contour the cut starts. Slide it to a straight stretch with free space beside it, so the approach doesn't cross the part."
+                      : "How far the cut carries on along the contour, past where it would end, before the tool leaves it.")
                 InspectorNumberField(title: "Feed rate", value: feedRate, suffix: "mm/min")
                     .help("Speed of this move. The plunge itself uses the plunge feed.")
             }
@@ -285,6 +300,20 @@ struct LeadInOutEditor: View {
                     leadInOut?.style = .arc(radius: radius, sweepAngleDegrees: Self.clampSweep(newValue))
                 }
             }
+        )
+    }
+
+    private var angle: Binding<Double> {
+        Binding(
+            get: { current.angleDegrees },
+            set: { leadInOut?.angleDegrees = Self.clamp($0, -80...80) }
+        )
+    }
+
+    private var position: Binding<Double> {
+        Binding(
+            get: { current.positionRatio },
+            set: { leadInOut?.positionRatio = Self.clamp($0, 0...1) }
         )
     }
 
