@@ -13,6 +13,10 @@ struct PanelStockMaterial: View {
     @Binding var isStockVisible: Bool
     let isCompact: Bool
     var onOpenStocksLib: (() async -> StockMaterial?)?
+    /// When set, the library button opens the stocks library in a popover instead of calling `onOpenStocksLib`.
+    var stocksStore: StocksStore? = nil
+
+    @State private var showingLibrary = false
 
     /// Collapsed, the panel is one line. Clicking it opens the editable details.
     @State private var isExpanded = false
@@ -41,6 +45,10 @@ struct PanelStockMaterial: View {
             }
 
             Button {
+                if stocksStore != nil {
+                    showingLibrary = true
+                    return
+                }
                 Task {
                     if let returnedItem = await onOpenStocksLib?() {
                         self.stock = returnedItem
@@ -54,6 +62,12 @@ struct PanelStockMaterial: View {
             }
             .buttonStyle(.borderless)
             .help("Pick from the material library")
+            .popover(isPresented: $showingLibrary, arrowEdge: .leading) {
+                if let stocksStore {
+                    StockSheet(store: stocksStore, onPick: { stock = $0 })
+                        .frame(width: 800, height: 600)
+                }
+            }
 
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {

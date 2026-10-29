@@ -96,9 +96,7 @@ struct CAMView: View {
                         PanelStockMaterial(stock: $camModel.selectedStockMaterial,
                                            isStockVisible: stockVisibleBinding,
                                            isCompact: true,
-                                           onOpenStocksLib: {
-                                               return await appModel.pickStockMaterial()
-                                           })
+                                           stocksStore: appModel.stocksStore)
                             .background(.background)// Without a background the canvas is displayed above the GroupBox background
                             .frame(width: 320)
                         // Only while a toolpath is selected in the list

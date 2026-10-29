@@ -14,6 +14,9 @@ struct ToolPicker: View {
 
     @EnvironmentObject var appModel: AppModel
 
+    /// The tool library opens in a popover here, instead of the app-wide sheet.
+    @State private var showingLibrary = false
+
     var body: some View {
         InspectorRow(label: "Tool") {
             HStack(spacing: 6) {
@@ -66,15 +69,15 @@ struct ToolPicker: View {
                 .buttonStyle(.plain)
                 .help("Pick from the tool library")
             }
+            .popover(isPresented: $showingLibrary, arrowEdge: .leading) {
+                ToolsSheet(store: appModel.toolsStore, onPick: { select($0) })
+                    .frame(width: 800, height: 600)
+            }
         }
     }
 
     private func pickFromLibrary() {
-        Task {
-            if let picked = await appModel.pickTool() {
-                select(picked)
-            }
-        }
+        showingLibrary = true
     }
 
     private func select(_ candidate: Tool) {

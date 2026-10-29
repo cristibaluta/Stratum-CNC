@@ -73,7 +73,8 @@ struct ProjectView: View {
             }
 
             if projectModel.activeTab == .cam {
-                ToolbarItemGroup(placement: .primaryAction) {
+                ToolbarItem(placement: .primaryAction) {
+                    ControlGroup {
                     Button(action: {
                         appModel.showingToolsSheet.toggle()
                     }) {
@@ -88,6 +89,7 @@ struct ProjectView: View {
                         appModel.showingStocksSheet.toggle()
                     }) {
                         Label("Stock", systemImage: "cube")
+                    }
                     }
                 }
             }
