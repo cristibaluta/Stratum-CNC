@@ -227,7 +227,7 @@ struct OperationOptionsView: View {
                 rampingRow
                 // The full explanation (and the fix) is next to the lead-in, in XY movement.
                 if toolpath.leadInConflictsWithEntry {
-                    InspectorNote(text: "Conflicts with the lead-in (see XY movement): turn the entry off or remove the lead-in.",
+                    InspectorNote(text: "Conflicts with the lead-in (see Horizontal plane): turn the entry off or remove the lead-in.",
                                   isWarning: true)
                 }
             }

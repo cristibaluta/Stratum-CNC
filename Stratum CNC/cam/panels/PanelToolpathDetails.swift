@@ -56,15 +56,15 @@ struct PanelToolpathDetails: View {
                 InspectorSection(title: "Shapes") {
                     rowShapes
                 }
-                InspectorSection(title: "Tool & feeds") {
+                InspectorSection(title: "Tool") {
                     rowTool
                 }
                 // How the tool moves in the plane
-                InspectorSection(title: "XY movement") {
+                InspectorSection(title: "Horizontal plane (XY)") {
                     rowXYMovement
                 }
                 // Start Z, End Z, the depth per pass, how the tool enters the material and the clearance height.
-                InspectorSection(title: "Z levels") {
+                InspectorSection(title: "Vertical plane (Z)") {
                     rowDepth
                 }
                 InspectorSection(title: "Preview") {
