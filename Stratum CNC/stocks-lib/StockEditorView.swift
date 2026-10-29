@@ -9,23 +9,10 @@ import SwiftUI
 
 struct StockEditorView: View {
 
-    /// The saved stock. Nothing is written until the user taps Save.
-    let stock: StockMaterial
-    let onSave: (StockMaterial) -> Void
-
-    @State private var draft: StockMaterial
+    /// The draft being edited; owned by the sheet, which shows Revert/Save in its bottom bar.
+    @Binding var draft: StockMaterial
 
     @Environment(\.openURL) private var openURL
-
-    init(stock: StockMaterial, onSave: @escaping (StockMaterial) -> Void) {
-        self.stock = stock
-        self.onSave = onSave
-        _draft = State(initialValue: stock)
-    }
-
-    private var hasChanges: Bool {
-        draft != stock
-    }
 
     var body: some View {
         Form {
@@ -34,28 +21,7 @@ struct StockEditorView: View {
             availabilitySection
         }
         .formStyle(.grouped)
-        .navigationTitle(stock.name)
-        .safeAreaInset(edge: .bottom) {
-            if hasChanges {
-                HStack {
-                    Text("Unsaved changes")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Revert") {
-                        draft = stock
-                    }
-                    Button("Save") {
-                        onSave(draft)
-                    }
-                    .keyboardShortcut("s", modifiers: .command)
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 10)
-                .background(.bar)
-            }
-        }
+        .navigationTitle(draft.name)
     }
 }
 

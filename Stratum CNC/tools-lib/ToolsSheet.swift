@@ -52,18 +52,7 @@ struct ToolsSheet: View {
                         tool: Binding(
                             get: { store.tools[index] },
                             set: { store.tools[index] = $0 }
-                        ),
-                        hasUnsavedChanges: store.hasUnsavedChanges,
-                        onSave: {
-                            do {
-                                try store.save()
-                            } catch {
-                                print("Failed to save tools: \(error)")
-                            }
-                        },
-                        onRevert: {
-                            store.revertChanges()
-                        }
+                        )
                     )
                 } else {
                     ContentUnavailableView(
@@ -92,11 +81,58 @@ struct ToolsSheet: View {
             } message: { _ in
                 Text("This can't be undone.")
             }
+            Divider()
+            bottomBar
         }
     }
 
     private var selectedTool: Tool? {
         store.tools.first { $0.id == selectedToolID }
+    }
+
+    /// Permanent bar: Revert/Save while there are unsaved edits, otherwise Done (or Pick).
+    private var bottomBar: some View {
+        HStack(spacing: 12) {
+            if store.hasUnsavedChanges {
+                Text("Unsaved changes")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if store.hasUnsavedChanges {
+                Button("Revert") {
+                    store.revertChanges()
+                }
+                Button("Save") {
+                    do {
+                        try store.save()
+                    } catch {
+                        print("Failed to save tools: \(error)")
+                    }
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .buttonStyle(.borderedProminent)
+            } else if let onPick {
+                Button("Pick") {
+                    if let tool = selectedTool {
+                        onPick(tool)
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(selectedTool == nil)
+            } else {
+                Button("Done") {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 
     private var header: some View {
@@ -118,22 +154,6 @@ struct ToolsSheet: View {
                 Label("Import", systemImage: "square.and.arrow.down")
             }
 
-            Button("Close") {
-                dismiss()
-            }
-            .keyboardShortcut(.cancelAction)
-
-            if let onPick {
-                Button("Pick") {
-                    if let tool = selectedTool {
-                        onPick(tool)
-                        dismiss()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(selectedTool == nil)
-            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)

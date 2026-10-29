@@ -16,6 +16,7 @@ struct StockSheet: View {
     var onPick: ((StockMaterial) -> Void)?
 
     @State private var selectedStockID: StockMaterial.ID?
+    @State private var draft: StockMaterial?
     @State private var stockPendingDeletion: StockMaterial?
     @State private var inStockOnly = false
 
@@ -41,22 +42,15 @@ struct StockSheet: View {
                 .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
             } detail: {
                 if let selectedStockID,
-                   let index = store.stocks.firstIndex(
-                        where: { $0.id == selectedStockID }
-                   ) {
+                   store.stocks.contains(where: { $0.id == selectedStockID }),
+                   draft?.id == selectedStockID {
 
                     StockEditorView(
-                        stock: store.stocks[index],
-                        onSave: { newValue in
-                            do {
-                                try store.update(newValue)
-                            } catch {
-                                print("Failed to save stock: \(error)")
-                            }
-                        }
+                        draft: Binding(
+                            get: { draft ?? store.stocks.first { $0.id == selectedStockID }! },
+                            set: { draft = $0 }
+                        )
                     )
-                    // Reset the draft when a different stock is selected.
-                    .id(store.stocks[index].id)
 
                 } else {
                     ContentUnavailableView(
@@ -68,6 +62,7 @@ struct StockSheet: View {
             }
             .navigationTitle("Stock Materials")
             .onAppear(perform: selectFirstIfNeeded)
+            .onChange(of: selectedStockID) { _ in draft = selectedStock }
             .onChange(of: inStockOnly) { _ in
                 let visible = visibleStocks
                 if !visible.contains(where: { $0.id == selectedStockID }) {
@@ -89,12 +84,64 @@ struct StockSheet: View {
             } message: { _ in
                 Text("This can't be undone.")
             }
-    
+            Divider()
+            bottomBar
         }
     }
 
     private var selectedStock: StockMaterial? {
         store.stocks.first { $0.id == selectedStockID }
+    }
+
+    private var hasUnsavedChanges: Bool {
+        guard let draft, let selectedStock else { return false }
+        return draft != selectedStock
+    }
+
+    /// Permanent bar: Revert/Save while there are unsaved edits, otherwise Done (or Pick).
+    private var bottomBar: some View {
+        HStack(spacing: 12) {
+            if hasUnsavedChanges {
+                Text("Unsaved changes")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if hasUnsavedChanges {
+                Button("Revert") {
+                    draft = selectedStock
+                }
+                Button("Save") {
+                    guard let draft else { return }
+                    do {
+                        try store.update(draft)
+                    } catch {
+                        print("Failed to save stock: \(error)")
+                    }
+                }
+                .keyboardShortcut("s", modifiers: .command)
+                .buttonStyle(.borderedProminent)
+            } else if let onPick {
+                Button("Pick") {
+                    if let stock = selectedStock {
+                        onPick(stock)
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(selectedStock == nil)
+            } else {
+                Button("Done") {
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 
     private var header: some View {
@@ -108,23 +155,6 @@ struct StockSheet: View {
                 addStock()
             } label: {
                 Label("Add Stock", systemImage: "plus")
-            }
-
-            Button("Close") {
-                dismiss()
-            }
-            .keyboardShortcut(.cancelAction)
-
-            if let onPick {
-                Button("Pick") {
-                    if let stock = selectedStock {
-                        onPick(stock)
-                        dismiss()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(selectedStock == nil)
             }
         }
         .padding(.horizontal, 20)

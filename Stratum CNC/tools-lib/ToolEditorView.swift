@@ -22,9 +22,6 @@ struct ToolEditorView: View {
 
     /// Edits apply live (the list updates immediately); nothing is written to disk until Save.
     @Binding var tool: Tool
-    let hasUnsavedChanges: Bool
-    let onSave: () -> Void
-    let onRevert: () -> Void
 
     var body: some View {
         Form {
@@ -34,27 +31,6 @@ struct ToolEditorView: View {
         }
         .formStyle(.grouped)
         .navigationTitle(tool.displayName)
-        .safeAreaInset(edge: .bottom) {
-            if hasUnsavedChanges {
-                HStack {
-                    Text("Unsaved changes")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Revert") {
-                        onRevert()
-                    }
-                    Button("Save") {
-                        onSave()
-                    }
-                    .keyboardShortcut("s", modifiers: .command)
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 10)
-                .background(.bar)
-            }
-        }
     }
 }
 
