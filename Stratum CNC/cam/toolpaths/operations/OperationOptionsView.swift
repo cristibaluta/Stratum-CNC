@@ -2,8 +2,9 @@
 //  OperationOptionsView.swift
 //  Stratum CNC
 //
-//  The row of controls that changes with the chosen operation: a contour has a side, a
-//  drill has an optional peck depth, a counterbore has a diameter and a depth…
+//  The controls that change with the chosen operation: a contour has a side, a drill has an
+//  optional peck depth, a counterbore has a diameter and a depth… They are placed by what they
+//  do: in the plane (XY movement) or down into the material (Z levels).
 //
 
 import SwiftUI
@@ -42,25 +43,38 @@ struct OperationOptionsView: View {
     /// Which section of the panel this instance fills. The panel places one of each, so the
     /// operation's controls are grouped by what they do instead of sitting in one list.
     enum Part {
-        /// What the cut is: side, selection source, the library's own fields, pattern.
-        case operation
-        /// How the tool moves in the plane: cut direction, feed rate, stepover, stock to leave, the
-        /// pattern's extra control, lead-in/out.
+        /// How the tool moves in the plane, and what the cut is in it: side, selection source,
+        /// the library's own fields (sizes, thread, extension), cut direction, feed rate, pattern,
+        /// stepover, stock to leave, lead-in/out.
         case xyMovement
+        /// The operation's own depth settings (dwell, shift before retract, a chamfer's depth
+        /// override). Shown in "Z levels".
+        case depth
         /// How the tool descends into the material (ramp / helix / plunge). Shown in "Z levels".
         case entry
         /// The holding tabs of a contour, which leave material standing at the bottom. Shown in "Z levels".
         case tabs
     }
 
-    var part: Part = .operation
+    var part: Part = .xyMovement
 
     /// The cut direction (climb / conventional) fields `formFields` builds. They are shown in
-    /// the XY movement section, since they decide how the tool travels along the path, and
-    /// left out of the Operation section.
+    /// the XY movement section next to the other movement settings.
     private static let xyDirectionFieldIDs: Set<String> = [
-        "facing.direction", "contour.direction", "pocket.direction"
+        "facing.direction", "contour.direction", "pocket.direction",
+        "counterbore.direction", "chamfer.params.direction"
     ]
+
+    /// The library's fields that are about the depth: the bottom of a bore and its retract, how
+    /// deep a chamfer goes. They are shown in the Z levels section, the rest in XY movement.
+    private static let zFieldIDs: Set<String> = [
+        "boring.dwellTime", "boring.shiftRetract", "chamfer.params.depth"
+    ]
+
+    /// Whether the "Z levels" section has fields of the operation's own (see `zFieldIDs`).
+    static func hasDepthFields(for toolpath: ToolpathData) -> Bool {
+        toolpath.operation.kind == .boring || toolpath.operation.kind == .chamfer
+    }
 
     /// Whether the "Z levels" section has a holding tabs row for this toolpath.
     static func hasTabs(for toolpath: ToolpathData) -> Bool {
@@ -74,8 +88,8 @@ struct OperationOptionsView: View {
 
     var body: some View {
         switch part {
-            case .operation: operationPart
             case .xyMovement: xyMovementPart
+            case .depth: depthPart
             case .entry: entryPart
             case .tabs: tabsPart
         }
@@ -91,8 +105,12 @@ struct OperationOptionsView: View {
         )
     }
 
-    private var operationPart: some View {
-        let fields = formFields
+    // MARK: XY movement
+
+    private var xyMovementPart: some View {
+        let fields = displayedFields(of: formFields)
+        let hiddenIDs = kind.hiddenFieldIDs.union(Self.xyDirectionFieldIDs).union(Self.zFieldIDs)
+        let ownFields = fields.filter { !hiddenIDs.contains($0.id) }
 
         return VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             if kind == .slotting {
@@ -112,28 +130,16 @@ struct OperationOptionsView: View {
                 ContourPicker(selection: $toolpath.operation.chamferSide)
             }
 
-            ParameterFieldsView(fields: displayedFields(of: fields),
-                                hiddenFieldIDs: kind.hiddenFieldIDs.union(Self.xyDirectionFieldIDs),
-                                hiddenCaseIDs: OperationKind.hiddenCaseIDs)
-
-            if kind == .chamfer {
-                chamferDepthNote
+            // What the library defines for the operation besides the direction and the depths:
+            // a chamfer's width, the diameter of a counterbore or a bore, a thread, a facing's extension.
+            if !ownFields.isEmpty {
+                ParameterFieldsView(fields: ownFields,
+                                    hiddenFieldIDs: hiddenIDs,
+                                    hiddenCaseIDs: OperationKind.hiddenCaseIDs)
             }
 
-            // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
-            // `ContourTypeGlyph`). Its extra control (spiral direction, loop pitch…) is in XY movement.
-            if !offeredPatterns.isEmpty {
-                PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns)
-            }
-        }
-    }
-
-    // MARK: XY movement
-
-    private var xyMovementPart: some View {
-        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             // Climb / conventional: how the tool travels along the path
-            let directionFields = formFields.filter { Self.xyDirectionFieldIDs.contains($0.id) }
+            let directionFields = fields.filter { Self.xyDirectionFieldIDs.contains($0.id) }
             if !directionFields.isEmpty {
                 ParameterFieldsView(fields: directionFields)
             }
@@ -141,8 +147,10 @@ struct OperationOptionsView: View {
             // Feed rate of the cutting moves in the plane (the entry's own feed is in Z levels)
             InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
 
-            // The pattern's one extra control, right at the top: it shapes how the area is cleared.
+            // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
+            // `ContourTypeGlyph`), followed by its one extra control: it shapes how the area is cleared.
             if !offeredPatterns.isEmpty {
+                PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns)
                 patternDetail
             }
 
@@ -174,6 +182,21 @@ struct OperationOptionsView: View {
                              role: .leadOut,
                              binding: $toolpath.operation.contourLeadOut,
                              isPresented: $showLeadOutEditor)
+            }
+        }
+    }
+
+    // MARK: Depth (shown in the Z levels section)
+
+    private var depthPart: some View {
+        let depthFields = displayedFields(of: formFields).filter { Self.zFieldIDs.contains($0.id) }
+
+        return VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+            if !depthFields.isEmpty {
+                ParameterFieldsView(fields: depthFields)
+            }
+            if kind == .chamfer {
+                chamferDepthNote
             }
         }
     }

@@ -53,7 +53,6 @@ struct PanelToolpathDetails: View {
                 }
                 InspectorSection(title: "Operation") {
                     rowOperation
-                    rowOperationOptions
                 }
                 InspectorSection(title: "Tool & feeds") {
                     rowTool
@@ -113,13 +112,6 @@ struct PanelToolpathDetails: View {
     }
 
     @ViewBuilder
-    private var rowOperationOptions: some View {
-        // Side, direction, diameters… whatever SC.MachiningOperation.formFields
-        // defines for the chosen operation, plus the holding tabs and the clearing pattern.
-        OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, part: .operation)
-    }
-
-    @ViewBuilder
     private var rowXYMovement: some View {
         OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, part: .xyMovement)
     }
@@ -169,6 +161,10 @@ struct PanelToolpathDetails: View {
             if toolpath.operation.drillUsesPecking {
                 InspectorNumberField(title: "Peck depth", value: model.drillPeckDepth($toolpath), suffix: "mm")
             }
+        }
+        // The operation's own depth settings: a bore's dwell and retract, a chamfer's depth
+        if OperationOptionsView.hasDepthFields(for: toolpath) {
+            OperationOptionsView(toolpath: $toolpath, part: .depth)
         }
         // How the tool gets down into the material: ramp, helix or plunge.
         if OperationOptionsView.hasEntry(for: toolpath) {
