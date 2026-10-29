@@ -608,7 +608,7 @@ struct ToggleField: View {
             HStack(spacing: 8) {
                 Toggle("", isOn: $isOn)
                     .labelsHidden()
-                    .toggleStyle(.switch)
+                    .toggleStyle(.checkbox)
                     .controlSize(.small)
 
                 Text(isOn ? "On" : "Off")

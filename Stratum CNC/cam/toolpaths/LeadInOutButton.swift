@@ -27,7 +27,7 @@ struct LeadInOutRow: View {
                 Toggle("", isOn: Binding(get: { leadInOut != nil },
                                          set: { leadInOut = $0 ? (leadInOut ?? .seed) : nil }))
                     .labelsHidden()
-                    .toggleStyle(.switch)
+                    .toggleStyle(.checkbox)
                     .controlSize(.small)
 
                 if let current = leadInOut {
