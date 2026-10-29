@@ -169,7 +169,7 @@ struct ProjectsView: View {
     }
 
     private var projects: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 3) {
             sectionTitle("Projects")
 
             if projectsStore.projects.isEmpty {
@@ -218,7 +218,7 @@ struct ProjectsView: View {
     private var footer: some View {
         HStack(spacing: 4) {
             Text("This opensource software is work in progress and does not guarantee that all the features work as expected ·")
-            Link("Contribute or leave feedback on GitHub",
+            Link("For contributions and feedback please visit GitHub",
                  destination: URL(string: "https://github.com/cristibaluta/Stratum-CNC")!)
         }
         .font(.body)
