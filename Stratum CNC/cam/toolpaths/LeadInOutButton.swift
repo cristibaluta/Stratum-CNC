@@ -224,10 +224,10 @@ struct LeadInOutEditor: View {
                                isWarning: true))
         }
         if role == .leadIn {
-            result.append(Note(text: "A lead-in can't be combined with a ramp or helix entry. It repeats at every depth pass.",
+            result.append(Note(text: "With a ramp or helix entry, the entry is made at the lead-in's start. It repeats at every depth pass.",
                                isWarning: false))
         } else {
-            result.append(Note(text: "The lead-out works with every entry. It repeats at every depth pass.",
+            result.append(Note(text: "It repeats at every depth pass.",
                                isWarning: false))
         }
         return result

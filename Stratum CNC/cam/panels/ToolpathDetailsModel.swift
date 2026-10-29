@@ -257,9 +257,7 @@ final class ToolpathDetailsModel: ObservableObject {
         if !toolpath.hasGeometry {
             return "Click shapes on the canvas first: there is nothing to preview yet."
         }
-        return toolpath.leadInConflictsWithEntry
-            ? "A lead-in can't be combined with a ramp or helix entry. Turn the entry off or remove the lead-in."
-            : "Build the toolpath for the selected shapes and preview it on the canvas"
+        return "Build the toolpath for the selected shapes and preview it on the canvas"
     }
 
     /// The slider's position as a binding over the step count; moving it reports the new

@@ -152,16 +152,6 @@ extension ToolpathData {
         abs(endZ - min(startZ, 0))
     }
 
-    /// A contour with a lead-in whose entry is a ramp or helix: the library refuses that
-    /// (the entry already eases the tool in), so the panel flags it and holds back Preview.
-    /// Mirrors `ToolpathGenerator.makeEntry`: only an enabled, non-"None" ramp counts.
-    var leadInConflictsWithEntry: Bool {
-        operation.kind == .contour
-            && operation.contourLeadIn != nil
-            && ramping.enabled
-            && ramping.type != .none
-    }
-
     /// The tool's V-bit included angle in degrees, if it has a tip angle.
     var toolTipAngle: Double? {
         guard let angle = tool.tipAngle.map({ Double($0) }), angle > 0 else {

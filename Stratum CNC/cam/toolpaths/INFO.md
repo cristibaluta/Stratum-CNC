@@ -50,7 +50,6 @@ PanelToolpathDetails
       ├─ InspectorSection "Entry"
       │  ├─ rampingRow (Entry, Entry angle)    ← if requirements.usesEntry
       │  ├─ Entry feed                         ← always, also for drill / bore / thread mill
-      │  ├─ leadInConflictNote                 ← contour: lead-in + ramp/helix entry
       │  └─ LeadInOutRow ×2 (Lead-In, Lead-Out) ← contour: switch + summary + gear → LeadInOutEditor popover
       │
       ├─ InspectorSection "Preview"

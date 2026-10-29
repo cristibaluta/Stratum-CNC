@@ -275,7 +275,7 @@ struct PanelToolpathDetails: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isGenerating || !toolpath.hasGeometry || toolpath.leadInConflictsWithEntry)
+                .disabled(isGenerating || !toolpath.hasGeometry)
                 .help(model.previewButtonHelp(for: toolpath))
             }
             // Warnings don't stop the toolpath, and only matter while the result is current

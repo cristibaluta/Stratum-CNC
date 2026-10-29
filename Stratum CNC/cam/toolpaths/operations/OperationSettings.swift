@@ -40,8 +40,7 @@ struct OperationSettings: Codable, Hashable {
     /// Holding tabs left in the cut, in the order the form lists them.
     var contourTabs: [HoldingTabSettings] = []
     /// The approach before the cut and the move off it afterwards. `nil` = none (the tool
-    /// goes straight in / out). A lead-in can't be combined with a ramp or helix entry,
-    /// see `ToolpathData.leadInConflictsWithEntry`.
+    /// goes straight in / out). A ramp or helix entry is made at the lead-in's start point.
     var contourLeadIn: LeadInOutSettings? = nil
     var contourLeadOut: LeadInOutSettings? = nil
 

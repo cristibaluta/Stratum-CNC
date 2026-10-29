@@ -229,20 +229,13 @@ struct OperationOptionsView: View {
 
     private var leadInOutPart: some View {
         VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
-            // The library refuses a lead-in together with a ramp or helix entry; say so here
-            // (Preview is held back too, see `PanelToolpathDetails`) instead of failing there.
-            if toolpath.leadInConflictsWithEntry {
-                leadInConflictNote
-            }
-
             // Lead-in / lead-out: a switch with a summary of what it is set to, and a gear that
             // opens the editor (with a drawing of the move) in a popover.
             if kind == .contour {
                 leadInOutRow(title: "Lead-In",
                              role: .leadIn,
                              binding: $toolpath.operation.contourLeadIn,
-                             isPresented: $showLeadInEditor,
-                             needsAttention: toolpath.leadInConflictsWithEntry)
+                             isPresented: $showLeadInEditor)
                 leadInOutRow(title: "Lead-Out",
                              role: .leadOut,
                              binding: $toolpath.operation.contourLeadOut,
@@ -352,26 +345,6 @@ struct OperationOptionsView: View {
                             side: toolpath.contour,
                             toolDiameter: Double(toolpath.tool.toolDiameter))
                 .frame(width: 400)
-        }
-    }
-
-    private var leadInConflictNote: some View {
-        HStack(alignment: .top, spacing: Inspector.columnSpacing) {
-            Color.clear
-                .frame(width: Inspector.labelWidth, height: 0)
-            VStack(alignment: .leading, spacing: 6) {
-                Label("A lead-in can't be combined with a ramp or helix entry: the entry already eases the tool in. Turn the entry off or remove the lead-in.",
-                      systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Turn entry off") {
-                    toolpath.ramping.enabled = false
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

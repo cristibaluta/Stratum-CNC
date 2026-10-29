@@ -230,8 +230,6 @@ enum ToolpathGenerator {
                 return "The stock to leave can't be negative."
             case "allowance.depth":
                 return "The stock to leave must be less than the pocket's depth, because the floor is left too."
-            case "contour.leadIn":
-                return "A lead-in can't be combined with a ramp or helix entry: the entry already eases the tool in."
             case "pattern.trochoidal.radialEngagement":
                 return "The trochoidal loop pitch must be between 5 % and 100 % of the tool radius."
             case "pattern.adaptive.optimalLoad":
@@ -331,8 +329,7 @@ extension ToolpathGenerator {
     ///
     /// Not offered: the slot patterns `.trochoidal`/`.adaptive` and `EntryStrategy.fromOpenEnd` (they only make
     /// sense for slot outlines open at one or both ends, which the app doesn't derive yet).
-    /// A contour's lead-in can't be combined with a ramp or helix entry (see
-    /// `ToolpathData.leadInConflictsWithEntry`). An engraving takes a plunge or a ramp but no helix
+    /// A contour's lead-in works with every entry (a ramp or helix is made at its start). An engraving takes a plunge or a ramp but no helix
     /// (see `SC.MachiningOperation.requirements`).
     ///
     /// Internal (unlike the rest of this extension) because `ToolpathData.machiningOperation`
