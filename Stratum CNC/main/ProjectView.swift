@@ -24,14 +24,23 @@ struct ProjectView: View {
 
     private var title: String {
         switch projectModel.sessionKind {
-            case .project: projectModel.project.name
+            case .project: "Project: \(projectModel.project.name)"
             case .controllerOnly: "Controller"
             case .gcodeFile: gCodeStore.document.fileName
         }
     }
 
     private var subtitle: String {
-        "Status..."
+        guard projectModel.sessionKind == .project else {
+            return ""
+        }
+        if projectModel.hasUnsavedChanges {
+            return "Unsaved…"
+        }
+        guard let date = projectModel.lastSavedAt else {
+            return "Not saved yet"
+        }
+        return "Saved on \(date.formatted(date: .abbreviated, time: .shortened))"
     }
 
     var body: some View {
@@ -94,6 +103,10 @@ struct ProjectView: View {
                 }
             }
         }
+        // A tinted, textured bar so it stands out from the canvas under it, where the Liquid Glass
+        // toolbar would otherwise blend into the content.
+        .toolbarBackground(ToolbarTexture.paint, for: .windowToolbar)
+        .toolbarBackground(.visible, for: .windowToolbar)
         .navigationTitle(title)
         .navigationSubtitle(subtitle)
     }

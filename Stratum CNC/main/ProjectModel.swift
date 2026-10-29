@@ -73,10 +73,16 @@ class ProjectModel: ObservableObject {
     @Published var project: Project
     @Published var projectData: ProjectData {
         didSet {
+            hasUnsavedChanges = true
             saveMetadataTrigger.send(())
         }
     }
     @Published var toolpaths: [ToolpathData]?
+
+    /// True from an edit until the debounced save has written it to disk.
+    @Published private(set) var hasUnsavedChanges = false
+    /// When the project was last written to disk; `nil` if it never was.
+    @Published private(set) var lastSavedAt: Date?
     let paths: ProjectPaths
 
     @Published var camModel: CAMModel
@@ -171,6 +177,7 @@ class ProjectModel: ObservableObject {
 
         camModel.onToolpathsChanged = { [weak self] toolpaths in
             self?.toolpaths = toolpaths
+            self?.hasUnsavedChanges = true
             try? self?.saveToolpaths()
         }
 
@@ -187,12 +194,19 @@ class ProjectModel: ObservableObject {
         saveMetadataTrigger
             .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
             .sink { [weak self] in
-                try? self?.saveProjectMetadata()
+                guard let self else { return }
+                if (try? self.saveProjectMetadata()) != nil {
+                    self.hasUnsavedChanges = false
+                }
             }
             .store(in: &cancellables)
 
         // Upgrade legacy assets before a new toolpath can reference their IDs.
         updateAssetTransforms(from: camModel.canvasState.objects)
+
+        // What the subtitle shows until something is saved in this session: the file's own date.
+        lastSavedAt = (try? FileManager.default.attributesOfItem(atPath: paths.projectMetadata.path))?[.modificationDate] as? Date
+        hasUnsavedChanges = false
     }
 
     func loadProjectData() {
@@ -280,6 +294,7 @@ class ProjectModel: ObservableObject {
     func save() throws {
         try saveProjectMetadata()
         try saveToolpaths()
+        hasUnsavedChanges = false
     }
 
     private func saveProjectMetadata() throws {
@@ -287,6 +302,7 @@ class ProjectModel: ObservableObject {
         try withFolderAccess {
             try data.write(to: paths.projectMetadata, options: .atomic)
         }
+        lastSavedAt = Date()
     }
 
     private func saveToolpaths() throws {
@@ -296,6 +312,8 @@ class ProjectModel: ObservableObject {
         try withFolderAccess {
             try data.write(to: paths.toolpathsFile, options: .atomic)
         }
+        lastSavedAt = Date()
+        hasUnsavedChanges = false
     }
 
     /// Runs `body` with the project folder's bookmark activated. Calls nest, so
