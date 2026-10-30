@@ -112,7 +112,6 @@ struct ProjectsView: View {
                                systemImage: "plus") {
                     appModel.showingNewProject = true
                 }
-                rowDivider
                 QuickActionRow(usageID: .openProjectFolder,
                                title: "Open Project Folder",
                                subtitle: "From a folder on disk",
@@ -120,14 +119,12 @@ struct ProjectsView: View {
                     picker = .projectFolder
                     isPicking = true
                 }
-                rowDivider
                 QuickActionRow(usageID: .openController,
                                title: "Open Controller",
                                subtitle: "Connect to your machine",
                                systemImage: "dial.medium") {
                     projectsStore.openZombieProject(tab: .controller)
                 }
-                rowDivider
                 QuickActionRow(usageID: .importGCode,
                                title: "Import G-code",
                                subtitle: "Preview and run a file",
@@ -135,9 +132,8 @@ struct ProjectsView: View {
                     picker = .gcode
                     isPicking = true
                 }
-                rowDivider
                 QuickActionRow(usageID: .tryWithoutProject,
-                               title: "Look Around",
+                               title: "Try Without a Project",
                                subtitle: "Explore without creating a project",
                                systemImage: "arrow.right.circle") {
                     projectsStore.openZombieProject()
@@ -157,7 +153,6 @@ struct ProjectsView: View {
                                glyph: AnyView(EndMillIcon(size: 20))) {
                     appModel.showingToolsSheet = true
                 }
-                rowDivider
                 QuickActionRow(usageID: .stockLibrary,
                                title: "Stock Library",
                                subtitle: "Your stock materials",
@@ -226,16 +221,12 @@ struct ProjectsView: View {
         .padding(.leading, 4)
     }
 
-    private var rowDivider: some View {
-        // Inset to line up with the text, past the icon chip.
-        Divider().padding(.leading, 54)
-    }
-
     private func sectionTitle(_ title: String) -> some View {
+        // Like a sidebar section header: small, bold, muted
         Text(title)
-            .font(.subheadline.weight(.semibold))
+            .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
-            .padding(.leading, 4)
+            .padding(.leading, 8)
     }
 
     // MARK: - Actions

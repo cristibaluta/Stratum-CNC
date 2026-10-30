@@ -10,8 +10,10 @@
 //  QuickActionRow.swift
 //  Stratum CNC
 //
-//  One row of a grouped list on the projects page (Quick Start, Libraries):
-//  an icon chip, a title, one line saying what it does, and a chevron.
+//  One row of a list on the projects page (Quick Start, Libraries), in the style of
+//  Xcode's welcome window and Finder's sidebar rather than an iOS grouped list: no
+//  container card, no disclosure chevrons, no icon chips. An icon and a title (what the
+//  action does is its tooltip); a rounded highlight under the pointer.
 //  Replaces QuickActionTile.
 //
 //  The icon is tinted by how much the user uses the action (see
@@ -21,20 +23,15 @@
 
 import SwiftUI
 
-/// The rounded container that holds a few `QuickActionRow`s, System Settings style.
+/// The rows of one section, stacked with a little air between them. No card around them:
+/// they sit straight on the window, like a sidebar's items.
 struct QuickActionGroup<Content: View>: View {
 
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 2) {
             content
-        }
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color(nsColor: .separatorColor))
         }
     }
 }
@@ -44,6 +41,7 @@ struct QuickActionRow: View {
     /// Which action this is, for the usage tracking that drives the icon tint.
     let usageID: QuickActionID
     let title: String
+    /// What the action does, shown as the help tooltip instead of a second line.
     let subtitle: String
     let systemImage: String
     /// A drawing to show instead of the SF Symbol, for icons SF Symbols doesn't have.
@@ -61,36 +59,31 @@ struct QuickActionRow: View {
             usage.recordClick(usageID)
             action()
         } label: {
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
+                // A plain glyph, gray until the action is used a lot, then in the accent color
                 ZStack {
                     icon.foregroundStyle(.secondary)
                     icon.foregroundStyle(.tint).opacity(intensity)
                 }
-                .frame(width: 30, height: 30)
-                .background {
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(Color.secondary.opacity(0.10))
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(.tint.opacity(0.16 * intensity))
-                }
+                .frame(width: 24, height: 24)
 
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .medium))
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
             .frame(maxWidth: .infinity)
-            .background(Color.primary.opacity(isHovered ? 0.05 : 0))
-            .contentShape(Rectangle())
+            .background {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(isHovered ? 0.07 : 0))
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
+        .help(subtitle)
         .onHover { isHovered = $0 }
     }
 
@@ -100,7 +93,7 @@ struct QuickActionRow: View {
             glyph
         } else {
             Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: 16, weight: .regular))
         }
     }
 }
