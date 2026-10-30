@@ -52,7 +52,7 @@ struct PanelToolpathDetails: View {
     @AppStorage("inspector.sectionCollapsed.Title") private var isTitleCollapsed = false
 
     var body: some View {
-        GroupBox {
+        Group {
             VStack(alignment: .leading, spacing: 8) {
                 // The title, the operation it does and what that operation does. The title row
                 // is the same either way; collapsed, what is under it shrinks: the operation

@@ -80,7 +80,9 @@ struct CAMView: View {
                 HStack {
                     VStack(spacing: 12) {
                         inspectorPanel
+                            .panelShadow()
                         toolpathListPanel
+                            .panelShadow()
                         Spacer()
                     }
                     .frame(minWidth: 200, maxWidth: 260)
@@ -97,12 +99,12 @@ struct CAMView: View {
                                            isStockVisible: stockVisibleBinding,
                                            isCompact: true,
                                            stocksStore: appModel.stocksStore)
-                            .background(.background)// Without a background the canvas is displayed above the GroupBox background
+                            .panelShadow()
                             .frame(width: 320)
                         // Only while a toolpath is selected in the list
                         if let toolpath = selectedToolpath {
                             toolpathSettingsPanel(for: toolpath)
-                                .background(.background)// Without a background the canvas is displayed above the GroupBox background
+                                .panelShadow()
                                 .transition(.opacity)
                                 .frame(width: 400)
                         }
@@ -360,3 +362,11 @@ struct CAMView: View {
 //        .frame(maxHeight: contentHeight ?? .infinity)
 //    }
 //}
+
+private extension View {
+    /// Opaque rounded card with a soft shadow, so the panels float above the canvas.
+    func panelShadow() -> some View {
+        background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 2)
+    }
+}
