@@ -16,10 +16,14 @@ class SVGImporter: Importer {
 
     func parse(url: URL) -> D2_Object? {
 
-        let svg = SVGLayer(contentsOf: url)
-        print(svg.viewBox)
-        print(svg.paths)
-        print(svg.attributeKeys)
+        // PocketSVG ignores <use>/<defs> and group transforms; flatten first.
+        let source = SVGFlattener.flattenedURLIfNeeded(for: url)
+        defer { if source != url { try? FileManager.default.removeItem(at: source) } }
+
+        let svg = SVGLayer(contentsOf: source)
+        if svg.paths.isEmpty {
+            print("SVGImporter: no paths found in \(url.lastPathComponent) (viewBox \(svg.viewBox))")
+        }
 
         var bezierPaths: [STBezierPath] = []
         let svgPaths: [SVGBezierPath] = svg.paths
@@ -297,7 +301,7 @@ private extension DXFPathConverter {
                                        control2 p2: CGPoint,
                                        to p3: CGPoint,
                                        tolerance: Double = 0.01) {
-        
+
         let steps = bezierStepCount(
             from: p0,
             control1: p1,
