@@ -12,22 +12,32 @@ struct RampingButton: View {
     @Binding var ramping: RampingSettings
     /// The ramp types the operation accepts, in the order they are offered.
     var available: [RampType] = RampType.allCases
+    var isCompact: Bool = false
     let action: () -> Void
 
     private var shownType: RampType { ramping.enabled ? ramping.type : .none }
 
     var body: some View {
-        InspectorRow(label: "Entry strategy") {
-            Button(action: action) {
-                InspectorMenuLabel {
-                    RampTypeGlyph(type: shownType, tint: ramping.enabled ? .primary : .secondary)
-                        .frame(width: 18, height: 14)
-                    Text(shownType.title)
-                }
+        if isCompact {
+            button
+                .fixedSize(horizontal: true, vertical: false)
+        } else {
+            InspectorRow(label: "Entry strategy") {
+                button
             }
-            .buttonStyle(.plain)
-            .help("How the tool goes down into the material: plunge, linear ramp or helix, and its angle")
         }
+    }
+
+    private var button: some View {
+        Button(action: action) {
+            InspectorMenuLabel {
+                RampTypeGlyph(type: shownType, tint: ramping.enabled ? .primary : .secondary)
+                    .frame(width: 18, height: 14)
+                Text(shownType.title)
+            }
+        }
+        .buttonStyle(.plain)
+        .help("Entry strategy: how the tool goes down into the material (plunge, linear ramp or helix) and its angle")
     }
 }
 

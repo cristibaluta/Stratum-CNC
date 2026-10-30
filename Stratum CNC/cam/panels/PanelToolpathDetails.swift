@@ -67,19 +67,27 @@ struct PanelToolpathDetails: View {
                 InspectorSection {
                     rowShapes
                 }
-                InspectorSection(title: "Tool", collapsible: true) {
+                InspectorSection(title: "Tool", collapsible: true, compact: {
+                    rowToolCompact
+                }) {
                     rowTool
                 }
                 // How the tool moves in the plane
-                InspectorSection(title: "XY plane", collapsible: true) {
+                InspectorSection(title: "XY plane", collapsible: true, compact: {
+                    OperationOptionsView(toolpath: $toolpath, part: .xyCompact)
+                }) {
                     rowXYMovement
                 }
                 // Start Z, End Z, the depth per pass, the holding tabs, and the Safe and Retract heights.
-                InspectorSection(title: "Z axis", collapsible: true) {
+                InspectorSection(title: "Z axis", collapsible: true, compact: {
+                    rowDepthCompact
+                }) {
                     rowDepth
                 }
                 // How the tool gets into the cut: ramp or helix, the feed going down, lead-in/out
-                InspectorSection(title: "Entry", collapsible: true) {
+                InspectorSection(title: "Entry", collapsible: true, compact: {
+                    rowEntryCompact
+                }) {
                     rowEntry
                 }
                 InspectorSection(title: "Preview", collapsible: true) {
@@ -150,6 +158,25 @@ struct PanelToolpathDetails: View {
         InspectorIntField(title: "Spindle", value: $toolpath.spindleRPM, suffix: "rpm")
     }
 
+    /// The Tool section's collapsed form: the tool, the library and the spindle speed in one
+    /// row. The notes of the full form become help texts, and a tool the operation can't use
+    /// shows as a warning icon.
+    @ViewBuilder
+    private var rowToolCompact: some View {
+        HStack(spacing: 6) {
+            ToolPicker(tool: $toolpath.tool, style: .compact, extraHelp: model.presetNote, onToolPicked: { tool in
+                model.applyPreset(of: tool, to: $toolpath, stockMaterial: stockMaterial)
+            })
+            InspectorIntField(title: "Spindle speed (rpm)", value: $toolpath.spindleRPM, suffix: "rpm", isCompact: true)
+            if let warning = toolpath.toolCompatibilityWarning {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.orange)
+                    .help(warning)
+            }
+        }
+    }
+
     /// The ramp or helix, the feed going down and, for a contour, the lead-in and lead-out.
     @ViewBuilder
     private var rowEntry: some View {
@@ -216,6 +243,61 @@ struct PanelToolpathDetails: View {
             .help("The height the tool starts and ends at, and travels at between distant cuts.")
         InspectorNumberField(title: "Retract Z", value: $toolpath.retractZ, suffix: "mm")
             .help("The height the tool lifts to between passes. Not higher than Safe Z.")
+    }
+
+    /// The Z axis section's collapsed form: where the cut starts and ends and how deep each
+    /// pass goes, then the Safe Z. Retract Z, the holding tabs and the operation's own
+    /// depth settings are in the full section only.
+    @ViewBuilder
+    private var rowDepthCompact: some View {
+        let isSlot = toolpath.operation.kind == .slotting
+        let stepdown = isSlot ? toolpath.operation.slotDepthPerPass : toolpath.stepDown
+        let passes = model.passesNote(for: toolpath, stepdown: stepdown)
+
+        HStack(spacing: 6) {
+            InspectorCompactNumberField(tag: "Start", value: $toolpath.startZ,
+                                        help: "Start Z (mm): the height where cutting starts. 0 is the top of the stock.")
+            if toolpath.operation.kind == .counterbore {
+                InspectorCompactNumberField(tag: "End", value: model.counterboreEndDepth($toolpath), prefix: "−",
+                                            help: "End Z (mm): how deep the counterbore goes below the top of the stock.")
+            } else if requirements.usesEndZ {
+                InspectorCompactNumberField(tag: "End", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), prefix: "−",
+                                            help: "End Z (mm): \(model.endZHelp)")
+            }
+            if isSlot {
+                InspectorCompactNumberField(tag: "Step", value: model.slotDepthPerPass($toolpath),
+                                            help: "Depth per pass (mm). \(passes?.text ?? "")")
+            } else if requirements.usesStepdown {
+                InspectorCompactNumberField(tag: "Step", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath),
+                                            help: "Stepdown (mm): how deep the tool cuts in each pass. \(passes?.text ?? "")")
+            }
+            if toolpath.operation.kind == .drilling, toolpath.operation.drillUsesPecking {
+                InspectorCompactNumberField(tag: "Peck", value: model.drillPeckDepth($toolpath),
+                                            help: "Peck depth (mm): how deep the drill goes before retracting.")
+            }
+            InspectorCompactNumberField(tag: "Safe", value: $toolpath.safeZ,
+                                        help: "Safe Z (mm): the height the tool starts and ends at, and travels at between distant cuts.")
+            if let passes, passes.isWarning {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .help(passes.text)
+            }
+        }
+    }
+
+    /// The Entry section's collapsed form: the strategy, its angle, the feed going down and
+    /// the Entry Z. The lead-in and lead-out are in the full section only.
+    @ViewBuilder
+    private var rowEntryCompact: some View {
+        HStack(spacing: 6) {
+            if OperationOptionsView.hasEntry(for: toolpath) {
+                OperationOptionsView(toolpath: $toolpath, part: .entryCompact)
+            }
+            InspectorCompactNumberField(tag: "Feed", value: $toolpath.plungeRate,
+                                        help: "Entry feed (mm/min). \(model.plungeFeedHelp(for: toolpath))")
+            InspectorCompactNumberField(tag: "Entry Z", value: $toolpath.entryZ,
+                                        help: "Entry Z (mm): height above the stock where the entry starts. The tool rapids down to here, then feeds in.")
+        }
     }
 
     /// How many passes Start Z, End Z and the stepdown come to, under the field that sets it.

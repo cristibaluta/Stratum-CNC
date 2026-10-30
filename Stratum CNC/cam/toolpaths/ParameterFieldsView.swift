@@ -178,7 +178,7 @@ struct ParameterFieldsView: View {
 
 // MARK: - Cut direction
 
-private extension SC.ParameterField.ChoiceField {
+extension SC.ParameterField.ChoiceField {
 
     /// True for the climb / conventional choice built by `SC.cutDirectionChoice`. Matched on
     /// its options rather than its id, so every operation's direction field -- contour,
@@ -193,7 +193,7 @@ private extension SC.ParameterField.ChoiceField {
     }
 }
 
-private extension CutDirectionOption {
+extension CutDirectionOption {
     var fieldID: String {
         switch self {
             case .climb:        return SC.CutDirection.climb.rawValue

@@ -27,22 +27,29 @@ enum Inspector {
 /// the rows. The state is remembered per title, so the sections stay as the user left
 /// them when another toolpath is opened. A section without a title has no header to
 /// click and is always open.
-struct InspectorSection<Content: View>: View {
+///
+/// While collapsed the section shows its `compact` layout, if it has one: the same
+/// settings squeezed into a row or two, without labels or notes (their text goes to help
+/// tooltips). Without a compact layout, collapsing hides the section's rows.
+struct InspectorSection<Content: View, Compact: View>: View {
     let title: String?
     let showsDivider: Bool
     let collapsible: Bool
     let content: Content
+    let compact: Compact?
 
     @AppStorage private var isCollapsed: Bool
 
     init(title: String? = nil,
          showsDivider: Bool = true,
          collapsible: Bool = false,
+         @ViewBuilder compact: () -> Compact,
          @ViewBuilder content: () -> Content) {
         self.title = title
         self.showsDivider = showsDivider
         self.collapsible = collapsible && title != nil
         self.content = content()
+        self.compact = compact()
         _isCollapsed = AppStorage(wrappedValue: false, "inspector.sectionCollapsed.\(title ?? "")")
     }
 
@@ -67,6 +74,10 @@ struct InspectorSection<Content: View>: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.bottom, 12)
+            } else if let compact {
+                compact
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 12)
             } else {
                 Spacer().frame(height: 2)
             }
@@ -104,6 +115,22 @@ struct InspectorSection<Content: View>: View {
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 10)
         }
+    }
+}
+
+extension InspectorSection where Compact == EmptyView {
+
+    /// A section without a compact layout: collapsing hides its rows.
+    init(title: String? = nil,
+         showsDivider: Bool = true,
+         collapsible: Bool = false,
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.showsDivider = showsDivider
+        self.collapsible = collapsible && title != nil
+        self.content = content()
+        self.compact = nil
+        _isCollapsed = AppStorage(wrappedValue: false, "inspector.sectionCollapsed.\(title ?? "")")
     }
 }
 
@@ -254,26 +281,82 @@ extension InspectorNumberField where Accessory == EmptyView {
     }
 }
 
+/// A number field for a compact row: no label column, a short tag inside the gray field
+/// instead ("Feed", "Start"), and the full name and unit in the help. Shares the row with
+/// its siblings, so it takes whatever width is left.
+struct InspectorCompactNumberField: View {
+    let tag: String
+    @Binding var value: Double
+    var prefix: String = ""
+    var suffix: String = ""
+    let help: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(tag)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+
+            if !prefix.isEmpty {
+                Text(prefix)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, -3)
+            }
+
+            TextField("", value: $value,
+                      format: .number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .frame(minWidth: 26)
+
+            if !suffix.isEmpty {
+                Text(suffix)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+            }
+        }
+        .inspectorField()
+        .help(help)
+    }
+}
+
 struct InspectorIntField: View {
     let title: String
     @Binding var value: Int
     let suffix: String
+    /// Just the field, at a fixed width and without the label column, for a compact row.
+    /// The title becomes its help text.
+    var isCompact: Bool = false
 
     var body: some View {
-        InspectorRow(label: title) {
-            HStack(spacing: 6) {
-                TextField("", value: $value, format: .number.grouping(.never))
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-
-                if !suffix.isEmpty {
-                    Text(suffix)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
+        if isCompact {
+            field
+                .frame(width: 92)
+                .help(title)
+        } else {
+            InspectorRow(label: title) {
+                field
             }
-            .inspectorField()
         }
+    }
+
+    private var field: some View {
+        HStack(spacing: 6) {
+            TextField("", value: $value, format: .number.grouping(.never))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+
+            if !suffix.isEmpty {
+                Text(suffix)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .inspectorField()
     }
 }
 

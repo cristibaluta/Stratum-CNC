@@ -11,25 +11,36 @@ import SwiftUI
 /// a pop-up field that opens a list on its left, one drawn-and-explained row per direction.
 struct DirectionPicker: View {
     @Binding var direction: CutDirectionOption
+    /// Just the button, at its natural width and without the label column, to share a row.
+    var isCompact: Bool = false
 
     @State private var isPresented = false
 
     var body: some View {
-        InspectorRow(label: "Direction") {
-            Button {
-                isPresented.toggle()
-            } label: {
-                InspectorMenuLabel {
-                    DirectionGlyph(direction: direction, tint: .primary)
-                        .frame(width: 22, height: 15)
-                    Text(direction.rawValue)
-                }
+        if isCompact {
+            button
+                .fixedSize(horizontal: true, vertical: false)
+        } else {
+            InspectorRow(label: "Direction") {
+                button
             }
-            .buttonStyle(.plain)
-            .help(direction.selectionHint)
-            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                DirectionOptionsPopover(direction: $direction, isPresented: $isPresented)
+        }
+    }
+
+    private var button: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            InspectorMenuLabel {
+                DirectionGlyph(direction: direction, tint: .primary)
+                    .frame(width: 22, height: 15)
+                Text(direction.rawValue)
             }
+        }
+        .buttonStyle(.plain)
+        .help("Direction: \(direction.selectionHint)")
+        .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            DirectionOptionsPopover(direction: $direction, isPresented: $isPresented)
         }
     }
 }

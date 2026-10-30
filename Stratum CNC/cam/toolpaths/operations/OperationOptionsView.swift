@@ -68,6 +68,11 @@ struct OperationOptionsView: View {
         case leadInOut
         /// The holding tabs of a contour, which leave material standing at the bottom. Shown in "Z axis".
         case tabs
+        /// The XY plane section's collapsed form: direction, feed, stepover and the stock to
+        /// leave in one row (the direction in full, like the entry strategy).
+        case xyCompact
+        /// The Entry section's collapsed form: the strategy and its angle in one row.
+        case entryCompact
     }
 
     var part: Part = .xyMovement
@@ -142,6 +147,8 @@ struct OperationOptionsView: View {
             case .entry: entryPart
             case .leadInOut: leadInOutPart
             case .tabs: tabsPart
+            case .xyCompact: xyCompactPart
+            case .entryCompact: entryCompactPart
         }
     }
 
@@ -229,6 +236,63 @@ struct OperationOptionsView: View {
                 stockToLeaveRows
             }
         }
+    }
+
+    /// Direction as a glyph, then the numbers with a short tag each. What each is and its unit
+    /// is in the help; the notes of the full section are left out.
+    private var xyCompactPart: some View {
+        HStack(spacing: 6) {
+            if let direction = cutDirectionBinding {
+                DirectionPicker(direction: direction, isCompact: true)
+            }
+            InspectorCompactNumberField(tag: "Feed", value: $toolpath.feedRate,
+                                        help: "Feed rate: how fast the tool moves while cutting in the XY plane (mm/min).")
+            if usesStepover {
+                InspectorCompactNumberField(tag: "Stepover", value: stepOverPercent, suffix: "%",
+                                            help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter. \(stepOverNote)")
+            }
+            if requirements.usesAllowance, kind != .restMachining {
+                InspectorCompactNumberField(tag: "Leave", value: stockToLeave,
+                                            help: toolpath.operation.stockToLeave > 0
+                                                ? "Stock to leave (mm). \(stockToLeaveNote)"
+                                                : "Stock to leave (mm): material left standing by the roughing. 0 cuts straight to size.")
+            }
+            if toolpath.stockToLeaveExceedsDepth {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .help(stockToLeaveNote)
+            }
+        }
+    }
+
+    /// The climb / conventional field of the operation, if it has one.
+    private var cutDirectionBinding: Binding<CutDirectionOption>? {
+        for case .choice(let field) in displayedFields(of: formFields)
+        where Self.xyDirectionFieldIDs.contains(field.id) && field.isCutDirection {
+            return Binding(get: { field.cutDirection },
+                           set: { field.onChange($0.fieldID) })
+        }
+        return nil
+    }
+
+    /// The strategy button (which opens the same editor as the full section), then the angle.
+    private var entryCompactPart: some View {
+        HStack(spacing: 6) {
+            if requirements.usesEntry {
+                RampingButton(ramping: $toolpath.ramping, available: availableRampTypes, isCompact: true) {
+                    showRampEditor = true
+                }
+                .popover(isPresented: $showRampEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                    rampingEditor
+                }
+                if toolpath.ramping.type != .none {
+                    InspectorCompactNumberField(tag: "Angle", value: $toolpath.ramping.angle, suffix: "°",
+                                                help: "Entry angle (degrees).")
+                }
+            }
+        }
+        .onAppear { normalizeRampType() }
+        .onChange(of: kind) { _, _ in normalizeRampType() }
     }
 
     // MARK: Lead-in / lead-out (shown in the Entry section)
@@ -474,14 +538,18 @@ struct OperationOptionsView: View {
             showRampEditor = true
         }
         .popover(isPresented: $showRampEditor, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-            // A slot steps down by its own depth-per-pass, not by the general stepdown.
-            RampingEditor(ramping: $toolpath.ramping,
-                          feedRate: $toolpath.plungeRate,
-                          stepdown: kind == .slotting ? toolpath.operation.slotDepthPerPass : toolpath.stepDown,
-                          toolDiameter: Double(toolpath.tool.toolDiameter),
-                          available: availableRampTypes)
-                .frame(width: 400)
+            rampingEditor
         }
+    }
+
+    private var rampingEditor: some View {
+        // A slot steps down by its own depth-per-pass, not by the general stepdown.
+        RampingEditor(ramping: $toolpath.ramping,
+                      feedRate: $toolpath.plungeRate,
+                      stepdown: kind == .slotting ? toolpath.operation.slotDepthPerPass : toolpath.stepDown,
+                      toolDiameter: Double(toolpath.tool.toolDiameter),
+                      available: availableRampTypes)
+            .frame(width: 400)
     }
 
     /// Clamped to what the library accepts, like the stepover, instead of failing at Preview.
