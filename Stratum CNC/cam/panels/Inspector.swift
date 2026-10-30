@@ -123,36 +123,38 @@ struct InspectorSection<Content: View, Compact: View>: View {
         }
     }
 
+    /// Only the chevron toggles the section; the title is plain text.
     @ViewBuilder
     private func header(_ title: String) -> some View {
-        if collapsible {
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    isCollapsed.toggle()
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isOpen ? 0 : -90))
-                }
-                .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(title)
-            .accessibilityValue(isOpen ? "Expanded" : "Collapsed")
-            .help(isOpen ? "Collapse \(title)" : "Expand \(title)")
-        } else {
+        HStack(spacing: 6) {
             Text(title)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .padding(.vertical, 10)
+
+            Spacer(minLength: 0)
+
+            if collapsible {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        isCollapsed.toggle()
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isOpen ? 0 : -90))
+                        // A target as tall as the header and wide enough to hit easily
+                        .frame(width: 28, height: 36)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                // The target is wider than the glyph; keep the glyph at the edge
+                .padding(.trailing, -9)
+                .accessibilityLabel(title)
+                .accessibilityValue(isOpen ? "Expanded" : "Collapsed")
+                .help(isOpen ? "Collapse \(title)" : "Expand \(title)")
+            }
         }
     }
 }
