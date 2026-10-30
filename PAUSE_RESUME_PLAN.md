@@ -130,10 +130,19 @@ So the app **cannot** own line streaming for real jobs. It can own the **policy*
 - [ ] The `goto` path still only seeks and resumes: it does not send the preamble, so Z must be lifted by hand first (the help text says so). The review sheet (step 7) is where the lift and preamble should be offered; resume by generated file (step 4) already includes them.
 - [ ] The resolver is rebuilt on every toolpath refresh (full read of the program). Fine for typical programs; if it shows up in profiles, move it off the main thread.
 
-### 6. Bit change / broken bit flow
-- [ ] A guided sheet: retract and stop → "Replace the bit" → choose same or different tool.
-- [ ] Re-probe Z (or tool length), and apply the delta as the tool offset.
-- [ ] Offer "restart current pass" (default) or "back up N mm".
+### 6. Bit change / broken bit flow: DONE (`BitChangeFlow.swift`, `controller/BitChangeSheet.swift`)
+- [x] A three-step sheet, opened from the wrench button next to Stop (shown while a job is running or paused, and while a stopped, interrupted or alarmed job is saved in `job.progress`):
+  1. **Stop**: shows what the machine is doing; Stop Job (soft reset), Unlock, Home. Next only when the machine is Idle.
+  2. **Replace bit**: *by hand* (Loosen collet `M490.2`, Tighten collet `M490.1`, Measure tool length `M491`; Next needs the measurement started and the machine Idle again) or *automatic tool change* (tool number, the resume starts with `M6 T<n>`). Optional "Probe Z again before restarting" (`autoZBeforeRun`).
+  3. **Restart**: "Stopped at line" (from the saved progress, else the selected or scrubbed line), then *Start of pass* (default, `ResumePointResolver`), *Back up N mm* along the cut (never before the pass start), or *Exact line*. Shows the resolved line with its explanation, the warnings, and the exact preamble lines that will be sent first.
+- [x] The flow always ends with the generated resume file (step 4), not with `goto` on a suspended job. The machine must be stopped and unlocked first, which makes the end state certain: the file sets units, offsets, tool, spindle, Z and XY again.
+- [x] A bit replaced by hand does not repeat the program's `M6` (the bit is already in); an automatic change uses the chosen tool instead of the program's.
+- [x] `ResumePointResolver.backedUp(from:millimeters:)`: path length of the cutting moves (arcs counted as their chord) so the restart lands a given distance before where the cut stopped, bounded by the pass start.
+- [x] A warning is shown when the loaded program's fingerprint differs from the one saved with the job (`JobProgress.fingerprint`; skipped for resume files, whose fingerprint is of the generated file).
+- [x] Unit tests: `BitChangeFlowTests` (gating, installation choices, restart choices, backing up). The sheet itself is thin and untested.
+- [ ] Not verified on hardware: that `M491` leaves work Z valid (it resets the tool length offset, per Makera's docs), the state of the machine after a soft reset + unlock (re-homing is offered, not forced), and whether Idle is reported only after a measurement finishes (Next also relies on the person not clicking before it starts).
+- [ ] Not done: tool length offset (TLO) delta for a different tool when changing by hand; `M491` measures the bit in the spindle, which is assumed to cover it.
+- [ ] Not done: an automatic spindle-temperature or alarm trigger into this flow (step 3's later item).
 
 ### 7. Verify before resuming
 - [ ] Resume review sheet: resume line, canvas preview of the completed portion, WCS and position check.

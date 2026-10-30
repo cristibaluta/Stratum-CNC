@@ -29,6 +29,9 @@ struct GCodeViewer: View {
     var onResume: (() -> Void)? = nil
     var onResumeFromLine: ((Int) -> Void)? = nil
     var canResumeFromLine: Bool = false
+    /// Opens the change-bit-and-resume flow.
+    var onChangeBit: (() -> Void)? = nil
+    var canChangeBit: Bool = false
     var onStop: (() -> Void)? = nil
 
     @State private var toolpaths: [GCodeToolpath] = []
@@ -274,6 +277,10 @@ struct GCodeViewer: View {
                 Spacer()
                 Spacer()
 
+                if canChangeBit {
+                    changeBitButton
+                }
+
                 Button {
                     onExport?()
                 } label: {
@@ -341,6 +348,20 @@ struct GCodeViewer: View {
         .buttonStyle(QuietButtonStyle(tint: .red))
         .disabled(!canStop)
         .help("Stop: cancels an upload, or aborts the running job with a soft reset (not resumable)")
+
+        if canChangeBit {
+            changeBitButton
+        }
+    }
+
+    private var changeBitButton: some View {
+        Button {
+            onChangeBit?()
+        } label: {
+            Image(systemName: "wrench.and.screwdriver.fill")
+        }
+        .buttonStyle(QuietButtonStyle(tint: .secondary))
+        .help("Change the bit and resume the job from where it stopped")
     }
 }
 

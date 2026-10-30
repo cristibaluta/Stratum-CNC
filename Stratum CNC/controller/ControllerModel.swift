@@ -106,6 +106,9 @@ class ControllerModel: ObservableObject {
     /// Drives `MachiningRunSheet`, the pre-run review.
     @Published var isShowingRunReview = false
 
+    /// Drives `BitChangeSheet`: change the bit and carry on from where the job stopped.
+    @Published var isShowingBitChange = false
+
     @Published var isGCodeImporterPresented = false
 
     /// The right-hand G-CODE / MACROS tabs. Only one is shown at a time.
@@ -300,6 +303,24 @@ class ControllerModel: ObservableObject {
     /// Uploads `contents` to the machine's SD card as `fileName` and runs it.
     func uploadJob(fileName: String, contents: String) {
         job.uploadAndRun(fileName: fileName, contents: contents, options: currentRunOptions)
+    }
+
+    /// Continues `programLines` from `line` with a generated resume file: the
+    /// state replay, then the rest of the program (see `ResumeFileBuilder`).
+    /// With `reprobeZ` the work Z is probed again before the run starts.
+    @discardableResult
+    func resumeJobWithGeneratedFile(programLines: [String],
+                                    fileName: String,
+                                    fromLine line: Int,
+                                    resumeOptions: ResumeOptions,
+                                    reprobeZ: Bool) -> ResumeFile? {
+        var options = currentRunOptions
+        if reprobeZ { options.autoZBeforeRun = true }
+        return job.resumeWithGeneratedFile(programLines: programLines,
+                                           fileName: fileName,
+                                           fromLine: line,
+                                           resumeOptions: resumeOptions,
+                                           runOptions: options)
     }
 
     // MARK: Send, then start (two steps)

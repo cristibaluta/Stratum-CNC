@@ -14,6 +14,9 @@ struct ResumeOptions: Equatable {
     /// machine ends up with the right tool whatever it holds now. Off: when
     /// the tool is already in the spindle (a bit just replaced by hand).
     var includeToolChange = true
+    /// Use this tool instead of the one the program had selected at the resume
+    /// line (a different bit chosen after a break).
+    var toolOverride: Int?
     /// Wait after starting the spindle, seconds (`G4 P`).
     var spinUpSeconds = 3.0
     /// Feed of the final plunge to the resume depth, mm/min.
@@ -53,7 +56,7 @@ enum ResumePreambleBuilder {
         if let workspace = state.workspace { lines.append("G\(workspace)") }
         lines.append("G90")
 
-        if options.includeToolChange, let tool = state.tool {
+        if options.includeToolChange, let tool = options.toolOverride ?? state.tool {
             lines.append("M6 T\(tool)")
         }
 

@@ -227,6 +227,9 @@ struct ControllerView: View {
         .sheet(isPresented: $model.isShowingRunReview) {
             MachiningRunSheet(model: model, gCodeModel: gCodeModel, camModel: camModel, connection: model.connection)
         }
+        .sheet(isPresented: $model.isShowingBitChange) {
+            BitChangeSheet(model: model, gCodeModel: gCodeModel, connection: model.connection)
+        }
         .sheet(isPresented: $model.isShowingMachinePicker) {
             MachineConnectSheet(model: model, connection: model.connection)
         }
@@ -427,6 +430,8 @@ struct ControllerView: View {
                         onResume: model.resumeJob,
                         onResumeFromLine: { model.resumeJob(fromLine: $0) },
                         canResumeFromLine: model.lastUploadedRemotePath != nil,
+                        onChangeBit: { model.isShowingBitChange = true },
+                        canChangeBit: model.connection.isConnected && model.job.progress?.isResumable == true,
                         onStop: model.stopJob)
             }
         }
