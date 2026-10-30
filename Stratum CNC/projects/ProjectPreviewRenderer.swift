@@ -25,9 +25,11 @@ enum ProjectPreviewRenderer {
     private static let stroke = CGColor(red: 0, green: 0, blue: 0, alpha: 1)
 
     /// The PNG of `objects`, scaled to fit and centered, or nil when there is nothing to draw.
-    static func pngData(for objects: [D2_Object]) -> Data? {
+    /// Hidden objects are left out unless `ignoringVisibility`, which is for an object the user
+    /// picked by name.
+    static func pngData(for objects: [D2_Object], ignoringVisibility: Bool = false) -> Data? {
         let paths = objects
-            .filter(\.isVisible)
+            .filter { ignoringVisibility || $0.isVisible }
             .flatMap { object in
                 D2_RenderObjectBuilder.renderPaths(for: object,
                                                    objectSelected: false,

@@ -263,8 +263,8 @@ class ProjectModel: ObservableObject {
 
     /// Draws the canvas objects into the project's `preview.png`, the picture on its card.
     /// Called right after an import has put the new object on the canvas.
-    func updatePreview(from objects: [D2_Object]) {
-        guard let data = ProjectPreviewRenderer.pngData(for: objects) else { return }
+    func updatePreview(from objects: [D2_Object], ignoringVisibility: Bool = false) {
+        guard let data = ProjectPreviewRenderer.pngData(for: objects, ignoringVisibility: ignoringVisibility) else { return }
         do {
             try withFolderAccess {
                 try data.write(to: paths.preview, options: .atomic)

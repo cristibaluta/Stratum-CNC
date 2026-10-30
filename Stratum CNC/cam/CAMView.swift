@@ -218,6 +218,11 @@ struct CAMView: View {
             },
             onDelete: { id in
                 camModel.canvasState.removeObject(id)
+            },
+            onGeneratePreview: { id in
+                // Just this object, even while it is hidden on the canvas
+                guard let object = camModel.canvasState.object(withID: id) else { return }
+                projectModel.updatePreview(from: [object], ignoringVisibility: true)
             }
         )
     }

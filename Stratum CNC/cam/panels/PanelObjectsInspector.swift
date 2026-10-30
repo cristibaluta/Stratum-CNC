@@ -37,6 +37,8 @@ struct PanelObjectsInspector: View {
     var onGroupScale: ((Int) -> Void)?
     var onAddNew: (() -> Void)?
     var onDelete: ((UUID) -> Void)?
+    /// Right-click "Generate Project Preview": the project card's picture is made from this object alone.
+    var onGeneratePreview: ((UUID) -> Void)?
 
     // MARK: - Body
 
@@ -109,6 +111,12 @@ struct PanelObjectsInspector: View {
         }
         .inspectorListRow(isSelected: selectedIDs.contains(object.id))
         .contextMenu {
+            Button {
+                onGeneratePreview?(object.id)
+            } label: {
+                Label("Generate Project Preview", systemImage: "photo")
+            }
+            Divider()
             Button(role: .destructive) {
                 onDelete?(object.id)
             } label: {
