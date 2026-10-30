@@ -83,6 +83,10 @@ final class JobCoordinator: ObservableObject {
     private var lastUploadedFileName: String?
     private var pendingContents: String?
     private var pendingFileName: String?
+    /// Set while the uploaded program is a generated resume file; see
+    /// `JobProgress.lineOffset`.
+    private var pendingLineOffset: Int?
+    private var lastUploadedLineOffset: Int?
 
     /// Set when the upload should be followed by a run (`uploadAndRun`).
     private var runAfterUpload: JobRunOptions?
@@ -169,8 +173,10 @@ final class JobCoordinator: ObservableObject {
             originY: options.originOffset.y,
             totalLines: totalLines
         )
-        progress = record
-        persist(record)
+        var started = record
+        started.lineOffset = lastUploadedLineOffset
+        progress = started
+        persist(started)
     }
 
     private func markPlaySent() {
@@ -222,11 +228,13 @@ final class JobCoordinator: ObservableObject {
         runAfterUpload = nil
         pendingContents = contents
         pendingFileName = fileName
+        pendingLineOffset = nil
         uploader.upload(fileName: fileName, contents: Data(contents.utf8))
     }
 
     /// Uploads `contents`, then runs it (origin → optional Z probe / leveling → `play`).
-    func uploadAndRun(fileName: String, contents: String, options: JobRunOptions) {
+    /// `lineOffset` is for a generated resume file (`JobProgress.lineOffset`).
+    func uploadAndRun(fileName: String, contents: String, options: JobRunOptions, lineOffset: Int? = nil) {
         guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil else { return }
         guard levelingArea(for: contents, options: options) != nil || !options.levelBeforeRun else {
             logNoLevelingArea()
@@ -235,7 +243,45 @@ final class JobCoordinator: ObservableObject {
         runAfterUpload = options
         pendingContents = contents
         pendingFileName = fileName
+        pendingLineOffset = lineOffset
         uploader.upload(fileName: fileName, contents: Data(contents.utf8))
+    }
+
+    /// Continues a program from `line` after the job was stopped, reset, or
+    /// lost: builds a resume file (the state replay from `ResumePreambleBuilder`
+    /// followed by the rest of the program), uploads it and runs it. Use this
+    /// when the machine no longer has the job paused; while it does, resume
+    /// with `resume(fromLine:)` instead.
+    ///
+    /// Returns the file that was built, or nil when nothing was started: not
+    /// connected, busy, or the position at `line` can't be worked out (the
+    /// reason is in the terminal log).
+    @discardableResult
+    func resumeWithGeneratedFile(programLines: [String],
+                                 fileName: String,
+                                 fromLine line: Int,
+                                 resumeOptions: ResumeOptions = ResumeOptions(),
+                                 runOptions: JobRunOptions) -> ResumeFile? {
+        guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil,
+              connection.status?.isBusy != true,
+              let file = ResumeFileBuilder.build(lines: programLines, resumeLine: line, options: resumeOptions)
+        else { return nil }
+
+        guard file.preamble.canResume else {
+            file.preamble.warnings.forEach { connection.appendLog("Resume: \($0)") }
+            connection.appendLog("Resume from line \(file.resumeLine) was not started.")
+            return nil
+        }
+        file.preamble.warnings.forEach { connection.appendLog("Resume: \($0)") }
+
+        let base = (fileName as NSString).deletingPathExtension
+        let ext = (fileName as NSString).pathExtension
+        let resumeName = "resume_\(base).\(ext.isEmpty ? "nc" : ext)"
+        connection.appendLog("Resuming \(fileName) from line \(file.resumeLine) with a generated file (\(resumeName)).")
+
+        uploadAndRun(fileName: resumeName, contents: file.contents,
+                     options: runOptions, lineOffset: file.lineOffset)
+        return file
     }
 
     /// Runs the file `upload` last put on the machine.
@@ -266,8 +312,10 @@ final class JobCoordinator: ObservableObject {
         lastUploadedRemotePath = remotePath
         lastUploadedContents = pendingContents
         lastUploadedFileName = pendingFileName
+        lastUploadedLineOffset = pendingLineOffset
         pendingContents = nil
         pendingFileName = nil
+        pendingLineOffset = nil
 
         guard let options = runAfterUpload else { return }
         runAfterUpload = nil

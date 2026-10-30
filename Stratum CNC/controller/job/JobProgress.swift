@@ -60,6 +60,13 @@ struct JobProgress: Codable, Equatable {
     var percent = 0
     var phase: Phase = .starting
 
+    /// Set when the program on the machine is a generated resume file: add it
+    /// to a reported line to get the line in the original program.
+    var lineOffset: Int?
+
+    /// `lastLine` in the original program, also when the machine runs a resume file.
+    var sourceLine: Int { lastLine + (lineOffset ?? 0) }
+
     var startedAt: Date
     var updatedAt: Date
     /// When `play` was sent to the machine.

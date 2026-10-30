@@ -107,12 +107,17 @@ So the app **cannot** own line streaming for real jobs. It can own the **policy*
 - [ ] Not done: automatic triggers (spindle temperature, alarms). Temperature can be read with `M105`; add a threshold watcher later if wanted.
 - [ ] Still delegated: the request goes through `session.suspendJob()` so the library's "paused by the machine" alert is not raised for our own suspend. Moves out with the alert policy in step 8.
 
-### 4. Resume preamble
-- [ ] `GCodeModalState.at(line:)` scans the file from the start to line N and collects units, G90/G91, plane, feed mode, tool, spindle speed and direction, coolant, last F.
-- [ ] Job still loaded and paused: lift Z, send the preamble lines (modal state, spindle on and wait, tool), `goto N`, then resume.
-- [ ] No job loaded: **generate a resume file** (preamble + lines from the restart point), upload it and `play` it.
-- [ ] `ResumePreambleBuilder` emits: modal state → tool and offset → `M3 S…` → `G4 P…` spin-up wait → safe Z → rapid XY → slow plunge to Z → continue at line N.
-- [ ] Unit tests (`Stratum CNC Tests/`): modal state at line N, and preamble for the line after a tool change, mid-arc and in relative mode.
+### 4. Resume preamble: DONE (`controller/job/GCodeModalState.swift`, `ResumePreamble.swift`)
+- [x] `GCodeModalState.scan(lines:beforeLine:)` reads the program from the top and returns the state just before a line: units, G17/18/19 plane, G54–G59, distance mode (G90/G91), modal motion, last F, spindle (M3/M4/M5) and S, airflow (M7/M8/M9), tool (last `M6`), and the work position X/Y/Z (tracked in mm, absolute or relative, inches converted). It also returns the program's highest Z, used as the travel height.
+- [x] Handled: words without separators (`T1M6`), `T` after `M6` on the same line, comments, `G53` moves (ignored for work position), `G28`/`G30`/`G92` (position becomes unknown, with a warning for `G92`), canned cycles G81–G89 (flagged, not replayed).
+- [x] `ResumePreambleBuilder.build` emits: units, plane, work offset, `G90` → `M6 T<n>` (optional) → `G0 Z<travel>` → `M3/M4 S…` + `G4 P<spin-up>` (only if the spindle was on) → `M7` (if on) → `G0 X Y` → slow plunge `G1 Z… F100` → restores `F`, modal motion, and `G91` if the program was relative.
+- [x] `canResume` is false, and no approach move is generated, when X, Y or Z can't be worked out from the program.
+- [x] `ResumeFileBuilder.build` produces the complete file: preamble + the program from the resume line to the end. `ResumeFile.lineOffset` / `originalLine(forResumeFileLine:)` map machine line numbers back to the original program.
+- [x] `JobCoordinator.resumeWithGeneratedFile(programLines:fileName:fromLine:resumeOptions:runOptions:)` builds the file, refuses with a log message when the position is unknown, uploads it as `resume_<name>` and runs it with the usual pre-run steps. `JobProgress.lineOffset` / `sourceLine` carry the offset, so a later resume of a resume file still points at the right original line.
+- [x] Unit tests: `ResumePreambleTests` (state scan, units, relative mode, `G53`, `G28`, canned cycles, preamble contents, resume file, line mapping).
+- [ ] Not wired yet: nothing in the UI calls `resumeWithGeneratedFile`, and the `goto` path (`resume(fromLine:)`) does not send the preamble yet. Both belong with the safe restart point (step 5) and the review sheet (step 7).
+- [ ] Limits: tool length offset (TLO) after a manual tool change is not handled here (step 6). A resume file's fingerprint is that of the generated file, not of the original program. A restart at line 1 has an unknown position, so it is refused (just run the program normally).
+- [ ] The `goto` path would send the same preamble lines while the job is suspended; the Makera docs advise lifting Z first, which the preamble's first move does.
 
 ### 5. Safe restart points
 - [ ] `ResumePointResolver` snaps the requested line to the start of the enclosing toolpath/pass using `GCodeToolpathAnalyzer` (`startLine`).
