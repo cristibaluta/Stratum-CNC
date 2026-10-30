@@ -27,7 +27,7 @@ class ControllerModel: ObservableObject {
     /// Scanning starts with the model — not with whichever view happens to
     /// show the list — so the toolbar picker is populated and a real machine
     /// is picked up even if the picker sheet was never opened.
-    let discovery = SL.Discovery()
+    let discovery = SL.Discovery.shared
     @Published var selectedMachine: SL.MakeraMachine?
 
     /// The machine logic. Views reach its parts through the forwarding
@@ -159,7 +159,7 @@ class ControllerModel: ObservableObject {
         discovery.$machines
             .sink { [weak self] machines in self?.autoSelectRealMachine(in: machines) }
             .store(in: &cancellables)
-        discovery.startScanning()
+        discovery.startScanningIfNeeded()
 
         session.uploader.objectWillChange
             .receive(on: DispatchQueue.main)

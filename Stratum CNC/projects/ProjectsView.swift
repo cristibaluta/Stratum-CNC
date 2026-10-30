@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import StratumLink
 
 struct ProjectsView: View {
 
@@ -24,7 +25,7 @@ struct ProjectsView: View {
     @State private var isPicking = false
     @State private var errorMessage: String?
 
-    /// Width of the left column (Quick Start + Libraries).
+    /// Width of the left column (Quick Start, Libraries, Machines).
     private let sidebarWidth: CGFloat = 344
 
     private let columns = [
@@ -41,6 +42,7 @@ struct ProjectsView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         quickStart
                         libraries
+                        machines
                     }
                     .frame(width: sidebarWidth)
 
@@ -161,6 +163,17 @@ struct ProjectsView: View {
                 }
             }
         }
+    }
+
+    private var machines: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle("Machines")
+            MachinesSection(discovery: SL.Discovery.shared) {
+                projectsStore.openZombieProject(tab: .controller)
+            }
+        }
+        // Listening starts here too: the machines show up before any project is open
+        .onAppear { SL.Discovery.shared.startScanningIfNeeded() }
     }
 
     private var projects: some View {
