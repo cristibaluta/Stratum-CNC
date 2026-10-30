@@ -15,8 +15,7 @@ enum ProjectError: Error {
     case projectAlreadyExists
     case assetImportFailed
     case notAProjectFolder
-    /// An external project's folder can't be reached: deleted, moved, or on a
-    /// drive that isn't mounted.
+    /// An external project's folder can't be reached: deleted, moved, or on a drive that isn't mounted.
     case projectFolderMissing
     case bookmarkFailed
 }
@@ -290,10 +289,14 @@ final class ProjectsStore: ObservableObject {
             throw ProjectError.projectAlreadyExists
         }
 
-        let project = Project(name: name)
+        let project = Project(id: UUID(),
+                              name: name,
+                              createdAt: .now,
+                              modifiedAt: .now)
 
         let paths = try ProjectPaths(project: project, documentsDirectory: isZombie ? scratchDirectory : documentsDirectory)
         if isZombie {
+            // TODO: what is this? we don't need legacy stuff
             // Preserve old unlisted scratch projects, but never adopt a saved project named Untitled.
             let legacy = try ProjectPaths(project: project, documentsDirectory: documentsDirectory)
             if !FileManager.default.fileExists(atPath: paths.projectDirectory.path),
@@ -301,7 +304,9 @@ final class ProjectsStore: ObservableObject {
                FileManager.default.fileExists(atPath: legacy.projectMetadata.path) {
                 try FileManager.default.copyItem(at: legacy.projectDirectory, to: paths.projectDirectory)
             }
-            if FileManager.default.fileExists(atPath: paths.projectMetadata.path) { return project }
+            if FileManager.default.fileExists(atPath: paths.projectMetadata.path) {
+                return project
+            }
         }
 
         try writeNewProjectFiles(for: project, at: paths)
@@ -317,17 +322,27 @@ final class ProjectsStore: ObservableObject {
     }
 
     private func createExternalProject(name: String, in parentFolder: URL) throws -> Project {
-        guard ProjectPaths.isValidName(name) else { throw ProjectPaths.PathError.invalidProjectName }
+
+        guard ProjectPaths.isValidName(name) else {
+            throw ProjectPaths.PathError.invalidProjectName
+        }
 
         let didAccess = parentFolder.startAccessingSecurityScopedResource()
-        defer { if didAccess { parentFolder.stopAccessingSecurityScopedResource() } }
+        defer {
+            if didAccess {
+                parentFolder.stopAccessingSecurityScopedResource()
+            }
+        }
 
         let folder = parentFolder.appendingPathComponent(name, isDirectory: true)
         guard !FileManager.default.fileExists(atPath: folder.path) else {
             throw ProjectError.projectAlreadyExists
         }
 
-        var project = Project(name: name)
+        var project = Project(id: UUID(),
+                              name: name,
+                              createdAt: .now,
+                              modifiedAt: .now)
         try writeNewProjectFiles(for: project, at: ProjectPaths(projectDirectory: folder))
 
         // The folder exists now, so the bookmark can be made (the parent's
@@ -423,11 +438,15 @@ final class ProjectsStore: ObservableObject {
 
         let candidate = identity?.name ?? folder.lastPathComponent
         let name = ProjectPaths.isValidName(candidate) ? candidate : folder.lastPathComponent
-        guard ProjectPaths.isValidName(name) else { throw ProjectError.notAProjectFolder }
+        guard ProjectPaths.isValidName(name) else {
+            throw ProjectError.notAProjectFolder
+        }
 
         let resolved = try ProjectBookmark.resolve(bookmark)
         let project = Project(id: identity?.id ?? UUID(),
                               name: name,
+                              createdAt: .now,
+                              modifiedAt: .now,
                               bookmark: bookmark,
                               path: resolved.url.path)
         resolvedDirectories[project.id] = resolved.url

@@ -19,7 +19,7 @@ struct ContentView: View {
                     projectsStore.close()
                 })
             } else {
-                ProjectsView(appModel: appModel, projectsStore: projectsStore)
+                SplashpageView(appModel: appModel, projectsStore: projectsStore)
             }
         }
         .frame(minWidth: 800, minHeight: 600)

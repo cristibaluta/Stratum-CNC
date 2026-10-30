@@ -9,7 +9,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import StratumLink
 
-struct ProjectsView: View {
+struct SplashpageView: View {
 
     @ObservedObject var appModel: AppModel
     @ObservedObject var projectsStore: ProjectsStore

@@ -4,12 +4,6 @@
 //
 //  Created by Cristian Baluta on 29.10.2026.
 //
-
-
-//
-//  QuickActionRow.swift
-//  Stratum CNC
-//
 //  One row of a list on the projects page (Quick Start, Libraries), in the style of
 //  Xcode's welcome window and Finder's sidebar rather than an iOS grouped list: no
 //  container card, no disclosure chevrons, no icon chips. An icon and a title (what the
@@ -84,7 +78,9 @@ struct QuickActionRow: View {
         }
         .buttonStyle(.plain)
         .help(subtitle)
-        .onHover { isHovered = $0 }
+        .onHover {
+            isHovered = $0
+        }
     }
 
     @ViewBuilder
