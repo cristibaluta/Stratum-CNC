@@ -43,23 +43,19 @@ struct ProjectCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
 
-                Text(project.modifiedAt, format: .dateTime.year().month().day())
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-
-                // Projects saved outside the app show where they live.
-                if project.isExternal, let path = project.path {
-                    Label {
-                        Text(Self.displayPath(path))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    } icon: {
+                HStack {
+                    Text(project.modifiedAt, format: .dateTime.year().month().day())
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    // Projects saved outside the app show where they live.
+                    if project.isExternal, let path = project.path {
                         Image(systemName: "folder")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
+                            .help(path)
                     }
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-                    .help(path)
                 }
             }
             .padding(.horizontal, 12)

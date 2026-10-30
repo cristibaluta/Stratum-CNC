@@ -74,15 +74,9 @@ struct QuickActionRow: View {
                         .fill(.tint.opacity(0.16 * intensity))
                 }
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
 
                 Spacer(minLength: 0)
 
