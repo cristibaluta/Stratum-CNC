@@ -56,6 +56,10 @@ struct OperationOptionsView: View {
         /// neither a direction nor a depth (a thread's standard, pitch and diameter, the diameter
         /// of a bore or a counterbore, a chamfer's width, a facing's extension).
         case operation
+        /// The title section's collapsed form of `operation`. A thread mill is cut down to its
+        /// standard thread and radial passes in one row; every other operation shows the same
+        /// controls as the full form.
+        case operationCompact
         /// How the tool moves in the plane: cut direction, feed rate, stepover, stock to leave.
         case xyMovement
         /// The operation's own depth settings (dwell, shift before retract, a chamfer's depth
@@ -142,6 +146,7 @@ struct OperationOptionsView: View {
         switch part {
             case .shapes: shapesPart
             case .operation: operationPart
+            case .operationCompact: operationCompactPart
             case .xyMovement: xyMovementPart
             case .depth: depthPart
             case .entry: entryPart
@@ -208,6 +213,74 @@ struct OperationOptionsView: View {
                 patternDetail
             }
         }
+    }
+
+    /// The collapsed title section's settings. A thread mill has too many to squeeze in: only
+    /// the standard thread (diameter and pitch, handedness and internal/external are in the
+    /// full section) and the radial passes stay. The other operations have few enough.
+    @ViewBuilder
+    private var operationCompactPart: some View {
+        if kind == .threadMilling {
+            threadCompactRow
+        } else {
+            operationPart
+        }
+    }
+
+    private var threadCompactRow: some View {
+        let standard = Self.field(withID: "threadMilling.standard", in: formFields)
+        let passes = Self.field(withID: "threadMilling.radialPasses", in: formFields)
+
+        return HStack(spacing: 6) {
+            if case .choice(let choice) = standard {
+                Menu {
+                    ForEach(choice.options) { option in
+                        Button {
+                            choice.onChange(option.id)
+                        } label: {
+                            if option.id == choice.selectedId {
+                                Label(option.label, systemImage: "checkmark")
+                            } else {
+                                Text(option.label)
+                            }
+                        }
+                    }
+                } label: {
+                    InspectorMenuLabel {
+                        Text(choice.options.first(where: { $0.id == choice.selectedId })?.label ?? "")
+                    }
+                }
+                .menuIndicator(.hidden)
+                .buttonStyle(.plain)
+                .help("Standard thread. Pick Custom, then edit the diameter and pitch, in the full section.")
+            }
+            if case .int(let field) = passes {
+                InspectorIntField(title: field.label,
+                                  value: Binding(get: { field.value },
+                                                 set: { field.onChange(min(max($0, field.range.lowerBound), field.range.upperBound)) }),
+                                  suffix: "",
+                                  isCompact: true,
+                                  tag: "Passes")
+            }
+        }
+    }
+
+    /// The field with this id, looked up through the rows, groups and variants of `fields`.
+    private static func field(withID id: String, in fields: [SC.ParameterField]) -> SC.ParameterField? {
+        for field in fields {
+            if field.id == id {
+                return field
+            }
+            switch field {
+                case .row(let f):
+                    if let found = Self.field(withID: id, in: f.fields) { return found }
+                case .group(let f):
+                    if let found = Self.field(withID: id, in: f.fields) { return found }
+                default:
+                    break
+            }
+        }
+        return nil
     }
 
     // MARK: XY plane

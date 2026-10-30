@@ -48,18 +48,34 @@ struct PanelToolpathDetails: View {
 
     @StateObject private var model = ToolpathDetailsModel()
 
+    /// The title section's compact form is showing. Remembered like the other sections'.
+    @AppStorage("inspector.sectionCollapsed.Title") private var isTitleCollapsed = false
+
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 0) {
-                // The title, the operation it does and what that operation does
+                // The title, the operation it does and what that operation does. The title row
+                // is the same either way; collapsed, what is under it shrinks: the operation
+                // picker without its label or summary, and a thread mill's standard thread
+                // and radial passes in one row.
                 VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
                     rowHeader
-                    rowOperation
-                    InspectorNote(text: toolpath.operation.kind.summary)
-                    // The operation's own settings, right under its type: a thread's standard
-                    // and pitch, a bore's diameter, a chamfer's width…
-                    if OperationOptionsView.hasOperationFields(for: toolpath) {
-                        OperationOptionsView(toolpath: $toolpath, part: .operation)
+                    if isTitleCollapsed {
+                        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
+                                        isCompact: true)
+                            // A rest operation is created from a pocket and stays one.
+                            .disabled(toolpath.operation.kind == .restMachining)
+                        if OperationOptionsView.hasOperationFields(for: toolpath) {
+                            OperationOptionsView(toolpath: $toolpath, part: .operationCompact)
+                        }
+                    } else {
+                        rowOperation
+                        InspectorNote(text: toolpath.operation.kind.summary)
+                        // The operation's own settings, right under its type: a thread's standard
+                        // and pitch, a bore's diameter, a chamfer's width…
+                        if OperationOptionsView.hasOperationFields(for: toolpath) {
+                            OperationOptionsView(toolpath: $toolpath, part: .operation)
+                        }
                     }
                 }
                 .padding(.bottom, 12)
@@ -123,6 +139,13 @@ struct PanelToolpathDetails: View {
                 // A field being edited ignores outside changes to its text; a new
                 // identity per operation makes it show the renamed title.
                 .id(toolpath.operation.kind)
+
+            // As tall as the name, so the title row keeps its height
+            InspectorDisclosureButton(title: "Toolpath", isExpanded: !isTitleCollapsed, height: 22) {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isTitleCollapsed.toggle()
+                }
+            }
         }
     }
 

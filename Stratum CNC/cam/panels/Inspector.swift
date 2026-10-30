@@ -135,27 +135,54 @@ struct InspectorSection<Content: View, Compact: View>: View {
             Spacer(minLength: 0)
 
             if collapsible {
-                Button {
+                InspectorDisclosureButton(title: title, isExpanded: isOpen) {
                     withAnimation(.easeInOut(duration: 0.15)) {
                         isCollapsed.toggle()
                     }
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isOpen ? 0 : -90))
-                        // A target as tall as the header and wide enough to hit easily
-                        .frame(width: 28, height: 36)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                // The target is wider than the glyph; keep the glyph at the edge
-                .padding(.trailing, -9)
-                .accessibilityLabel(title)
-                .accessibilityValue(isOpen ? "Expanded" : "Collapsed")
-                .help(isOpen ? "Collapse \(title)" : "Expand \(title)")
             }
         }
+    }
+}
+
+// MARK: - Disclosure chevron
+
+/// The chevron that shows whether something is open: pointing down while it is collapsed,
+/// up while it is open. Every expandable panel (the stock, each toolpath section) uses this
+/// one glyph so they all turn the same way.
+struct InspectorChevron: View {
+    let isExpanded: Bool
+
+    var body: some View {
+        Image(systemName: "chevron.down")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+    }
+}
+
+/// `InspectorChevron` as a button with a target as tall as a section header, for the top
+/// right corner of a section.
+struct InspectorDisclosureButton: View {
+    let title: String
+    let isExpanded: Bool
+    /// The target's height: as tall as a section header by default.
+    var height: CGFloat = 36
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            InspectorChevron(isExpanded: isExpanded)
+                // A target as tall as the header and wide enough to hit easily
+                .frame(width: 28, height: height)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // The target is wider than the glyph; keep the glyph at the edge
+        .padding(.trailing, -9)
+        .accessibilityLabel(title)
+        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+        .help(isExpanded ? "Collapse \(title)" : "Expand \(title)")
     }
 }
 
@@ -372,11 +399,13 @@ struct InspectorIntField: View {
     /// Just the field, at a fixed width and without the label column, for a compact row.
     /// The title becomes its help text.
     var isCompact: Bool = false
+    /// A short tag inside the field before the value, for a compact one ("Passes").
+    var tag: String? = nil
 
     var body: some View {
         if isCompact {
             field
-                .frame(width: 92)
+                .frame(width: tag == nil ? 92 : 104)
                 .help(title)
         } else {
             InspectorRow(label: title) {
@@ -387,6 +416,13 @@ struct InspectorIntField: View {
 
     private var field: some View {
         HStack(spacing: 6) {
+            if isCompact, let tag {
+                Text(tag)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
             TextField("", value: $value, format: .number.grouping(.never))
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))

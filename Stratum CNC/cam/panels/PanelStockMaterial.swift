@@ -82,10 +82,7 @@ struct PanelStockMaterial: View {
 
                     Spacer(minLength: 4)
 
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    InspectorChevron(isExpanded: isExpanded)
                 }
                 .contentShape(Rectangle())
             }

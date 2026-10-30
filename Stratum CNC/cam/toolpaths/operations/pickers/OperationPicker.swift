@@ -8,25 +8,38 @@ import SwiftUI
 /// Chooses what the toolpath does. Same look as `ToolPicker`.
 struct OperationPicker: View {
     @Binding var kind: OperationKind
+    /// Just the field (icon and title), without the label column, for the title section's
+    /// compact form. The summary that sits under it in the full form goes to the help.
+    var isCompact: Bool = false
 
     @State private var isPresented = false
 
     var body: some View {
-        InspectorRow(label: "Operation") {
-            Button {
-                isPresented.toggle()
-            } label: {
-                InspectorMenuLabel {
-                    OperationIcon(kind: kind, size: 13)
-                        .foregroundStyle(.secondary)
-                    Text(kind.title)
-                }
+        if isCompact {
+            button
+        } else {
+            InspectorRow(label: "Operation") {
+                button
             }
-            .buttonStyle(.plain)
-            .help(kind.selectionHint ?? "What this toolpath does")
-            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                OperationGridPicker(kind: $kind, isPresented: $isPresented)
+        }
+    }
+
+    private var button: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            InspectorMenuLabel {
+                OperationIcon(kind: kind, size: 13)
+                    .foregroundStyle(.secondary)
+                Text(kind.title)
             }
+        }
+        .buttonStyle(.plain)
+        .help(isCompact
+              ? [kind.summary, kind.selectionHint].compactMap { $0 }.joined(separator: "\n")
+              : (kind.selectionHint ?? "What this toolpath does"))
+        .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            OperationGridPicker(kind: $kind, isPresented: $isPresented)
         }
     }
 }
