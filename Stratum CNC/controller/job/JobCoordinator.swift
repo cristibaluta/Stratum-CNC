@@ -62,6 +62,17 @@ final class JobCoordinator: ObservableObject {
     /// change is always written at once.
     private static let saveInterval: TimeInterval = 2
 
+    /// True from the moment a suspend is requested until the machine confirms
+    /// it (or it fails). For disabling the button meanwhile.
+    @Published private(set) var isSuspending = false
+    private var suspendTask: Task<Void, Never>?
+    private static let suspendTimeout: TimeInterval = 60
+
+    /// UserDefaults key (`Bool`, off by default): after a suspend, also move to
+    /// the machine's clearance position (`G28`). Read when the suspend finishes,
+    /// so the Settings window can flip it without a reference to this object.
+    static let parkAfterSuspendKey = "job.parkAfterSuspend"
+
     /// True while the pre-run steps (origin, probe, leveling, waiting for the
     /// machine to be idle) are in progress, before `play` has been sent.
     @Published private(set) var isPreparing = false
@@ -383,14 +394,64 @@ final class JobCoordinator: ObservableObject {
         connection.requestStatus()
     }
 
-    /// Suspends the running job so it can be picked up later: the machine lets
-    /// the planner drain, saves the position and stops the spindle.
+    /// Suspends the running job so it can be picked up later. The machine's own
+    /// `suspend` does the hard part (lets the planner drain, saves the position,
+    /// stops the spindle); the app owns what surrounds it: it waits until the
+    /// machine really reports the suspended (Pause) state, makes sure the
+    /// position is recorded in `progress`, and, if the person chose so, parks
+    /// the head at the machine's clearance position so the work area is free.
     ///
-    /// Still delegated to the session: it remembers that the suspend was ours,
-    /// so the resulting Pause state isn't reported as "paused by the machine".
-    /// That goes away once the alert policy moves into the app.
+    /// The request itself still goes through the session: it remembers that the
+    /// suspend was ours, so the resulting Pause state isn't reported as "paused
+    /// by the machine". That goes away once the alert policy moves into the app.
     func suspend() {
+        guard connection.isConnected, !isSuspending,
+              let status = connection.status, status.isRunning, status.activeJob != nil else { return }
+
+        isSuspending = true
         session.suspendJob()
+        suspendTask = Task { await self.finishSuspend() }
+    }
+
+    /// Waits for the machine to confirm the suspend. Gives up on Idle or Alarm
+    /// (the job ended or faulted first), on disconnect, and after `suspendTimeout`.
+    private func finishSuspend() async {
+        defer {
+            isSuspending = false
+            suspendTask = nil
+        }
+        let deadline = Date().addingTimeInterval(Self.suspendTimeout)
+
+        while !Task.isCancelled {
+            guard connection.isConnected else { return }
+            let state = connection.status?.state ?? ""
+
+            if state.hasPrefix("Pause") { break }
+            if state.hasPrefix("Idle") || state.hasPrefix("Alarm") {
+                connection.appendLog("Suspend did not take effect: the machine is \(state).")
+                return
+            }
+            if Date() > deadline {
+                connection.appendLog("Suspend was not confirmed by the machine within \(Int(Self.suspendTimeout)) s.")
+                return
+            }
+            connection.requestStatus()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+        }
+        guard !Task.isCancelled else { return }
+
+        // The status that reported Pause has already updated `progress`; make
+        // sure what the machine says is on disk before anything else happens.
+        if let record = progress, record.phase == .suspended {
+            persist(record)
+        }
+
+        if UserDefaults.standard.bool(forKey: Self.parkAfterSuspendKey) {
+            connection.appendLog("Job suspended at line \(progress?.lastLine ?? 0). Moving to the clearance position.")
+            session.sendRawCommand(CNC.clearancePosition.command)
+        } else {
+            connection.appendLog("Job suspended at line \(progress?.lastLine ?? 0).")
+        }
     }
 
     /// Resumes whichever kind of pause the machine is in. With `line`, first
@@ -398,6 +459,7 @@ final class JobCoordinator: ObservableObject {
     /// firmware only accepts while the job is paused.
     func resume(fromLine line: Int? = nil) {
         guard connection.isConnected else { return }
+        suspendTask?.cancel()
 
         let status = connection.status
 
@@ -424,6 +486,7 @@ final class JobCoordinator: ObservableObject {
     /// - Otherwise: a soft reset, if the machine (or the streamed queue) has
     ///   something in progress. Not resumable.
     func stop() {
+        suspendTask?.cancel()
         pendingPlayPath = nil   // cancels a `play` still waiting on pre-run steps
         runAfterUpload = nil
 

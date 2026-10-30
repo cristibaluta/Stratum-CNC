@@ -20,6 +20,7 @@ import SwiftUI
 enum SettingsTab: String {
     case appearance
     case canvas
+    case machine
 
     static let storageKey = "settings.selectedTab"
 
@@ -35,6 +36,7 @@ struct SettingsView: View {
     @ObservedObject var appModel: AppModel
     @AppStorage(SettingsTab.storageKey) private var selectedTab: SettingsTab = .appearance
     @State private var confirmingUsageReset = false
+    @AppStorage(JobCoordinator.parkAfterSuspendKey) private var parkAfterSuspend = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -46,11 +48,30 @@ struct SettingsView: View {
             CanvasControlsSettingsView()
                 .tabItem { Label("Canvas", systemImage: "computermouse") }
                 .tag(SettingsTab.canvas)
+
+            machineTab
+                .tabItem { Label("Machine", systemImage: "gearshape.2") }
+                .tag(SettingsTab.machine)
         }
         .frame(width: 420, height: 500)
         // The Settings window is its own scene, outside ContentView, so it has
         // to apply the app-wide appearance itself.
         .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
+    }
+
+    private var machineTab: some View {
+        Form {
+            Section {
+                Toggle("Park after suspending a job", isOn: $parkAfterSuspend)
+                Text("The machine's own suspend stops the spindle and saves the position. With this on, the head also moves to the machine's clearance position (G28) afterwards, so the work area is free for a bit change or a look at the part.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Suspend")
+            }
+        }
+        .formStyle(.grouped)
     }
 
     private var appearanceTab: some View {

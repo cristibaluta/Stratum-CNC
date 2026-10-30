@@ -97,10 +97,15 @@ So the app **cannot** own line streaming for real jobs. It can own the **policy*
 - [ ] Not stored yet: active WCS (G54–G59), tool number, stock. The resume preamble is computed from the G-code file itself in step 4; add them here if that turns out not to be enough.
 - [ ] Note: `ProjectPathsRegressionTests` and `ProjectPersistenceTests` don't compile (`Project(name:)` initializer), which blocks the whole test target. This predates step 2.
 
-### 3. Safe suspend (app-owned)
-- [ ] Sequence: feed hold → wait for Hold state → `G53 G0 Z<safe>` → `M5` → coolant off → optional park → record `JobProgress`.
-- [ ] Safe Z and park position come from machine settings.
-- [ ] Triggers: the user pressing Suspend, and later thresholds (heat or alarm).
+### 3. Safe suspend (app-owned): DONE (`JobCoordinator.suspend()`)
+- [x] The machine's own `suspend` stays the core (planner drain, save position, spindle stop). I did **not** replace it with an app-built feed hold + `G53 G0 Z` + `M5` sequence: during a feed hold the firmware's behavior for newly sent moves is unconfirmed, and `suspend` is documented to be safe to leave and to resume from, also after an app restart.
+- [x] The app owns what surrounds it: it sends `suspend`, then waits (up to 60 s) until the machine really reports Pause; it gives up and logs on Idle, Alarm, disconnect or timeout. `isSuspending` is published for disabling the button.
+- [x] The position is recorded: `progress` becomes `suspended` with the last line from the machine and is written to disk at once.
+- [x] Optional park: Settings ▸ Machine ▸ "Park after suspending a job" (off by default) sends the clearance position (`G28`) once suspended. It is opt-in because whether the firmware's `resume` returns to the saved position after the head was moved is unconfirmed.
+- [x] Resume and Stop cancel a pending suspend wait.
+- [ ] Not done: configurable safe Z / park position. `G28` (the machine's clearance position) is used instead, since it is documented by Makera.
+- [ ] Not done: automatic triggers (spindle temperature, alarms). Temperature can be read with `M105`; add a threshold watcher later if wanted.
+- [ ] Still delegated: the request goes through `session.suspendJob()` so the library's "paused by the machine" alert is not raised for our own suspend. Moves out with the alert policy in step 8.
 
 ### 4. Resume preamble
 - [ ] `GCodeModalState.at(line:)` scans the file from the start to line N and collects units, G90/G91, plane, feed mode, tool, spindle speed and direction, coolant, last F.
