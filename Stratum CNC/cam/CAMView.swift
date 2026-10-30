@@ -130,6 +130,8 @@ struct CAMView: View {
                     // Imports asset to project directory
                     if let asset = try? projectModel.importAsset(from: url) {
                         camModel.loadAndParseFileAt(projectModel.paths.assetsDirectory.appendingPathComponent(asset.name))
+                        // The object is on the canvas now: take the project card's picture from it
+                        projectModel.updatePreview(from: camModel.canvasState.objects)
                     }
                     url.stopAccessingSecurityScopedResource()
                 }

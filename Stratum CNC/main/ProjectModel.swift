@@ -261,6 +261,19 @@ class ProjectModel: ObservableObject {
         return asset
     }
 
+    /// Draws the canvas objects into the project's `preview.png`, the picture on its card.
+    /// Called right after an import has put the new object on the canvas.
+    func updatePreview(from objects: [D2_Object]) {
+        guard let data = ProjectPreviewRenderer.pngData(for: objects) else { return }
+        do {
+            try withFolderAccess {
+                try data.write(to: paths.preview, options: .atomic)
+            }
+        } catch {
+            print("Failed to write preview: \(error)")
+        }
+    }
+
     /// Mirrors each live canvas object's position/scale/rotation back into
     /// `projectData.assets`, matched by file name (the same name both
     /// `AssetData` and `D2_Object` use). Called whenever the canvas reports
