@@ -119,11 +119,16 @@ So the app **cannot** own line streaming for real jobs. It can own the **policy*
 - [ ] Limits: tool length offset (TLO) after a manual tool change is not handled here (step 6). A resume file's fingerprint is that of the generated file, not of the original program. A restart at line 1 has an unknown position, so it is refused (just run the program normally).
 - [ ] The `goto` path would send the same preamble lines while the job is suspended; the Makera docs advise lifting Z first, which the preamble's first move does.
 
-### 5. Safe restart points
-- [ ] `ResumePointResolver` snaps the requested line to the start of the enclosing toolpath/pass using `GCodeToolpathAnalyzer` (`startLine`).
-- [ ] Never start mid-arc. Optionally allow "exact line" as an advanced choice.
-- [ ] Show the resolved line in the "Resume from Line" button and help text.
-- [ ] Unit tests.
+### 5. Safe restart points: DONE (`controller/job/ResumePointResolver.swift`)
+- [x] `ResumePointResolver(lines:toolpaths:)` is built once per program (it reads the whole program with `GCodeModalScanner`) and answers `resolve(requestedLine:)` with a `ResumePoint` (requested line, resolved line, reason, explanation).
+- [x] Rule: go back to the last line before which the tool is above the work (the start of the interrupted pass, so the program's own approach and plunge run again), or to the start of the enclosing toolpath from `GCodeToolpathAnalyzer`, whichever is closer. A line that is already clean is kept. Never lands mid-arc or mid-cut. Without any information the requested line is used as given.
+- [x] "Above the work" = at or above the lowest rapid (G0) Z that is above zero (the highest rapid Z when none is). A rapid into a hole below zero does not lower the bar; `G53` moves are ignored.
+- [x] `GCodeViewer`'s "Resume from Line N" now shows the resolved line, and its help text says what happened ("Moved back from line 7 to line 5, where the tool was last above the work…").
+- [x] Unit tests: `ResumePointResolverTests` (two passes, feed-move retract, rapid into a hole, `G53`, clamping, empty program, no information).
+- [ ] An "exact line" advanced choice is not offered.
+- [ ] Assumes Z zero is the top of the work. A program with Z zero at the bottom has all rapid Z above zero, so the bar is its lowest rapid Z; the result is then conservative or falls back to the toolpath start.
+- [ ] The `goto` path still only seeks and resumes: it does not send the preamble, so Z must be lifted by hand first (the help text says so). The review sheet (step 7) is where the lift and preamble should be offered; resume by generated file (step 4) already includes them.
+- [ ] The resolver is rebuilt on every toolpath refresh (full read of the program). Fine for typical programs; if it shows up in profiles, move it off the main thread.
 
 ### 6. Bit change / broken bit flow
 - [ ] A guided sheet: retract and stop → "Replace the bit" → choose same or different tool.

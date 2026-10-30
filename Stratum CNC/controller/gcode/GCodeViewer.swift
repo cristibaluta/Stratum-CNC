@@ -32,6 +32,8 @@ struct GCodeViewer: View {
     var onStop: (() -> Void)? = nil
 
     @State private var toolpaths: [GCodeToolpath] = []
+    /// Finds a clean line to resume from; rebuilt with the toolpaths.
+    @State private var resumeResolver: ResumePointResolver?
 
     var body: some View {
         VStack(spacing: 4) {
@@ -87,6 +89,7 @@ struct GCodeViewer: View {
 
     private func refreshToolpaths() {
         toolpaths = GCodeToolpathAnalyzer.analyze(model.document.lines.map { (id: $0.id, text: $0.text) })
+        resumeResolver = ResumePointResolver(lines: model.document.lines.map(\.text), toolpaths: toolpaths)
     }
 
     // MARK: - Toolpaths
@@ -221,6 +224,14 @@ struct GCodeViewer: View {
         model.requestedLine ?? highlightedLine
     }
 
+    /// The line to resume from: what the person picked (or where the job is),
+    /// moved back to the start of the pass it falls in.
+    private var resumePoint: ResumePoint? {
+        guard let target = resumeLineTarget else { return nil }
+        return resumeResolver?.resolve(requestedLine: target)
+            ?? ResumePoint(requestedLine: target, line: target, reason: .none)
+    }
+
     private var progressText: String? {
         if connection.status?.isSuspended == true {
             return "Suspended"
@@ -287,14 +298,14 @@ struct GCodeViewer: View {
 
     @ViewBuilder
     private var jobControls: some View {
-        if isPaused, canResumeFromLine, let target = resumeLineTarget {
+        if isPaused, canResumeFromLine, let point = resumePoint {
             Button {
-                onResumeFromLine?(target)
+                onResumeFromLine?(point.line)
             } label: {
-                Text("Resume from Line \(target)")
+                Text("Resume from Line \(point.line)")
             }
             .buttonStyle(QuietButtonStyle(tint: .accentColor))
-            .help("Seek to line \(target) (console \"goto \(target)\"), then resume — instead of continuing from where it paused")
+            .help("\(point.explanation) Seeks there (console \"goto \(point.line)\"), then resumes — instead of continuing from where it paused. Lift Z first.")
         }
 
         // Machine-side controls: not offered while a file is still uploading.
