@@ -14,10 +14,10 @@ import StratumLink
 import AppKit
 #endif
 
-/// The app-side model of the controller screen. The machine logic itself —
-/// connecting, uploading, origin/leveling/play sequencing, pause/suspend/
-/// resume/stop, and spotting alarms and tool changes — lives in
-/// `SL.Session`. This class only adds what belongs to the app: UserDefaults
+/// The app-side model of the controller screen. Connecting, uploading and
+/// spotting alarms and tool changes live in `SL.Session`; the job policy
+/// (origin/leveling/play sequencing, pause/suspend/resume/stop) lives in
+/// `JobCoordinator`. This class only adds what belongs to the app: UserDefaults
 /// persistence, the canvas offset, the alert presentation, the MDI box and
 /// its history, jogging, and panel state.
 @MainActor
@@ -59,13 +59,13 @@ class ControllerModel: ObservableObject {
     @Published var coolingFanPercent = "100"
     @Published var extendedPortPercent = "100"
 
-    /// SD-card path of the most recently completed upload. Mirrors
-    /// `session.lastUploadedRemotePath` (so views refresh) and persists it, so
-    /// "Resume from Line" still works after the app was closed while a job
-    /// sat suspended on the machine.
-    @Published private(set) var lastUploadedRemotePath: String? {
-        didSet { UserDefaults.standard.set(lastUploadedRemotePath, forKey: "lastUploadedRemotePath") }
-    }
+    /// Owns the job policy: upload, run, pause, suspend, resume, stop.
+    let job: JobCoordinator
+
+    /// SD-card path of the most recently completed upload (persisted by
+    /// `JobCoordinator`), so "Resume from Line" still works after the app was
+    /// closed while a job sat suspended on the machine.
+    var lastUploadedRemotePath: String? { job.lastUploadedRemotePath }
 
     // MARK: Alerts
 
@@ -144,9 +144,13 @@ class ControllerModel: ObservableObject {
     )
 
     init() {
-        let savedPath = UserDefaults.standard.string(forKey: "lastUploadedRemotePath")
-        session = SL.Session(lastUploadedRemotePath: savedPath)
-        lastUploadedRemotePath = savedPath
+        let session = SL.Session()
+        self.session = session
+        job = JobCoordinator(session: session)
+
+        job.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
 
         // `discovery` is a nested object: forward its changes so views
         // reading `model.discovery.machines` refresh when a machine appears.
@@ -166,9 +170,6 @@ class ControllerModel: ObservableObject {
             .sink { [weak self] _ in self?.syncSentState() }
             .store(in: &cancellables)
 
-        session.onLastUploadedRemotePathChange = { [weak self] path in
-            self?.lastUploadedRemotePath = path
-        }
         session.onEvent = { [weak self] event in
             self?.handle(event)
         }
@@ -281,21 +282,24 @@ class ControllerModel: ObservableObject {
         jogController.stopAll()
     }
 
-    // MARK: - Job execution (see `SL.Session`)
+    // MARK: - Job execution (see `JobCoordinator`)
 
-    /// Uploads `contents` to the machine's SD card as `fileName` and runs it.
-    /// The canvas offset and the pre-run settings are captured now, so
-    /// changing them while the file is still transferring can't change where
-    /// the job that was just sent ends up.
-    func uploadJob(fileName: String, contents: String) {
-        let options = SL.RunOptions(
+    /// The canvas offset and the pre-run settings, captured when a run is
+    /// requested, so changing them while a file is still transferring can't
+    /// change where the job that was just sent ends up.
+    private var currentRunOptions: JobRunOptions {
+        JobRunOptions(
             originOffset: scene.xyOffset,
             levelBeforeRun: levelBeforeRun,
             levelGridPoints: levelGridPoints,
             levelMargin: levelMargin,
             autoZBeforeRun: autoZBeforeRun
         )
-        session.uploadJob(fileName: fileName, contents: contents, options: options)
+    }
+
+    /// Uploads `contents` to the machine's SD card as `fileName` and runs it.
+    func uploadJob(fileName: String, contents: String) {
+        job.uploadAndRun(fileName: fileName, contents: contents, options: currentRunOptions)
     }
 
     // MARK: Send, then start (two steps)
@@ -315,28 +319,18 @@ class ControllerModel: ObservableObject {
     }
 
     /// Uploads `contents` to the machine's SD card without starting it.
-    /// Requires `SL.Session.sendJob` (upload only, no pre-run macro, no play).
     func sendJob(fileName: String, contents: String) {
         sentJobFingerprint = nil
         pendingSentFingerprint = Self.fingerprint(fileName: fileName, contents: contents)
         pendingSawActiveUpload = false
-        session.uploadJob(fileName: fileName, contents: contents)
+        job.upload(fileName: fileName, contents: contents)
     }
 
-    /// Runs the pre-run macro and plays the file `sendJob` last uploaded.
+    /// Runs the pre-run steps and plays the file `sendJob` last uploaded.
     /// Origin and pre-run options are captured now, at start, so what the
     /// review sheet shows is what runs.
-    /// Requires `SL.Session.runUploadedJob(options:)`.
     func startSentJob() {
-        let options = SL.RunOptions(
-            originOffset: scene.xyOffset,
-            levelBeforeRun: levelBeforeRun,
-            levelGridPoints: levelGridPoints,
-            levelMargin: levelMargin,
-            autoZBeforeRun: autoZBeforeRun
-        )
-        // TODO: how to start the job?
-//        session.runUploadedJob(options: options)
+        job.runUploaded(options: currentRunOptions)
     }
 
     /// Promotes the pending fingerprint to "sent" only once the uploader
@@ -365,37 +359,37 @@ class ControllerModel: ObservableObject {
     }
 
     func cancelUpload() {
-        session.cancelUpload()
+        job.cancelUpload()
     }
 
     /// Starts streaming `lines` one at a time. Still the right call for
     /// MDI-style manual sends; use `uploadJob` for a whole program.
     func startJob(lines: [String]) {
-        session.startJob(lines: lines)
+        job.startLines(lines)
     }
 
     func pauseJob() {
-        session.pauseJob()
+        job.pause()
     }
 
     func suspendJob() {
-        session.suspendJob()
+        job.suspend()
     }
 
     func resumeJob() {
-        session.resumeJob()
+        job.resume()
     }
 
     func resumeJob(fromLine line: Int?) {
-        session.resumeJob(fromLine: line)
+        job.resume(fromLine: line)
     }
 
     func stopJob() {
-        session.stopJob()
+        job.stop()
     }
 
     func autoZeroProbe() {
-        session.autoZeroProbe()
+        job.autoZeroProbe()
     }
 
     // MARK: - Raw commands not modeled by CNCCommand

@@ -73,13 +73,14 @@ So the app **cannot** own line streaming for real jobs. It can own the **policy*
 - [x] `goto <line>` confirmed in the Makera docs (requires a paused job).
 - [ ] Open: test on the real Carvera how `goto` behaves with `suspend` vs feed hold (`!`), whether modal state (spindle, feed, units) is restored after the jump, and what happens after a soft reset.
 
-### 1. App-side job coordinator
-- [ ] Create `JobCoordinator` (app layer, e.g. `controller/job/`) that owns the job state machine (`idle / uploading / preparing / running / held / suspended / stopped / failed`, derived from `connection.status` plus local state) and the policy for pause, suspend, resume and stop.
-- [ ] Move into it from `MachineSession`: `pauseJob`, `suspendJob`, `resumeJob(fromLine:)`, `stopJob`, run orchestration (`startRun`, `playWhenIdle`, `applyJobOrigin`), `autoZeroProbe`, `MachineRunOptions`.
-- [ ] It drives the machine only through the transport API. The firmware still streams the file (`play <path>`); do not stream whole jobs line by line.
-- [ ] `ControllerModel` calls `JobCoordinator` instead of `session.pauseJob()` and the rest.
-- [ ] Keep `GCodeViewer` callbacks unchanged so the UI doesn't need to change.
-- [ ] Deliverable: run, pause (feed hold) and resume work through the app.
+### 1. App-side job coordinator: DONE (`controller/job/JobCoordinator.swift`)
+- [x] Created `JobCoordinator`. Phase tracking is minimal for now (`isPreparing`); a full state enum (`uploading / running / held / suspended / ...`) comes with step 2, when progress is persisted.
+- [x] Moved in: upload / upload-and-run / run-uploaded, pre-run origin, Z probe and leveling, `play` when Idle, pause, resume (with `goto`), stop, `autoZeroProbe`, `lastUploadedRemotePath` persistence, `JobRunOptions`. The coordinator takes over the session's `uploader.onCompleted` and `jobRunner.onFinish` / `onFailure` hooks, so the library's own run sequence no longer fires.
+- [x] It drives the machine only through the transport API; the firmware streams the file.
+- [x] `ControllerModel` calls `JobCoordinator` (`model.job`). Fixed on the way: "Send to Machine" used to start the job automatically after upload, and `startSentJob()` was a stub. Now Send only uploads, and Start runs the uploaded file.
+- [x] `GCodeViewer` callbacks unchanged.
+- [x] Deliverable: run, pause (feed hold) and resume work through the app. Builds; not yet tried on a machine.
+- [ ] Left for later: `suspend()` still calls `session.suspendJob()` (it records that the suspend was ours, for the alert policy). Moves with the alert policy in step 8.
 
 ### 2. Persist job progress (`JobProgress`)
 - [ ] Add a `Codable` `JobProgress` to the project data:
