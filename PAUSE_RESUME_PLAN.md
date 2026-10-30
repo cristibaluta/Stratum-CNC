@@ -82,19 +82,20 @@ So the app **cannot** own line streaming for real jobs. It can own the **policy*
 - [x] Deliverable: run, pause (feed hold) and resume work through the app. Builds; not yet tried on a machine.
 - [ ] Left for later: `suspend()` still calls `session.suspendJob()` (it records that the suspend was ours, for the alert policy). Moves with the alert policy in step 8.
 
-### 2. Persist job progress (`JobProgress`)
-- [ ] Add a `Codable` `JobProgress` to the project data:
-  - file fingerprint (SHA256, already computed in `sendJob`)
-  - last acked line
-  - state
-  - active WCS (G54–G59)
-  - tool number
-  - stock reference
-  - timestamp
-- [ ] Write it on every state change and every N acked lines (throttled).
-- [ ] Clear it on completion or an explicit stop.
-- [ ] On launch or project open, detect an unfinished `JobProgress` and offer **Resume**.
-- [ ] Validate the fingerprint. If the file changed, refuse to resume or warn.
+### 2. Persist job progress (`JobProgress`): DONE (`controller/job/JobProgress.swift`)
+- [x] `JobProgress` (`Codable`): file name, fingerprint (SHA256, nil if the upload was in an earlier session), SD path, origin X/Y, total lines, last line, percent, phase (`starting / running / held / suspended / stopped / alarm / interrupted`), timestamps.
+- [x] Stored in a single JSON file (`Application Support/Stratum CNC/job-progress.json`, `JobProgressStore`) instead of project data: the machine runs one job at a time, and the coordinator does not know which project the file came from.
+- [x] `JobProgress.observe(...)` follows the machine's status reports. Line and percent never go backward. Hold and Pause map to `held` and `suspended`; Alarm to `alarm`; Idle before 100% to `interrupted`.
+- [x] Written on every phase change, and at most every 2 s while only the line advances.
+- [x] Completion is judged by the firmware's 100%, not by the line count (the reported line is the last motion block, so trailing lines leave it short). When unsure the record is kept.
+- [x] Cleared on completion, when a requested run never reached `play` (Idle more than 30 s after `play`, upload or probe failure, disconnect before `play`), and on an explicit discard (`discardProgress()`).
+- [x] **Deviation:** an explicit Stop keeps the record as `stopped` instead of clearing it. A stopped job can still be continued with a generated resume file (step 4).
+- [x] On launch the record is loaded (`job.progress`); a record still in `starting` is dropped.
+- [x] Fingerprint check: `JobProgress.matches(fingerprint:)`. It is not enforced anywhere yet.
+- [x] Unit tests: `JobProgressTests`.
+- [ ] Not done here: the "offer Resume on launch" UI. It belongs to the resume review sheet in step 7; `job.progress` is what it will read.
+- [ ] Not stored yet: active WCS (G54–G59), tool number, stock. The resume preamble is computed from the G-code file itself in step 4; add them here if that turns out not to be enough.
+- [ ] Note: `ProjectPathsRegressionTests` and `ProjectPersistenceTests` don't compile (`Project(name:)` initializer), which blocks the whole test target. This predates step 2.
 
 ### 3. Safe suspend (app-owned)
 - [ ] Sequence: feed hold → wait for Hold state → `G53 G0 Z<safe>` → `M5` → coolant off → optional park → record `JobProgress`.

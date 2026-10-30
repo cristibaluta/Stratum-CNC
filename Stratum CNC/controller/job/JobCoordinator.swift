@@ -51,14 +51,27 @@ final class JobCoordinator: ObservableObject {
         didSet { UserDefaults.standard.set(lastUploadedRemotePath, forKey: Self.lastPathKey) }
     }
 
+    /// What the app remembers about the job it started: the last line the
+    /// machine reported, the file fingerprint, where the origin was set.
+    /// Survives an app restart. Nil when there's nothing to resume.
+    @Published private(set) var progress: JobProgress?
+
+    private let store: JobProgressStore
+    private var lastSavedAt = Date.distantPast
+    /// Disk writes while only the line advances are spaced out; a phase
+    /// change is always written at once.
+    private static let saveInterval: TimeInterval = 2
+
     /// True while the pre-run steps (origin, probe, leveling, waiting for the
     /// machine to be idle) are in progress, before `play` has been sent.
     @Published private(set) var isPreparing = false
 
     /// The program last uploaded in this app session, kept to measure the
-    /// leveling area when the run is started later.
+    /// leveling area and to fingerprint the job when the run is started later.
     private var lastUploadedContents: String?
+    private var lastUploadedFileName: String?
     private var pendingContents: String?
+    private var pendingFileName: String?
 
     /// Set when the upload should be followed by a run (`uploadAndRun`).
     private var runAfterUpload: JobRunOptions?
@@ -81,9 +94,17 @@ final class JobCoordinator: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(session: SL.Session) {
+    init(session: SL.Session, store: JobProgressStore = JobProgressStore()) {
         self.session = session
+        self.store = store
         lastUploadedRemotePath = UserDefaults.standard.string(forKey: Self.lastPathKey)
+
+        // A run that was only requested never reached the machine's player.
+        if let saved = store.load(), saved.phase != .starting {
+            progress = saved
+        } else {
+            store.clear()
+        }
 
         // Take over the hooks the session wires for its own run sequence.
         uploader.onCompleted = { [weak self] path in
@@ -94,6 +115,7 @@ final class JobCoordinator: ObservableObject {
         }
         jobRunner.onFailure = { [weak self] in
             self?.pendingPlayPath = nil
+            self?.abandonStartingProgress()
         }
 
         connection.$isConnected
@@ -102,9 +124,83 @@ final class JobCoordinator: ObservableObject {
                 if !connected {
                     self?.runAfterUpload = nil
                     self?.pendingPlayPath = nil
+                    self?.abandonStartingProgress()
                 }
             }
             .store(in: &cancellables)
+
+        connection.$status
+            .sink { [weak self] status in
+                self?.observe(status)
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Progress
+
+    /// Forgets the saved job, e.g. when the person decides not to resume it.
+    func discardProgress() {
+        progress = nil
+        store.clear()
+    }
+
+    private func beginProgress(remotePath: String, options: JobRunOptions) {
+        let contents = lastUploadedContents
+        let fingerprint = contents.flatMap { text in
+            lastUploadedFileName.map { ControllerModel.fingerprint(fileName: $0, contents: text) }
+        }
+        let totalLines = contents.map { $0.split(separator: "\n", omittingEmptySubsequences: false).count } ?? 0
+        let record = JobProgress(
+            fileName: lastUploadedFileName ?? (remotePath as NSString).lastPathComponent,
+            fingerprint: fingerprint,
+            remotePath: remotePath,
+            originX: options.originOffset.x,
+            originY: options.originOffset.y,
+            totalLines: totalLines
+        )
+        progress = record
+        persist(record)
+    }
+
+    private func markPlaySent() {
+        guard var record = progress, record.phase == .starting else { return }
+        record.markPlaySent()
+        progress = record
+        persist(record)
+    }
+
+    /// A run that was prepared but never reached `play`.
+    private func abandonStartingProgress() {
+        guard progress?.phase == .starting else { return }
+        discardProgress()
+    }
+
+    private func persist(_ record: JobProgress) {
+        lastSavedAt = Date()
+        store.save(record)
+    }
+
+    private func observe(_ status: MakeraMachineStatus?) {
+        guard var record = progress, let status else { return }
+
+        let outcome = record.observe(
+            machineState: status.state,
+            active: status.activeJob.map { .init(line: $0.currentLine, percent: $0.percent) },
+            frozen: status.lastJob.map { .init(line: $0.currentLine, percent: $0.percent) }
+        )
+
+        switch outcome {
+        case .unchanged:
+            break
+        case .changed:
+            let phaseChanged = record.phase != progress?.phase
+            progress = record
+            if phaseChanged || Date().timeIntervalSince(lastSavedAt) >= Self.saveInterval {
+                persist(record)
+            }
+        case .completed, .discarded:
+            discardProgress()
+        }
     }
 
     // MARK: - Upload and run
@@ -114,6 +210,7 @@ final class JobCoordinator: ObservableObject {
         guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil else { return }
         runAfterUpload = nil
         pendingContents = contents
+        pendingFileName = fileName
         uploader.upload(fileName: fileName, contents: Data(contents.utf8))
     }
 
@@ -126,6 +223,7 @@ final class JobCoordinator: ObservableObject {
         }
         runAfterUpload = options
         pendingContents = contents
+        pendingFileName = fileName
         uploader.upload(fileName: fileName, contents: Data(contents.utf8))
     }
 
@@ -156,7 +254,9 @@ final class JobCoordinator: ObservableObject {
     private func uploadCompleted(remotePath: String) {
         lastUploadedRemotePath = remotePath
         lastUploadedContents = pendingContents
+        lastUploadedFileName = pendingFileName
         pendingContents = nil
+        pendingFileName = nil
 
         guard let options = runAfterUpload else { return }
         runAfterUpload = nil
@@ -180,6 +280,7 @@ final class JobCoordinator: ObservableObject {
     /// `preRunFinished` once the machine reports Idle again.
     private func startRun(remotePath: String, options: JobRunOptions, area: SL.Bounds?) {
         let offset = options.originOffset
+        beginProgress(remotePath: remotePath, options: options)
 
         guard options.autoZBeforeRun || area != nil else {
             connection.appendLog("Setting G54 work origin to X\(offset.x) Y\(offset.y) (job offset).")
@@ -187,11 +288,13 @@ final class JobCoordinator: ObservableObject {
                 session.sendRawCommand(line)
             }
             session.sendRawCommand("play \(remotePath)")
+            markPlaySent()
             return
         }
 
         guard !jobRunner.isActive else {
             connection.appendLog("Auto Z/Level: another command sequence is running, so the job was not started.")
+            abandonStartingProgress()
             return
         }
 
@@ -249,6 +352,7 @@ final class JobCoordinator: ObservableObject {
             if !connection.isConnected || state.hasPrefix("Alarm") || Date() > deadline {
                 connection.appendLog("Pre-run steps did not finish cleanly (\(state.isEmpty ? "no status" : state)); the job was not started.")
                 pendingPlayPath = nil
+                abandonStartingProgress()
                 return
             }
             if state.hasPrefix("Idle") { break }
@@ -261,6 +365,7 @@ final class JobCoordinator: ObservableObject {
         guard pendingPlayID == runID, pendingPlayPath == path else { return }
         pendingPlayPath = nil
         session.sendRawCommand("play \(path)")
+        markPlaySent()
     }
 
     // MARK: - Pause / suspend / resume / stop
@@ -321,6 +426,17 @@ final class JobCoordinator: ObservableObject {
     func stop() {
         pendingPlayPath = nil   // cancels a `play` still waiting on pre-run steps
         runAfterUpload = nil
+
+        // Keep what was done so far: a stopped job can still be continued.
+        if var record = progress {
+            if record.phase == .starting {
+                discardProgress()
+            } else if record.phase == .running || record.phase == .held || record.phase == .suspended {
+                record.markStopped()
+                progress = record
+                persist(record)
+            }
+        }
 
         if uploader.isActive {
             uploader.cancel()
