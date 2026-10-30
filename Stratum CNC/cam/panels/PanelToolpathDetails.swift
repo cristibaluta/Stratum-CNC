@@ -278,20 +278,20 @@ struct PanelToolpathDetails: View {
         let passes = model.passesNote(for: toolpath, stepdown: stepdown)
 
         HStack(spacing: 6) {
-            InspectorCompactNumberField(tag: "Start", value: $toolpath.startZ,
+            InspectorCompactNumberField(tag: "Start", value: $toolpath.startZ, decimalKey: "Start Z",
                                         help: "Start Z (mm): the height where cutting starts. 0 is the top of the stock.")
             if toolpath.operation.kind == .counterbore {
-                InspectorCompactNumberField(tag: "End", value: model.counterboreEndDepth($toolpath), prefix: "−",
+                InspectorCompactNumberField(tag: "End", value: model.counterboreEndDepth($toolpath), prefix: "−", decimalKey: "End Z",
                                             help: "End Z (mm): how deep the counterbore goes below the top of the stock.")
             } else if requirements.usesEndZ {
-                InspectorCompactNumberField(tag: "End", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), prefix: "−",
+                InspectorCompactNumberField(tag: "End", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), prefix: "−", decimalKey: "End Z",
                                             help: "End Z (mm): \(model.endZHelp)")
             }
             if isSlot {
-                InspectorCompactNumberField(tag: "Step", value: model.slotDepthPerPass($toolpath),
+                InspectorCompactNumberField(tag: "Step", value: model.slotDepthPerPass($toolpath), decimalKey: "Depth per pass",
                                             help: "Depth per pass (mm). \(passes?.text ?? "")")
             } else if requirements.usesStepdown {
-                InspectorCompactNumberField(tag: "Step", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath),
+                InspectorCompactNumberField(tag: "Step", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), decimalKey: "Stepdown",
                                             help: "Stepdown (mm): how deep the tool cuts in each pass. \(passes?.text ?? "")")
             }
             if toolpath.operation.kind == .drilling, toolpath.operation.drillUsesPecking {
@@ -316,7 +316,7 @@ struct PanelToolpathDetails: View {
             }
             InspectorCompactNumberField(tag: "Feed", value: $toolpath.plungeRate,
                                         help: "Entry feed (mm/min). \(model.plungeFeedHelp(for: toolpath))")
-            InspectorCompactNumberField(tag: "Entry Z", value: $toolpath.entryZ,
+            InspectorCompactNumberField(tag: "Entry Z", value: $toolpath.entryZ, decimalKey: "Entry Z",
                                         help: "Entry Z (mm): height above the stock where the entry starts. The tool rapids down to here, then feeds in.")
         }
     }

@@ -28,7 +28,7 @@ extension SC.TrochoidalSettings {
         [
             .double(.init(id: "\(idPrefix).radialEngagement",
                           label: "Radial Engagement",
-                          unit: "% of tool radius",
+                          unit: "% of tool radius",// TODO: check if this is diameter or radius
                           range: 0.0...1.0,
                           value: radialEngagement,
                           onChange: { onChange(.init(radialEngagement: $0, loopRadius: loopRadius)) })),

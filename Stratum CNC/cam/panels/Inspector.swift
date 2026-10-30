@@ -292,6 +292,108 @@ struct InspectorMenuLabel<Content: View>: View {
 
 // MARK: - Number fields
 
+/// Where a number field remembers whether it takes only the decimals. One setting per field
+/// name, so a field's compact form (which has no checkbox) follows what its full form was
+/// last set to.
+enum InspectorDecimalEntry {
+    static func key(for name: String) -> String {
+        "inspector.decimalEntry.\(name)"
+    }
+}
+
+/// The text of a number field. Normally a plain number; with `decimalKey` set and the
+/// "decimals only" setting on, a value below 1 shows a fixed "0." and the user types just
+/// the digits after it ("3" for 0.3). A value of 1 or more stays a plain number to edit.
+struct InspectorValueTextField: View {
+    @Binding var value: Double
+    @AppStorage private var decimalsOnly: Bool
+    private let canUseDecimalsOnly: Bool
+    /// What is typed after the "0.", kept as text so "05" and "30" survive being typed.
+    @State private var digits: String
+
+    private static let maxDigits = 2
+
+    init(value: Binding<Double>, decimalKey: String?) {
+        self._value = value
+        self.canUseDecimalsOnly = decimalKey != nil
+        _decimalsOnly = AppStorage(wrappedValue: false, InspectorDecimalEntry.key(for: decimalKey ?? ""))
+        _digits = State(initialValue: Self.digits(of: value.wrappedValue))
+    }
+
+    private var showsDecimalsOnly: Bool {
+        canUseDecimalsOnly && decimalsOnly && value >= 0 && value < 1
+    }
+
+    var body: some View {
+        Group {
+            if showsDecimalsOnly {
+                HStack(spacing: 1) {
+                    Text("0.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    TextField("", text: digitsBinding)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                }
+            } else {
+                TextField("", value: $value,
+                          format: .number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+            }
+        }
+        .frame(minWidth: 26)
+        .onChange(of: value) { _, newValue in
+            // The value was changed from outside (a button, another field): follow it.
+            if abs(Self.number(from: digits) - newValue) > 1e-9 {
+                digits = Self.digits(of: newValue)
+            }
+        }
+    }
+
+    private var digitsBinding: Binding<String> {
+        Binding(get: { digits },
+                set: { typed in
+                    let cleaned = String(typed.filter { $0.isASCII && $0.isNumber }.prefix(Self.maxDigits))
+                    digits = cleaned
+                    value = Self.number(from: cleaned)
+                })
+    }
+
+    private static func number(from digits: String) -> Double {
+        digits.isEmpty ? 0 : (Double("0." + digits) ?? 0)
+    }
+
+    /// The digits after the "0." for a value in 0..<1 ("" for 0, "3" for 0.3, "05" for 0.05).
+    private static func digits(of value: Double) -> String {
+        guard value > 0, value < 1 else { return "" }
+        let hundredths = min(Int((value * 100).rounded()), 99)
+        guard hundredths > 0 else { return "" }
+        var text = String(format: "%02d", hundredths)
+        if text.hasSuffix("0") {
+            text.removeLast()
+        }
+        return text
+    }
+}
+
+/// The small "0." checkbox at the right end of a number field.
+struct InspectorDecimalToggle: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Text("0.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .toggleStyle(.checkbox)
+        .controlSize(.mini)
+        .fixedSize()
+        .help("Type only the decimals: the \"0.\" is filled in, so 3 means 0.3. Applies to this field's compact form too.")
+    }
+}
+
 struct InspectorNumberField<Accessory: View>: View {
     let title: String
     @Binding var value: Double
@@ -301,6 +403,10 @@ struct InspectorNumberField<Accessory: View>: View {
     let prefix: String
     /// Optional control on the right of the field, on the same row (e.g. a helper button).
     let accessory: Accessory
+    /// Lengths (mm) can be typed as just their decimals; the checkbox for it sits at the right
+    /// end of the field.
+    private let offersDecimalsOnly: Bool
+    @AppStorage private var decimalsOnly: Bool
 
     init(title: String, value: Binding<Double>, suffix: String, prefix: String = "",
          @ViewBuilder accessory: () -> Accessory) {
@@ -309,6 +415,8 @@ struct InspectorNumberField<Accessory: View>: View {
         self.suffix = suffix
         self.prefix = prefix
         self.accessory = accessory()
+        self.offersDecimalsOnly = suffix == "mm"
+        _decimalsOnly = AppStorage(wrappedValue: false, InspectorDecimalEntry.key(for: title))
     }
 
     var body: some View {
@@ -322,15 +430,16 @@ struct InspectorNumberField<Accessory: View>: View {
                             .padding(.trailing, -5)
                     }
 
-                    TextField("", value: $value,
-                              format: .number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12))
+                    InspectorValueTextField(value: $value, decimalKey: offersDecimalsOnly ? title : nil)
 
                     if !suffix.isEmpty {
                         Text(suffix)
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
+                    }
+
+                    if offersDecimalsOnly {
+                        InspectorDecimalToggle(isOn: $decimalsOnly)
                     }
                 }
                 .inspectorField()
@@ -358,6 +467,9 @@ struct InspectorCompactNumberField: View {
     @Binding var value: Double
     var prefix: String = ""
     var suffix: String = ""
+    /// The full form's title, when this field can take just the decimals: it follows that
+    /// field's checkbox (the compact form has none of its own).
+    var decimalKey: String? = nil
     let help: String
 
     var body: some View {
@@ -375,11 +487,7 @@ struct InspectorCompactNumberField: View {
                     .padding(.trailing, -3)
             }
 
-            TextField("", value: $value,
-                      format: .number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .frame(minWidth: 26)
+            InspectorValueTextField(value: $value, decimalKey: decimalKey)
 
             if !suffix.isEmpty {
                 Text(suffix)

@@ -55,7 +55,7 @@ extension SC.EntryStrategy {
             .init(id: "fromOpenEnd", label: "From Open End", fields: [
                 .double(.init(id: "\(id).fromOpenEnd.stepover",
                               label: "Stepover",
-                              unit: "% of tool radius",
+                              unit: "% of tool radius",// TODO: check if this is radius or diameter
                               range: 0.0...1.0,
                               value: openEndStepover,
                               onChange: { onChange(.fromOpenEnd(stepoverPercentage: $0)) }))

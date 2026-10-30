@@ -266,6 +266,7 @@ struct OperationOptionsView: View {
                                             value: Binding(get: { f.value },
                                                            set: { f.onChange(min(max($0, f.range.lowerBound), f.range.upperBound)) }),
                                             suffix: f.unit ?? "",
+                                            decimalKey: f.unit == "mm" ? f.label : nil,
                                             help: f.unit.map { "\(f.label) (\($0))" } ?? f.label)
                     .disabled(!f.isEnabled)
                     .opacity(f.isEnabled ? 1 : 0.5)
@@ -363,7 +364,7 @@ struct OperationOptionsView: View {
                                             help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter. \(stepOverNote)")
             }
             if requirements.usesAllowance, kind != .restMachining {
-                InspectorCompactNumberField(tag: "Leave", value: stockToLeave,
+                InspectorCompactNumberField(tag: "Leave", value: stockToLeave, decimalKey: "Stock to leave",
                                             help: toolpath.operation.stockToLeave > 0
                                                 ? "Stock to leave (mm). \(stockToLeaveNote)"
                                                 : "Stock to leave (mm): material left standing by the roughing. 0 cuts straight to size.")
@@ -532,7 +533,7 @@ struct OperationOptionsView: View {
     /// The only clamp is `ToolpathData.stepOverRange`.
     @ViewBuilder
     private var stepOverRow: some View {
-        InspectorNumberField(title: "Stepover", value: stepOverPercent, suffix: "% of Ø")
+        InspectorNumberField(title: "Stepover", value: stepOverPercent, suffix: "% of tool Ø")
             .help("Distance between neighbouring passes, as a percentage of the tool diameter. Smaller means a smoother finish and more passes.")
         InspectorNote(text: stepOverNote)
     }
@@ -694,10 +695,11 @@ struct OperationOptionsView: View {
             case .spiral, .concentric:
                 EnumMenuPicker(title: "Spiral direction", selection: $toolpath.operation.pocketSpiral)
             case .trochoidal:
-                InspectorNumberField(title: "Loop pitch", value: trochoidalPitch, suffix: "% radius")
-                    .help("How far each loop steps forward, 5–100 % of the tool radius.")
+                // TODO: check if cam is using diameter or radius
+                InspectorNumberField(title: "Loop pitch", value: trochoidalPitch, suffix: "% of tool Ø")
+                    .help("How far each loop steps forward, 5–100 % of the tool diameter.")
             case .adaptive:
-                InspectorNumberField(title: "Optimal load", value: adaptiveLoad, suffix: "% of Ø")
+                InspectorNumberField(title: "Optimal load", value: adaptiveLoad, suffix: "% of tool Ø")
                     .help("Radial engagement the tool is kept at while clearing. Smaller values mean lighter cuts and more passes.")
                 InspectorNote(text: adaptiveLoadNote)
             case .offset, .raster:
