@@ -95,10 +95,24 @@ struct Tool: Identifiable, Codable, Hashable {
         return url
     }
 
+    /// How the tool is named in the app's pickers: what it is rather than what it was called
+    /// in a library. Diameter, the tip angle for the tools that have one, the length when
+    /// known, then the type: "Ø6 · 38 mm · End Mill", "Ø3.175 · 60° · 38 mm · V Bit".
     var displayName: String {
-        let lengthString = String(format: "%.3g", length ?? -1)
+        var parts = ["Ø\(Self.format(toolDiameter))"]
+        if let tipAngle, tipAngle > 0 {
+            parts.append("\(Self.format(tipAngle))°")
+        }
+        if let length, length > 0 {
+            parts.append("\(Self.format(length)) mm")
+        }
+        parts.append(type.displayName)
+        return parts.joined(separator: " · ")
+    }
 
-        return "\(shankDiameter)×\(toolDiameter)×\(lengthString) - \(type.displayName)"
+    /// Up to 3 decimals, without trailing zeros: 6, 3.175, 0.1.
+    private static func format(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...3)).locale(Locale(identifier: "en_US")))
     }
 
     /// Best-effort guess whether the tool is meant for cutting metal.

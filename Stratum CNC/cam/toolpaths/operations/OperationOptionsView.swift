@@ -258,9 +258,7 @@ struct OperationOptionsView: View {
                                                 : "Stock to leave (mm): material left standing by the roughing. 0 cuts straight to size.")
             }
             if toolpath.stockToLeaveExceedsDepth {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .help(stockToLeaveNote)
+                InspectorWarningButton(message: stockToLeaveNote)
             }
         }
     }

@@ -21,6 +21,40 @@ enum Inspector {
 
 // MARK: - Section
 
+private struct ExpandInspectorSectionKey: @preconcurrency EnvironmentKey {
+    @MainActor static let defaultValue: () -> Void = {}
+}
+
+extension EnvironmentValues {
+    /// Opens the collapsible section this view is the compact form of. Set by `InspectorSection`.
+    var expandInspectorSection: () -> Void {
+        get { self[ExpandInspectorSectionKey.self] }
+        set { self[ExpandInspectorSectionKey.self] = newValue }
+    }
+}
+
+/// The orange triangle of a compact row. The message is its help; clicking it opens the
+/// full section, where the same problem is spelled out next to the setting it is about.
+struct InspectorWarningButton: View {
+    let message: String
+
+    @Environment(\.expandInspectorSection) private var expand
+
+    var body: some View {
+        Button {
+            expand()
+        } label: {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.orange)
+                .frame(width: 20, height: Inspector.fieldHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(message)\nClick to see the details.")
+    }
+}
+
 /// A titled group of rows, separated from the previous one by a hairline.
 ///
 /// With `collapsible` the header is a button with a chevron at its top right that hides
@@ -76,6 +110,11 @@ struct InspectorSection<Content: View, Compact: View>: View {
                 .padding(.bottom, 12)
             } else if let compact {
                 compact
+                    .environment(\.expandInspectorSection, {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            isCollapsed = false
+                        }
+                    })
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 12)
             } else {

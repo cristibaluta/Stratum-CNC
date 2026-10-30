@@ -169,10 +169,7 @@ struct PanelToolpathDetails: View {
             })
             InspectorIntField(title: "Spindle speed (rpm)", value: $toolpath.spindleRPM, suffix: "rpm", isCompact: true)
             if let warning = toolpath.toolCompatibilityWarning {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.orange)
-                    .help(warning)
+                InspectorWarningButton(message: warning)
             }
         }
     }
@@ -278,9 +275,7 @@ struct PanelToolpathDetails: View {
             InspectorCompactNumberField(tag: "Safe", value: $toolpath.safeZ,
                                         help: "Safe Z (mm): the height the tool starts and ends at, and travels at between distant cuts.")
             if let passes, passes.isWarning {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                    .help(passes.text)
+                InspectorWarningButton(message: passes.text)
             }
         }
     }

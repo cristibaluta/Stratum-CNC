@@ -69,9 +69,7 @@ struct ToolPicker: View {
                 }
             } label: {
                 InspectorMenuLabel {
-                    Text("T\(tool.displayName)")
-                    Text("Ø\(tool.toolDiameter, specifier: "%.1f")")
-                        .foregroundStyle(.secondary)
+                    Text(tool.displayName)
                 }
             }
             .menuIndicator(.hidden)
@@ -97,9 +95,15 @@ struct ToolPicker: View {
     }
 
     private var menuHelp: String {
-        let base = "Tool: \(title(for: tool))"
-        guard style == .compact, let extraHelp else { return base }
-        return "\(base)\n\(extraHelp)"
+        // The library's own name for it isn't in the label any more
+        var lines = [tool.displayName]
+        if !tool.name.isEmpty {
+            lines.append(tool.name)
+        }
+        if style == .compact, let extraHelp {
+            lines.append(extraHelp)
+        }
+        return lines.joined(separator: "\n")
     }
 
     private func pickFromLibrary() {
@@ -113,6 +117,6 @@ struct ToolPicker: View {
     }
 
     private func title(for candidate: Tool) -> String {
-        "\(candidate.name) — Ø\(String(format: "%.2f", candidate.toolDiameter))"
+        candidate.displayName
     }
 }
