@@ -190,7 +190,9 @@ struct ProjectsView: View {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(projectsStore.projects) { project in
-                            ProjectCard(project: project, previewImage: projectsStore.previewImage(for: project))
+                            ProjectCard(project: project,
+                                        previewImage: projectsStore.previewImage(for: project),
+                                        stockSummary: projectsStore.stockSummary(for: project))
                                 .onTapGesture(count: 2) {
                                     open(project)
                                 }
