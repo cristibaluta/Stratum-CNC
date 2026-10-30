@@ -58,6 +58,9 @@ struct SplashpageView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
+                    AppearanceToggle(isDarkMode: $appModel.isDarkMode)
+                }
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         // The usage tints can be reset on the Appearance tab.
                         SettingsTab.appearance.select()
