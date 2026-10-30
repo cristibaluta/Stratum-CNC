@@ -93,9 +93,9 @@ struct ProjectsView: View {
                 .frame(width: 64, height: 64)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Stratum CNC")
+                Text("Stratum")
                     .font(.system(size: 30, weight: .bold))
-                Text("CAM for your CNC machine. Set up stock and tools, generate toolpaths, simulate the cut and send the job to your controller, all in one app.")
+                Text("CAM and Controller for your Makera CNC machine. Set up stock and tools, generate toolpaths, simulate the cut and send the job to your machine, all in one app.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: 560, alignment: .leading)

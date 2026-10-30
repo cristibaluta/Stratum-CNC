@@ -112,3 +112,23 @@ extension StockMaterial {
         return SC.Contour(entities: chain, isClosed: true)
     }
 }
+
+extension StockMaterial {
+
+    /// The material and the size on one line, for a project card: "Aluminum · 100 × 100 × 10 mm".
+    var cardSummary: String {
+        func format(_ value: Double) -> String {
+            value.formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
+        }
+        let size: String
+        switch geometry {
+            case .rectangular(let width, let height, let depth):
+                size = "\(format(width)) × \(format(height)) × \(format(depth)) mm"
+            case .cylindrical(let diameter, let length):
+                size = "Ø\(format(diameter)) × \(format(length)) mm"
+            case .disk(let outerDiameter, let innerDiameter, let depth):
+                size = "Ø\(format(outerDiameter)) / Ø\(format(innerDiameter)) × \(format(depth)) mm"
+        }
+        return "\(material.displayName) · \(size)"
+    }
+}

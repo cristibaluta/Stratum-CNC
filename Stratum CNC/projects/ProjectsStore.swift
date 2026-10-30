@@ -502,6 +502,19 @@ final class ProjectsStore: ObservableObject {
         } ?? nil
     }
 
+    /// The stock's material and size ("Aluminum · 100 × 100 × 10 mm") for the card, read from the
+    /// project's own file. Nil when the project has no stock or its file can't be read.
+    func stockSummary(for project: Project) -> String? {
+        struct StockOnly: Decodable {
+            var stock: StockMaterial?
+        }
+        return withAccess(to: project) { paths in
+            (try? Data(contentsOf: paths.projectMetadata))
+                .flatMap { try? decoder.decode(StockOnly.self, from: $0) }?
+                .stock?.cardSummary
+        } ?? nil
+    }
+
     func revealInFinder(_ project: Project) {
         guard let directory = directory(for: project) else { return }
         NSWorkspace.shared.activateFileViewerSelecting([directory])

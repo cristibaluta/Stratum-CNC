@@ -12,6 +12,8 @@ struct ProjectCard: View {
 
     let project: Project
     let previewImage: NSImage?
+    /// Material and size of the stock, if the project has one.
+    var stockSummary: String? = nil
     @State private var isHovered: Bool = false
 
     /// The path with the user's real home folder shown as `~`. In a sandboxed
@@ -43,19 +45,33 @@ struct ProjectCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
 
-                HStack {
-                    Text(project.modifiedAt, format: .dateTime.year().month().day())
+                // What it is made of and how big, to tell apart projects with similar names
+                if let stockSummary {
+                    Text(stockSummary)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
-                    Spacer()
-                    // Projects saved outside the app show where they live.
-                    if project.isExternal, let path = project.path {
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .help(stockSummary)
+                }
+
+                Text(project.modifiedAt, format: .dateTime.year().month().day().hour().minute())
+                    .font(.system(size: 12))
+                    .foregroundStyle(stockSummary == nil ? .secondary : .tertiary)
+
+                // Projects saved outside the app show where they live.
+                if project.isExternal, let path = project.path {
+                    Label {
+                        Text(Self.displayPath(path))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } icon: {
                         Image(systemName: "folder")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 2)
-                            .help(path)
                     }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                    .help(path)
                 }
             }
             .padding(.horizontal, 12)
