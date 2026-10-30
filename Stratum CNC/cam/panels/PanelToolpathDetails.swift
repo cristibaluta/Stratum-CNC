@@ -67,22 +67,22 @@ struct PanelToolpathDetails: View {
                 InspectorSection {
                     rowShapes
                 }
-                InspectorSection(title: "Tool") {
+                InspectorSection(title: "Tool", collapsible: true) {
                     rowTool
                 }
                 // How the tool moves in the plane
-                InspectorSection(title: "XY plane") {
+                InspectorSection(title: "XY plane", collapsible: true) {
                     rowXYMovement
                 }
                 // Start Z, End Z, the depth per pass, the holding tabs, and the Safe and Retract heights.
-                InspectorSection(title: "Z axis") {
+                InspectorSection(title: "Z axis", collapsible: true) {
                     rowDepth
                 }
                 // How the tool gets into the cut: ramp or helix, the feed going down, lead-in/out
-                InspectorSection(title: "Entry") {
+                InspectorSection(title: "Entry", collapsible: true) {
                     rowEntry
                 }
-                InspectorSection(title: "Preview") {
+                InspectorSection(title: "Preview", collapsible: true) {
                     rowPreview
                     rowScrub
                 }

@@ -22,10 +22,33 @@ enum Inspector {
 // MARK: - Section
 
 /// A titled group of rows, separated from the previous one by a hairline.
+///
+/// With `collapsible` the header is a button with a chevron at its top right that hides
+/// the rows. The state is remembered per title, so the sections stay as the user left
+/// them when another toolpath is opened. A section without a title has no header to
+/// click and is always open.
 struct InspectorSection<Content: View>: View {
-    var title: String? = nil
-    var showsDivider: Bool = true
-    @ViewBuilder var content: Content
+    let title: String?
+    let showsDivider: Bool
+    let collapsible: Bool
+    let content: Content
+
+    @AppStorage private var isCollapsed: Bool
+
+    init(title: String? = nil,
+         showsDivider: Bool = true,
+         collapsible: Bool = false,
+         @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.showsDivider = showsDivider
+        self.collapsible = collapsible && title != nil
+        self.content = content()
+        _isCollapsed = AppStorage(wrappedValue: false, "inspector.sectionCollapsed.\(title ?? "")")
+    }
+
+    private var isOpen: Bool {
+        !(collapsible && isCollapsed)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -33,20 +56,53 @@ struct InspectorSection<Content: View>: View {
                 Divider()
             }
             if let title {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 10)
-                    .padding(.bottom, 10)
+                header(title)
             } else {
                 Spacer().frame(height: 10)
             }
 
-            VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
-                content
+            if isOpen {
+                VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+                    content
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, 12)
+            } else {
+                Spacer().frame(height: 2)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.bottom, 12)
+        }
+    }
+
+    @ViewBuilder
+    private func header(_ title: String) -> some View {
+        if collapsible {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isCollapsed.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isOpen ? 0 : -90))
+                }
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(isOpen ? "Expanded" : "Collapsed")
+            .help(isOpen ? "Collapse \(title)" : "Expand \(title)")
+        } else {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 10)
         }
     }
 }
