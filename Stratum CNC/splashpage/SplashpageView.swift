@@ -211,7 +211,8 @@ struct SplashpageView: View {
                         ForEach(projectsStore.projects) { project in
                             ProjectCard(project: project,
                                         previewImage: projectsStore.previewImage(for: project),
-                                        stockSummary: projectsStore.stockSummary(for: project))
+                                        stockSummary: projectsStore.stockSummary(for: project),
+                                        stockMaterial: projectsStore.stockMaterialType(for: project))
                                 .onTapGesture(count: 2) {
                                     open(project)
                                 }

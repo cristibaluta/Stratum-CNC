@@ -14,6 +14,8 @@ struct ProjectCard: View {
     let previewImage: NSImage?
     /// Material and size of the stock, if the project has one.
     var stockSummary: String? = nil
+    /// Material of the project's stock; tints the preview background.
+    var stockMaterial: StockMaterialType? = nil
     @State private var isHovered: Bool = false
 
     /// The path with the user's real home folder shown as `~`. In a sandboxed
@@ -35,7 +37,13 @@ struct ProjectCard: View {
             ProjectPreview(image: previewImage)
                 .frame(height: 150)
                 .frame(maxWidth: .infinity)
-                .background(.quaternary.opacity(0.5))
+                .background {
+                    if let c = stockMaterial?.surfaceColor {
+                        Color(red: Double(c.x), green: Double(c.y), blue: Double(c.z)).opacity(0.25)
+                    } else {
+                        Rectangle().fill(.quaternary.opacity(0.5))
+                    }
+                }
                 .clipped()
 
             Divider()

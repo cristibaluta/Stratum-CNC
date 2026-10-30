@@ -534,6 +534,18 @@ final class ProjectsStore: ObservableObject {
         } ?? nil
     }
 
+    /// The material of the project's stock, to tint the card's preview. Nil when there is no stock.
+    func stockMaterialType(for project: Project) -> StockMaterialType? {
+        struct StockOnly: Decodable {
+            var stock: StockMaterial?
+        }
+        return withAccess(to: project) { paths in
+            (try? Data(contentsOf: paths.projectMetadata))
+                .flatMap { try? decoder.decode(StockOnly.self, from: $0) }?
+                .stock?.material
+        } ?? nil
+    }
+
     func revealInFinder(_ project: Project) {
         guard let directory = directory(for: project) else { return }
         NSWorkspace.shared.activateFileViewerSelecting([directory])

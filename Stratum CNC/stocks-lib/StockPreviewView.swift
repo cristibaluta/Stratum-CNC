@@ -21,6 +21,7 @@ enum StockTextureKind {
     case aluminum
     case steel
     case brass
+    case copper
     case wood
     case plastic
 }
@@ -33,7 +34,10 @@ extension StockMaterialType {
         if name.contains("wood") || name.contains("mdf") || name.contains("plywood") {
             return .wood
         }
-        if name.contains("brass") || name.contains("bronze") || name.contains("copper") {
+        if name.contains("copper") {
+            return .copper
+        }
+        if name.contains("brass") || name.contains("bronze") {
             return .brass
         }
         if name.contains("steel") || name.contains("iron") {
@@ -74,6 +78,10 @@ extension StockTextureKind {
             return StockPalette(light: SIMD3(0.95, 0.85, 0.55),
                                 mid: SIMD3(0.80, 0.65, 0.30),
                                 dark: SIMD3(0.52, 0.40, 0.14))
+        case .copper:
+            return StockPalette(light: SIMD3(0.96, 0.67, 0.52),
+                                mid: SIMD3(0.80, 0.42, 0.28),
+                                dark: SIMD3(0.50, 0.23, 0.13))
         case .wood:
             return StockPalette(light: SIMD3(0.85, 0.68, 0.46),
                                 mid: SIMD3(0.74, 0.56, 0.35),
@@ -125,7 +133,7 @@ private extension StockTextureKind {
 
     var texture: StockTexture {
         switch self {
-        case .aluminum, .steel, .brass:
+        case .aluminum, .steel, .brass, .copper:
             return StockTexture(palette: palette, isMetallic: true, isWood: false)
         case .wood:
             return StockTexture(palette: palette, isMetallic: false, isWood: true)
