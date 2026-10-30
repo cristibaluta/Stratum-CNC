@@ -157,7 +157,8 @@ struct InspectorChevron: View {
         Image(systemName: "chevron.down")
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(.secondary)
-            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+            .rotationEffect(.degrees(isExpanded ? 0 : 180))// Expanded - down; Collapset - up
+            .opacity(isExpanded ? 0.65 : 0.25)
     }
 }
 

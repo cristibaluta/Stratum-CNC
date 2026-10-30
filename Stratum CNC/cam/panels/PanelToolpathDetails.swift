@@ -53,7 +53,7 @@ struct PanelToolpathDetails: View {
 
     var body: some View {
         GroupBox {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
                 // The title, the operation it does and what that operation does. The title row
                 // is the same either way; collapsed, what is under it shrinks: the operation
                 // picker without its label or summary, and a thread mill's standard thread
@@ -407,7 +407,7 @@ struct PanelToolpathDetails: View {
                                 .font(.system(size: 12, weight: .medium))
                         }
                     } else {
-                        Label("Preview", systemImage: "play.fill")
+                        Text("Generate")
                             .font(.system(size: 12, weight: .medium))
                     }
                 }
