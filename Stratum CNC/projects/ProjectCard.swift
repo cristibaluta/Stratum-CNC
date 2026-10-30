@@ -55,23 +55,19 @@ struct ProjectCard: View {
                         .help(stockSummary)
                 }
 
-                Text(project.modifiedAt, format: .dateTime.year().month().day().hour().minute())
-                    .font(.system(size: 12))
-                    .foregroundStyle(stockSummary == nil ? .secondary : .tertiary)
+                HStack {
+                    Text(project.modifiedAt, format: .dateTime.year().month().day().hour().minute())
+                        .font(.system(size: 12))
+                        .foregroundStyle(stockSummary == nil ? .secondary : .tertiary)
+                    Spacer()
 
-                // Projects saved outside the app show where they live.
-                if project.isExternal, let path = project.path {
-                    Label {
-                        Text(Self.displayPath(path))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    } icon: {
+                    // Projects saved outside the app show where they live.
+                    if project.isExternal, let path = project.path {
                         Image(systemName: "folder")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .help(path)
                     }
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-                    .help(path)
                 }
             }
             .padding(.horizontal, 12)

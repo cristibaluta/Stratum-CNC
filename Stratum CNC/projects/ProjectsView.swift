@@ -86,7 +86,7 @@ struct ProjectsView: View {
 
     // MARK: - Sections
 
-    private var header: some View {
+    private var header_: some View {
         HStack(spacing: 20) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
@@ -101,6 +101,22 @@ struct ProjectsView: View {
                     .frame(maxWidth: 560, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Image("AppLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 64)
+
+            Text("CAM and Controller for your Makera CNC machine. Set up stock and tools, generate toolpaths, simulate the cut and send the job to your machine, all in one app.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 560, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 8)
         }
     }
 
