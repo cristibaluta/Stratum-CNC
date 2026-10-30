@@ -61,12 +61,15 @@ struct PanelToolpathDetails: View {
                 VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
                     rowHeader
                     if isTitleCollapsed {
-                        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
-                                        isCompact: true)
-                            // A rest operation is created from a pocket and stays one.
-                            .disabled(toolpath.operation.kind == .restMachining)
-                        if OperationOptionsView.hasOperationFields(for: toolpath) {
-                            OperationOptionsView(toolpath: $toolpath, part: .operationCompact)
+                        // One line, like the other sections' compact forms
+                        HStack(spacing: 6) {
+                            OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
+                                            isCompact: true)
+                                // A rest operation is created from a pocket and stays one.
+                                .disabled(toolpath.operation.kind == .restMachining)
+                            if OperationOptionsView.hasOperationFields(for: toolpath) {
+                                OperationOptionsView(toolpath: $toolpath, part: .operationCompact)
+                            }
                         }
                     } else {
                         rowOperation

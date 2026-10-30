@@ -56,9 +56,8 @@ struct OperationOptionsView: View {
         /// neither a direction nor a depth (a thread's standard, pitch and diameter, the diameter
         /// of a bore or a counterbore, a chamfer's width, a facing's extension).
         case operation
-        /// The title section's collapsed form of `operation`. A thread mill is cut down to its
-        /// standard thread and radial passes in one row; every other operation shows the same
-        /// controls as the full form.
+        /// The title section's collapsed form of `operation`: its controls on one line, to
+        /// follow the operation picker. A thread mill keeps its standard thread and radial passes.
         case operationCompact
         /// How the tool moves in the plane: cut direction, feed rate, stepover, stock to leave.
         case xyMovement
@@ -215,30 +214,75 @@ struct OperationOptionsView: View {
         }
     }
 
-    /// The collapsed title section's settings. A thread mill has too many to squeeze in: only
-    /// the standard thread (diameter and pitch, handedness and internal/external are in the
-    /// full section) and the radial passes stay. The other operations have few enough.
+    /// The collapsed title section's settings, on one line after the operation picker, the way
+    /// the other sections collapse: a glyph picker for the side or the pattern, then the
+    /// library's numbers with a short tag each. A thread mill has too many to squeeze in: only
+    /// the standard thread and the radial passes stay (diameter, pitch, handedness and
+    /// internal/external are in the full section).
     @ViewBuilder
     private var operationCompactPart: some View {
         if kind == .threadMilling {
-            threadCompactRow
+            ForEach(Self.compactThreadFields(in: formFields)) { field in
+                compactField(field)
+            }
         } else {
-            operationPart
+            if kind == .contour {
+                ContourPicker(selection: $toolpath.contour, title: "Side", isCompact: true)
+            } else if kind == .chamfer {
+                ContourPicker(selection: $toolpath.operation.chamferSide, isCompact: true)
+            }
+            let hiddenIDs = Self.hiddenOperationFieldIDs(for: kind)
+            ForEach(Self.leafFields(in: displayedFields(of: formFields)).filter { !hiddenIDs.contains($0.id) }) { field in
+                compactField(field)
+            }
+            if !offeredPatterns.isEmpty {
+                PatternPicker(pattern: $toolpath.operation.pocketPattern, available: offeredPatterns, isCompact: true)
+            }
         }
     }
 
-    private var threadCompactRow: some View {
-        let standard = Self.field(withID: "threadMilling.standard", in: formFields)
-        let passes = Self.field(withID: "threadMilling.radialPasses", in: formFields)
+    /// A thread mill's standard thread and radial passes, in that order.
+    private static func compactThreadFields(in fields: [SC.ParameterField]) -> [SC.ParameterField] {
+        ["threadMilling.standard", "threadMilling.radialPasses"].compactMap { field(withID: $0, in: fields) }
+    }
 
-        return HStack(spacing: 6) {
-            if case .choice(let choice) = standard {
+    /// The fields with rows and groups opened up, so each number or choice is one control.
+    private static func leafFields(in fields: [SC.ParameterField]) -> [SC.ParameterField] {
+        fields.flatMap { field -> [SC.ParameterField] in
+            switch field {
+                case .row(let f):   return leafFields(in: f.fields)
+                case .group(let f): return leafFields(in: f.fields)
+                default:            return [field]
+            }
+        }
+    }
+
+    /// One field as a control of a compact row. Switches and the like only exist in the full form.
+    @ViewBuilder
+    private func compactField(_ field: SC.ParameterField) -> some View {
+        switch field {
+            case .double(let f):
+                InspectorCompactNumberField(tag: f.label,
+                                            value: Binding(get: { f.value },
+                                                           set: { f.onChange(min(max($0, f.range.lowerBound), f.range.upperBound)) }),
+                                            suffix: f.unit ?? "",
+                                            help: f.unit.map { "\(f.label) (\($0))" } ?? f.label)
+                    .disabled(!f.isEnabled)
+                    .opacity(f.isEnabled ? 1 : 0.5)
+            case .int(let f):
+                InspectorIntField(title: f.label,
+                                  value: Binding(get: { f.value },
+                                                 set: { f.onChange(min(max($0, f.range.lowerBound), f.range.upperBound)) }),
+                                  suffix: "",
+                                  isCompact: true,
+                                  tag: f.label)
+            case .choice(let f):
                 Menu {
-                    ForEach(choice.options) { option in
+                    ForEach(f.options) { option in
                         Button {
-                            choice.onChange(option.id)
+                            f.onChange(option.id)
                         } label: {
-                            if option.id == choice.selectedId {
+                            if option.id == f.selectedId {
                                 Label(option.label, systemImage: "checkmark")
                             } else {
                                 Text(option.label)
@@ -247,21 +291,15 @@ struct OperationOptionsView: View {
                     }
                 } label: {
                     InspectorMenuLabel {
-                        Text(choice.options.first(where: { $0.id == choice.selectedId })?.label ?? "")
+                        Text(f.options.first(where: { $0.id == f.selectedId })?.label ?? "")
                     }
                 }
                 .menuIndicator(.hidden)
                 .buttonStyle(.plain)
-                .help("Standard thread. Pick Custom, then edit the diameter and pitch, in the full section.")
-            }
-            if case .int(let field) = passes {
-                InspectorIntField(title: field.label,
-                                  value: Binding(get: { field.value },
-                                                 set: { field.onChange(min(max($0, field.range.lowerBound), field.range.upperBound)) }),
-                                  suffix: "",
-                                  isCompact: true,
-                                  tag: "Passes")
-            }
+                .fixedSize(horizontal: true, vertical: false)
+                .help(f.label)
+            default:
+                EmptyView()
         }
     }
 

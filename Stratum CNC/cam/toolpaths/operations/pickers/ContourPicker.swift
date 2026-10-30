@@ -46,24 +46,36 @@ struct ContourPicker<Value: CutSideOption>: View {
     /// The row's label.
     var title: String = "Side"
 
+    /// Just the button, at its natural width and without the label column, to share a row.
+    var isCompact: Bool = false
+
     @State private var isPresented = false
 
     var body: some View {
-        InspectorRow(label: title) {
-            Button {
-                isPresented.toggle()
-            } label: {
-                InspectorMenuLabel {
-                    ContourTypeGlyph(position: selection.position, tint: .primary)
-                        .frame(width: 22, height: 15)
-                    Text(selection.label)
-                }
+        if isCompact {
+            button
+                .fixedSize(horizontal: true, vertical: false)
+        } else {
+            InspectorRow(label: title) {
+                button
             }
-            .buttonStyle(.plain)
-            .help(selection.selectionHint)
-            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                ContourOptionsPopover(selection: $selection, isPresented: $isPresented)
+        }
+    }
+
+    private var button: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            InspectorMenuLabel {
+                ContourTypeGlyph(position: selection.position, tint: .primary)
+                    .frame(width: 22, height: 15)
+                Text(selection.label)
             }
+        }
+        .buttonStyle(.plain)
+        .help("\(title): \(selection.selectionHint)")
+        .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            ContourOptionsPopover(selection: $selection, isPresented: $isPresented)
         }
     }
 }

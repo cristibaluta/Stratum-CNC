@@ -15,24 +15,36 @@ struct PatternPicker: View {
     /// The patterns on offer, in order -- what the operation accepts, as the library says.
     var available: [PocketPattern] = PocketPattern.allCases
 
+    /// Just the button, at its natural width and without the label column, to share a row.
+    var isCompact: Bool = false
+
     @State private var isPresented = false
 
     var body: some View {
-        InspectorRow(label: "Clearing pattern") {
-            Button {
-                isPresented.toggle()
-            } label: {
-                InspectorMenuLabel {
-                    PatternGlyph(pattern: pattern)
-                        .frame(width: 18, height: 14)
-                    Text(pattern.rawValue)
-                }
+        if isCompact {
+            button
+                .fixedSize(horizontal: true, vertical: false)
+        } else {
+            InspectorRow(label: "Clearing pattern") {
+                button
             }
-            .buttonStyle(.plain)
-            .help(pattern.selectionHint)
-            .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                PatternOptionsPopover(pattern: $pattern, available: available, isPresented: $isPresented)
+        }
+    }
+
+    private var button: some View {
+        Button {
+            isPresented.toggle()
+        } label: {
+            InspectorMenuLabel {
+                PatternGlyph(pattern: pattern)
+                    .frame(width: 18, height: 14)
+                Text(pattern.rawValue)
             }
+        }
+        .buttonStyle(.plain)
+        .help(isCompact ? "Clearing pattern: \(pattern.selectionHint)" : pattern.selectionHint)
+        .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            PatternOptionsPopover(pattern: $pattern, available: available, isPresented: $isPresented)
         }
     }
 }
