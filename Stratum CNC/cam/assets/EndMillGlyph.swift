@@ -15,32 +15,44 @@ import SwiftUI
 struct EndMillShape: Shape {
 
     func path(in rect: CGRect) -> Path {
-        func pt(_ x: Double, _ y: Double) -> CGPoint {
-            CGPoint(x: rect.minX + x * rect.width, y: rect.minY + y * rect.height)
-        }
+        var p = Self.outline(in: rect)
+        p.addPath(Self.flutes(in: rect))
+        return p
+    }
 
+    /// Shank, shoulder, body and flat end.
+    static func outline(in rect: CGRect) -> Path {
         let shankLeft = 0.4, shankRight = 0.6
         let bodyLeft = 0.28, bodyRight = 0.72
         let top = 0.04, shoulder = 0.3, bottom = 0.96
 
         var p = Path()
-        // Outline: shank, shoulder, body, flat end.
-        p.move(to: pt(shankLeft, top))
-        p.addLine(to: pt(shankLeft, shoulder - 0.04))
-        p.addLine(to: pt(bodyLeft, shoulder + 0.04))
-        p.addLine(to: pt(bodyLeft, bottom))
-        p.addLine(to: pt(bodyRight, bottom))
-        p.addLine(to: pt(bodyRight, shoulder + 0.04))
-        p.addLine(to: pt(shankRight, shoulder - 0.04))
-        p.addLine(to: pt(shankRight, top))
+        p.move(to: pt(shankLeft, top, in: rect))
+        p.addLine(to: pt(shankLeft, shoulder - 0.04, in: rect))
+        p.addLine(to: pt(bodyLeft, shoulder + 0.04, in: rect))
+        p.addLine(to: pt(bodyLeft, bottom, in: rect))
+        p.addLine(to: pt(bodyRight, bottom, in: rect))
+        p.addLine(to: pt(bodyRight, shoulder + 0.04, in: rect))
+        p.addLine(to: pt(shankRight, shoulder - 0.04, in: rect))
+        p.addLine(to: pt(shankRight, top, in: rect))
         p.closeSubpath()
+        return p
+    }
 
-        // Flutes: slanted cuts across the body.
+    /// Slanted cuts across the body.
+    static func flutes(in rect: CGRect) -> Path {
+        let bodyLeft = 0.28, bodyRight = 0.72
+
+        var p = Path()
         for y in [0.5, 0.67, 0.84] {
-            p.move(to: pt(bodyLeft, y + 0.12))
-            p.addLine(to: pt(bodyRight, y))
+            p.move(to: pt(bodyLeft, y + 0.12, in: rect))
+            p.addLine(to: pt(bodyRight, y, in: rect))
         }
         return p
+    }
+
+    private static func pt(_ x: Double, _ y: Double, in rect: CGRect) -> CGPoint {
+        CGPoint(x: rect.minX + x * rect.width, y: rect.minY + y * rect.height)
     }
 }
 

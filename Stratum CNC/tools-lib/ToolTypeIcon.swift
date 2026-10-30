@@ -11,6 +11,7 @@ import SwiftUI
 struct ToolTypeIcon: View {
 
     let type: ToolType
+    var size: CGFloat = 26
 
     var body: some View {
         Canvas { context, size in
@@ -31,7 +32,7 @@ struct ToolTypeIcon: View {
                 )
             }
         }
-        .frame(width: 26, height: 26)
+        .frame(width: size, height: size)
         .accessibilityLabel(type.displayName)
     }
 }
@@ -47,7 +48,7 @@ private extension ToolTypeIcon {
 
         switch type {
         case .endMill:
-            // Straight cutter with a flat end.
+            // Straight cutter with a flat end (the flutes are drawn as detail).
             p.addRect(CGRect(x: 0.3 * size.width, y: 0.08 * size.height,
                              width: 0.4 * size.width, height: 0.84 * size.height))
 
@@ -61,11 +62,12 @@ private extension ToolTypeIcon {
             p.closeSubpath()
 
         case .drill:
-            // Shank with a pointed (~118°) tip.
+            // Shank with a short pointed tip (half the point height it had, so it reads as a
+            // drill without turning into a needle at small sizes).
             p.move(to: pt(0.3, 0.08))
-            p.addLine(to: pt(0.3, 0.6))
+            p.addLine(to: pt(0.3, 0.77))
             p.addLine(to: pt(0.5, 0.94))
-            p.addLine(to: pt(0.7, 0.6))
+            p.addLine(to: pt(0.7, 0.77))
             p.addLine(to: pt(0.7, 0.08))
             p.closeSubpath()
 
@@ -128,6 +130,23 @@ private extension ToolTypeIcon {
         var p = Path()
 
         switch type {
+        case .endMill:
+            // Flutes: steep parallel lines across the body, cut off at its top and bottom.
+            let left = 0.3, right = 0.7, top = 0.08, bottom = 0.92
+            let slope = 0.85   // rise over run; the steeper, the more a helix
+            for y0 in stride(from: 0.3, through: 1.1, by: 0.2) {
+                var a = (x: left, y: y0)
+                var b = (x: right, y: y0 - slope * (right - left))
+                if a.y > bottom {
+                    a = (x: left + (a.y - bottom) / slope, y: bottom)
+                }
+                if b.y < top {
+                    b = (x: left + (y0 - top) / slope, y: top)
+                }
+                guard a.x < b.x else { continue }
+                p.move(to: pt(a.x, a.y))
+                p.addLine(to: pt(b.x, b.y))
+            }
         case .corn:
             // Rows of teeth.
             for y in stride(from: 0.28, through: 0.8, by: 0.18) {

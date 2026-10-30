@@ -110,6 +110,11 @@ struct Tool: Identifiable, Codable, Hashable {
         return parts.joined(separator: " · ")
     }
 
+    /// "Shank Ø6", for the second line of a tool in a list; nil when the shank isn't known.
+    var shankDescription: String? {
+        shankDiameter > 0 ? "Shank Ø\(Self.format(shankDiameter))" : nil
+    }
+
     /// Up to 3 decimals, without trailing zeros: 6, 3.175, 0.1.
     private static func format(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(0...3)).locale(Locale(identifier: "en_US")))

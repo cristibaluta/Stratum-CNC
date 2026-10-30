@@ -29,25 +29,28 @@ class AppModel: ObservableObject {
     // MARK: - Recent tools
 
     private static let recentToolIDsKey = "app.recentToolIDs"
-    private static let recentToolsLimit = 5
+    private static let recentToolsLimit = 8
 
-    /// Ids of the last tools used, most recent first. Persisted in UserDefaults.
+    /// Ids of the last tools used, the newest addition first. Persisted in UserDefaults.
     @Published private(set) var recentToolIDs: [UUID] = {
         let strings = UserDefaults.standard.stringArray(forKey: AppModel.recentToolIDsKey) ?? []
         return strings.compactMap(UUID.init(uuidString:))
     }()
 
-    /// The recent tools resolved against the library, most recent first.
+    /// The recent tools resolved against the library, the newest addition first.
     /// Ids of tools that were deleted from the library are skipped.
     var recentTools: [Tool] {
         recentToolIDs.compactMap { id in toolsStore.tools.first { $0.id == id } }
     }
 
-    /// Call whenever a tool gets assigned to a toolpath.
+    /// Call whenever a tool gets assigned to a toolpath. A tool that is new to the list goes
+    /// on top (and the oldest falls off past the limit); one already in it stays where it is,
+    /// so the list doesn't shuffle under the user's cursor while they switch between tools.
     func noteToolUsed(_ tool: Tool) {
-        var ids = recentToolIDs.filter { $0 != tool.id }
-        ids.insert(tool.id, at: 0)
-        recentToolIDs = Array(ids.prefix(Self.recentToolsLimit))
+        guard !recentToolIDs.contains(tool.id) else {
+            return
+        }
+        recentToolIDs = Array(([tool.id] + recentToolIDs).prefix(Self.recentToolsLimit))
         UserDefaults.standard.set(recentToolIDs.map(\.uuidString), forKey: Self.recentToolIDsKey)
     }
 

@@ -88,6 +88,16 @@ enum StockMaterialType: String, Codable, CaseIterable, Hashable {
         }
     }
 
+    /// Whether the stock is a metal, for offering the tools meant for cutting metal.
+    var isMetal: Bool {
+        switch self {
+        case .aluminum, .steel, .stainless_steel, .brass, .bronze, .copper:
+            true
+        default:
+            false
+        }
+    }
+
     /// Preset names that suit this stock, best match first. Compared ignoring case,
     /// spaces, hyphens and underscores, so "Carbon Fiber" matches `carbon_fiber`.
     var presetNameCandidates: [String] {

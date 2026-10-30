@@ -145,7 +145,7 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowTool: some View {
-        ToolPicker(tool: $toolpath.tool, onToolPicked: { tool in
+        ToolPicker(tool: $toolpath.tool, stockMaterial: stockMaterial, onToolPicked: { tool in
             model.applyPreset(of: tool, to: $toolpath, stockMaterial: stockMaterial)
         })
         // A tool the operation can't use, flagged here instead of failing at Preview
@@ -164,7 +164,7 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowToolCompact: some View {
         HStack(spacing: 6) {
-            ToolPicker(tool: $toolpath.tool, style: .compact, extraHelp: model.presetNote, onToolPicked: { tool in
+            ToolPicker(tool: $toolpath.tool, style: .compact, stockMaterial: stockMaterial, extraHelp: model.presetNote, onToolPicked: { tool in
                 model.applyPreset(of: tool, to: $toolpath, stockMaterial: stockMaterial)
             })
             InspectorIntField(title: "Spindle speed (rpm)", value: $toolpath.spindleRPM, suffix: "rpm", isCompact: true)
