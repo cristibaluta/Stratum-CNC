@@ -110,6 +110,10 @@ struct ProjectView: View {
         .overlay(alignment: .top) {
             Divider()
         }
+        .onAppear {
+            // The Controller matches the tools a program declares against the library
+            projectModel.gCodeStore.toolLibrary = { [weak appModel] in appModel?.toolsStore.tools ?? [] }
+        }
         .navigationTitle(title)
         .navigationSubtitle(subtitle)
     }

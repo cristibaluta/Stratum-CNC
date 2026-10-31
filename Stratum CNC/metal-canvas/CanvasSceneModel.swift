@@ -81,10 +81,9 @@ class CanvasSceneModel: ObservableObject {
     /// mill. Once a spec is known, its real diameter and shape are used
     /// instead and this is ignored.
     @Published var toolDiameter: Double = 3.175
-    /// How tall the tool is drawn above its tip, in millimeters. `ToolSpec`
-    /// doesn't carry a length (the header parsers don't keep one), so this
-    /// applies to every tool, assigned or not.
-    @Published var toolLength: Double = 40
+    /// How tall the fallback tool (no spec) is drawn above its tip, in millimeters.
+    /// A tool with a spec is drawn at its own length (`ToolSpec.drawnLengthMM`).
+    @Published var toolLength: Double = ToolSpec.fallbackLengthMM
 
     /// The tool currently in the spindle, as far as the canvas knows —
     /// `nil` draws the `toolDiameter` fallback end mill. Set via `updateTool`.
@@ -430,7 +429,7 @@ class CanvasSceneModel: ObservableObject {
         if let toolSpec {
             renderObjects.updating(.tool(at: tip,
                                          diameter: toolSpec.diameterMM,
-                                         length: toolLength,
+                                         length: toolSpec.drawnLengthMM,
                                          kind: toolSpec.kind,
                                          tipAngleDegrees: toolSpec.tipAngleDegrees))
         } else {

@@ -63,7 +63,31 @@ class GCodeStore: ObservableObject {
     /// are what `toolSpecAssignments` is seeded with on load, and what
     /// `ToolsPickerView` offers at the top of each tool's list.
     var headerToolSpecs: [Int: ToolSpec] {
-        document.loadedHeader?.tools ?? [:]
+        ToolSpec.resolvingHeaderTools(document.loadedHeader?.tools ?? [:], in: toolLibrary())
+    }
+
+    /// The header's tools matched to the closest tools-library tool (see
+    /// `ToolSpec.resolvingHeaderTools`): the assignment then follows the library tool, with its
+    /// length. A tool with no match stays as the header describes it and is not added to the library.
+    private func rematchHeaderTools() {
+        guard let header = document.loadedHeader, !header.tools.isEmpty else {
+            return
+        }
+        // Only while the assignments are still the header's own, not the person's picks
+        let isUntouched = toolSpecAssignments.allSatisfy { number, spec in
+            header.tools[number]?.id == spec.id
+        }
+        if isUntouched {
+            applyHeaderTools(header)
+        }
+    }
+
+    /// The tools library, for matching the tools a program's header declares. Set by the
+    /// screen that shows this store. Setting it matches a header that loaded before it was known.
+    var toolLibrary: () -> [Tool] = { [] } {
+        didSet {
+            rematchHeaderTools()
+        }
     }
 
     /// Makes the header's tools the default assignments for a freshly loaded
@@ -73,7 +97,7 @@ class GCodeStore: ObservableObject {
     /// would no longer have an option for.
     private func applyHeaderTools(_ header: GCodeHeader?) {
         if let header, !header.tools.isEmpty {
-            toolSpecAssignments = header.tools
+            toolSpecAssignments = ToolSpec.resolvingHeaderTools(header.tools, in: toolLibrary())
         } else {
             let kept = toolSpecAssignments.filter { ToolSpec.library.contains($0.value) }
             if kept != toolSpecAssignments {
