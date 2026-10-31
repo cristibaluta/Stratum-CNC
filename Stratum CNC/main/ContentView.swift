@@ -24,6 +24,12 @@ struct ContentView: View {
         }
         .frame(minWidth: 800, minHeight: 600)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // On every screen, the Projects list included
+//        .toolbar {
+//            ToolbarItem(placement: .primaryAction) {
+//                ActivityMonitorView(monitor: appModel.activityMonitor)
+//            }
+//        }
         .sheet(isPresented: $appModel.showingNewProject) {
             // `folder` is nil for a project managed by the app; errors are thrown
             // back so the sheet can stay open and show them.

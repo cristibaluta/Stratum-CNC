@@ -15,7 +15,9 @@
 //    - explicit events from the pipeline (import, generate, path build, layer assignment)
 //    - a heartbeat (about once a second while something is happening, every 10 s when idle):
 //      memory footprint (the number Activity Monitor calls "Memory"), process CPU %,
-//      thermal state, and aggregated counters (how often / how long canvas.render ran)
+//      thermal state, and aggregated counters (how often / how long canvas.render ran).
+//      Off by default (`heartbeatLoggingEnabled`): `ActivityMonitorView` in the toolbar shows
+//      those numbers live.
 //    - "STALL" lines whenever the main thread stops responding for more than 250 ms,
 //      including a line while it is *still* blocked (so you see it even if the app never recovers)
 //    - memory-pressure and thermal-state changes reported by macOS
@@ -37,6 +39,12 @@ enum PerfLog {
     static func start() {
         _ = core
     }
+
+    /// Whether the heartbeat lines (`beat`: CPU, thermal, memory, counters) are written. Off because the
+    /// toolbar's `ActivityMonitorView` shows the same numbers live; set it to `true` to get them in the
+    /// log again, for example to see them next to a STALL line. While it is off the counters
+    /// (`count`) do nothing, so they cost nothing on the render path.
+    static let heartbeatLoggingEnabled = false
 
     /// `category` is a short tag (gen, path, canvas, import, beat, STALL, system …).
     static func log(_ category: String, _ message: @autoclosure () -> String) {
@@ -69,6 +77,9 @@ enum PerfLog {
     /// Cheap aggregated counter for things that happen many times a second (render calls,
     /// pan events…). Shown in the heartbeat as `key n=<calls> Σ=<total ms> max=<ms>`.
     static func count(_ key: String, ms: Double = 0) {
+        guard heartbeatLoggingEnabled else {
+            return
+        }
         core.count(key, ms: ms)
     }
 
@@ -161,8 +172,8 @@ private final class Core: @unchecked Sendable {
         print("[PerfLog] writing to \(fileURL.path)")
 
         beatLastWall = DispatchTime.now().uptimeNanoseconds
-        beatLastCPU = Self.cpuSeconds()
-        beatLastLoggedMem = Self.footprintMB()
+        beatLastCPU = ProcessMetrics.cpuSeconds()
+        beatLastLoggedMem = ProcessMetrics.footprintMB()
 
         startHeartbeat()
         startWatchdog()
@@ -174,7 +185,7 @@ private final class Core: @unchecked Sendable {
     func write(category: String, message: String) {
         let date = Date()
         let thread = Thread.isMainThread ? "main" : "bg  "
-        let mem = Self.footprintMB()
+        let mem = ProcessMetrics.footprintMB()
         let cat = category.padding(toLength: 7, withPad: " ", startingAt: 0)
         let body = "[\(thread)] mem=\(Int(mem))MB \(cat) \(message)"
 
@@ -216,6 +227,9 @@ private final class Core: @unchecked Sendable {
     // MARK: Heartbeat
 
     private func startHeartbeat() {
+        guard PerfLog.heartbeatLoggingEnabled else {
+            return
+        }
         let timer = DispatchSource.makeTimerSource(queue: timerQueue)
         timer.schedule(deadline: .now() + 1, repeating: 1)
         timer.setEventHandler { [weak self] in
@@ -227,14 +241,14 @@ private final class Core: @unchecked Sendable {
 
     private func heartbeatTick() {
         let wallNow = DispatchTime.now().uptimeNanoseconds
-        let cpuNow = Self.cpuSeconds()
+        let cpuNow = ProcessMetrics.cpuSeconds()
         let wallSeconds = Double(wallNow - beatLastWall) / 1_000_000_000
         let cpuPercent = wallSeconds > 0 ? (cpuNow - beatLastCPU) / wallSeconds * 100 : 0
         beatLastWall = wallNow
         beatLastCPU = cpuNow
 
         let activity = drainCounters()
-        let mem = Self.footprintMB()
+        let mem = ProcessMetrics.footprintMB()
         let memJumped = abs(mem - beatLastLoggedMem) > 25
 
         beatQuietTicks += 1
@@ -244,7 +258,7 @@ private final class Core: @unchecked Sendable {
         beatQuietTicks = 0
         beatLastLoggedMem = mem
 
-        var text = "cpu=\(String(format: "%.0f", cpuPercent))% thermal=\(Self.thermalName())"
+        var text = "cpu=\(String(format: "%.0f", cpuPercent))% thermal=\(ProcessMetrics.thermalName())"
         if !activity.isEmpty {
             text += " | " + activity.joined(separator: " · ")
         }
@@ -321,42 +335,7 @@ private final class Core: @unchecked Sendable {
         thermalObserver = NotificationCenter.default.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification,
                                                                  object: nil,
                                                                  queue: nil) { [weak self] _ in
-            self?.write(category: "system", message: "thermal state changed → \(Self.thermalName())")
+            self?.write(category: "system", message: "thermal state changed → \(ProcessMetrics.thermalName())")
         }
-    }
-
-    // MARK: Process metrics
-
-    static func thermalName() -> String {
-        switch ProcessInfo.processInfo.thermalState {
-        case .nominal: return "nominal"
-        case .fair: return "fair"
-        case .serious: return "SERIOUS"
-        case .critical: return "CRITICAL"
-        @unknown default: return "unknown"
-        }
-    }
-
-    /// Process CPU time (user + system), in seconds, summed over all threads.
-    static func cpuSeconds() -> Double {
-        var usage = rusage()
-        getrusage(RUSAGE_SELF, &usage)
-        func seconds(_ t: timeval) -> Double {
-            Double(t.tv_sec) + Double(t.tv_usec) / 1_000_000
-        }
-        return seconds(usage.ru_utime) + seconds(usage.ru_stime)
-    }
-
-    /// Physical memory footprint in MB — the number Activity Monitor shows as "Memory".
-    /// (If Swift 6 language mode complains about `mach_task_self_`, use `mach_task_self()`.)
-    static func footprintMB() -> Double {
-        var info = task_vm_info_data_t()
-        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
-            }
-        }
-        return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
     }
 }

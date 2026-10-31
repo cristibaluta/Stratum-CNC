@@ -14,6 +14,10 @@ class AppModel: ObservableObject {
     @Published var toolsStore = ToolsStore()
     @Published var stocksStore = StocksStore()
 
+    /// Live CPU, memory and thermal numbers for the toolbar (`ActivityMonitorView`). Not
+    /// published: the view observes it itself, so a tick doesn't redraw whatever reads `AppModel`.
+//    let activityMonitor = ActivityMonitor()
+
     @Published var showingNewProject = false
     @Published var showingToolsSheet: Bool = false
     @Published var showingStocksSheet: Bool = false
