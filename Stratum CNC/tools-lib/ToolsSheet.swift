@@ -52,23 +52,27 @@ struct ToolsSheet: View {
             Divider()
             HStack(spacing: 0) {
                 ToolTypeRail(
-                    scope: $filter.scope,
+                    filter: $filter,
                     types: presentTypes,
-                    counts: filter.counts(in: store.tools)
+                    shanks: ToolFilter.shankSizes(in: store.tools),
+                    counts: filter.facetCounts(in: store.tools),
+                    sources: store.sources,
+                    sourceCounts: filter.sourceCounts(in: store.tools),
+                    importHelp: Self.importHelp,
+                    onAdd: addTool,
+                    onImport: { isImporting = true },
+                    onManageImports: { isManagingImports = true }
                 )
                 .frame(width: Self.railWidth)
+
                 Divider()
+
                 NavigationSplitView {
                     ToolListView(
                         tools: visibleTools,
                         selectedToolID: $selectedToolID,
                         filter: $filter,
                         sources: store.sources,
-                        sourceCounts: filter.sourceCounts(in: store.tools),
-                        importHelp: Self.importHelp,
-                        onAdd: addTool,
-                        onImport: { isImporting = true },
-                        onManageImports: { isManagingImports = true },
                         onDuplicate: duplicateTool,
                         onDelete: { toolPendingDeletion = $0 }
                     )
@@ -80,7 +84,8 @@ struct ToolsSheet: View {
                             tool: Binding(
                                 get: { store.tools[index] },
                                 set: { store.tools[index] = $0 }
-                            )
+                            ),
+                            source: store.source(for: store.tools[index])
                         )
                     } else {
                         ContentUnavailableView(
@@ -92,11 +97,17 @@ struct ToolsSheet: View {
                 }
                 .navigationTitle("Tools")
                 .onAppear(perform: selectFirstIfNeeded)
-                .onChange(of: filter) { _ in reselectIfHidden() }
+                .onChange(of: filter) { _ in
+                    reselectIfHidden()
+                }
                 // Removing an import batch (or reverting that) changes which tools exist.
-                .onChange(of: store.tools.map(\.id)) { _ in reselectIfHidden() }
+                .onChange(of: store.tools.map(\.id)) { _ in
+                    reselectIfHidden()
+                }
                 // A source filter must not outlive its source.
-                .onChange(of: store.sources) { _ in resetSourceFilterIfMissing() }
+                .onChange(of: store.sources) { _ in
+                    resetSourceFilterIfMissing()
+                }
                 .confirmationDialog(
                     "Delete \"\(toolPendingDeletion?.name ?? "")\"?",
                     isPresented: Binding(
@@ -257,10 +268,17 @@ struct ToolsSheet: View {
     /// After adding or duplicating, make sure the new tool isn't hidden by the current filters
     /// (a new tool has no stock, and its name may not match the search).
     private func ensureVisible(_ id: Tool.ID) {
-        func isVisible() -> Bool { visibleTools.contains { $0.id == id } }
+        func isVisible() -> Bool {
+            visibleTools.contains { $0.id == id }
+        }
         if isVisible() { return }
+        // Widen step by step: search/material/source, then stock (a new tool has none),
+        // then the type and shank selections.
         filter.clearRefinements()
-        if !isVisible() { filter.scope = .all }
+        if isVisible() { return }
+        filter.stockOnly = false
+        if isVisible() { return }
+        filter.clearAll()
     }
 
     private func duplicateTool(_ tool: Tool) {
@@ -285,7 +303,9 @@ struct ToolsSheet: View {
             return
         }
 
-        guard selectedToolID == tool.id else { return }
+        guard selectedToolID == tool.id else {
+            return
+        }
         let remaining = visibleTools
         if let position, !remaining.isEmpty {
             selectedToolID = remaining[min(position, remaining.count - 1)].id
@@ -295,21 +315,14 @@ struct ToolsSheet: View {
     }
 
     private func addTool() {
-        // The new tool takes the type shown in the rail, else the type of the selected tool.
+        // The new tool takes the type and shank size selected in the rail, else the type of
+        // the selected tool and a 3.175 mm shank.
         let current = store.tools.first(where: { $0.id == selectedToolID })
-        let type: ToolType
-        if case .type(let scoped) = filter.scope {
-            type = scoped
-        } else {
-            type = current?.type ?? .endMill
-        }
-        let tool = Tool(
-            name: "New Tool",
-            shankDiameter: 3.175,
-            toolDiameter: 1,
-            length: 10,
-            type: type
-        )
+        let tool = Tool(name: "New Tool",
+                        shankDiameter: filter.shank ?? 3.175,
+                        toolDiameter: 1,
+                        length: 10,
+                        type: filter.type ?? current?.type ?? .endMill)
 
         do {
             try store.add(tool)

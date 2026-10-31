@@ -10,13 +10,6 @@
 
 import Foundation
 
-/// Which tools the rail has selected.
-enum ToolScope: Hashable {
-    case all
-    case inStock
-    case type(ToolType)
-}
-
 /// The Any / Metal / Non metal chips.
 enum MaterialFilter: CaseIterable, Hashable {
     case any
@@ -40,19 +33,36 @@ enum ToolSourceFilter: Hashable {
 
 struct ToolFilter: Equatable {
 
-    var scope: ToolScope = .all
+    // The rail has three sections. Each contributes at most one selection and they combine
+    // (all must match): stock (All tools / In stock), one type, one shank size.
+
+    /// "In stock" is selected. `false` is the "All tools" row.
+    var stockOnly: Bool = false
+    var type: ToolType?
+    /// Shank diameter in mm.
+    var shank: Double?
+
     var material: MaterialFilter = .any
     var source: ToolSourceFilter = .any
     var query: String = ""
 
     // MARK: Refinements
 
-    /// True when something other than the rail selection narrows the list.
-    /// Drives the "Clear filters" button in the empty state.
+    /// True when something in the rail narrows the list.
+    var hasRailSelection: Bool {
+        stockOnly || type != nil || shank != nil
+    }
+
+    /// True when search, material or source narrow the list.
     var hasRefinements: Bool {
         material != .any
             || source != .any
             || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// True when anything at all narrows the list. Drives the empty state.
+    var isFiltering: Bool {
+        hasRailSelection || hasRefinements
     }
 
     /// Resets search, material and source. The rail selection is left alone.
@@ -62,54 +72,103 @@ struct ToolFilter: Equatable {
         query = ""
     }
 
+    /// Resets everything: the rail selection and the refinements.
+    mutating func clearAll() {
+        clearRefinements()
+        stockOnly = false
+        type = nil
+        shank = nil
+    }
+
     // MARK: Apply
 
-    /// The tools to show: filtered by scope and every refinement, then sorted.
+    /// The tools to show: filtered by every facet, then sorted.
     func apply(to tools: [Tool]) -> [Tool] {
         tools
-            .filter { matchesRefinements($0) && Self.matches(scope: scope, tool: $0) }
+            .filter { matches($0) }
             .sorted(by: Self.areInOrder)
     }
 
+    // MARK: Counts
+
+    /// Counts for the rail. Faceted per section: each count respects every selection and
+    /// refinement except its own section's, so a row shows how many tools the list would
+    /// have if that row were the selection of its section.
+    struct FacetCounts {
+        /// "All tools" and "In stock" rows.
+        var all = 0
+        var inStock = 0
+        var types: [ToolType: Int] = [:]
+        /// Keyed by `ToolFilter.shankKey(_:)`.
+        var shanks: [Int: Int] = [:]
+    }
+
+    func facetCounts(in tools: [Tool]) -> FacetCounts {
+        var result = FacetCounts()
+        for tool in tools {
+            if matches(tool, ignoring: .stock) {
+                result.all += 1
+                if tool.quantity > 0 { result.inStock += 1 }
+            }
+            if matches(tool, ignoring: .type) {
+                result.types[tool.type, default: 0] += 1
+            }
+            if matches(tool, ignoring: .shank) {
+                result.shanks[Self.shankKey(tool.shankDiameter), default: 0] += 1
+            }
+        }
+        return result
+    }
+
     /// Counts for the Source dropdown, keyed by source id. Faceted like the rail: they respect
-    /// the scope, material and search, but not the source filter itself, so each entry is how
-    /// many tools the list would show if that source were picked. Missing entry means zero.
+    /// everything except the source filter itself. Missing entry means zero.
     func sourceCounts(in tools: [Tool]) -> [UUID: Int] {
         var result: [UUID: Int] = [:]
-        for tool in tools
-        where Self.matches(scope: scope, tool: tool) && matches(material: tool) && matchesQuery(tool) {
+        for tool in tools where matches(tool, ignoring: .source) {
             result[tool.sourceID, default: 0] += 1
         }
         return result
     }
 
-    /// Rail counts. Faceted: they respect search, material and source, but not the scope
-    /// itself, so every row shows how many tools it would list right now.
-    /// Types that don't appear in the result have no entry; read with `counts[.type(t), default: 0]`.
-    func counts(in tools: [Tool]) -> [ToolScope: Int] {
-        var result: [ToolScope: Int] = [.all: 0, .inStock: 0]
-        for tool in tools where matchesRefinements(tool) {
-            result[.all, default: 0] += 1
-            if tool.quantity > 0 {
-                result[.inStock, default: 0] += 1
+    // MARK: Shank sizes
+
+    /// Shank diameters compare to the thousandth of a mm, so 3.175 read from two files is one size.
+    static func shankKey(_ value: Double) -> Int {
+        Int((value * 1000).rounded())
+    }
+
+    /// The distinct known shank sizes in the library, smallest first. A shank of 0 means
+    /// "not known" and gets no row.
+    static func shankSizes(in tools: [Tool]) -> [Double] {
+        var seen = Set<Int>()
+        var sizes: [Double] = []
+        for tool in tools where tool.shankDiameter > 0 {
+            if seen.insert(shankKey(tool.shankDiameter)).inserted {
+                sizes.append(tool.shankDiameter)
             }
-            result[.type(tool.type), default: 0] += 1
         }
-        return result
+        return sizes.sorted()
     }
 
     // MARK: Matching
 
-    private func matchesRefinements(_ tool: Tool) -> Bool {
-        matches(material: tool) && matchesSource(tool) && matchesQuery(tool)
+    private enum Facet {
+        case stock, type, shank, source
     }
 
-    private static func matches(scope: ToolScope, tool: Tool) -> Bool {
-        switch scope {
-            case .all: true
-            case .inStock: tool.quantity > 0
-            case .type(let type): tool.type == type
-        }
+    /// All facets must match. `ignoring` skips one, for the faceted counts.
+    private func matches(_ tool: Tool, ignoring ignored: Facet? = nil) -> Bool {
+        (ignored == .stock || !stockOnly || tool.quantity > 0)
+            && (ignored == .type || type == nil || tool.type == type)
+            && (ignored == .shank || matchesShank(tool))
+            && (ignored == .source || matchesSource(tool))
+            && matches(material: tool)
+            && matchesQuery(tool)
+    }
+
+    private func matchesShank(_ tool: Tool) -> Bool {
+        guard let shank else { return true }
+        return Self.shankKey(shank) == Self.shankKey(tool.shankDiameter)
     }
 
     private func matches(material tool: Tool) -> Bool {

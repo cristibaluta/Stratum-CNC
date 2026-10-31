@@ -23,14 +23,39 @@ struct ToolEditorView: View {
     /// Edits apply live (the list updates immediately); nothing is written to disk until Save.
     @Binding var tool: Tool
 
+    /// Where the tool came from, shown as a pill next to the name. Read-only.
+    let source: ToolSourceInfo?
+
     var body: some View {
         Form {
+            headerSection
             geometrySection
             cuttingParametersSection
             availabilitySection
         }
         .formStyle(.grouped)
         .navigationTitle(tool.displayName)
+    }
+}
+
+// MARK: - Header
+
+private extension ToolEditorView {
+
+    /// The tool's name, editable (the list rows show the type, not the name), and its source.
+    var headerSection: some View {
+        Section {
+            HStack(spacing: 12) {
+                TextField("Name", text: $tool.name, prompt: Text("Tool name"))
+                    .textFieldStyle(.plain)
+                    .font(.title3.weight(.semibold))
+                    .labelsHidden()
+
+                if let source {
+                    SourceChip(source: source)
+                }
+            }
+        }
     }
 }
 
