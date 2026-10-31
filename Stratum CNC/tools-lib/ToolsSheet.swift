@@ -81,13 +81,20 @@ struct ToolsSheet: View {
                     .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
                 } detail: {
                     if let selectedToolID,
-                       let index = store.tools.firstIndex(where: { $0.id == selectedToolID }) {
+                       let current = store.tools.first(where: { $0.id == selectedToolID }) {
+                        // Bound by id, not by index: when tools are removed (a deleted import
+                        // batch, Revert) SwiftUI can still call these closures once before the
+                        // view is rebuilt, and a captured index would then be out of range.
                         ToolEditorView(
                             tool: Binding(
-                                get: { store.tools[index] },
-                                set: { store.tools[index] = $0 }
+                                get: { store.tools.first(where: { $0.id == selectedToolID }) ?? current },
+                                set: { newValue in
+                                    if let index = store.tools.firstIndex(where: { $0.id == selectedToolID }) {
+                                        store.tools[index] = newValue
+                                    }
+                                }
                             ),
-                            source: store.source(for: store.tools[index])
+                            source: store.source(for: current)
                         )
                     } else {
                         ContentUnavailableView(

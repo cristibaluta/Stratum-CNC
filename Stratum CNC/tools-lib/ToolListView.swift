@@ -141,7 +141,7 @@ private struct ToolRow: View {
             Spacer().frame(width: 16)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(tool.type.displayName)
+                Text(title)
                     .lineLimit(1)
                 Text(detail)
                     .font(.caption)
@@ -156,6 +156,11 @@ private struct ToolRow: View {
         }
         .padding(.vertical, 2)
         .help(tool.name)
+    }
+
+    /// First line: the type, with "(metal)" after it for tools meant for cutting metal.
+    private var title: String {
+        tool.isForMetal ? "\(tool.type.displayName) (metal)" : tool.type.displayName
     }
 
     private var stockHelp: String {
