@@ -129,32 +129,45 @@ struct StocksLib_Sheet: View {
             }
             Spacer()
             if hasUnsavedChanges {
-                Button("Revert") {
+                Button {
                     draft = selectedStock
+                } label: {
+                    Text("Revert")
+                        .frame(width: 100)
                 }
-                Button("Save") {
+
+                Button {
                     guard let draft else { return }
                     do {
                         try store.update(draft)
                     } catch {
                         print("Failed to save stock: \(error)")
                     }
+                } label: {
+                    Text("Save")
+                        .frame(width: 100)
                 }
                 .keyboardShortcut("s", modifiers: .command)
                 .buttonStyle(.borderedProminent)
             } else if let onPick {
-                Button("Pick") {
+                Button {
                     if let stock = selectedStock {
                         onPick(stock)
                         dismiss()
                     }
+                } label: {
+                    Text("Pick")
+                        .frame(width: 100)
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(selectedStock == nil)
             } else {
-                Button("Done") {
+                Button {
                     dismiss()
+                } label: {
+                    Text("Done")
+                        .frame(width: 100)
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
@@ -162,7 +175,7 @@ struct StocksLib_Sheet: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
-        .background(.bar)
+//        .background(.bar)
     }
 
     /// Title bar: what the sheet is for, and how many stocks the library holds.
@@ -176,8 +189,7 @@ struct StocksLib_Sheet: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(.bar)
+        .padding(.vertical, 20)
     }
 
     /// Keeps the selection on something visible after a filter changes.

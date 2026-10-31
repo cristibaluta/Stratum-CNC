@@ -106,11 +106,17 @@ struct ToolsLib_Sheet: View {
                 }
                 .navigationTitle("Tools")
                 .onAppear(perform: selectFirstIfNeeded)
-                .onChange(of: store.filter) { _ in reselectIfHidden() }
+                .onChange(of: store.filter) {
+                    reselectIfHidden()
+                }
                 // Removing an import batch (or reverting that) changes which tools exist.
-                .onChange(of: store.tools.map(\.id)) { _ in reselectIfHidden() }
+                .onChange(of: store.tools.map(\.id)) {
+                    reselectIfHidden()
+                }
                 // A source filter must not outlive its source.
-                .onChange(of: store.sources) { _ in resetSourceFilterIfMissing() }
+                .onChange(of: store.sources) {
+                    resetSourceFilterIfMissing()
+                }
                 .confirmationDialog(
                     "Delete \"\(toolPendingDeletion?.name ?? "")\"?",
                     isPresented: Binding(
@@ -170,8 +176,7 @@ struct ToolsLib_Sheet: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(.bar)
+        .padding(.vertical, 20)
     }
 
     /// Permanent bar: Revert/Save while there are unsaved edits, otherwise Done (or Pick).
@@ -184,31 +189,43 @@ struct ToolsLib_Sheet: View {
             }
             Spacer()
             if store.hasUnsavedChanges {
-                Button("Revert") {
+                Button {
                     store.revertChanges()
+                } label: {
+                    Text("Revert")
+                        .frame(width: 100)
                 }
-                Button("Save") {
+                Button {
                     do {
                         try store.save()
                     } catch {
                         print("Failed to save tools: \(error)")
                     }
+                } label: {
+                    Text("Save")
+                        .frame(width: 100)
                 }
                 .keyboardShortcut("s", modifiers: .command)
                 .buttonStyle(.borderedProminent)
             } else if let onPick {
-                Button("Pick") {
+                Button {
                     if let tool = selectedTool {
                         onPick(tool)
                         dismiss()
                     }
+                } label: {
+                    Text("Pick")
+                        .frame(width: 100)
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(selectedTool == nil)
             } else {
-                Button("Done") {
+                Button {
                     dismiss()
+                } label: {
+                    Text("Done")
+                        .frame(width: 100)
                 }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)

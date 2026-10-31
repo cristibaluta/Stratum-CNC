@@ -51,11 +51,8 @@ struct ContentView: View {
                onDismiss: {
             appModel.resolveStockPick(nil)
         }) {
-            StocksLib_Sheet(store: appModel.stocksStore,
-                            onPick: {
-                appModel.resolveStockPick($0)
-            })
-            .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
+            StocksLib_Sheet(store: appModel.stocksStore)
+                .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
         }
         // Single source of truth for the whole app's appearance. Every
         // screen reads `\.colorScheme` from this environment
