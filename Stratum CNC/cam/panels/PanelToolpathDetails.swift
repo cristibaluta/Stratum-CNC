@@ -138,7 +138,6 @@ struct PanelToolpathDetails: View {
             TextField("", text: model.nameBinding($toolpath))
                 .textFieldStyle(.plain)
                 .font(.system(size: 15, weight: .semibold))
-                .background(.background)
                 // A field being edited ignores outside changes to its text; a new
                 // identity per operation makes it show the renamed title.
                 .id(toolpath.operation.kind)
@@ -241,7 +240,8 @@ struct PanelToolpathDetails: View {
                 .help("How deep the slot is cut in each pass.")
             passesNote(stepdown: toolpath.operation.slotDepthPerPass)
         } else if requirements.usesStepdown {
-            InspectorNumberField(title: "Stepdown", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), suffix: "mm")
+            InspectorNumberField(title: "Stepdown", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), suffix: "mm",
+                                 offersDecimalsOnly: true)
                 .help("How deep the tool cuts in each pass. Smaller means lighter cuts and more passes.")
             passesNote(stepdown: toolpath.stepDown)
         }
@@ -278,17 +278,17 @@ struct PanelToolpathDetails: View {
         let passes = model.passesNote(for: toolpath, stepdown: stepdown)
 
         HStack(spacing: 6) {
-            InspectorCompactNumberField(tag: "Start", value: $toolpath.startZ, decimalKey: "Start Z",
+            InspectorCompactNumberField(tag: "Start", value: $toolpath.startZ,
                                         help: "Start Z (mm): the height where cutting starts. 0 is the top of the stock.")
             if toolpath.operation.kind == .counterbore {
-                InspectorCompactNumberField(tag: "End", value: model.counterboreEndDepth($toolpath), prefix: "−", decimalKey: "End Z",
+                InspectorCompactNumberField(tag: "End", value: model.counterboreEndDepth($toolpath), prefix: "−",
                                             help: "End Z (mm): how deep the counterbore goes below the top of the stock.")
             } else if requirements.usesEndZ {
-                InspectorCompactNumberField(tag: "End", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), prefix: "−", decimalKey: "End Z",
+                InspectorCompactNumberField(tag: "End", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), prefix: "−",
                                             help: "End Z (mm): \(model.endZHelp)")
             }
             if isSlot {
-                InspectorCompactNumberField(tag: "Step", value: model.slotDepthPerPass($toolpath), decimalKey: "Depth per pass",
+                InspectorCompactNumberField(tag: "Step", value: model.slotDepthPerPass($toolpath),
                                             help: "Depth per pass (mm). \(passes?.text ?? "")")
             } else if requirements.usesStepdown {
                 InspectorCompactNumberField(tag: "Step", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), decimalKey: "Stepdown",
@@ -316,7 +316,7 @@ struct PanelToolpathDetails: View {
             }
             InspectorCompactNumberField(tag: "Feed", value: $toolpath.plungeRate,
                                         help: "Entry feed (mm/min). \(model.plungeFeedHelp(for: toolpath))")
-            InspectorCompactNumberField(tag: "Entry Z", value: $toolpath.entryZ, decimalKey: "Entry Z",
+            InspectorCompactNumberField(tag: "Entry Z", value: $toolpath.entryZ,
                                         help: "Entry Z (mm): height above the stock where the entry starts. The tool rapids down to here, then feeds in.")
         }
     }

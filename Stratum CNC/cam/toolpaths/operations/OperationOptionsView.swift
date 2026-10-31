@@ -266,7 +266,6 @@ struct OperationOptionsView: View {
                                             value: Binding(get: { f.value },
                                                            set: { f.onChange(min(max($0, f.range.lowerBound), f.range.upperBound)) }),
                                             suffix: f.unit ?? "",
-                                            decimalKey: f.unit == "mm" ? f.label : nil,
                                             help: f.unit.map { "\(f.label) (\($0))" } ?? f.label)
                     .disabled(!f.isEnabled)
                     .opacity(f.isEnabled ? 1 : 0.5)
@@ -364,7 +363,7 @@ struct OperationOptionsView: View {
                                             help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter. \(stepOverNote)")
             }
             if requirements.usesAllowance, kind != .restMachining {
-                InspectorCompactNumberField(tag: "Leave", value: stockToLeave, decimalKey: "Stock to leave",
+                InspectorCompactNumberField(tag: "Leave", value: stockToLeave,
                                             help: toolpath.operation.stockToLeave > 0
                                                 ? "Stock to leave (mm). \(stockToLeaveNote)"
                                                 : "Stock to leave (mm): material left standing by the roughing. 0 cuts straight to size.")

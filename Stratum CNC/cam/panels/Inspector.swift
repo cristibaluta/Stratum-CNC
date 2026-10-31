@@ -403,19 +403,20 @@ struct InspectorNumberField<Accessory: View>: View {
     let prefix: String
     /// Optional control on the right of the field, on the same row (e.g. a helper button).
     let accessory: Accessory
-    /// Lengths (mm) can be typed as just their decimals; the checkbox for it sits at the right
-    /// end of the field.
+    /// Opt-in: a field that can be typed as just its decimals shows the checkbox for it at the
+    /// right end of the field. Off for every other field.
     private let offersDecimalsOnly: Bool
     @AppStorage private var decimalsOnly: Bool
 
     init(title: String, value: Binding<Double>, suffix: String, prefix: String = "",
+         offersDecimalsOnly: Bool = false,
          @ViewBuilder accessory: () -> Accessory) {
         self.title = title
         self._value = value
         self.suffix = suffix
         self.prefix = prefix
         self.accessory = accessory()
-        self.offersDecimalsOnly = suffix == "mm"
+        self.offersDecimalsOnly = offersDecimalsOnly
         _decimalsOnly = AppStorage(wrappedValue: false, InspectorDecimalEntry.key(for: title))
     }
 
@@ -452,8 +453,10 @@ struct InspectorNumberField<Accessory: View>: View {
 
 extension InspectorNumberField where Accessory == EmptyView {
 
-    init(title: String, value: Binding<Double>, suffix: String, prefix: String = "") {
-        self.init(title: title, value: value, suffix: suffix, prefix: prefix) {
+    init(title: String, value: Binding<Double>, suffix: String, prefix: String = "",
+         offersDecimalsOnly: Bool = false) {
+        self.init(title: title, value: value, suffix: suffix, prefix: prefix,
+                  offersDecimalsOnly: offersDecimalsOnly) {
             EmptyView()
         }
     }
