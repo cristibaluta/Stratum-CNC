@@ -63,11 +63,12 @@ class GCodeStore: ObservableObject {
     /// are what `toolSpecAssignments` is seeded with on load, and what
     /// `ToolsPickerView` offers at the top of each tool's list.
     var headerToolSpecs: [Int: ToolSpec] {
-        ToolSpec.resolvingHeaderTools(document.loadedHeader?.tools ?? [:], in: toolLibrary())
+        Tool.resolvingHeaderTools(document.loadedHeader?.tools ?? [:], in: toolLibrary())
+            .mapValues(ToolSpec.init(from:))
     }
 
     /// The header's tools matched to the closest tools-library tool (see
-    /// `ToolSpec.resolvingHeaderTools`): the assignment then follows the library tool, with its
+    /// `Tool.resolvingHeaderTools`): the assignment then follows the library tool, with its
     /// length. A tool with no match stays as the header describes it and is not added to the library.
     private func rematchHeaderTools() {
         guard let header = document.loadedHeader, !header.tools.isEmpty else {
@@ -97,7 +98,8 @@ class GCodeStore: ObservableObject {
     /// would no longer have an option for.
     private func applyHeaderTools(_ header: GCodeHeader?) {
         if let header, !header.tools.isEmpty {
-            toolSpecAssignments = ToolSpec.resolvingHeaderTools(header.tools, in: toolLibrary())
+            toolSpecAssignments = Tool.resolvingHeaderTools(header.tools, in: toolLibrary())
+                .mapValues(ToolSpec.init(from:))
         } else {
             let kept = toolSpecAssignments.filter { ToolSpec.library.contains($0.value) }
             if kept != toolSpecAssignments {
@@ -172,14 +174,14 @@ class GCodeStore: ObservableObject {
     /// change tool — get the first assigned tool's radius, the same fallback
     /// the heightmap carves with (`activeToolSpec`).
     func toolRadiiByLine() -> [Float] {
-        let fallback = activeToolSpec.map(ToolFootprint.radius(for:)) ?? 0
+        let fallback = activeToolSpec.map { ToolFootprint.radius(for: $0.geometry) } ?? 0
         var radii = [Float](repeating: fallback, count: document.lines.count + 1)
 
         for toolpath in document.toolpaths {
             guard let number = toolpath.toolNumber else {
                 continue
             }
-            let radius = toolSpecAssignments[number].map(ToolFootprint.radius(for:)) ?? 0
+            let radius = toolSpecAssignments[number].map { ToolFootprint.radius(for: $0.geometry) } ?? 0
             let first = max(toolpath.startLine, 0)
             let last = min(toolpath.endLine, radii.count - 1)
             guard first <= last else {

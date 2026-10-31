@@ -35,7 +35,7 @@ struct FusionHeaderParser: GCodeHeaderParser {
     )
 
     func parse(headerLines: [String]) -> GCodeHeader? {
-        var tools: [Int: ToolSpec] = [:]
+        var tools: [Int: Tool] = [:]
         var offsetX: Float?
         var offsetY: Float?
 
@@ -93,7 +93,7 @@ struct FusionHeaderParser: GCodeHeaderParser {
         return (line[axisRange].uppercased(), millimeters)
     }
 
-    private static func tool(number: Int, body: String) -> ToolSpec? {
+    private static func tool(number: Int, body: String) -> Tool? {
         // `D=` is the cutting diameter. `SD=` (shank) and `TD=` don't count —
         // `value(_:in:)` won't match a key that's the tail of a longer word.
         guard let diameter = value("D", in: body), diameter > 0 else {
@@ -113,16 +113,15 @@ struct FusionHeaderParser: GCodeHeaderParser {
         }
 
         var tipAngle: Double?
-        if kind == .vBit || kind == .engraver, let taper = value("TAPER", in: body), taper > 0 {
+        if kind == .vBit || kind == .engraving, let taper = value("TAPER", in: body), taper > 0 {
             // Fusion's taper is measured from the tool axis, i.e. a half angle.
             tipAngle = taper * 2
         }
 
-        return ToolSpec(name: name(number: number, body: body, diameter: diameter, type: type),
-                        diameterMM: diameter,
-                        flutes: ToolSpec.assumedFlutes,
-                        kind: kind,
-                        tipAngleDegrees: tipAngle)
+        return Tool(fromHeader: name(number: number, body: body, diameter: diameter, type: type),
+                    diameter: diameter,
+                    type: kind,
+                    tipAngle: tipAngle)
     }
 
     /// The description Fusion puts between `T<n>` and `D=` when the tool has
@@ -158,15 +157,15 @@ struct FusionHeaderParser: GCodeHeaderParser {
     }
 
     /// Fusion's tool-type strings ("flat end mill", "ball end mill",
-    /// "thread mill", ...). Anything `ToolSpec.Kind` can't represent → `nil`,
+    /// "thread mill", ...). Anything `ToolType` can't represent → `nil`,
     /// and that tool stays "Unassigned".
-    private static func kind(forType type: String) -> ToolSpec.Kind? {
+    private static func kind(forType type: String) -> ToolType? {
         let t = type.lowercased()
         if t.contains("ball") {
             return .ballNose
         }
         if t.contains("engrav") {
-            return .engraver
+            return .engraving
         }
         if t.contains("chamfer") || t.contains("countersink") || t.contains("counter sink") {
             return .vBit

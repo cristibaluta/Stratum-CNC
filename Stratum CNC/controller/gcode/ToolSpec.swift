@@ -88,52 +88,6 @@ extension ToolSpec {
                   tipAngleDegrees: (tool.tipAngle ?? 0) > 0 ? tool.tipAngle : nil,
                   lengthMM: tool.length)
     }
-
-    /// The library tool closest to this spec, or `nil` when none is close enough: same kind
-    /// of tool, diameter within `diameterTolerance`, and for tools with a tip angle on both
-    /// sides, the angle within `angleTolerance`. Among those, the one with the same name wins,
-    /// then the smallest difference in diameter and angle.
-    func closestLibraryTool(in tools: [Tool]) -> Tool? {
-        let diameterTolerance = 0.05
-        let angleTolerance = 1.0
-
-        let candidates: [(tool: Tool, sameName: Bool, distance: Double)] = tools.compactMap { tool in
-            guard Kind(toolType: tool.type) == kind else {
-                return nil
-            }
-            let diameterDifference = abs(tool.toolDiameter - diameterMM)
-            guard diameterDifference <= diameterTolerance else {
-                return nil
-            }
-            var angleDifference = 0.0
-            if let angle = tipAngleDegrees, let toolAngle = tool.tipAngle, toolAngle > 0 {
-                angleDifference = abs(toolAngle - angle)
-                guard angleDifference <= angleTolerance else {
-                    return nil
-                }
-            }
-            let sameName = tool.name.caseInsensitiveCompare(name) == .orderedSame
-            return (tool, sameName, diameterDifference + angleDifference * 0.01)
-        }
-
-        return candidates
-            .min { a, b in
-                if a.sameName != b.sameName {
-                    return a.sameName
-                }
-                return a.distance < b.distance
-            }?
-            .tool
-    }
-
-    /// Header tools resolved against the library: each one that has a close library tool
-    /// becomes that tool's spec; the others stay as the header describes them (an
-    /// instance made from the known values, which is never added to the library).
-    static func resolvingHeaderTools(_ headerTools: [Int: ToolSpec], in library: [Tool]) -> [Int: ToolSpec] {
-        headerTools.mapValues { spec in
-            spec.closestLibraryTool(in: library).map(ToolSpec.init(from:)) ?? spec
-        }
-    }
 }
 
 extension ToolSpec.Kind {
@@ -148,4 +102,29 @@ extension ToolSpec.Kind {
             case .threadMill:                         self = .threadMill
         }
     }
+}
+
+// MARK: - Temporary bridge
+// ToolSpec is being replaced by Tool (see ToolShape / ToolGeometry / Tool+HeaderMatching). Until the
+// store, the chips and the canvas model switch over, these let it feed the carve and the renderer.
+// Delete them together with ToolSpec.
+
+extension ToolSpec.Kind {
+    var shape: ToolShape {
+        switch self {
+            case .endMill, .drill, .threadMill: .flat
+            case .ballNose: .ball
+            case .vBit, .engraver: .cone
+        }
+    }
+}
+
+extension ToolSpec {
+    var geometry: ToolGeometry {
+        ToolGeometry(diameter: diameterMM, shape: kind.shape, tipAngle: tipAngleDegrees)
+    }
+
+    /// Most CAM headers don't say how many flutes a tool has, but `ToolSpec` requires a number.
+    /// Nothing reads it.
+    static let assumedFlutes = 2
 }

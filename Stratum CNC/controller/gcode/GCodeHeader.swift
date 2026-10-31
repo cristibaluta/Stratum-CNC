@@ -13,9 +13,9 @@ import simd
 /// the XY offset and the stock are extracted for now; add more fields here
 /// (origin, ...) as the app starts using them.
 struct GCodeHeader: Sendable, Equatable {
-    /// Tool specs declared by the header, keyed by tool number (the `T` in
-    /// `T4 M6`).
-    var tools: [Int: ToolSpec] = [:]
+    /// Tools declared by the header, keyed by tool number (the `T` in
+    /// `T4 M6`). Built from what the header says (`Tool(fromHeader:…)`), not from the library.
+    var tools: [Int: Tool] = [:]
 
     /// XY position of the part relative to the machine origin, in
     /// millimeters, for CAMs that write one. `nil` when the header doesn't
@@ -41,12 +41,6 @@ struct StockSpec: Sendable, Equatable {
     /// Material name as the header writes it ("Aluminum"); `nil` when it
     /// doesn't say.
     var material: String? = nil
-}
-
-extension ToolSpec {
-    /// Most CAM headers don't say how many flutes a tool has, but `ToolSpec`
-    /// requires a number. Nothing in the heightmap carve reads it today.
-    static let assumedFlutes = 2
 }
 
 /// Reads one CAM package's header dialect. `GCodeParser` hands every

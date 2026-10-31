@@ -62,14 +62,14 @@ struct HeightmapCarveCache {
         let topZ: Float
         let bottomZ: Float
         let mask: [Bool]?
-        let tool: ToolSpec
+        let tool: ToolGeometry
         let offsetX: Float
         let offsetY: Float
 
         /// `grid` should be a freshly-built, uncarved grid (see
         /// `HeightmapGrid(stock:cellSize:)`) — only its shape fields are
         /// read, not its heights.
-        init(grid: HeightmapGrid, tool: ToolSpec, offset: SIMD2<Float>) {
+        init(grid: HeightmapGrid, tool: ToolGeometry, offset: SIMD2<Float>) {
             originX = grid.originX
             originY = grid.originY
             cellSize = grid.cellSize

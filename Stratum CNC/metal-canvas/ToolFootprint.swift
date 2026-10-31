@@ -23,8 +23,8 @@ enum ToolFootprint {
     /// How far a tool's footprint reaches from its centerline in the XY
     /// plane. `HeightmapGrid.carve` uses this to limit which cells even need
     /// to be considered for a given segment.
-    static func radius(for tool: ToolSpec) -> Float {
-        Float(tool.diameterMM) / 2
+    static func radius(for tool: ToolGeometry) -> Float {
+        Float(tool.diameter) / 2
     }
 
     /// The Z the tool's surface leaves behind at radial offset `d` from its
@@ -35,18 +35,18 @@ enum ToolFootprint {
     /// all, so the caller shouldn't lower anything.
     ///
     /// `d` and `tipZ` are both in millimeters, matching `ToolpathSegment`.
-    static func surfaceZ(for tool: ToolSpec, tipZ: Float, radialOffset d: Float) -> Float? {
+    static func surfaceZ(for tool: ToolGeometry, tipZ: Float, radialOffset d: Float) -> Float? {
         let r = radius(for: tool)
         guard d >= 0, d <= r, r > 0 else { return nil }
 
-        switch tool.kind {
-            case .endMill, .drill, .threadMill:
+        switch tool.shape {
+            case .flat:
                 // Flat-bottomed footprint. A drill's conical point matters
                 // for plunge clearance, not for what a 2.5D heightmap shows,
                 // so it's modeled the same as a flat end mill here.
                 return tipZ
 
-            case .ballNose:
+            case .ball:
                 // Hemisphere: lowest at the centerline (tipZ), rising to
                 // tipZ + r at the tool's full radius. `min(d, r)` guards the
                 // sqrt against the offset landing a hair past `r` due to
@@ -54,13 +54,13 @@ enum ToolFootprint {
                 let clamped = min(d, r)
                 return tipZ + r - (r * r - clamped * clamped).squareRoot()
 
-            case .vBit, .engraver:
+            case .cone:
                 // Cone: rises linearly from the tip at a rate set by the
                 // tool's half-angle. Falls back to a flat disc if no angle
                 // is on file, rather than silently mis-shaping the cut —
                 // a missing angle should be visible as "looks like an end
                 // mill," not a subtly wrong cone.
-                guard let includedAngle = tool.tipAngleDegrees, includedAngle > 0, includedAngle < 180 else {
+                guard let includedAngle = tool.tipAngle, includedAngle > 0, includedAngle < 180 else {
                     return tipZ
                 }
                 let halfAngleRadians = (includedAngle / 2) * .pi / 180

@@ -35,7 +35,7 @@ import Foundation
 ///
 /// The three-number form is the one `MakeraHeaderParser` documents (its
 /// `3.175*2*8mm Flat End(Metal)` has `diameter=2`). The length isn't kept —
-/// `ToolSpec` has no field for it. Neither stock nor tools found → `nil`.
+/// `Tool` has no field for it. Neither stock nor tools found → `nil`.
 struct MakeraCAMHeaderParser: GCodeHeaderParser {
 
     /// A non-negative decimal: `6`, `3.175`, `6.`, `.5`.
@@ -80,7 +80,7 @@ struct MakeraCAMHeaderParser: GCodeHeaderParser {
     )
 
     func parse(headerLines: [String]) -> GCodeHeader? {
-        var tools: [Int: ToolSpec] = [:]
+        var tools: [Int: Tool] = [:]
         var size: (x: Double, y: Double, z: Double)?
         var material: String?
 
@@ -150,10 +150,10 @@ struct MakeraCAMHeaderParser: GCodeHeaderParser {
 
     // MARK: Tools
 
-    /// Builds a `ToolSpec` from what follows `T<n>-`. `nil` if the
-    /// dimensions don't parse or the type isn't one `ToolSpec.Kind` can
+    /// Builds a `Tool` from what follows `T<n>-`. `nil` if the
+    /// dimensions don't parse or the type isn't one `ToolType` can
     /// represent — that tool just stays "Unassigned" in the picker.
-    private static func tool(description: String) -> ToolSpec? {
+    private static func tool(description: String) -> Tool? {
         guard let parts = captures(of: toolBody, in: description), parts.count == 3 else {
             return nil
         }
@@ -179,13 +179,12 @@ struct MakeraCAMHeaderParser: GCodeHeaderParser {
             return nil
         }
 
-        return ToolSpec(name: description,
-                        diameterMM: diameter,
-                        flutes: ToolSpec.assumedFlutes,
-                        kind: kind)
+        return Tool(fromHeader: description,
+                    diameter: diameter,
+                    type: kind)
     }
 
-    private static func kind(forType type: String) -> ToolSpec.Kind? {
+    private static func kind(forType type: String) -> ToolType? {
         let t = type.lowercased()
         if t.contains("ball") {
             return .ballNose
@@ -200,7 +199,7 @@ struct MakeraCAMHeaderParser: GCodeHeaderParser {
             return .vBit
         }
         if t.contains("engrav") {
-            return .engraver
+            return .engraving
         }
         if t.contains("drill") {
             return .drill

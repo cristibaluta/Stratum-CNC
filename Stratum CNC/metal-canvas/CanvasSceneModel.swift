@@ -430,7 +430,7 @@ class CanvasSceneModel: ObservableObject {
             renderObjects.updating(.tool(at: tip,
                                          diameter: toolSpec.diameterMM,
                                          length: toolSpec.drawnLengthMM,
-                                         kind: toolSpec.kind,
+                                         shape: toolSpec.kind.shape,
                                          tipAngleDegrees: toolSpec.tipAngleDegrees))
         } else {
             renderObjects.updating(.tool(at: tip, diameter: toolDiameter, length: toolLength))
@@ -501,7 +501,7 @@ class CanvasSceneModel: ObservableObject {
 
         let request = HeightmapRequest(stock: UncheckedSendable(stock),
                                        segments: segments,
-                                       tool: tool,
+                                       tool: tool.geometry,
                                        cellSize: heightmapCellSize,
                                        offset: xyOffset,
                                        cache: UncheckedSendable(heightmapCarveCache),
@@ -680,13 +680,13 @@ class CanvasSceneModel: ObservableObject {
 private struct HeightmapRequest: Sendable {
     let stock: UncheckedSendable<StockMaterial>
     let segments: ArraySlice<ToolpathSegment>
-    let tool: ToolSpec
+    let tool: ToolGeometry
     let cellSize: Float
     let offset: SIMD2<Float>
     /// The incremental-carve cache as last committed by
     /// `finishHeightmapCarve`, if any — `nil` before the first carve.
     /// `HeightmapCarveCache` is a plain value type (arrays of `Float`/
-    /// `Bool`, a `HeightmapGrid`, a `ToolSpec`), so wrapping it here follows
+    /// `Bool`, a `HeightmapGrid`, a `ToolGeometry`), so wrapping it here follows
     /// the same `UncheckedSendable` pattern `stock` already does rather
     /// than chasing `Sendable` conformance through every type it's made of.
     let cache: UncheckedSendable<HeightmapCarveCache?>

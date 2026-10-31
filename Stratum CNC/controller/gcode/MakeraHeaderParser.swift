@@ -23,7 +23,7 @@ struct MakeraHeaderParser: GCodeHeaderParser {
 
     func parse(headerLines: [String]) -> GCodeHeader? {
         var sawBegin = false
-        var tools: [Int: ToolSpec] = [:]
+        var tools: [Int: Tool] = [:]
 
         for rawLine in headerLines {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -70,10 +70,10 @@ struct MakeraHeaderParser: GCodeHeaderParser {
         return result
     }
 
-    /// Builds a `ToolSpec` from one `TOOL` record. `nil` if the number or
-    /// diameter is missing, or the tool type isn't one `ToolSpec.Kind` can
+    /// Builds a `Tool` from one `TOOL` record. `nil` if the number or
+    /// diameter is missing, or the tool type isn't one `ToolType` can
     /// represent — that tool just stays "Unassigned" in the picker.
-    private static func tool(from values: [String: String]) -> (Int, ToolSpec)? {
+    private static func tool(from values: [String: String]) -> (Int, Tool)? {
         guard let number = values["number"].flatMap({ Int($0) }),
               let diameter = values["diameter"].flatMap({ Double($0) }), diameter > 0,
               let kind = kind(forType: values["type"] ?? "") else {
@@ -82,7 +82,7 @@ struct MakeraHeaderParser: GCodeHeaderParser {
 
         // `diameter` is the cutting diameter; `handlediameter` is the shank.
         var tipAngle: Double?
-        if kind == .vBit || kind == .engraver {
+        if kind == .vBit || kind == .engraving {
             let angle = values["angle"].flatMap { Double($0) } ?? 0
             let halfAngle = values["halfAngle"].flatMap { Double($0) } ?? 0
             tipAngle = angle > 0 ? angle : (halfAngle > 0 ? halfAngle * 2 : nil)
@@ -90,14 +90,13 @@ struct MakeraHeaderParser: GCodeHeaderParser {
 
         let name = values["name"].flatMap { $0.isEmpty ? nil : $0 } ?? "T\(number)"
 
-        return (number, ToolSpec(name: name,
-                                 diameterMM: diameter,
-                                 flutes: ToolSpec.assumedFlutes,
-                                 kind: kind,
-                                 tipAngleDegrees: tipAngle))
+        return (number, Tool(fromHeader: name,
+                             diameter: diameter,
+                             type: kind,
+                             tipAngle: tipAngle))
     }
 
-    private static func kind(forType type: String) -> ToolSpec.Kind? {
+    private static func kind(forType type: String) -> ToolType? {
         let t = type.lowercased()
         if t.contains("ball") {
             return .ballNose
@@ -112,7 +111,7 @@ struct MakeraHeaderParser: GCodeHeaderParser {
             return .vBit
         }
         if t.contains("engrav") {
-            return .engraver
+            return .engraving
         }
         if t.contains("drill") {
             return .drill

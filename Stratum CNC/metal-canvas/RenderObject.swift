@@ -637,11 +637,11 @@ extension RenderObject {
 
     /// The cutter as a solid, drawn at true size with its tip at
     /// `tipPosition`. The body is a surface of revolution around the vertical
-    /// axis, shaped by `kind` the same way `ToolFootprint` shapes the cut:
+    /// axis, shaped by `shape` the same way `ToolFootprint` shapes the cut:
     ///
-    /// - `.endMill`, `.drill`, `.threadMill`: flat-bottomed cylinder.
-    /// - `.ballNose`: hemispherical tip, radius = tool radius.
-    /// - `.vBit`, `.engraver`: cone from the tip up to the full diameter,
+    /// - `.flat` (end mills, drills, thread mills): flat-bottomed cylinder.
+    /// - `.ball`: hemispherical tip, radius = tool radius.
+    /// - `.cone` (V-bits, engraving bits): cone from the tip up to the full diameter,
     ///   half-angle from `tipAngleDegrees` (flat if none is on file, same
     ///   fallback as `ToolFootprint.surfaceZ`).
     ///
@@ -652,7 +652,7 @@ extension RenderObject {
     static func tool(at tipPosition: SIMD3<Float>,
                      diameter: Double,
                      length: Double,
-                     kind: ToolSpec.Kind = .endMill,
+                     shape: ToolShape = .flat,
                      tipAngleDegrees: Double? = nil,
                      segments: Int = 48,
                      color: SIMD4<Float> = CanvasPalette.tool) -> RenderObject {
@@ -694,8 +694,8 @@ extension RenderObject {
 
         // Tip shape — everything below `tipHeight`.
         var tipHeight: Float = 0
-        switch kind {
-            case .ballNose:
+        switch shape {
+            case .ball:
                 let arcSteps = 12
                 for k in 0...arcSteps {
                     let phi = Float(k) / Float(arcSteps) * (Float.pi / 2)
@@ -706,7 +706,7 @@ extension RenderObject {
                 }
                 tipHeight = radius
 
-            case .vBit, .engraver:
+            case .cone:
                 if let angle = tipAngleDegrees, angle > 0, angle < 180 {
                     let halfAngle = Float((angle / 2) * .pi / 180)
                     tipHeight = radius / tan(halfAngle)
@@ -715,7 +715,7 @@ extension RenderObject {
                     addFlat(0, 0, radius, 0)
                 }
 
-            case .endMill, .drill, .threadMill:
+            case .flat:
                 addFlat(0, 0, radius, 0)
         }
 

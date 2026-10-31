@@ -177,7 +177,7 @@ struct HeightmapGrid {
     /// pass leaves it at, so a grid can equally well be carved fresh up to
     /// any prefix of a file — that's how the scrubber will drive this once
     /// it's wired in (see the roadmap's M5 note).
-    mutating func carve(segment: ToolpathSegment, tool: ToolSpec, offsetX: Float = 0, offsetY: Float = 0) {
+    mutating func carve(segment: ToolpathSegment, tool: ToolGeometry, offsetX: Float = 0, offsetY: Float = 0) {
         // Rapids don't cut. Every tessellated arc segment carries only the
         // `.arc` flag (see `GCodeParser.appendArc`), not `.cutting`, so both
         // need checking here.
@@ -258,11 +258,11 @@ struct HeightmapGrid {
     ///
     /// Multi-tool files (a program with more than one `T` change) need a
     /// per-segment tool lookup instead of one fixed `tool`; that's the M6
-    /// follow-up once tool-number → `ToolSpec` assignment exists somewhere
+    /// follow-up once tool-number → tool assignment exists somewhere
     /// callable from here (today it's only wired up as far as
     /// `CanvasSceneModel.toolDiameter`/`toolLength`, which assumes a single
     /// active tool, same as this method does).
-    mutating func carve(segments: some Sequence<ToolpathSegment>, tool: ToolSpec, offsetX: Float = 0, offsetY: Float = 0) {
+    mutating func carve(segments: some Sequence<ToolpathSegment>, tool: ToolGeometry, offsetX: Float = 0, offsetY: Float = 0) {
         for segment in segments {
             carve(segment: segment, tool: tool, offsetX: offsetX, offsetY: offsetY)
         }
