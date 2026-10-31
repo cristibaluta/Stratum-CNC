@@ -114,7 +114,7 @@ struct SplashpageView: View {
                 .scaledToFit()
                 .frame(height: 64)
 
-            Text("CAM and Controller for your Makera CNC machine. Set up stock and tools, generate toolpaths, simulate the cut and send the job to your machine, all in one app.")
+            Text("CAM and Controller for your Makera CNC machine.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 560, alignment: .leading)
