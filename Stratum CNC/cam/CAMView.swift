@@ -333,40 +333,10 @@ struct CAMView: View {
 
 }
 
-/// A vertical ScrollView that is only as tall as its content — up to whatever
-/// height it's offered, beyond which it scrolls. A plain ScrollView always grabs
-/// all the space it's given, which would turn the settings panel into a
-/// full-height slab even for a short toolpath.
-//private struct FittingScrollView<Content: View>: View {
-//
-//    private let content: Content
-//    @State private var contentHeight: CGFloat?
-//
-//    init(@ViewBuilder content: () -> Content) {
-//        self.content = content()
-//    }
-//
-//    var body: some View {
-//        ScrollView {
-//            content
-//                .background(
-//                    GeometryReader { proxy in
-//                        Color.clear
-//                            .onChange(of: proxy.size.height, initial: true) { _, height in
-//                                contentHeight = height
-//                            }
-//                    }
-//                )
-//        }
-//        // Until the content has been measured, take what's offered
-//        .frame(maxHeight: contentHeight ?? .infinity)
-//    }
-//}
-
 private extension View {
     /// Opaque rounded card with a soft shadow, so the panels float above the canvas.
     func panelShadow() -> some View {
         background(.background, in: RoundedRectangle(cornerRadius: 8))
-            .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 2)
+            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 2)
     }
 }

@@ -15,19 +15,20 @@ struct Tool: Identifiable, Codable, Hashable {
     // Geometry
     var shankDiameter: Double
     var toolDiameter: Double
+    /// Length of the cutting part
     var length: Double?
 
     var type: ToolType
-    var group: String?
+    var group: String? = nil
 
     /// Number of this tool currently in stock.
     var quantity: Int
 
     /// Where to buy this tool.
-    var link: String?
+    var link: String? = nil
 
     // Optional geometry specific to certain tools
-    var tipAngle: Double?
+    var tipAngle: Double? = nil
 
     /// Cutting presets (speeds and feeds). Usually one per material, named after it.
     /// Shown alphabetically by name in the UI.
@@ -176,30 +177,19 @@ enum ToolType: String, Codable, CaseIterable, Hashable {
     case corn
     case chamfer
     case solderMaskRemover
-    /// Thread mill: `toolDiameter` is the diameter over the cutting teeth (DC); the neck behind
-    /// them is smaller so the teeth can cut the thread. Used by the Thread mill operation.
     case threadMill
 
     var displayName: String {
         switch self {
-        case .endMill:
-            "End Mill"
-        case .ballNose:
-            "Ball Nose"
-        case .engraving:
-            "Engraving"
-        case .drill:
-            "Drill"
-        case .vBit:
-            "V Bit"
-        case .corn:
-            "Corn"
-        case .chamfer:
-            "Chamfer"
-        case .solderMaskRemover:
-            "Solder Mask Remover"
-        case .threadMill:
-            "Thread Mill"
+            case .endMill: "End Mill"
+            case .ballNose: "Ball Nose"
+            case .engraving: "Engraving"
+            case .drill: "Drill"
+            case .vBit: "V Bit"
+            case .corn: "Corn"
+            case .chamfer: "Chamfer"
+            case .solderMaskRemover: "Solder Mask Remover"
+            case .threadMill: "Thread Mill"
         }
     }
 }

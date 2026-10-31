@@ -66,30 +66,30 @@ extension StockTextureKind {
 
     var palette: StockPalette {
         switch self {
-        case .aluminum:
-            return StockPalette(light: SIMD3(0.86, 0.87, 0.89),
-                                mid: SIMD3(0.72, 0.73, 0.76),
-                                dark: SIMD3(0.46, 0.47, 0.50))
-        case .steel:
-            return StockPalette(light: SIMD3(0.72, 0.74, 0.77),
-                                mid: SIMD3(0.52, 0.54, 0.57),
-                                dark: SIMD3(0.27, 0.29, 0.32))
-        case .brass:
-            return StockPalette(light: SIMD3(0.95, 0.85, 0.55),
-                                mid: SIMD3(0.80, 0.65, 0.30),
-                                dark: SIMD3(0.52, 0.40, 0.14))
-        case .copper:
-            return StockPalette(light: SIMD3(0.96, 0.67, 0.52),
-                                mid: SIMD3(0.80, 0.42, 0.28),
-                                dark: SIMD3(0.50, 0.23, 0.13))
-        case .wood:
-            return StockPalette(light: SIMD3(0.85, 0.68, 0.46),
-                                mid: SIMD3(0.74, 0.56, 0.35),
-                                dark: SIMD3(0.50, 0.35, 0.20))
-        case .plastic:
-            return StockPalette(light: SIMD3(0.75, 0.72, 0.68),
-                                mid: SIMD3(0.65, 0.62, 0.58),
-                                dark: SIMD3(0.55, 0.52, 0.48))
+            case .aluminum:
+                return StockPalette(light: SIMD3(0.86, 0.87, 0.89),
+                                    mid: SIMD3(0.72, 0.73, 0.76),
+                                    dark: SIMD3(0.46, 0.47, 0.50))
+            case .steel:
+                return StockPalette(light: SIMD3(0.72, 0.74, 0.77),
+                                    mid: SIMD3(0.52, 0.54, 0.57),
+                                    dark: SIMD3(0.27, 0.29, 0.32))
+            case .brass:
+                return StockPalette(light: SIMD3(0.95, 0.85, 0.55),
+                                    mid: SIMD3(0.80, 0.65, 0.30),
+                                    dark: SIMD3(0.52, 0.40, 0.14))
+            case .copper:
+                return StockPalette(light: SIMD3(0.96, 0.67, 0.52),
+                                    mid: SIMD3(0.80, 0.42, 0.28),
+                                    dark: SIMD3(0.50, 0.23, 0.13))
+            case .wood:
+                return StockPalette(light: SIMD3(0.85, 0.68, 0.46),
+                                    mid: SIMD3(0.74, 0.56, 0.35),
+                                    dark: SIMD3(0.50, 0.35, 0.20))
+            case .plastic:
+                return StockPalette(light: SIMD3(0.75, 0.72, 0.68),
+                                    mid: SIMD3(0.65, 0.62, 0.58),
+                                    dark: SIMD3(0.55, 0.52, 0.48))
         }
     }
 }
