@@ -43,21 +43,22 @@ struct ContentView: View {
         .sheet(isPresented: $appModel.showingToolsSheet, onDismiss: { appModel.resolveToolPick(nil) }) {
             // Only pass `onPick` when someone is awaiting a tool; otherwise the
             // sheet is opened to browse/edit the library and shows no "Pick" button.
-            ToolsSheet(store: appModel.toolsStore,
+            ToolsLib_Sheet(store: appModel.toolsStore,
                        onPick: appModel.isPickingTool ? { appModel.resolveToolPick($0) } : nil)
                 .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
         }
-        .sheet(isPresented: $appModel.showingStocksSheet, onDismiss: { appModel.resolveStockPick(nil) }) {
-            StockSheet(store: appModel.stocksStore, onPick: { appModel.resolveStockPick($0) })
-                .frame(width: 800, height: 600)
-                .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
+        .sheet(isPresented: $appModel.showingStocksSheet,
+               onDismiss: {
+            appModel.resolveStockPick(nil)
+        }) {
+            StocksLib_Sheet(store: appModel.stocksStore,
+                            onPick: {
+                appModel.resolveStockPick($0)
+            })
+            .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
         }
         // Single source of truth for the whole app's appearance. Every
-        // screen reads `\.colorScheme` from this environment (the CAM
-        // canvas included — see `CAM_Metal_View`), so setting it once here
-        // is enough to flip light/dark everywhere at once. Sheets are
-        // presented in their own hierarchy on macOS, so they re-assert it
-        // above rather than relying on inheriting it from here.
+        // screen reads `\.colorScheme` from this environment
         .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
             projectsStore.saveActiveProject()

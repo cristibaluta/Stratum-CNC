@@ -24,6 +24,7 @@ enum StockTextureKind {
     case copper
     case wood
     case plastic
+    case carbonFiber
 }
 
 extension StockMaterialType {
@@ -34,7 +35,11 @@ extension StockMaterialType {
         if name.contains("wood") || name.contains("mdf") || name.contains("plywood") {
             return .wood
         }
-        if name.contains("copper") {
+        if name.contains("carbon") {
+            return .carbonFiber
+        }
+        // A PCB is copper-clad, so it looks like copper.
+        if name.contains("copper") || name.contains("pcb") {
             return .copper
         }
         if name.contains("brass") || name.contains("bronze") {
@@ -82,6 +87,10 @@ extension StockTextureKind {
                 return StockPalette(light: SIMD3(0.96, 0.67, 0.52),
                                     mid: SIMD3(0.80, 0.42, 0.28),
                                     dark: SIMD3(0.50, 0.23, 0.13))
+            case .carbonFiber:
+                return StockPalette(light: SIMD3(0.26, 0.26, 0.28),
+                                    mid: SIMD3(0.13, 0.13, 0.15),
+                                    dark: SIMD3(0.05, 0.05, 0.06))
             case .wood:
                 return StockPalette(light: SIMD3(0.85, 0.68, 0.46),
                                     mid: SIMD3(0.74, 0.56, 0.35),
@@ -137,7 +146,7 @@ private extension StockTextureKind {
             return StockTexture(palette: palette, isMetallic: true, isWood: false)
         case .wood:
             return StockTexture(palette: palette, isMetallic: false, isWood: true)
-        case .plastic:
+        case .plastic, .carbonFiber:
             return StockTexture(palette: palette, isMetallic: false, isWood: false)
         }
     }

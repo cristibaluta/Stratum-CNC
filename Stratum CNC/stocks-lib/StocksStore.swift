@@ -18,6 +18,10 @@ final class StocksStore: ObservableObject {
         library.stocks
     }
 
+    /// The library's filters (rail, search). Kept here so they survive closing and reopening
+    /// the sheet while the app runs. Not written to disk.
+    @Published var filter = StockFilter()
+
     private let fileManager = FileManager.default
 
     private let stocksFileURL: URL

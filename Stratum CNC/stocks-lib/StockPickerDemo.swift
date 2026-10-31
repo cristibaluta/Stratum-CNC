@@ -36,7 +36,7 @@ struct StockPickerDemo: View {
         .formStyle(.grouped)
         .sheet(isPresented: $isPickerPresented) {
             // Passing `onPick` is what makes the "Pick" button appear.
-            StockSheet(store: store, onPick: { stock in
+            StocksLib_Sheet(store: store, onPick: { stock in
                 print("Picked stock:")
                 print("  id:         \(stock.id)")
                 print("  name:       \(stock.name)")
@@ -50,7 +50,6 @@ struct StockPickerDemo: View {
                 dimensions = stock.geometry.dimensionsDescription
                 link = stock.link ?? ""
             })
-            .frame(minWidth: 900, minHeight: 600)
         }
     }
 }

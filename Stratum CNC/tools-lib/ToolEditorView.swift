@@ -116,10 +116,6 @@ private extension ToolEditorView {
         Section("Geometry") {
             HStack {
                 Form {
-                    MeasurementField(title: "Shank Diameter (DS)", value: $tool.shankDiameter, unit: "mm")
-                    MeasurementField(title: "Tool Diameter (DC)", value: $tool.toolDiameter, unit: "mm")
-                    OptionalMeasurementField(title: "Length (L)", value: $tool.length, unit: "mm")
-
                     Picker("Type", selection: $tool.type) {
                         ForEach(ToolType.allCases, id: \.self) { type in
                             Text(type.displayName)
@@ -127,6 +123,10 @@ private extension ToolEditorView {
                         }
                     }
                     .frame(minWidth: 100, maxWidth: 180)
+
+                    MeasurementField(title: "Shank Diameter (DS)", value: $tool.shankDiameter, unit: "mm")
+                    MeasurementField(title: "Tool Diameter (DC)", value: $tool.toolDiameter, unit: "mm")
+                    OptionalMeasurementField(title: "Length (L)", value: $tool.length, unit: "mm")
 
                     if tool.tipAngle != nil {
                         MeasurementField(

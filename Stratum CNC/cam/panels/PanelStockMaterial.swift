@@ -64,8 +64,7 @@ struct PanelStockMaterial: View {
             .help("Pick from the material library")
             .popover(isPresented: $showingLibrary, arrowEdge: .leading) {
                 if let stocksStore {
-                    StockSheet(store: stocksStore, onPick: { stock = $0 })
-                        .frame(width: 800, height: 600)
+                    StocksLib_Sheet(store: stocksStore, onPick: { stock = $0 })
                 }
             }
 

@@ -8,7 +8,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-struct ToolsSheet: View {
+struct ToolsLib_Sheet: View {
 
     @ObservedObject var store: ToolsStore
 
@@ -46,7 +46,7 @@ struct ToolsSheet: View {
     /// Fixed: the sheet only grows sideways. Includes the title bar and the bottom bar.
     private static let sheetHeight: CGFloat = 640
 
-    private static let importDialogMessage = "Fusion 360 tool library (.tools, .zip, .json)"
+    private static let importDialogMessage = "Fusion 360 tools library (.tools, .zip, .json)"
 
     private static let importHelp = "Import tools from a Fusion 360 tool library (.tools, or a .zip / .json export). Cutting tools such as end mills, drills and V-bits are added; holders and taps are ignored, and tools already in the library are skipped."
 
@@ -130,6 +130,7 @@ struct ToolsSheet: View {
             Divider()
             bottomBar
         }
+        .background(Color.stockColumnBackground)
         .fileImporter(
             isPresented: $isImporting,
             allowedContentTypes: [UTType(filenameExtension: "tools") ?? .data, .zip, .json]

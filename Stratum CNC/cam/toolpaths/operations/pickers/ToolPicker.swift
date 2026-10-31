@@ -87,7 +87,7 @@ struct ToolPicker: View {
             .help("Pick from the tool library")
         }
         .popover(isPresented: $showingLibrary, arrowEdge: .leading) {
-            ToolsSheet(store: appModel.toolsStore, onPick: { select($0) })
+            ToolsLib_Sheet(store: appModel.toolsStore, onPick: { select($0) })
         }
     }
 

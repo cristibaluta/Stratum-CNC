@@ -16,8 +16,8 @@ struct StockEditorView: View {
 
     var body: some View {
         Form {
+            headerSection
             geometrySection
-            generalSection
             availabilitySection
         }
         .formStyle(.grouped)
@@ -27,19 +27,15 @@ struct StockEditorView: View {
 
 private extension StockEditorView {
 
-    var generalSection: some View {
-        Section("Material") {
-            TextField("Name", text: $draft.name)
-
-            Picker("Material", selection: $draft.material) {
-                ForEach(StockMaterialType.allCases, id: \.self) { material in
-                    Text(material.displayName)
-                        .tag(material)
-                }
-            }
+    /// The stock's name, editable (the list rows show it, but it is only changed here).
+    var headerSection: some View {
+        Section {
+            TextField("Name", text: $draft.name, prompt: Text("Stock name"))
+                .textFieldStyle(.plain)
+                .font(.title3.weight(.semibold))
+                .labelsHidden()
         }
     }
-
 
     var availabilitySection: some View {
         Section("Availability") {
@@ -82,6 +78,14 @@ private extension StockEditorView {
         Section("Geometry") {
             HStack {
                 Form {
+                    Picker("Material", selection: $draft.material) {
+                        ForEach(StockMaterialType.allCases, id: \.self) { material in
+                            Text(material.displayName)
+                                .tag(material)
+                        }
+                    }
+                    .frame(minWidth: 100, maxWidth: 180)
+
                     Picker("Shape", selection: geometryKindBinding) {
                         ForEach(StockGeometry.Kind.allCases) { kind in
                             Text(kind.displayName)

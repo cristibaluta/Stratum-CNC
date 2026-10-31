@@ -38,7 +38,7 @@ struct ToolPickerDemo: View {
         .formStyle(.grouped)
         .sheet(isPresented: $isPickerPresented) {
             // Passing `onPick` is what makes the "Pick" button appear.
-            ToolsSheet(store: store, onPick: { tool in
+            ToolsLib_Sheet(store: store, onPick: { tool in
                 print("Picked tool:")
                 print("  id:            \(tool.id)")
                 print("  name:          \(tool.name)")
