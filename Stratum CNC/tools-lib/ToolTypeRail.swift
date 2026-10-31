@@ -51,61 +51,77 @@ struct ToolTypeRail: View {
     }
 
     private var list: some View {
-        List {
-            row("All tools", count: counts.all, isSelected: !filter.stockOnly) {
-                filter.stockOnly = false
-            } icon: {
-                Image(systemName: "square.grid.2x2")
-            }
-            row("In stock", count: counts.inStock, isSelected: filter.stockOnly) {
-                filter.stockOnly.toggle()
-            } icon: {
-                Image(systemName: "shippingbox")
-            }
-
-            Section("Type") {
-                ForEach(types, id: \.self) { type in
-                    row(type.displayName,
-                        count: counts.types[type, default: 0],
-                        isSelected: filter.type == type) {
-                            filter.type = filter.type == type ? nil : type
-                        } icon: {
-                            ToolTypeIcon(type: type, size: 18)
-                        }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                row("All tools", count: counts.all, isSelected: !filter.stockOnly) {
+                    filter.stockOnly = false
+                } icon: {
+                    Image(systemName: "square.grid.2x2")
                 }
-            }.padding(0).frame(width: .infinity).background(Color.red)
+                row("In stock", count: counts.inStock, isSelected: filter.stockOnly) {
+                    filter.stockOnly.toggle()
+                } icon: {
+                    Image(systemName: "shippingbox")
+                }
 
-            if !shanks.isEmpty {
-                Section("Shank") {
+                sectionHeader("Type")
+                ForEach(types, id: \.self) { type in
+                    row(
+                        type.displayName,
+                        count: counts.types[type, default: 0],
+                        isSelected: filter.type == type
+                    ) {
+                        filter.type = filter.type == type ? nil : type
+                    } icon: {
+                        ToolTypeIcon(type: type, size: 18)
+                    }
+                }
+
+                if !shanks.isEmpty {
+                    sectionHeader("Shank")
                     ForEach(shanks, id: \.self) { size in
                         let isSelected = filter.shank.map {
                             ToolFilter.shankKey($0) == ToolFilter.shankKey(size)
                         } ?? false
-                        row("\(Self.number(size)) mm",
+                        row(
+                            "\(Self.number(size)) mm",
                             count: counts.shanks[ToolFilter.shankKey(size), default: 0],
-                            isSelected: isSelected) {
-                                filter.shank = isSelected ? nil : size
-                            } icon: {
-                                Image(systemName: "circle.dashed")
-                            }
+                            isSelected: isSelected
+                        ) {
+                            filter.shank = isSelected ? nil : size
+                        } icon: {
+                            Image(systemName: "circle.dashed")
+                        }
                     }
                 }
             }
+            .padding(.vertical, 6)
         }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .background(Color.orange)
+    }
+
+    /// Inner left/right padding of a row. The rows themselves run edge to edge.
+    private static let rowPadding: CGFloat = 12
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, Self.rowPadding)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
     }
 
     private static func number(_ value: Double) -> String {
         String(format: "%g", value)
     }
 
-    private func row<Icon: View>(_ title: String,
-                                 count: Int,
-                                 isSelected: Bool,
-                                 action: @escaping () -> Void,
-                                 @ViewBuilder icon: () -> Icon) -> some View {
+    private func row<Icon: View>(
+        _ title: String,
+        count: Int,
+        isSelected: Bool,
+        action: @escaping () -> Void,
+        @ViewBuilder icon: () -> Icon
+    ) -> some View {
         Button(action: action) {
             HStack(spacing: 8) {
                 icon()
@@ -117,19 +133,15 @@ struct ToolTypeRail: View {
                     .font(.callout.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor.opacity(0.22) : Color.clear)
-            )
+            .padding(.horizontal, Self.rowPadding)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .background(isSelected ? Color.accentColor.opacity(0.22) : Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         // A row with nothing under the current filters stays clickable, just quieter.
         .opacity(count == 0 && !isSelected ? 0.5 : 1)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
