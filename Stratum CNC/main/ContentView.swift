@@ -45,7 +45,6 @@ struct ContentView: View {
             // sheet is opened to browse/edit the library and shows no "Pick" button.
             ToolsSheet(store: appModel.toolsStore,
                        onPick: appModel.isPickingTool ? { appModel.resolveToolPick($0) } : nil)
-                .frame(width: 800, height: 600)
                 .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
         }
         .sheet(isPresented: $appModel.showingStocksSheet, onDismiss: { appModel.resolveStockPick(nil) }) {

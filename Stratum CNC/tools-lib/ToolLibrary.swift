@@ -8,10 +8,15 @@
 import Foundation
 
 struct ToolLibrary: Codable {
+
     var schemaVersion: Int
+    /// Where the bundled defaults came from (the Makera wiki). Not the per-tool sources below.
     var source: ToolLibrarySource
 
     var tools: [Tool]
+
+    /// Bundled, custom, then one entry per import.
+    var sources: [ToolSourceInfo]
 
     var laserSettings: LaserSettings?
     var threadMilling: ThreadMillingSettings?

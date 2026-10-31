@@ -56,7 +56,6 @@ struct ToolPickerDemo: View {
                 toolDiameter = tool.toolDiameter
                 length = tool.length ?? 0
             })
-            .frame(minWidth: 900, minHeight: 600)
         }
     }
 }

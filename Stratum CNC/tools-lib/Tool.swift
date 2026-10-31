@@ -30,6 +30,9 @@ struct Tool: Identifiable, Codable, Hashable {
     // Optional geometry specific to certain tools
     var tipAngle: Double? = nil
 
+    /// Which `ToolSourceInfo` this tool came from: bundled, an import batch, or custom.
+    var sourceID: UUID
+
     /// Cutting presets (speeds and feeds). Usually one per material, named after it.
     /// Shown alphabetically by name in the UI.
     var presets: [ToolPreset]
@@ -45,7 +48,8 @@ struct Tool: Identifiable, Codable, Hashable {
         quantity: Int = 0,
         link: String? = nil,
         tipAngle: Double? = nil,
-        presets: [ToolPreset] = []
+        presets: [ToolPreset] = [],
+        sourceID: UUID = ToolSourceInfo.customID
     ) {
         self.id = id
         self.name = name
@@ -58,11 +62,12 @@ struct Tool: Identifiable, Codable, Hashable {
         self.link = link
         self.tipAngle = tipAngle
         self.presets = presets
+        self.sourceID = sourceID
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, shankDiameter, toolDiameter, length, type, group
-        case quantity, link, tipAngle, presets
+        case quantity, link, tipAngle, presets, sourceID
     }
 
     init(from decoder: Decoder) throws {
@@ -78,10 +83,7 @@ struct Tool: Identifiable, Codable, Hashable {
         link = try c.decodeIfPresent(String.self, forKey: .link)
         tipAngle = try c.decodeIfPresent(Double.self, forKey: .tipAngle)
         presets = try c.decodeIfPresent([ToolPreset].self, forKey: .presets) ?? []
-    }
-
-    private enum LegacyCodingKeys: String, CodingKey {
-        case parameters
+        sourceID = try c.decode(UUID.self, forKey: .sourceID)
     }
 
     /// The link as a URL, if it is a valid http(s) address.

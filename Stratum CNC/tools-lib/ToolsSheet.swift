@@ -17,19 +17,30 @@ struct ToolsSheet: View {
     var onPick: ((Tool) -> Void)?
     @State private var selectedToolID: Tool.ID?
     @State private var toolPendingDeletion: Tool?
-    @State private var inStockOnly = false
-    @State private var metalOnly = false
+    @State private var filter = ToolFilter()
     @State private var isImporting = false
+    @State private var isManagingImports = false
     @State private var importMessage: String?
 
-    /// Tools shown in the list, after applying the in-stock filter.
+    /// Tools shown in the list: filtered by the rail and the other filters, and sorted.
     private var visibleTools: [Tool] {
-        store.tools.filter { tool in
-            (!inStockOnly || tool.quantity > 0) && (!metalOnly || tool.isForMetal)
-        }
+        filter.apply(to: store.tools)
+    }
+
+    /// Types that have at least one tool in the library, in rail order.
+    private var presentTypes: [ToolType] {
+        let present = Set(store.tools.map(\.type))
+        return ToolType.allCases.filter { present.contains($0) }
     }
 
     @Environment(\.dismiss) private var dismiss
+
+    /// Type rail on the far left. Added on top of the previous 900 pt minimum so the editor
+    /// column keeps the ~600 pt it had before the rail existed.
+    private static let railWidth: CGFloat = 170
+    private static let minSheetWidth: CGFloat = 1080
+    /// Fixed: the sheet only grows sideways. Includes the title bar and the bottom bar.
+    private static let sheetHeight: CGFloat = 640
 
     private static let importDialogMessage = "Fusion 360 tool library (.tools, .zip, .json)"
 
@@ -37,61 +48,115 @@ struct ToolsSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            titleBar
             Divider()
-            NavigationSplitView {
-                ToolListView(
-                    tools: visibleTools,
-                    selectedToolID: $selectedToolID,
-                    inStockOnly: $inStockOnly,
-                    metalOnly: $metalOnly,
-                    onDuplicate: duplicateTool,
-                    onDelete: { toolPendingDeletion = $0 }
+            HStack(spacing: 0) {
+                ToolTypeRail(
+                    scope: $filter.scope,
+                    types: presentTypes,
+                    counts: filter.counts(in: store.tools)
                 )
-                .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
-            } detail: {
-                if let selectedToolID,
-                   let index = store.tools.firstIndex(where: { $0.id == selectedToolID }) {
-                    ToolEditorView(
-                        tool: Binding(
-                            get: { store.tools[index] },
-                            set: { store.tools[index] = $0 }
+                .frame(width: Self.railWidth)
+                Divider()
+                NavigationSplitView {
+                    ToolListView(
+                        tools: visibleTools,
+                        selectedToolID: $selectedToolID,
+                        filter: $filter,
+                        sources: store.sources,
+                        sourceCounts: filter.sourceCounts(in: store.tools),
+                        importHelp: Self.importHelp,
+                        onAdd: addTool,
+                        onImport: { isImporting = true },
+                        onManageImports: { isManagingImports = true },
+                        onDuplicate: duplicateTool,
+                        onDelete: { toolPendingDeletion = $0 }
+                    )
+                    .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
+                } detail: {
+                    if let selectedToolID,
+                       let index = store.tools.firstIndex(where: { $0.id == selectedToolID }) {
+                        ToolEditorView(
+                            tool: Binding(
+                                get: { store.tools[index] },
+                                set: { store.tools[index] = $0 }
+                            )
                         )
-                    )
-                } else {
-                    ContentUnavailableView(
-                        "No Tool Selected",
-                        systemImage: "wrench.and.screwdriver",
-                        description: Text("Select a tool from the list.")
-                    )
+                    } else {
+                        ContentUnavailableView(
+                            "No Tool Selected",
+                            systemImage: "wrench.and.screwdriver",
+                            description: Text("Select a tool from the list.")
+                        )
+                    }
                 }
-            }
-            .navigationTitle("Tools")
-            .onAppear(perform: selectFirstIfNeeded)
-            .onChange(of: inStockOnly) { _ in reselectIfHidden() }
-            .onChange(of: metalOnly) { _ in reselectIfHidden() }
-            .confirmationDialog(
-                "Delete \"\(toolPendingDeletion?.name ?? "")\"?",
-                isPresented: Binding(
-                    get: { toolPendingDeletion != nil },
-                    set: { if !$0 { toolPendingDeletion = nil } }
-                ),
-                titleVisibility: .visible,
-                presenting: toolPendingDeletion
-            ) { tool in
-                Button("Delete", role: .destructive) {
-                    deleteTool(tool)
+                .navigationTitle("Tools")
+                .onAppear(perform: selectFirstIfNeeded)
+                .onChange(of: filter) { _ in reselectIfHidden() }
+                // Removing an import batch (or reverting that) changes which tools exist.
+                .onChange(of: store.tools.map(\.id)) { _ in reselectIfHidden() }
+                // A source filter must not outlive its source.
+                .onChange(of: store.sources) { _ in resetSourceFilterIfMissing() }
+                .confirmationDialog(
+                    "Delete \"\(toolPendingDeletion?.name ?? "")\"?",
+                    isPresented: Binding(
+                        get: { toolPendingDeletion != nil },
+                        set: { if !$0 { toolPendingDeletion = nil } }
+                    ),
+                    titleVisibility: .visible,
+                    presenting: toolPendingDeletion
+                ) { tool in
+                    Button("Delete", role: .destructive) {
+                        deleteTool(tool)
+                    }
+                } message: { _ in
+                    Text("This can't be undone.")
                 }
-            } message: { _ in
-                Text("This can't be undone.")
             }
             Divider()
             bottomBar
         }
+        .fileImporter(
+            isPresented: $isImporting,
+            allowedContentTypes: [UTType(filenameExtension: "tools") ?? .data, .zip, .json]
+        ) { result in
+            handleImport(result)
+        }
+        .fileDialogMessage(Self.importDialogMessage)
+        .fileDialogConfirmationLabel("Import")
+        .sheet(isPresented: $isManagingImports) {
+            ManageImportsView(store: store)
+        }
+        .alert("Import Tools", isPresented: Binding(
+            get: { importMessage != nil },
+            set: { if !$0 { importMessage = nil } }
+        )) {
+            Button("OK") { importMessage = nil }
+        } message: {
+            Text(importMessage ?? "")
+        }
+        // The sheet owns its minimum size so the editor column keeps its width:
+        // rail + list (ideal 300) + editor (>= 600) = 1080.
+        .frame(minWidth: Self.minSheetWidth, minHeight: Self.sheetHeight, maxHeight: Self.sheetHeight)
     }
 
     private var selectedTool: Tool? {
         store.tools.first { $0.id == selectedToolID }
+    }
+
+    /// Title bar: what the sheet is for, and how many tools the library holds.
+    private var titleBar: some View {
+        HStack(spacing: 12) {
+            Text(onPick == nil ? "Tool Library" : "Pick a Tool")
+                .font(.headline)
+            Spacer()
+            Text(store.tools.count == 1 ? "1 tool" : "\(store.tools.count) tools")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 
     /// Permanent bar: Revert/Save while there are unsaved edits, otherwise Done (or Pick).
@@ -139,47 +204,6 @@ struct ToolsSheet: View {
         .background(.bar)
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            Text("Tools")
-                .font(.title2.weight(.semibold))
-
-            Spacer()
-
-            Button {
-                addTool()
-            } label: {
-                Label("Add Tool", systemImage: "plus")
-            }
-
-            Button {
-                isImporting = true
-            } label: {
-                Label("Import", systemImage: "square.and.arrow.down")
-            }
-            .help(Self.importHelp)
-
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .fileImporter(
-            isPresented: $isImporting,
-            allowedContentTypes: [UTType(filenameExtension: "tools") ?? .data, .zip, .json]
-        ) { result in
-            handleImport(result)
-        }
-        .fileDialogMessage(Self.importDialogMessage)
-        .fileDialogConfirmationLabel("Import")
-        .alert("Import Tools", isPresented: Binding(
-            get: { importMessage != nil },
-            set: { if !$0 { importMessage = nil } }
-        )) {
-            Button("OK") { importMessage = nil }
-        } message: {
-            Text(importMessage ?? "")
-        }
-    }
-
     private func handleImport(_ result: Result<URL, Error>) {
         do {
             let url = try result.get()
@@ -187,9 +211,13 @@ struct ToolsSheet: View {
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
 
             let imported = try FusionToolsImporter.importTools(from: url)
-            let counts = try store.importTools(imported.tools)
+            let counts = try store.importTools(imported.tools, fileName: url.lastPathComponent)
 
-            var message = "Imported \(counts.added) tools."
+            var message = "Imported \(counts.added) tools"
+            if let batch = counts.batch {
+                message += " from \(batch.name)"
+            }
+            message += "."
             if counts.updated > 0 {
                 message += " Added presets to \(counts.updated) existing tools."
             }
@@ -209,19 +237,36 @@ struct ToolsSheet: View {
     private func reselectIfHidden() {
         let visible = visibleTools
         if !visible.contains(where: { $0.id == selectedToolID }) {
-            selectedToolID = visible.groupedByGroup.first?.tools.first?.id
+            selectedToolID = visible.first?.id
         }
     }
 
-    /// Selects the first item as displayed in the (grouped) list.
+    /// If the source being filtered on is gone (its batch was removed), go back to all sources.
+    private func resetSourceFilterIfMissing() {
+        guard case .source(let id) = filter.source,
+              !store.sources.contains(where: { $0.id == id }) else { return }
+        filter.source = .any
+    }
+
+    /// Selects the first item as displayed in the list.
     private func selectFirstIfNeeded() {
         guard selectedToolID == nil else { return }
-        selectedToolID = visibleTools.groupedByGroup.first?.tools.first?.id
+        selectedToolID = visibleTools.first?.id
+    }
+
+    /// After adding or duplicating, make sure the new tool isn't hidden by the current filters
+    /// (a new tool has no stock, and its name may not match the search).
+    private func ensureVisible(_ id: Tool.ID) {
+        func isVisible() -> Bool { visibleTools.contains { $0.id == id } }
+        if isVisible() { return }
+        filter.clearRefinements()
+        if !isVisible() { filter.scope = .all }
     }
 
     private func duplicateTool(_ tool: Tool) {
         do {
             let copy = try store.duplicate(tool)
+            ensureVisible(copy.id)
             selectedToolID = copy.id
         } catch {
             print("Failed to duplicate tool: \(error)")
@@ -229,8 +274,8 @@ struct ToolsSheet: View {
     }
 
     private func deleteTool(_ tool: Tool) {
-        // Pick the neighbour in the displayed (grouped) order before deleting.
-        let ordered = visibleTools.groupedByGroup.flatMap(\.tools)
+        // Pick the neighbour in the displayed order before deleting.
+        let ordered = visibleTools
         let position = ordered.firstIndex(where: { $0.id == tool.id })
 
         do {
@@ -241,7 +286,7 @@ struct ToolsSheet: View {
         }
 
         guard selectedToolID == tool.id else { return }
-        let remaining = visibleTools.groupedByGroup.flatMap(\.tools)
+        let remaining = visibleTools
         if let position, !remaining.isEmpty {
             selectedToolID = remaining[min(position, remaining.count - 1)].id
         } else {
@@ -250,19 +295,25 @@ struct ToolsSheet: View {
     }
 
     private func addTool() {
-        // New tools join the group of the currently selected tool.
-        let currentGroup = store.tools.first(where: { $0.id == selectedToolID })?.group
+        // The new tool takes the type shown in the rail, else the type of the selected tool.
+        let current = store.tools.first(where: { $0.id == selectedToolID })
+        let type: ToolType
+        if case .type(let scoped) = filter.scope {
+            type = scoped
+        } else {
+            type = current?.type ?? .endMill
+        }
         let tool = Tool(
             name: "New Tool",
             shankDiameter: 3.175,
             toolDiameter: 1,
             length: 10,
-            type: .endMill,
-            group: currentGroup
+            type: type
         )
 
         do {
             try store.add(tool)
+            ensureVisible(tool.id)
             selectedToolID = tool.id
         } catch {
             print("Failed to add tool: \(error)")
