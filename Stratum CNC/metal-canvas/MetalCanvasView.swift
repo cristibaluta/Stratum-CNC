@@ -441,6 +441,11 @@ struct MetalCanvasView: NSViewRepresentable {
             // cursor rather than one shifted by this same drag step.
             pointerHandler?.pointerDragged(pointer)
 
+            // The handler may have just changed geometry (moving objects): show it in this frame.
+            if let live = pointerHandler?.liveRenderObjects {
+                renderer?.updateGeometry(objects: live)
+            }
+
             if dragAction == .pan {
                 performPan(translation: CGPoint(x: pointer.viewPoint.x - lastDragViewPoint.x,
                                                 y: pointer.viewPoint.y - lastDragViewPoint.y))

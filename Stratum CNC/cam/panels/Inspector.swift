@@ -208,6 +208,10 @@ extension InspectorSection where Compact == EmptyView {
 /// A label on the left, the control on the right.
 struct InspectorRow<Content: View>: View {
     let label: String
+    /// Width and alignment of the label column. The defaults suit the toolpath inspector;
+    /// the objects panel uses a narrow, left-aligned column to give the fields more room.
+    var labelWidth: CGFloat = Inspector.labelWidth
+    var labelAlignment: Alignment = .trailing
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -215,9 +219,9 @@ struct InspectorRow<Content: View>: View {
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.trailing)
+                .multilineTextAlignment(labelAlignment == .leading ? .leading : .trailing)
                 .lineLimit(2)
-                .frame(width: Inspector.labelWidth, alignment: .trailing)
+                .frame(width: labelWidth, alignment: labelAlignment)
 
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -566,11 +570,10 @@ struct InspectorHeader: View {
             Spacer()
 
             if let onAdd {
-                Button(action: onAdd) {
+                HoverIconButton(action: onAdd) {
                     Image(systemName: "plus")
                         .font(.system(size: 12, weight: .medium))
                 }
-                .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
                 .help(addHelp)
             }
@@ -581,12 +584,7 @@ struct InspectorHeader: View {
 extension View {
     /// The look of a row in a list: tight padding, accent wash while selected.
     func inspectorListRow(isSelected: Bool) -> some View {
-        self
-            .padding(.vertical, 4)
-            .padding(.horizontal, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Color.accentColor.opacity(0.25) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+        modifier(InspectorListRowModifier(isSelected: isSelected))
     }
 }
 
@@ -598,13 +596,111 @@ struct InspectorVisibilityButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        HoverIconButton(action: action) {
             Image(systemName: isVisible ? "eye" : "eye.slash")
                 .font(.system(size: 12))
                 .frame(width: 20)
         }
-        .buttonStyle(.borderless)
         .foregroundStyle(isVisible ? Color.secondary : Color.secondary.opacity(0.5))
         .help(isVisible ? hideHelp : showHelp)
+    }
+}
+
+
+// MARK: - Hover effects
+//
+// The hover state lives outside the button (`.onHover` on the `Button` itself, the way the
+// splash page rows do it) and is handed to the style; tracking it from inside a button
+// style's label doesn't fire reliably.
+
+/// Draws the highlight of an icon button: soft under the cursor, darker while pressed.
+struct HoverIconButtonStyle: ButtonStyle {
+    let isHovering: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(3)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.16 : (isHovering ? 0.09 : 0)))
+            )
+            .contentShape(Rectangle())
+    }
+}
+
+/// Draws a small text button (−1, +1, ×2...): a gray chip that lightens under the cursor
+/// and darkens while pressed.
+struct HoverChipButtonStyle: ButtonStyle {
+    let isHovering: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Color.primary.opacity(isHovering ? 1 : 0.8))
+            .padding(.horizontal, 7)
+            .frame(minWidth: 26, minHeight: Inspector.fieldHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.20 : (isHovering ? 0.14 : 0.07)))
+            )
+            .contentShape(Rectangle())
+    }
+}
+
+/// A borderless icon button with a hover highlight.
+struct HoverIconButton<Label: View>: View {
+    let action: () -> Void
+    @ViewBuilder var label: Label
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            label
+        }
+        .buttonStyle(HoverIconButtonStyle(isHovering: isHovering))
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+    }
+}
+
+/// A small text button with a hover highlight.
+struct HoverChipButton: View {
+    let title: String
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11))
+        }
+        .buttonStyle(HoverChipButtonStyle(isHovering: isHovering))
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+    }
+}
+
+/// The row look of a list (see `inspectorListRow`) plus a hover wash.
+private struct InspectorListRowModifier: ViewModifier {
+    let isSelected: Bool
+    @State private var isHovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(rowColor)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .contentShape(Rectangle())
+            .onHover { isHovering = $0 }
+    }
+
+    private var rowColor: Color {
+        if isSelected {
+            return Color.accentColor.opacity(isHovering ? 0.32 : 0.25)
+        }
+        return Color.primary.opacity(isHovering ? 0.07 : 0)
     }
 }

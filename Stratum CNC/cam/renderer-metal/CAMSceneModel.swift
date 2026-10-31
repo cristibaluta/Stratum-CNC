@@ -58,6 +58,8 @@ final class CAMSceneModel: ObservableObject {
     private var stateObserver: AnyCancellable?
     private var scrubStepObserver: AnyCancellable?
     private var rebuildScheduled = false
+    /// A drag already rebuilt the scene synchronously; the pending coalesced rebuild is redundant.
+    private var rebuiltDuringDrag = false
 
     /// The scrubbed toolpath's geometry, kept between rebuilds so its `RenderObject.id`
     /// — and so its GPU buffer — survives them: only a new generation replaces it.
@@ -81,6 +83,20 @@ final class CAMSceneModel: ObservableObject {
             .sink { [weak self] _ in
                 self?.applyScrubStep()
             }
+
+        // Dragging objects on the canvas: rebuild right away (the state has already
+        // changed by the time this is called) so the canvas follows the cursor in
+        // real time, rather than one deferred turn behind it.
+        interaction.onSelectionMoved = { [weak self] in
+            guard let self else {
+                return
+            }
+            self.rebuild()
+            self.rebuiltDuringDrag = true
+        }
+        interaction.liveObjects = { [weak self] in
+            self?.renderObjects ?? []
+        }
 
         rebuild()
     }
@@ -121,6 +137,10 @@ final class CAMSceneModel: ObservableObject {
                 return
             }
             self.rebuildScheduled = false
+            if self.rebuiltDuringDrag {
+                self.rebuiltDuringDrag = false
+                return
+            }
             self.rebuild()
         }
     }

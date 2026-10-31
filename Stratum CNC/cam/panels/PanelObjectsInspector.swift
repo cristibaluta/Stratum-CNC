@@ -40,6 +40,9 @@ struct PanelObjectsInspector: View {
     /// Right-click "Generate Project Preview": the project card's picture is made from this object alone.
     var onGeneratePreview: ((UUID) -> Void)?
 
+    /// Narrow, left-aligned label column: leaves the width to the fields.
+    private static let labelWidth: CGFloat = 56
+
     // MARK: - Body
 
     var body: some View {
@@ -158,7 +161,7 @@ struct PanelObjectsInspector: View {
                     SmallButton("×2") { onScale?(object.id, 2) }
                 }
                 // Height follows the width, so it is shown but can't be edited on its own.
-                InspectorRow(label: "Height") {
+                InspectorRow(label: "Height", labelWidth: Self.labelWidth, labelAlignment: .leading) {
                     HStack(spacing: 6) {
                         Text(NumberField2.format(object.height))
                             .font(.system(size: 12))
@@ -201,7 +204,7 @@ struct PanelObjectsInspector: View {
                     SmallButton("÷2") { onGroupScale?(-2) }
                     SmallButton("×2") { onGroupScale?(2) }
                 }
-                InspectorRow(label: "Height") {
+                InspectorRow(label: "Height", labelWidth: Self.labelWidth, labelAlignment: .leading) {
                     HStack(spacing: 6) {
                         Text(NumberField2.format(bounds.height))
                             .font(.system(size: 12))
@@ -225,7 +228,7 @@ struct PanelObjectsInspector: View {
                                           unit: String,
                                           onCommit: @escaping (CGFloat) -> Void,
                                           @ViewBuilder trailing: () -> Trailing) -> some View {
-        InspectorRow(label: title) {
+        InspectorRow(label: title, labelWidth: Self.labelWidth, labelAlignment: .leading) {
             HStack(spacing: 4) {
                 HStack(spacing: 6) {
                     NumberField2(value: value, onCommit: onCommit)
@@ -284,13 +287,20 @@ struct NumberField2: View {
             return String(format: "%.0f", locale: Locale(identifier: "en_US_POSIX"), Double(value))
         }
 
-        return String(
+        var text = String(
             format: "%.3f",
             locale: Locale(identifier: "en_US_POSIX"),
             Double(value)
         )
-        .trimmingCharacters(in: CharacterSet(charactersIn: "0"))
-        .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        // Only trailing zeros and a dangling point go; trimming both ends ate the leading
+        // "0" of values below 1 ("0.5" became "5").
+        while text.hasSuffix("0") {
+            text.removeLast()
+        }
+        if text.hasSuffix(".") {
+            text.removeLast()
+        }
+        return text
     }
 }
 
@@ -308,8 +318,6 @@ private struct SmallButton: View {
     }
 
     var body: some View {
-        Button(title, action: action)
-            .controlSize(.small)
-            .font(.system(size: 11))
+        HoverChipButton(title: title, action: action)
     }
 }

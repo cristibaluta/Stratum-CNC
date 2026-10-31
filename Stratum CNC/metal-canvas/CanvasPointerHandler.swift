@@ -46,4 +46,13 @@ protocol CanvasPointerHandler: AnyObject {
     func pointerDown(_ event: CanvasPointerEvent) -> CanvasPointerDragAction
     func pointerDragged(_ event: CanvasPointerEvent)
     func pointerUp(_ event: CanvasPointerEvent)
+
+    /// Geometry the handler has just changed in response to `pointerDragged`. When non-nil
+    /// the view uploads it before drawing, so a drag shows up in the very same frame
+    /// instead of waiting for SwiftUI to push the rebuilt scene.
+    var liveRenderObjects: [RenderObject]? { get }
+}
+
+extension CanvasPointerHandler {
+    var liveRenderObjects: [RenderObject]? { nil }
 }

@@ -60,6 +60,10 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// writing back values that already came from disk.
     var onObjectsChanged: (() -> Void)?
 
+    /// Called after the user selects objects (list or canvas). The owner uses it to close an
+    /// open toolpath: objects and a toolpath are never selected at the same time.
+    var onObjectSelected: (() -> Void)?
+
     func setToolpathsPath(_ path: CGPath?) {
         toolpathsPath = path
     }
@@ -182,8 +186,8 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     // MARK: Selection
 
-    /// Replaces the selection with one object. Works while a toolpath is open too: object
-    /// selection (move/scale in the inspector) is separate from picking shapes for the toolpath.
+    /// Replaces the selection with one object. Selecting an object closes any open toolpath
+    /// (see `onObjectSelected`).
     func selectObject(_ id: UUID) {
         guard objects.contains(where: { $0.id == id }) else {
             return
@@ -191,6 +195,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
         selectedObjectIDs = [id]
         selectedPaths.removeAll()
+        onObjectSelected?()
     }
 
     /// Adds the object to the selection, or removes it if it is already in it. Shift-click
@@ -206,6 +211,9 @@ final class D2_CanvasState: ObservableObject, Equatable {
             selectedObjectIDs.insert(id)
         }
         selectedPaths.removeAll()
+        if !selectedObjectIDs.isEmpty {
+            onObjectSelected?()
+        }
     }
 
     /// Replaces the current selection with a single path.

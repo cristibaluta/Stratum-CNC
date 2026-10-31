@@ -48,6 +48,12 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
     private let renderPaths: () -> [D2_RenderPath]
     private let hitTester = PathHitTester(tolerance: 6)
 
+    /// Called right after a drag moved the selection, so the scene can rebuild at once.
+    var onSelectionMoved: (() -> Void)?
+    /// The scene's current geometry; see `CanvasPointerHandler.liveRenderObjects`.
+    var liveObjects: (() -> [RenderObject])?
+    private var didMoveInThisEvent = false
+
     private var dragMode: DragMode = .pan
     private var lastDragWorldPoint: CGPoint?
     private var pendingPick: (selection: PathSelection, startLocation: CGPoint)?
@@ -107,9 +113,12 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
             pendingPick = nil
         }
 
+        didMoveInThisEvent = false
         if case .moveSelection = dragMode, let lastWorld = lastDragWorldPoint {
             canvasState.moveSelection(dx: event.worldPoint.x - lastWorld.x,
                                       dy: event.worldPoint.y - lastWorld.y)
+            didMoveInThisEvent = true
+            onSelectionMoved?()
         }
 
         lastDragWorldPoint = event.worldPoint
@@ -123,6 +132,10 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
         }
         lastDragWorldPoint = nil
         dragMode = .pan
+    }
+
+    var liveRenderObjects: [RenderObject]? {
+        didMoveInThisEvent ? liveObjects?() : nil
     }
 
     // MARK: Hit testing

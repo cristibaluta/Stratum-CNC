@@ -61,6 +61,10 @@ class CAMModel: ObservableObject {
     /// mode for it, and closing the panel ends picking (see `syncPickingWithSelection`).
     @Published var selectedToolpathID: UUID? {
         didSet {
+            // A toolpath and objects are never selected together
+            if selectedToolpathID != nil, !canvasState.selectedObjectIDs.isEmpty {
+                canvasState.clearSelection()
+            }
             syncPickingWithSelection()
             syncScrub()
             syncHoldingTabs()
@@ -166,6 +170,12 @@ class CAMModel: ObservableObject {
             // removing an object leaves every generated result stale.
             self.discardGenerations()
             self.onObjectsChanged?(self.canvasState.objects)
+        }
+
+        // Selecting an object closes the open toolpath
+        canvasState.onObjectSelected = { [weak self] in
+            guard let self, self.selectedToolpathID != nil else { return }
+            self.selectedToolpathID = nil
         }
 
         // Picks are written into the toolpath live, so the cell's shape count
