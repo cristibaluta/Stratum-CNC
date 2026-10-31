@@ -33,3 +33,20 @@ extension Tool {
         ToolGeometry(diameter: toolDiameter, shape: type.shape, tipAngle: tipAngle)
     }
 }
+
+// MARK: - Drawing
+
+extension Tool {
+
+    /// What is drawn when the length is missing or not usable.
+    static let fallbackDrawnLength: Double = 12
+
+    /// How tall the canvas draws the tool above its tip: the tool's length, or
+    /// `fallbackDrawnLength` when that is missing, zero, negative or not a number.
+    var drawnLength: Double {
+        guard let length, length.isFinite, length > 0 else {
+            return Self.fallbackDrawnLength
+        }
+        return length
+    }
+}

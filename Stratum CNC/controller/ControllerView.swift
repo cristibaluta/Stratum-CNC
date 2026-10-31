@@ -92,7 +92,7 @@ struct ControllerView: View {
         gCodeModel.requestedLine = line
 
         // Scrubbing across a tool change swaps which tool is in the spindle.
-        scene.updateTool(gCodeModel.spindleToolSpec)
+        scene.updateTool(gCodeModel.spindleTool)
 
         let counts = gCodeModel.document.toolpathVertexCounts(upTo: line)
         scene.setToolpathVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
@@ -105,7 +105,7 @@ struct ControllerView: View {
         scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
                              document: gCodeModel.document,
                              line: line,
-                             tool: gCodeModel.activeToolSpec,
+                             tool: gCodeModel.activeTool?.geometry,
                              force: forceHeightmap)
     }
 
@@ -682,7 +682,7 @@ private struct CanvasSection: View {
         scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
                              document: gCodeModel.document,
                              line: gCodeModel.scrubLine,
-                             tool: gCodeModel.activeToolSpec,
+                             tool: gCodeModel.activeTool?.geometry,
                              force: true)
     }
 
@@ -789,8 +789,9 @@ private struct CanvasSection: View {
 
                 if !gCodeModel.tools.isEmpty {
                     ToolChipsView(tools: gCodeModel.tools,
-                                  assignments: $gCodeModel.toolSpecAssignments,
-                                  fileSpecs: gCodeModel.headerToolSpecs,
+                                  assignments: $gCodeModel.toolAssignments,
+                                  fileTools: gCodeModel.headerTools,
+                                  library: gCodeModel.toolLibrary,
                                   activeTool: gCodeModel.activeToolNumber,
                                   alignment: .trailing)
                 } else {
@@ -823,7 +824,7 @@ private struct CanvasSection: View {
             }
             .overlay(
                 ToolPositionSync(connection: connection, workOrigin: scene.workOrigin) { point in
-                    scene.updateTool(gCodeModel.spindleToolSpec)
+                    scene.updateTool(gCodeModel.spindleTool)
                     scene.updateToolPosition(point)
                     // A macro runs from wherever the tool is.
                     scene.setMacroOrigin(SIMD2<Float>(point.x, point.y))
@@ -922,7 +923,7 @@ private struct CanvasSection: View {
             scene.updateToolpath(gCodeModel.document.toolpathSegments)
             refreshBoundingBox()
             gCodeModel.scrubLine = gCodeModel.document.lines.count
-            scene.updateTool(gCodeModel.spindleToolSpec)
+            scene.updateTool(gCodeModel.spindleTool)
             forceHeightmapRefresh()
             syncMacroPreview()
         }
@@ -947,16 +948,16 @@ private struct CanvasSection: View {
             scene.updateToolpath(newSegments)
             refreshBoundingBox()
             gCodeModel.scrubLine = gCodeModel.document.lines.count
-            scene.updateTool(gCodeModel.spindleToolSpec)
+            scene.updateTool(gCodeModel.spindleTool)
             forceHeightmapRefresh()
         }
-        .onChange(of: gCodeModel.toolSpecAssignments) { _, _ in
+        .onChange(of: gCodeModel.toolAssignments) { _, _ in
             // Assigning (or reassigning) a `T` number's tool changes
             // what the heightmap should have been carved with — e.g.
             // picking a bigger end mill widens every cut — and the tool
             // drawn on the canvas — and how far the job's bounding box
             // reaches past the toolpath.
-            scene.updateTool(gCodeModel.spindleToolSpec)
+            scene.updateTool(gCodeModel.spindleTool)
             refreshBoundingBox()
             forceHeightmapRefresh()
         }

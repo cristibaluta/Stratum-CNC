@@ -76,18 +76,18 @@ class CanvasSceneModel: ObservableObject {
     /// lives on `CAMSceneModel` for CAM's canvas.
     let zoomModel = CanvasZoomModel()
 
-    /// Diameter of the tool drawn on the canvas when no `ToolSpec` is
+    /// Diameter of the tool drawn on the canvas when no tool is
     /// assigned yet (see `updateTool`), in millimeters — a common 1/8" end
-    /// mill. Once a spec is known, its real diameter and shape are used
+    /// mill. Once a tool is known, its real diameter and shape are used
     /// instead and this is ignored.
     @Published var toolDiameter: Double = 3.175
-    /// How tall the fallback tool (no spec) is drawn above its tip, in millimeters.
-    /// A tool with a spec is drawn at its own length (`ToolSpec.drawnLengthMM`).
-    @Published var toolLength: Double = ToolSpec.fallbackLengthMM
+    /// How tall the fallback tool (none assigned) is drawn above its tip, in millimeters.
+    /// A tool is drawn at its own length (`Tool.drawnLength`).
+    @Published var toolLength: Double = Tool.fallbackDrawnLength
 
     /// The tool currently in the spindle, as far as the canvas knows —
     /// `nil` draws the `toolDiameter` fallback end mill. Set via `updateTool`.
-    private var toolSpec: ToolSpec?
+    private var currentTool: Tool?
     /// Where the tool tip is (work position), once anything has reported one.
     /// Remembered so a change of tool can redraw at the same spot without
     /// waiting for the next position update.
@@ -399,7 +399,7 @@ class CanvasSceneModel: ObservableObject {
 
     /// Rebuilds the solid cutter at `point` (the machine's current work
     /// position), replacing whatever was drawn there before — axes, stock,
-    /// and the toolpath preview are untouched. Uses the spec given to
+    /// and the toolpath preview are untouched. Uses the tool given to
     /// `updateTool` (real diameter and shape), or the `toolDiameter`
     /// fallback if there isn't one. Call this whenever the machine reports
     /// a new position, or the scrubber moves the "as-if-running" position.
@@ -413,11 +413,13 @@ class CanvasSceneModel: ObservableObject {
     /// canvas. Cheap when nothing changed, so callers can just call it after
     /// anything that might have changed the active tool. `nil` (no tool
     /// assigned) falls back to a generic end mill of `toolDiameter`.
-    func updateTool(_ spec: ToolSpec?) {
-        guard spec != toolSpec else {
+    func updateTool(_ tool: Tool?) {
+        // Only what is drawn counts: editing a library tool's name, link or presets must not
+        // redraw the marker.
+        guard tool?.geometry != currentTool?.geometry || tool?.drawnLength != currentTool?.drawnLength else {
             return
         }
-        toolSpec = spec
+        currentTool = tool
         rebuildTool()
     }
 
@@ -426,12 +428,13 @@ class CanvasSceneModel: ObservableObject {
         guard let tip = toolTipPosition else {
             return
         }
-        if let toolSpec {
+        if let currentTool {
+            let geometry = currentTool.geometry
             renderObjects.updating(.tool(at: tip,
-                                         diameter: toolSpec.diameterMM,
-                                         length: toolSpec.drawnLengthMM,
-                                         shape: toolSpec.kind.shape,
-                                         tipAngleDegrees: toolSpec.tipAngleDegrees))
+                                         diameter: geometry.diameter,
+                                         length: currentTool.drawnLength,
+                                         shape: geometry.shape,
+                                         tipAngleDegrees: geometry.tipAngle))
         } else {
             renderObjects.updating(.tool(at: tip, diameter: toolDiameter, length: toolLength))
         }
@@ -459,7 +462,7 @@ class CanvasSceneModel: ObservableObject {
     /// request as the one to run next, replacing any older waiting one.
     ///
     /// `tool` is `nil` when the file's `T` number hasn't been assigned a
-    /// `ToolSpec` yet (see `GCodeStore.toolSpecAssignments`/`ToolsPickerView`)
+    /// tool yet (see `GCodeStore.toolAssignments`/`ToolChipsView`)
     /// — there's no footprint to carve with, so this just clears the surface
     /// rather than guessing a tool size. Only ever carves with one tool for
     /// the whole file; per-segment tool switching for multi-tool programs is
@@ -476,7 +479,7 @@ class CanvasSceneModel: ObservableObject {
     /// again while it runs.
     func updateHeightmap(stock: StockMaterial,
                          segments: ArraySlice<ToolpathSegment>,
-                         tool: ToolSpec?,
+                         tool: ToolGeometry?,
                          supersedesRunning: Bool = true) {
         // Nothing draws the surface outside `.heightmap` mode (see
         // `MetalRenderer.draw`), so carving and meshing here would be pure
@@ -501,7 +504,7 @@ class CanvasSceneModel: ObservableObject {
 
         let request = HeightmapRequest(stock: UncheckedSendable(stock),
                                        segments: segments,
-                                       tool: tool.geometry,
+                                       tool: tool,
                                        cellSize: heightmapCellSize,
                                        offset: xyOffset,
                                        cache: UncheckedSendable(heightmapCarveCache),
@@ -530,7 +533,7 @@ class CanvasSceneModel: ObservableObject {
     ///
     /// A forced call cancels any carve still running; an unforced one waits
     /// its turn behind it (see `updateHeightmap`'s `supersedesRunning`).
-    func scrubHeightmap(stock: StockMaterial, document: NCFileDocument, line: Int, tool: ToolSpec?, force: Bool = false) {
+    func scrubHeightmap(stock: StockMaterial, document: NCFileDocument, line: Int, tool: ToolGeometry?, force: Bool = false) {
         // See `updateHeightmap`: no surface is drawn in wireframe mode, so a
         // scrub there shouldn't touch the heightmap at all.
         guard renderMode == .heightmap else {

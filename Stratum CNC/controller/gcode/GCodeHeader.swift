@@ -9,7 +9,7 @@ import Foundation
 import simd
 
 /// Metadata a CAM package embeds in a comment block at the top of a program
-/// — everything the file says about itself that isn't motion. Tool specs,
+/// — everything the file says about itself that isn't motion. Tools,
 /// the XY offset and the stock are extracted for now; add more fields here
 /// (origin, ...) as the app starts using them.
 struct GCodeHeader: Sendable, Equatable {

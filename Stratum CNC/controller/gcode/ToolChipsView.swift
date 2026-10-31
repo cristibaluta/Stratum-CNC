@@ -5,9 +5,9 @@
 //  The tools the loaded program calls, as a horizontally scrolling row of
 //  chips: a large tool number, then the diameter over the tool type on two
 //  lines ("T2  Ø6.35 mm / Ball Nose"). Each chip is a menu that assigns a
-//  `ToolSpec` in a popover (same options `ToolsPickerView` offered: Unassigned, the
-//  file's own spec, then the library). The chip for the tool currently in
-//  the spindle at the scrub position is outlined and filled green, marked with
+//  tool in a popover (Unassigned, the file's own tool, then the tools library).
+//  The chip for the tool currently in the spindle at the scrub position is
+//  outlined and filled green, marked with
 //  a little triangle under it, and scrolled into view. The chips use the whole
 //  height of the bar they sit in.
 //
@@ -17,10 +17,13 @@ import SwiftUI
 struct ToolChipsView: View {
 
     let tools: [Int]
-    @Binding var assignments: [Int: ToolSpec]
-    /// Specs the loaded file's header declares, by tool number — offered
+    @Binding var assignments: [Int: Tool]
+    /// Tools the loaded file's header declares, by tool number — offered
     /// first, since it's what the CAM actually used.
-    var fileSpecs: [Int: ToolSpec] = [:]
+    var fileTools: [Int: Tool] = [:]
+    /// The tools library the chooser lists. A closure, read when the chooser opens, so it is
+    /// current even if the library changed since this view was last drawn.
+    var library: () -> [Tool] = { [] }
     /// `GCodeStore.activeToolNumber`.
     var activeTool: Int? = nil
     /// Where the chips sit while they all fit. `.trailing` pushes them to the
@@ -60,8 +63,9 @@ struct ToolChipsView: View {
 
     private func chip(for tool: Int) -> some View {
         ToolChip(tool: tool,
-                 spec: assignments[tool],
-                 fileSpec: fileSpecs[tool],
+                 assigned: assignments[tool],
+                 fileTool: fileTools[tool],
+                 library: library,
                  isCurrent: tool == currentTool,
                  select: { assignments[tool] = $0 })
     }
@@ -73,10 +77,11 @@ struct ToolChipsView: View {
 private struct ToolChip: View {
 
     let tool: Int
-    let spec: ToolSpec?
-    let fileSpec: ToolSpec?
+    let assigned: Tool?
+    let fileTool: Tool?
+    let library: () -> [Tool]
     let isCurrent: Bool
-    let select: (ToolSpec?) -> Void
+    let select: (Tool?) -> Void
 
     @State private var isChoosing = false
 
@@ -91,11 +96,11 @@ private struct ToolChip: View {
                         .foregroundColor(isCurrent ? .green : .secondary)
 
                     VStack(alignment: .leading, spacing: 0) {
-                        if let spec {
-                            Text("Ø\(Self.diameter(spec.diameterMM)) mm")
+                        if let assigned {
+                            Text("Ø\(Self.diameter(assigned.toolDiameter)) mm")
                                 .font(.system(size: 11, weight: .medium).monospacedDigit())
                                 .foregroundColor(isCurrent ? .primary : .secondary)
-                            Text(Self.typeText(for: spec))
+                            Text(Self.typeText(for: assigned))
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
                         } else {
@@ -138,34 +143,57 @@ private struct ToolChip: View {
     }
 
     private var chooser: some View {
-        ScrollView {
+        // By type, then diameter, so similar tools sit together.
+        let tools = library().sorted { a, b in
+            if a.type != b.type {
+                return a.type.displayName < b.type.displayName
+            }
+            if a.toolDiameter != b.toolDiameter {
+                return a.toolDiameter < b.toolDiameter
+            }
+            return a.name < b.name
+        }
+        return ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 option("Unassigned", value: nil)
-                if let fileSpec {
+                if let fileTool {
                     Divider().padding(.vertical, 2)
-                    option("\(fileSpec.name) (from file)", value: fileSpec)
+                    option("\(fileTool.name) (from file)", subtitle: fileTool.displayName, value: fileTool)
                 }
                 Divider().padding(.vertical, 2)
-                ForEach(ToolSpec.library) { library in
-                    option(library.name, value: library)
+                if tools.isEmpty {
+                    Text("The tools library is empty")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 3)
+                }
+                ForEach(tools) { tool in
+                    option(tool.name, subtitle: tool.displayName, value: tool)
                 }
             }
             .padding(8)
         }
-        .frame(width: 240, height: 300)
+        .frame(width: 260, height: 300)
     }
 
-    private func option(_ title: String, value: ToolSpec?) -> some View {
+    private func option(_ title: String, subtitle: String? = nil, value: Tool?) -> some View {
         Button {
             select(value)
             isChoosing = false
         } label: {
             HStack {
                 Image(systemName: "checkmark")
-                    .opacity(spec == value ? 1 : 0)
+                    .opacity(assigned?.id == value?.id ? 1 : 0)
                     .frame(width: 14)
-                Text(title)
-                    .font(.callout)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(title)
+                        .font(.callout)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())
@@ -174,12 +202,12 @@ private struct ToolChip: View {
         .padding(.vertical, 3)
     }
 
-    /// "Ball Nose", or "60° V-Bit" for cone-tipped tools.
-    static func typeText(for spec: ToolSpec) -> String {
-        if let angle = spec.tipAngleDegrees, spec.kind == .vBit || spec.kind == .engraver {
-            return "\(Int(angle))° \(spec.kind.rawValue)"
+    /// "Ball Nose", or "60° V Bit" for cone-tipped tools.
+    static func typeText(for tool: Tool) -> String {
+        if let angle = tool.geometry.tipAngle, tool.type.shape == .cone {
+            return "\(Int(angle))° \(tool.type.displayName)"
         }
-        return spec.kind.rawValue
+        return tool.type.displayName
     }
 
     static func diameter(_ value: Double) -> String {

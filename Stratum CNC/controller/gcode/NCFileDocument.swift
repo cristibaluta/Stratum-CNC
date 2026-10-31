@@ -37,7 +37,7 @@ final class NCFileDocument: ObservableObject {
     /// scrub.
     @Published private(set) var toolpaths: [GCodeToolpath] = []
 
-    /// Header metadata (tool specs, ...) from the most recent *load*. Set
+    /// Header metadata (tools, ...) from the most recent *load*. Set
     /// only when a file/program is loaded — not on `rebuildToolpath` — so
     /// editing a line doesn't re-emit it and wipe tool choices the person
     /// has made since. `nil` when the file has no recognised header.

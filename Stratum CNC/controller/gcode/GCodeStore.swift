@@ -23,11 +23,13 @@ class GCodeStore: ObservableObject {
     @Published var requestedLine: Int?
     @Published var analyzedLineCount = -1
 
-    /// Spec chosen for each tool number in the current program, keyed by the
+    /// Tool chosen for each tool number in the current program, keyed by the
     /// tool number itself (the `T` in `T1 M6`). Populated lazily as the
-    /// person makes a choice in `ToolsPickerView` — a tool with no entry
-    /// here just hasn't been assigned one yet.
-    @Published var toolSpecAssignments: [Int: ToolSpec] = [:]
+    /// person makes a choice in `ToolChipsView` — a tool with no entry
+    /// here just hasn't been assigned one yet. Normally a tools-library tool; a tool
+    /// the file's header declares that has no close library match stays as the header
+    /// describes it.
+    @Published var toolAssignments: [Int: Tool] = [:]
 
     /// 1-based G-code line the scrub slider is currently parked on. `0` means
     /// nothing has run yet (empty canvas); `document.lines.count` means the
@@ -59,12 +61,11 @@ class GCodeStore: ObservableObject {
         }
     }
 
-    /// Tool specs the loaded file's header declares, by tool number. These
-    /// are what `toolSpecAssignments` is seeded with on load, and what
-    /// `ToolsPickerView` offers at the top of each tool's list.
-    var headerToolSpecs: [Int: ToolSpec] {
+    /// Tools the loaded file's header declares, by tool number, each replaced by its
+    /// closest library tool when there is one. These are what `toolAssignments` is
+    /// seeded with on load, and what `ToolChipsView` offers first in each tool's list.
+    var headerTools: [Int: Tool] {
         Tool.resolvingHeaderTools(document.loadedHeader?.tools ?? [:], in: toolLibrary())
-            .mapValues(ToolSpec.init(from:))
     }
 
     /// The header's tools matched to the closest tools-library tool (see
@@ -75,8 +76,8 @@ class GCodeStore: ObservableObject {
             return
         }
         // Only while the assignments are still the header's own, not the person's picks
-        let isUntouched = toolSpecAssignments.allSatisfy { number, spec in
-            header.tools[number]?.id == spec.id
+        let isUntouched = toolAssignments.allSatisfy { number, tool in
+            header.tools[number]?.id == tool.id
         }
         if isUntouched {
             applyHeaderTools(header)
@@ -94,16 +95,16 @@ class GCodeStore: ObservableObject {
     /// Makes the header's tools the default assignments for a freshly loaded
     /// file. A file with no header keeps the person's existing library
     /// picks (so regenerating from CAM doesn't wipe them) but drops any
-    /// leftover header-derived specs from the previous file, which the picker
+    /// leftover header-derived tools from the previous file, which the picker
     /// would no longer have an option for.
     private func applyHeaderTools(_ header: GCodeHeader?) {
         if let header, !header.tools.isEmpty {
-            toolSpecAssignments = Tool.resolvingHeaderTools(header.tools, in: toolLibrary())
-                .mapValues(ToolSpec.init(from:))
+            toolAssignments = Tool.resolvingHeaderTools(header.tools, in: toolLibrary())
         } else {
-            let kept = toolSpecAssignments.filter { ToolSpec.library.contains($0.value) }
-            if kept != toolSpecAssignments {
-                toolSpecAssignments = kept
+            let libraryIDs = Set(toolLibrary().map(\.id))
+            let kept = toolAssignments.filter { libraryIDs.contains($0.value.id) }
+            if kept != toolAssignments {
+                toolAssignments = kept
             }
         }
     }
@@ -135,10 +136,10 @@ class GCodeStore: ObservableObject {
         return called + declaredOnly
     }
 
-    /// The single `ToolSpec` the heightmap preview carves with (see
+    /// The single tool the heightmap preview carves with (see
     /// `CanvasSceneModel.updateHeightmap`/`scrubHeightmap`) — the first tool
     /// number in the file, in first-appearance order (same order
-    /// `ToolsPickerView` lists them), that's actually been assigned a spec.
+    /// `ToolChipsView` lists them), that's actually been assigned a tool.
     /// `nil` if the file has no tools yet, or none of them are assigned —
     /// callers treat that as "nothing to carve with" and clear the surface.
     /// Multi-tool files only ever carve with this one tool for now; see
@@ -148,20 +149,20 @@ class GCodeStore: ObservableObject {
     /// (or, once a running job drives `scrubLine`, at the line actually
     /// executing). `nil` before anything is loaded, past the end of the
     /// file, or during a rapid-only stretch with no tool change yet.
-    /// `ToolsPickerView` uses this to highlight the matching row.
+    /// `ToolChipsView` uses this to highlight the matching chip.
     var activeToolNumber: Int? {
         document.toolpath(containingLine: scrubLine)?.toolNumber
     }
 
-    /// The `ToolSpec` to draw on the canvas: the tool actually in the spindle
-    /// at `scrubLine` when it's been assigned a spec, otherwise the same
-    /// first-assigned tool the heightmap carves with (`activeToolSpec`) —
+    /// The tool to draw on the canvas: the tool actually in the spindle
+    /// at `scrubLine` when it's been assigned one, otherwise the same
+    /// first-assigned tool the heightmap carves with (`activeTool`) —
     /// e.g. past the end of the file, where no section owns the line.
-    var spindleToolSpec: ToolSpec? {
-        if let number = activeToolNumber, let spec = toolSpecAssignments[number] {
-            return spec
+    var spindleTool: Tool? {
+        if let number = activeToolNumber, let tool = toolAssignments[number] {
+            return tool
         }
-        return activeToolSpec
+        return activeTool
     }
 
     /// Tool radius in effect on each line of the program, in millimeters,
@@ -169,19 +170,19 @@ class GCodeStore: ObservableObject {
     /// `ToolpathBounds.compute` grows each cutting move by.
     ///
     /// A line inside a tool's section gets that tool's assigned radius, or 0
-    /// when the tool has no spec yet (a size nobody has told us about isn't
+    /// when the tool has no assignment yet (a size nobody has told us about isn't
     /// guessed). Lines outside any `T… M6` section — programs that never
     /// change tool — get the first assigned tool's radius, the same fallback
-    /// the heightmap carves with (`activeToolSpec`).
+    /// the heightmap carves with (`activeTool`).
     func toolRadiiByLine() -> [Float] {
-        let fallback = activeToolSpec.map { ToolFootprint.radius(for: $0.geometry) } ?? 0
+        let fallback = activeTool.map { ToolFootprint.radius(for: $0.geometry) } ?? 0
         var radii = [Float](repeating: fallback, count: document.lines.count + 1)
 
         for toolpath in document.toolpaths {
             guard let number = toolpath.toolNumber else {
                 continue
             }
-            let radius = toolSpecAssignments[number].map { ToolFootprint.radius(for: $0.geometry) } ?? 0
+            let radius = toolAssignments[number].map { ToolFootprint.radius(for: $0.geometry) } ?? 0
             let first = max(toolpath.startLine, 0)
             let last = min(toolpath.endLine, radii.count - 1)
             guard first <= last else {
@@ -194,10 +195,10 @@ class GCodeStore: ObservableObject {
         return radii
     }
 
-    var activeToolSpec: ToolSpec? {
+    var activeTool: Tool? {
         for toolNumber in tools {
-            if let spec = toolSpecAssignments[toolNumber] {
-                return spec
+            if let tool = toolAssignments[toolNumber] {
+                return tool
             }
         }
         return nil

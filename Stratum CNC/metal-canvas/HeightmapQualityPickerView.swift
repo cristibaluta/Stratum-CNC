@@ -18,7 +18,7 @@ import SwiftUI
 /// Lets the user trade heightmap carve quality for speed by picking the
 /// grid's cell size — smaller cells sample more of the surface (finer
 /// detail, slower carve), larger cells sample less (coarser, faster).
-/// Meant to sit alongside `MaterialPanelView`/`ToolsPickerView` in the
+/// Meant to sit alongside `MaterialPanelView`/`ToolChipsView` in the
 /// canvas overlay, next to `CanvasSceneModel.heightmapCellSize`, the value
 /// it edits.
 struct HeightmapQualityPickerView: View {

@@ -65,7 +65,7 @@ struct MachiningRunSheet: View {
 
     /// Real, live checks only — nothing here is assumed to pass. `.blocked`
     /// disables Start Job; `.warning` is shown but doesn't block (e.g. a tool
-    /// with no spec only limits the preview, the machine can still run it).
+    /// with no tool only limits the preview, the machine can still run it).
     private var readinessChecks: [ReadinessCheck] {
         var checks: [ReadinessCheck] = []
         let lines = gCodeModel.document.lines
@@ -99,7 +99,7 @@ struct MachiningRunSheet: View {
             checks.append(sentCheck(canSend: connection.isConnected && !machineBusy))
         }
 
-        let unassigned = gCodeModel.tools.filter { gCodeModel.toolSpecAssignments[$0] == nil }
+        let unassigned = gCodeModel.tools.filter { gCodeModel.toolAssignments[$0] == nil }
         if !unassigned.isEmpty {
             let list = unassigned.map { "T\($0)" }.joined(separator: ", ")
             checks.append(.init(id: "tools", state: .warning, title: "No tool assigned for \(list)"))
@@ -299,8 +299,8 @@ struct MachiningRunSheet: View {
                         Text("T\(number)")
                             .font(.caption.monospaced())
                             .frame(width: 32, alignment: .leading)
-                        if let spec = gCodeModel.toolSpecAssignments[number] {
-                            Text(spec.summary)
+                        if let tool = gCodeModel.toolAssignments[number] {
+                            Text(tool.displayName)
                                 .font(.caption)
                         } else {
                             Text("Not assigned")
