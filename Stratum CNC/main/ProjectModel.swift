@@ -336,4 +336,15 @@ class ProjectModel: ObservableObject {
         return try body()
     }
 
+
+    // MARK: CAM -> Controller
+
+    /// "Preview in Controller": switches to the Controller and generates every toolpath that
+    /// isn't ready, then builds the program from them, exactly as "Refresh from CAM" does there.
+    /// The progress popover shows on the Controller's own button once it is on screen.
+    func previewInController() {
+        activeTab = .controller
+        gCodeStore.generateGCode(using: camModel)
+    }
+
 }

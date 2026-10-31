@@ -41,7 +41,6 @@ struct PanelToolpathDetails: View {
     var onDone: () -> Void = {}
     var onDelete: () -> Void = {}
     /// Adds another toolpath after this one and opens it.
-    var onAddNext: () -> Void = {}
     /// The outlines of the selected shapes in world space, one per shape, for drawings in the
     /// panel (where the holding tabs sit). Called only when a drawing is shown.
     var targetShapes: () -> [CGPath] = { [] }
@@ -413,7 +412,7 @@ struct PanelToolpathDetails: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(isGenerating || !toolpath.hasGeometry)
+                .disabled(isGenerating || !toolpath.hasGeometry || toolpath.toolCompatibilityWarning != nil)
                 .help(model.previewButtonHelp(for: toolpath))
             }
             // Warnings don't stop the toolpath, and only matter while the result is current
@@ -457,7 +456,8 @@ struct PanelToolpathDetails: View {
         }
     }
 
-    /// The bottom bar: delete on the left; add the next toolpath and close on the right.
+    /// The bottom bar: delete on the left, close on the right. (Next toolpath and Preview in
+    /// Controller sit under the panel, see `CAMView`.)
     /// Closing is the last step after previewing; Esc does the same.
     private var rowBottomBar: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -474,16 +474,6 @@ struct PanelToolpathDetails: View {
                 .help("Delete this toolpath")
 
                 Spacer()
-
-                Button {
-                    onAddNext()
-                } label: {
-                    Label("Next toolpath", systemImage: "plus")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Add another toolpath")
 
                 doneButton
             }

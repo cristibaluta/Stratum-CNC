@@ -266,6 +266,7 @@ struct OperationOptionsView: View {
                                             value: Binding(get: { f.value },
                                                            set: { f.onChange(min(max($0, f.range.lowerBound), f.range.upperBound)) }),
                                             suffix: f.unit ?? "",
+                                            decimalKey: ParameterFieldsView.decimalEntryFieldIDs.contains(f.id) ? f.label : nil,
                                             help: f.unit.map { "\(f.label) (\($0))" } ?? f.label)
                     .disabled(!f.isEnabled)
                     .opacity(f.isEnabled ? 1 : 0.5)

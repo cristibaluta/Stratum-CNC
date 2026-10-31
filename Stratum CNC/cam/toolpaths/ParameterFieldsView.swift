@@ -34,6 +34,10 @@ struct ParameterFieldsView: View {
         fields.filter { !hiddenFieldIDs.contains($0.id) }
     }
 
+    /// Number fields that are often a fraction of a millimetre, so they get the "0." checkbox
+    /// (type just the decimals). By field id.
+    static let decimalEntryFieldIDs: Set<String> = ["chamfer.params.width"]
+
     /// Tooltips for the on/off fields whose label alone doesn't say what they do, by field id.
     private static let helpTexts: [String: String] = [
         "boring.shiftRetract": "Before pulling the tool out, move it sideways off the bore wall, so the retract doesn't drag along the finished surface and leave a mark.",
@@ -50,7 +54,8 @@ struct ParameterFieldsView: View {
                 InspectorNumberField(title: f.label,
                                      value: Binding(get: { f.value },
                                                     set: { f.onChange(clamp($0, to: f.range)) }),
-                                     suffix: f.unit ?? "")
+                                     suffix: f.unit ?? "",
+                                     offersDecimalsOnly: Self.decimalEntryFieldIDs.contains(f.id))
                     .disabled(!f.isEnabled)
                     .opacity(f.isEnabled ? 1 : 0.5)
             case .int(let f):

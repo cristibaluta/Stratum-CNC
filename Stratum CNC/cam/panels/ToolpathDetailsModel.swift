@@ -260,6 +260,10 @@ final class ToolpathDetailsModel: ObservableObject {
         if !toolpath.hasGeometry {
             return "Click shapes on the canvas first: there is nothing to preview yet."
         }
+        // The same problem the Tool section flags; the library would only refuse it at Generate
+        if let warning = toolpath.toolCompatibilityWarning {
+            return warning
+        }
         return "Build the toolpath for the selected shapes and preview it on the canvas"
     }
 
