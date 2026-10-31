@@ -39,7 +39,7 @@ struct ProjectCard: View {
                 .frame(maxWidth: .infinity)
                 .background {
                     if let c = stockMaterial?.surfaceColor {
-                        Color(red: Double(c.x), green: Double(c.y), blue: Double(c.z)).opacity(0.25)
+                        Color(red: Double(c.x), green: Double(c.y), blue: Double(c.z)).opacity(0.15)
                     } else {
                         Rectangle().fill(.quaternary.opacity(0.5))
                     }

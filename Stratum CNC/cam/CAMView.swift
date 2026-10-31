@@ -337,6 +337,6 @@ private extension View {
     /// Opaque rounded card with a soft shadow, so the panels float above the canvas.
     func panelShadow() -> some View {
         background(.background, in: RoundedRectangle(cornerRadius: 8))
-            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 2)
+            .shadow(color: .secondary.opacity(0.15), radius: 4, x: 0, y: 2)
     }
 }

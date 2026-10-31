@@ -22,17 +22,17 @@ struct PanelStockMaterial: View {
     @State private var isExpanded = false
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 0) {
-                summaryLine
-                if isExpanded {
-                    details
-                        .padding(.top, 10)
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            summaryLine
+            if isExpanded {
+                details
+                    .padding(.top, 10)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     // MARK: Summary

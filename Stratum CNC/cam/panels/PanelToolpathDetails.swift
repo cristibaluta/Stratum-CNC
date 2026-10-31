@@ -52,76 +52,76 @@ struct PanelToolpathDetails: View {
     @AppStorage("inspector.sectionCollapsed.Title") private var isTitleCollapsed = false
 
     var body: some View {
-        Group {
-            VStack(alignment: .leading, spacing: 8) {
-                // The title, the operation it does and what that operation does. The title row
-                // is the same either way; collapsed, what is under it shrinks: the operation
-                // picker without its label or summary, and a thread mill's standard thread
-                // and radial passes in one row.
-                VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
-                    rowHeader
-                    if isTitleCollapsed {
-                        // One line, like the other sections' compact forms
-                        HStack(spacing: 6) {
-                            OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
-                                            isCompact: true)
-                                // A rest operation is created from a pocket and stays one.
-                                .disabled(toolpath.operation.kind == .restMachining)
-                            if OperationOptionsView.hasOperationFields(for: toolpath) {
-                                OperationOptionsView(toolpath: $toolpath, part: .operationCompact)
-                            }
-                        }
-                    } else {
-                        rowOperation
-                        InspectorNote(text: toolpath.operation.kind.summary)
-                        // The operation's own settings, right under its type: a thread's standard
-                        // and pitch, a bore's diameter, a chamfer's width…
+        VStack(alignment: .leading, spacing: 8) {
+            // The title, the operation it does and what that operation does. The title row
+            // is the same either way; collapsed, what is under it shrinks: the operation
+            // picker without its label or summary, and a thread mill's standard thread
+            // and radial passes in one row.
+            VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+                rowHeader
+                if isTitleCollapsed {
+                    // One line, like the other sections' compact forms
+                    HStack(spacing: 6) {
+                        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
+                                        isCompact: true)
+                        // A rest operation is created from a pocket and stays one.
+                        .disabled(toolpath.operation.kind == .restMachining)
                         if OperationOptionsView.hasOperationFields(for: toolpath) {
-                            OperationOptionsView(toolpath: $toolpath, part: .operation)
+                            OperationOptionsView(toolpath: $toolpath, part: .operationCompact)
                         }
                     }
+                } else {
+                    rowOperation
+                    InspectorNote(text: toolpath.operation.kind.summary)
+                    // The operation's own settings, right under its type: a thread's standard
+                    // and pitch, a bore's diameter, a chamfer's width…
+                    if OperationOptionsView.hasOperationFields(for: toolpath) {
+                        OperationOptionsView(toolpath: $toolpath, part: .operation)
+                    }
                 }
-                .padding(.bottom, 12)
+            }
+            .padding(.bottom, 12)
 
-                InspectorSection {
-                    rowShapes
-                }
-                InspectorSection(title: "Tool", collapsible: true, compact: {
-                    rowToolCompact
-                }) {
-                    rowTool
-                }
-                // How the tool moves in the plane
-                InspectorSection(title: "XY plane", collapsible: true, compact: {
-                    OperationOptionsView(toolpath: $toolpath, part: .xyCompact)
-                }) {
-                    rowXYMovement
-                }
-                // Start Z, End Z, the depth per pass, the holding tabs, and the Safe and Retract heights.
-                InspectorSection(title: "Z axis", collapsible: true, compact: {
-                    rowDepthCompact
-                }) {
-                    rowDepth
-                }
-                // How the tool gets into the cut: ramp or helix, the feed going down, lead-in/out
-                InspectorSection(title: "Entry", collapsible: true, compact: {
-                    rowEntryCompact
-                }) {
-                    rowEntry
-                }
-                InspectorSection(title: "Preview", collapsible: true) {
-                    rowPreview
-                    rowScrub
-                }
-                rowBottomBar
+            InspectorSection {
+                rowShapes
             }
-            .padding(8)
-            .onChange(of: toolpath.id) { _, _ in
-                model.reset()
+            InspectorSection(title: "Tool", collapsible: true, compact: {
+                rowToolCompact
+            }) {
+                rowTool
             }
-            // A new Generate starts its preview from the end again, like the canvas does
-            .onChange(of: generation?.id) { _, _ in model.resetScrub() }
+            // How the tool moves in the plane
+            InspectorSection(title: "XY plane", collapsible: true, compact: {
+                OperationOptionsView(toolpath: $toolpath, part: .xyCompact)
+            }) {
+                rowXYMovement
+            }
+            // Start Z, End Z, the depth per pass, the holding tabs, and the Safe and Retract heights.
+            InspectorSection(title: "Z axis", collapsible: true, compact: {
+                rowDepthCompact
+            }) {
+                rowDepth
+            }
+            // How the tool gets into the cut: ramp or helix, the feed going down, lead-in/out
+            InspectorSection(title: "Entry", collapsible: true, compact: {
+                rowEntryCompact
+            }) {
+                rowEntry
+            }
+            InspectorSection(title: "Preview", collapsible: true) {
+                rowPreview
+                rowScrub
+            }
+            rowBottomBar
         }
+        .padding(12)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .onChange(of: toolpath.id) { _, _ in
+            model.reset()
+        }
+        // A new Generate starts its preview from the end again, like the canvas does
+        .onChange(of: generation?.id) { _, _ in model.resetScrub() }
     }
 
     // MARK: Generate
