@@ -15,6 +15,10 @@ final class ToolsStore: ObservableObject {
     private(set) var library: ToolLibrary?
     @Published var tools: [Tool] = []
 
+    /// The library's filters (rail, search, material, source). Kept here so they survive closing
+    /// and reopening the sheet while the app runs. Not written to disk.
+    @Published var filter = ToolFilter()
+
     /// Bundled, custom, then one per import.
     @Published private(set) var sources: [ToolSourceInfo] = []
 
@@ -47,13 +51,24 @@ final class ToolsStore: ObservableObject {
 
         let data = try Data(contentsOf: toolsFileURL)
 
-        let library = try Self.makeDecoder().decode(ToolLibrary.self, from: data)
+        var library = try Self.makeDecoder().decode(ToolLibrary.self, from: data)
+
+        // An older file (or the bundled default_tools.json) decodes with every tool on the
+        // bundled source. Write it back once in the current format.
+        let needsMigration = library.schemaVersion < ToolLibrary.currentSchemaVersion
+        if needsMigration {
+            library.schemaVersion = ToolLibrary.currentSchemaVersion
+        }
 
         self.library = library
         tools = library.tools
         sources = library.sources
         savedTools = tools
         savedSources = sources
+
+        if needsMigration {
+            try save()
+        }
     }
 
     /// The source a tool belongs to.
@@ -201,6 +216,8 @@ final class ToolsStore: ObservableObject {
         let before = tools.count
         tools.removeAll { $0.sourceID == source.id }
         sources.removeAll { $0.id == source.id }
+        // A filter on a source that no longer exists would show nothing.
+        if filter.source == .source(source.id) { filter.source = .any }
         return before - tools.count
     }
 

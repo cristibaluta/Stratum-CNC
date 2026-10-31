@@ -165,10 +165,13 @@ private struct ToolRow: View {
     }
 
     /// Second line: the length, then the shank diameter ("L 10 mm · Shank Ø3.175").
-    /// Either is left out when the tool doesn't have it.
+    /// Engraving bits show their tip angle instead of the length ("TA 30° · Shank Ø3.175"),
+    /// since the angle is what tells them apart. Anything the tool doesn't have is left out.
     private var detail: String {
         var parts: [String] = []
-        if let length = tool.length, length > 0 {
+        if tool.type == .engraving, let tipAngle = tool.tipAngle, tipAngle > 0 {
+            parts.append("TA \(Self.number(tipAngle))°")
+        } else if let length = tool.length, length > 0 {
             parts.append("L \(Self.number(length)) mm")
         }
         if let shank = tool.shankDescription {

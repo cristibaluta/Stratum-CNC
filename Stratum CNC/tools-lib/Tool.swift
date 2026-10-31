@@ -83,7 +83,9 @@ struct Tool: Identifiable, Codable, Hashable {
         link = try c.decodeIfPresent(String.self, forKey: .link)
         tipAngle = try c.decodeIfPresent(Double.self, forKey: .tipAngle)
         presets = try c.decodeIfPresent([ToolPreset].self, forKey: .presets) ?? []
-        sourceID = try c.decode(UUID.self, forKey: .sourceID)
+        // Files from before sources existed (default_tools.json, an older tools.json) have no
+        // sourceID: those tools are the bundled ones.
+        sourceID = try c.decodeIfPresent(UUID.self, forKey: .sourceID) ?? ToolSourceInfo.bundledID
     }
 
     /// The link as a URL, if it is a valid http(s) address.
