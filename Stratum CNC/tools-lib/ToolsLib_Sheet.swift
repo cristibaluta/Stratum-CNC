@@ -26,15 +26,14 @@ struct ToolsLib_Sheet: View {
     @State private var isManagingImports = false
     @State private var importMessage: String?
 
-    /// Tools shown in the list: filtered by the rail and the other filters, and sorted.
-    private var visibleTools: [Tool] {
-        filter.apply(to: store.tools)
+    /// What the list and the rail show, cached in the store until the tools or the filter change.
+    private var snapshot: ToolsStore.LibrarySnapshot {
+        store.snapshot(for: store.filter)
     }
 
-    /// Types that have at least one tool in the library, in rail order.
-    private var presentTypes: [ToolType] {
-        let present = Set(store.tools.map(\.type))
-        return ToolType.allCases.filter { present.contains($0) }
+    /// Tools shown in the list: filtered by the rail and the other filters, and sorted.
+    private var visibleTools: [Tool] {
+        snapshot.visible
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -47,6 +46,7 @@ struct ToolsLib_Sheet: View {
     private static let importHelp = "Import tools from a Fusion 360 tool library (.tools, or a .zip / .json export). Cutting tools such as end mills, drills and V-bits are added; holders and taps are ignored, and tools already in the library are skipped."
 
     var body: some View {
+        let _ = Self._printChanges()
         VStack(spacing: 0) {
             titleBar
             Divider()
@@ -54,11 +54,11 @@ struct ToolsLib_Sheet: View {
                 // Sidebar
                 ToolTypeRail(
                     filter: $store.filter,
-                    types: presentTypes,
-                    shanks: ToolFilter.shankSizes(in: store.tools),
-                    counts: filter.facetCounts(in: store.tools),
+                    types: snapshot.presentTypes,
+                    shanks: snapshot.shanks,
+                    counts: snapshot.counts,
                     sources: store.sources,
-                    sourceCounts: filter.sourceCounts(in: store.tools),
+                    sourceCounts: snapshot.sourceCounts,
                     importHelp: Self.importHelp,
                     onAdd: addTool,
                     onImport: { isImporting = true },
@@ -108,7 +108,7 @@ struct ToolsLib_Sheet: View {
                     reselectIfHidden()
                 }
                 // Removing an import batch (or reverting that) changes which tools exist.
-                .onChange(of: store.tools.map(\.id)) {
+                .onChange(of: store.structureRevision) {
                     reselectIfHidden()
                 }
                 // A source filter must not outlive its source.
@@ -161,18 +161,17 @@ struct ToolsLib_Sheet: View {
         store.tools.first { $0.id == selectedToolID }
     }
 
-    /// Title bar: what the sheet is for, and how many tools the library holds.
+    /// Title bar: what the sheet is for, and the search box on the right.
     private var titleBar: some View {
         HStack(spacing: 12) {
             Text(onPick == nil ? "Tool Library" : "Pick a Tool")
                 .font(.headline)
             Spacer()
-            Text(store.tools.count == 1 ? "1 tool" : "\(store.tools.count) tools")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            ToolSearchField(query: $store.filter.query)
+                .frame(width: 260)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 20)
+        .padding(.vertical, 14)
     }
 
     /// Permanent bar: Revert/Save while there are unsaved edits, otherwise Done (or Pick).
@@ -335,7 +334,7 @@ struct ToolsLib_Sheet: View {
             name: "New Tool",
             shankDiameter: filter.shank ?? 3.175,
             toolDiameter: 1,
-            length: 10,
+            cuttingHeight: 10,
             type: filter.type ?? current?.type ?? .endMill
         )
 

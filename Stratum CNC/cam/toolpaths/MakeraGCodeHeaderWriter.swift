@@ -111,7 +111,7 @@ enum MakeraGCodeHeaderWriter {
     // MARK: Records
 
     private static func toolRecord(_ tool: Tool, number: Int) -> String {
-        let flute = tool.length ?? 0
+        let flute = tool.cuttingHeight ?? 0
         let angle = tool.tipAngle ?? 0
         let cornerRadius = tool.type == .ballNose ? tool.toolDiameter / 2 : 0
 

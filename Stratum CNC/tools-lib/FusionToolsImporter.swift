@@ -86,8 +86,10 @@ enum FusionToolsImporter {
         }
 
         let shank = mm(g.SFDM) ?? mm(diameter)!
-        // `length` in our model is the cutting length (flute length).
-        let length = mm(g.LCF) ?? mm(g.shoulderLength) ?? mm(g.OAL)
+        // Cutting height is the flute length; the shoulder length is the closest thing when a
+        // library has no flute length. The overall length is its own field.
+        let cuttingHeight = mm(g.LCF) ?? mm(g.shoulderLength)
+        let toolLength = mm(g.OAL)
 
         let productID = (f.productID ?? "").trimmingCharacters(in: .whitespaces)
         var name = (f.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -112,12 +114,18 @@ enum FusionToolsImporter {
             name: name,
             shankDiameter: shank,
             toolDiameter: mm(diameter)!,
-            length: length,
+            cuttingHeight: cuttingHeight,
+            toolLength: toolLength,
             type: type,
             group: group,
+            numberOfFlutes: flutes(from: g),
+            cuttingDirection: cuttingDirection(from: f.description),
             quantity: 0,
             link: (link?.isEmpty ?? true) ? nil : link,
             tipAngle: tipAngle(for: type, geometry: g),
+            tipDiameter: type.hasTipDiameter ? mm(g.tipDiameter) : nil,
+            cornerRadius: type.hasCornerRadius ? cornerRadius(from: g, diameter: diameter, mm: mm) : nil,
+            thread: type == .threadMill ? threadProfile(from: g, mm: mm) : nil,
             presets: presets(from: f, scale: scale)
         )
     }
@@ -164,6 +172,44 @@ enum FusionToolsImporter {
                 coolant: p.toolCoolant
             )
         }
+    }
+
+    /// Fusion has no up-cut / down-cut field, so it is read from the description ("… Down Cut",
+    /// "Upcut"). Anything that doesn't say, and compression bits (both at once), stays unknown.
+    private static func cuttingDirection(from description: String?) -> CuttingDirection? {
+        let text = (description ?? "").lowercased()
+        guard !text.contains("compression") else { return nil }
+        func mentions(_ pattern: String) -> Bool {
+            text.range(of: pattern, options: .regularExpression) != nil
+        }
+        if mentions("down[ -]?(cut|shear)") { return .downCut }
+        if mentions("up[ -]?(cut|shear)") { return .upCut }
+        return nil
+    }
+
+    /// Number of flutes (`NOF`), when the library gives a sensible one.
+    private static func flutes(from g: FusionGeometry) -> Int? {
+        guard let nof = g.NOF, nof >= 1, nof <= 99 else { return nil }
+        return Int(exactly: nof.rounded())
+    }
+
+    /// The corner radius (`RE`) of an end mill. Zero is a square end mill, and a radius wider
+    /// than half the diameter can't be a real corner, so both come out as no radius.
+    private static func cornerRadius(from g: FusionGeometry,
+                                     diameter: Double,
+                                     mm: (Double?) -> Double?) -> Double? {
+        guard let re = mm(g.RE), re <= mm(diameter)! / 2 + 0.001 else { return nil }
+        return re
+    }
+
+    /// Pitch range, profile angle and tooth count of a thread mill; nil when the library has no pitch.
+    private static func threadProfile(from g: FusionGeometry,
+                                      mm: (Double?) -> Double?) -> ThreadProfile? {
+        guard let minPitch = mm(g.TPN) ?? mm(g.TPX) else { return nil }
+        let maxPitch = mm(g.TPX) ?? minPitch
+        let teeth = g.NT.flatMap { $0 >= 1 ? Int(exactly: $0.rounded()) : nil } ?? 1
+        let angle = (g.threadProfileAngle ?? 0) > 0 ? g.threadProfileAngle! : 60
+        return ThreadProfile(minPitch: minPitch, maxPitch: maxPitch, profileAngle: angle, teeth: teeth)
     }
 
     private static func mapType(_ f: FusionTool) -> ToolType? {
@@ -304,25 +350,40 @@ private struct FusionPreset: Decodable {
 
 /// The `geometry` block of a Fusion tool. Short names:
 ///
-/// - `DC`               cutting diameter
-/// - `SFDM`             shank diameter
-/// - `OAL`              overall length
-/// - `LCF`              length of cutting flutes
-/// - `TA`               taper half angle, degrees
-/// - `SIG`              point / tip angle, degrees
-/// - `shoulder-length`  length from the tip to the end of the shoulder
+/// - `DC`                    cutting diameter
+/// - `SFDM`                  shank diameter
+/// - `OAL`                   overall length (imported as the tool length)
+/// - `LCF`                   length of cutting flutes (imported as the cutting height)
+/// - `NOF`                   number of flutes
+/// - `TA`                    taper half angle, degrees
+/// - `SIG`                   point / tip angle, degrees
+/// - `RE`                    corner radius
+/// - `tip-diameter`          width of the flat at the tip of a V-shaped tool
+/// - `shoulder-length`       length from the tip to the end of the shoulder
+/// - `TPN` / `TPX`           thread mill: smallest / largest pitch it can cut
+/// - `NT`                    thread mill: number of teeth
+/// - `thread-profile-angle`  thread mill: included angle of the thread form, degrees
 private struct FusionGeometry: Decodable {
     let DC: Double?
     let SFDM: Double?
     let OAL: Double?
     let LCF: Double?
+    let NOF: Double?
     let TA: Double?
     let SIG: Double?
+    let RE: Double?
+    let tipDiameter: Double?
     let shoulderLength: Double?
+    let TPN: Double?
+    let TPX: Double?
+    let NT: Double?
+    let threadProfileAngle: Double?
 
     enum CodingKeys: String, CodingKey {
-        case DC, SFDM, OAL, LCF, TA, SIG
+        case DC, SFDM, OAL, LCF, NOF, TA, SIG, RE, TPN, TPX, NT
+        case tipDiameter = "tip-diameter"
         case shoulderLength = "shoulder-length"
+        case threadProfileAngle = "thread-profile-angle"
     }
 }
 

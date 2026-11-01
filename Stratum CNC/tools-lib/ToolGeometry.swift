@@ -41,12 +41,12 @@ extension Tool {
     /// What is drawn when the length is missing or not usable.
     static let fallbackDrawnLength: Double = 12
 
-    /// How tall the canvas draws the tool above its tip: the tool's length, or
+    /// How tall the canvas draws the tool above its tip: the cutting height, or
     /// `fallbackDrawnLength` when that is missing, zero, negative or not a number.
     var drawnLength: Double {
-        guard let length, length.isFinite, length > 0 else {
+        guard let cuttingHeight, cuttingHeight.isFinite, cuttingHeight > 0 else {
             return Self.fallbackDrawnLength
         }
-        return length
+        return cuttingHeight
     }
 }

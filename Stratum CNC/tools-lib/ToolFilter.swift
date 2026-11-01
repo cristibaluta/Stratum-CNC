@@ -212,7 +212,7 @@ struct ToolFilter: Equatable {
         uniqueKeysWithValues: ToolType.allCases.enumerated().map { ($0.element, $0.offset) }
     )
 
-    /// Type (in `ToolType.allCases` order), then diameter, then length, then name.
+    /// Type (in `ToolType.allCases` order), then diameter, then cutting height, then name.
     /// Inside a single type the first comparison is a tie, so it reads as diameter-first.
     private static func areInOrder(_ a: Tool, _ b: Tool) -> Bool {
         let typeA = typeOrder[a.type] ?? Int.max
@@ -221,11 +221,13 @@ struct ToolFilter: Equatable {
 
         if a.toolDiameter != b.toolDiameter { return a.toolDiameter < b.toolDiameter }
 
-        let lengthA = a.length ?? 0
-        let lengthB = b.length ?? 0
-        if lengthA != lengthB { return lengthA < lengthB }
+        let heightA = a.cuttingHeight ?? 0
+        let heightB = b.cuttingHeight ?? 0
+        if heightA != heightB { return heightA < heightB }
 
-        switch a.name.localizedStandardCompare(b.name) {
+        // Not `localizedStandardCompare`: that goes through the ICU collator, which is slow
+        // enough to notice when it runs for every tie while sorting a few hundred tools.
+        switch a.name.compare(b.name, options: [.numeric, .caseInsensitive]) {
             case .orderedAscending: return true
             case .orderedDescending: return false
             case .orderedSame: return a.id.uuidString < b.id.uuidString

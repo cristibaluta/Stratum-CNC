@@ -10,14 +10,14 @@ import Foundation
 
 extension Tool {
 
-    /// A tool described only by what a CAM header says: no shank, length, quantity or presets.
-    /// The shank stays 0, which the UI reads as "not known" (`shankDescription`). The length is left
+    /// A tool described only by what a CAM header says: no shank, lengths, flutes, quantity or presets.
+    /// The shank stays 0, which the UI reads as "not known" (`shankDescription`). The cutting height and tool length are left
     /// out on purpose: no header carries a trustworthy one, it comes from the library tool.
     init(fromHeader name: String, diameter: Double, type: ToolType, tipAngle: Double? = nil) {
         self.init(name: name,
                   shankDiameter: 0,
                   toolDiameter: diameter,
-                  length: nil,
+                  cuttingHeight: nil,
                   type: type,
                   tipAngle: tipAngle)
     }

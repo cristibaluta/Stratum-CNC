@@ -13,21 +13,82 @@ import Combine
 final class ToolsStore: ObservableObject {
 
     private(set) var library: ToolLibrary?
-    @Published var tools: [Tool] = []
+    @Published var tools: [Tool] = [] {
+        didSet {
+            toolsRevision &+= 1
+            if oldValue.count != tools.count || zip(oldValue, tools).contains(where: { $0.id != $1.id }) {
+                structureRevision &+= 1
+            }
+            refreshUnsavedChanges()
+        }
+    }
+
+    /// Counts every change to `tools`, edits included. Keys the cached `snapshot(for:)`.
+    private(set) var toolsRevision = 0
+    /// Counts the changes that add, remove or reorder tools, not edits to one. A view that has
+    /// to react to tools appearing or disappearing watches this instead of comparing every id.
+    private(set) var structureRevision = 0
+
+    /// Everything the library sheet derives from the tools and the filter.
+    struct LibrarySnapshot {
+        /// Filtered and sorted: what the list shows.
+        var visible: [Tool]
+        /// Types with at least one tool, in rail order.
+        var presentTypes: [ToolType]
+        var shanks: [Double]
+        var counts: ToolFilter.FacetCounts
+        var sourceCounts: [UUID: Int]
+    }
+
+    private var snapshotCache: (revision: Int, filter: ToolFilter, snapshot: LibrarySnapshot)?
+
+    /// The list and the rail's data for a filter, computed once per change to the tools or the
+    /// filter. The sheet asks for it on every redraw, and a redraw also happens for a click on a
+    /// tool or the opening of a dialog; filtering, sorting and counting the whole library each
+    /// time made those slow.
+    func snapshot(for filter: ToolFilter) -> LibrarySnapshot {
+        if let cache = snapshotCache, cache.revision == toolsRevision, cache.filter == filter {
+            return cache.snapshot
+        }
+        let present = Set(tools.map(\.type))
+        let snapshot = LibrarySnapshot(
+            visible: filter.apply(to: tools),
+            presentTypes: ToolType.allCases.filter { present.contains($0) },
+            shanks: ToolFilter.shankSizes(in: tools),
+            counts: filter.facetCounts(in: tools),
+            sourceCounts: filter.sourceCounts(in: tools)
+        )
+        snapshotCache = (toolsRevision, filter, snapshot)
+        return snapshot
+    }
 
     /// The library's filters (rail, search, material, source). Kept here so they survive closing
     /// and reopening the sheet while the app runs. Not written to disk.
     @Published var filter = ToolFilter()
 
     /// Bundled, custom, then one per import.
-    @Published private(set) var sources: [ToolSourceInfo] = []
+    @Published private(set) var sources: [ToolSourceInfo] = [] {
+        didSet { refreshUnsavedChanges() }
+    }
 
     /// Snapshot of what is on disk. Edits are live in `tools`; `save()` writes them out.
-    @Published private var savedTools: [Tool] = []
-    @Published private var savedSources: [ToolSourceInfo] = []
+    private var savedTools: [Tool] = [] {
+        didSet { refreshUnsavedChanges() }
+    }
+    private var savedSources: [ToolSourceInfo] = [] {
+        didSet { refreshUnsavedChanges() }
+    }
 
-    var hasUnsavedChanges: Bool {
-        tools != savedTools || sources != savedSources
+    /// Whether `tools` or `sources` differ from what is on disk. Worked out when they change,
+    /// not every time a view asks: the library sheet reads it on every redraw, and comparing
+    /// every tool and preset each time made selecting a tool slow in a big library.
+    @Published private(set) var hasUnsavedChanges = false
+
+    private func refreshUnsavedChanges() {
+        let changed = tools != savedTools || sources != savedSources
+        if changed != hasUnsavedChanges {
+            hasUnsavedChanges = changed
+        }
     }
 
     private let fileManager = FileManager.default
@@ -135,12 +196,18 @@ final class ToolsStore: ObservableObject {
             name: "\(tool.name) Copy",
             shankDiameter: tool.shankDiameter,
             toolDiameter: tool.toolDiameter,
-            length: tool.length,
+            cuttingHeight: tool.cuttingHeight,
+            toolLength: tool.toolLength,
             type: tool.type,
             group: tool.group,
+            numberOfFlutes: tool.numberOfFlutes,
+            cuttingDirection: tool.cuttingDirection,
             quantity: tool.quantity,
             link: tool.link,
             tipAngle: tool.tipAngle,
+            tipDiameter: tool.tipDiameter,
+            cornerRadius: tool.cornerRadius,
+            thread: tool.thread,
             presets: tool.presets,
             sourceID: ToolSourceInfo.customID
         )

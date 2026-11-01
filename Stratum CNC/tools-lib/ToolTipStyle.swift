@@ -11,7 +11,7 @@
 //  Stratum CNC
 //
 //  Draws a schematic side-view of a cutting tool (shank + flute + tip)
-//  with DS / LS / LC / DC dimension callouts, similar to the reference
+//  with DS / H / DC dimension callouts, similar to the reference
 //  "Tool Information" panel.
 //
 //  This view is intentionally decoupled from `Tool` / `ToolType` — it only
@@ -178,7 +178,7 @@ struct ToolDiagramView: View {
 //            topY: shankBottomY,
 //            bottomY: tipBaseY
 //        )
-        drawVerticalBracket(in: &context, label: "L", x: centerX + maxHalfWidth + 22, topY: fluteTopY, bottomY: tipBaseY)
+        drawVerticalBracket(in: &context, label: "H", x: centerX + maxHalfWidth + 22, topY: fluteTopY, bottomY: tipBaseY)
     }
 
     private func bottomLineY(size: CGSize) -> CGFloat {

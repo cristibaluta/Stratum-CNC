@@ -394,7 +394,7 @@ extension ToolpathGenerator {
                              type: type,
                              diameter: Double(tool.toolDiameter),
                              vAngle: vAngle,
-                             fluteLength: Double(tool.length ?? 0))
+                             fluteLength: Double(tool.cuttingHeight ?? 0))
     }
 
     /// Rejects values the engine can't work with, with a message the user can act on.

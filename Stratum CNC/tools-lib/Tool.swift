@@ -15,11 +15,19 @@ struct Tool: Identifiable, Codable, Hashable {
     // Geometry
     var shankDiameter: Double
     var toolDiameter: Double
-    /// Length of the cutting part
-    var length: Double?
+    /// Height of the cutting part: the flute length, measured up from the tip (Fusion's `LCF`).
+    var cuttingHeight: Double?
+    /// Overall length of the tool, tip to the end of the shank (Fusion's `OAL`).
+    var toolLength: Double?
 
     var type: ToolType
     var group: String? = nil
+
+    /// Number of flutes (cutting edges). Drives the feed per tooth: feed = f_z · flutes · rpm.
+    var numberOfFlutes: Int? = nil
+
+    /// Which way the flutes push the chips: up-cut or down-cut. `nil` when it isn't known.
+    var cuttingDirection: CuttingDirection? = nil
 
     /// Number of this tool currently in stock.
     var quantity: Int
@@ -28,7 +36,14 @@ struct Tool: Identifiable, Codable, Hashable {
     var link: String? = nil
 
     // Optional geometry specific to certain tools
+    /// Included (full) angle in degrees: the V of an engraving, chamfer or V bit, or the point of a drill.
     var tipAngle: Double? = nil
+    /// Width of the flat at the tip of an engraving, chamfer or V bit. A pointed tool has none.
+    var tipDiameter: Double? = nil
+    /// Radius of the rounded corner of an end mill; set for bull nose mills, nil for square ones.
+    var cornerRadius: Double? = nil
+    /// Thread profile and pitch range; only for thread mills.
+    var thread: ThreadProfile? = nil
 
     /// Which `ToolSourceInfo` this tool came from: bundled, an import batch, or custom.
     var sourceID: UUID
@@ -42,12 +57,18 @@ struct Tool: Identifiable, Codable, Hashable {
         name: String,
         shankDiameter: Double,
         toolDiameter: Double,
-        length: Double?,
+        cuttingHeight: Double?,
+        toolLength: Double? = nil,
         type: ToolType,
         group: String? = nil,
+        numberOfFlutes: Int? = nil,
+        cuttingDirection: CuttingDirection? = nil,
         quantity: Int = 0,
         link: String? = nil,
         tipAngle: Double? = nil,
+        tipDiameter: Double? = nil,
+        cornerRadius: Double? = nil,
+        thread: ThreadProfile? = nil,
         presets: [ToolPreset] = [],
         sourceID: UUID = ToolSourceInfo.customID
     ) {
@@ -55,19 +76,26 @@ struct Tool: Identifiable, Codable, Hashable {
         self.name = name
         self.shankDiameter = shankDiameter
         self.toolDiameter = toolDiameter
-        self.length = length
+        self.cuttingHeight = cuttingHeight
+        self.toolLength = toolLength
         self.type = type
         self.group = group
+        self.numberOfFlutes = numberOfFlutes
+        self.cuttingDirection = cuttingDirection
         self.quantity = quantity
         self.link = link
         self.tipAngle = tipAngle
+        self.tipDiameter = tipDiameter
+        self.cornerRadius = cornerRadius
+        self.thread = thread
         self.presets = presets
         self.sourceID = sourceID
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, shankDiameter, toolDiameter, length, type, group
-        case quantity, link, tipAngle, presets, sourceID
+        case id, name, shankDiameter, toolDiameter, cuttingHeight, toolLength, type, group
+        case numberOfFlutes, cuttingDirection, quantity, link
+        case tipAngle, tipDiameter, cornerRadius, thread, presets, sourceID
     }
 
     init(from decoder: Decoder) throws {
@@ -76,12 +104,18 @@ struct Tool: Identifiable, Codable, Hashable {
         name = try c.decode(String.self, forKey: .name)
         shankDiameter = try c.decode(Double.self, forKey: .shankDiameter)
         toolDiameter = try c.decode(Double.self, forKey: .toolDiameter)
-        length = try c.decodeIfPresent(Double.self, forKey: .length)
+        cuttingHeight = try c.decodeIfPresent(Double.self, forKey: .cuttingHeight)
+        toolLength = try c.decodeIfPresent(Double.self, forKey: .toolLength)
         type = try c.decode(ToolType.self, forKey: .type)
         group = try c.decodeIfPresent(String.self, forKey: .group)
+        numberOfFlutes = try c.decodeIfPresent(Int.self, forKey: .numberOfFlutes)
+        cuttingDirection = try c.decodeIfPresent(CuttingDirection.self, forKey: .cuttingDirection)
         quantity = try c.decodeIfPresent(Int.self, forKey: .quantity) ?? 0
         link = try c.decodeIfPresent(String.self, forKey: .link)
         tipAngle = try c.decodeIfPresent(Double.self, forKey: .tipAngle)
+        tipDiameter = try c.decodeIfPresent(Double.self, forKey: .tipDiameter)
+        cornerRadius = try c.decodeIfPresent(Double.self, forKey: .cornerRadius)
+        thread = try c.decodeIfPresent(ThreadProfile.self, forKey: .thread)
         presets = try c.decodeIfPresent([ToolPreset].self, forKey: .presets) ?? []
         // Files from before sources existed (default_tools.json, an older tools.json) have no
         // sourceID: those tools are the bundled ones.
@@ -101,15 +135,15 @@ struct Tool: Identifiable, Codable, Hashable {
     }
 
     /// How the tool is named in the app's pickers: what it is rather than what it was called
-    /// in a library. Diameter, the tip angle for the tools that have one, the length when
-    /// known, then the type: "Ø6 · 38 mm · End Mill", "Ø3.175 · 60° · 38 mm · V Bit".
+    /// in a library. Diameter, the tip angle for the tools that have one, the cutting height
+    /// when known, then the type: "Ø6 · 38 mm · End Mill", "Ø3.175 · 60° · 38 mm · V Bit".
     var displayName: String {
         var parts = ["Ø\(Self.format(toolDiameter))"]
         if let tipAngle, tipAngle > 0 {
             parts.append("\(Self.format(tipAngle))°")
         }
-        if let length, length > 0 {
-            parts.append("\(Self.format(length)) mm")
+        if let cuttingHeight, cuttingHeight > 0 {
+            parts.append("\(Self.format(cuttingHeight)) mm")
         }
         parts.append(type.displayName)
         return parts.joined(separator: " · ")
@@ -170,6 +204,62 @@ struct Tool: Identifiable, Codable, Hashable {
         }
         return presets.count == 1 ? presets.first : nil
     }
+}
+
+/// The way a tool's flutes push the chips.
+enum CuttingDirection: String, Codable, CaseIterable, Hashable {
+    /// Chips are pulled up out of the cut: the usual choice, clears slots well, can lift the top surface.
+    case upCut
+    /// Chips are pushed down: a clean top edge, but chips stay in the cut.
+    case downCut
+
+    var displayName: String {
+        switch self {
+            case .upCut: "Up-cut"
+            case .downCut: "Down-cut"
+        }
+    }
+}
+
+/// What only a thread mill has: the thread form it cuts and the range of pitches it can cut.
+struct ThreadProfile: Codable, Hashable {
+    /// Finest pitch the tool can cut, mm (Fusion's `TPN`).
+    var minPitch: Double
+    /// Coarsest pitch the tool can cut, mm (Fusion's `TPX`).
+    var maxPitch: Double
+    /// Included angle of the thread form: 60° for metric and unified threads.
+    var profileAngle: Double
+    /// Number of thread teeth along the tool; 1 for a single-point thread mill.
+    var teeth: Int
+
+    init(minPitch: Double = 0, maxPitch: Double = 0, profileAngle: Double = 60, teeth: Int = 1) {
+        self.minPitch = minPitch
+        self.maxPitch = maxPitch
+        self.profileAngle = profileAngle
+        self.teeth = teeth
+    }
+}
+
+extension ToolType {
+
+    /// Whether the tool has a tip angle worth editing: the V of engraving, chamfer and V bits, a drill's point.
+    var hasTipAngle: Bool {
+        switch self {
+            case .engraving, .chamfer, .vBit, .drill: true
+            default: false
+        }
+    }
+
+    /// Whether the tool ends in a flat of its own (the width of the V's tip) rather than a point or the full diameter.
+    var hasTipDiameter: Bool {
+        switch self {
+            case .engraving, .chamfer, .vBit: true
+            default: false
+        }
+    }
+
+    /// Whether the tool's corner can be rounded: an end mill with a corner radius is a bull nose mill.
+    var hasCornerRadius: Bool { self == .endMill }
 }
 
 enum ToolType: String, Codable, CaseIterable, Hashable {

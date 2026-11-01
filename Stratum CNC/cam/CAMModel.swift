@@ -239,7 +239,7 @@ class CAMModel: ObservableObject {
         rest.tool = Tool(name: String(format: "%gmm", diameter),
                          shankDiameter: min(source.tool.shankDiameter, max(diameter, 3)),
                          toolDiameter: diameter,
-                         length: source.tool.length,
+                         cuttingHeight: source.tool.cuttingHeight,
                          type: source.tool.type,
                          tipAngle: source.tool.tipAngle)
 
@@ -326,7 +326,7 @@ class CAMModel: ObservableObject {
                                                name: "3.175mm",
                                                shankDiameter: 3.175,
                                                toolDiameter: 3.175,
-                                               length: 12,
+                                               cuttingHeight: 12,
                                                type: .endMill,
                                                group: nil,
                                                tipAngle: nil,

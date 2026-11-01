@@ -33,6 +33,10 @@ struct ToolListView: View {
                     tool: tool,
                     sourceName: sourcesByID[tool.sourceID]?.name
                 )
+                    // Skips rebuilding a row whose tool hasn't changed. Without it every row
+                    // is rebuilt each time the selection moves, and a row's title works
+                    // through the tool's name, group and presets.
+                    .equatable()
                     .tag(tool.id)
                     .contextMenu {
                         Button {
@@ -58,47 +62,7 @@ struct ToolListView: View {
                 emptyState
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            topBar
-        }
         .navigationTitle("Tool Library")
-    }
-
-    // MARK: Top bar
-
-    /// Search only. Material, source, Add and Import are at the bottom of the rail.
-    private var topBar: some View {
-        VStack(spacing: 0) {
-            searchField
-                .padding(10)
-
-            Divider()
-        }
-        .background(Color.toolColumnBackground)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-
-            TextField("Search name or diameter", text: $filter.query)
-                .textFieldStyle(.plain)
-
-            if !filter.query.isEmpty {
-                Button {
-                    filter.query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: Empty state
@@ -122,9 +86,41 @@ struct ToolListView: View {
     }
 }
 
+// MARK: - Search
+
+/// The library's search box, shown in the sheet's top bar.
+struct ToolSearchField: View {
+
+    @Binding var query: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("Search name or diameter", text: $query)
+                .textFieldStyle(.plain)
+
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
 // MARK: - Rows
 
-private struct ToolRow: View {
+private struct ToolRow: View, Equatable {
 
     let tool: Tool
     /// Only used for the tooltip; the row itself doesn't show where a tool came from.
@@ -169,15 +165,19 @@ private struct ToolRow: View {
         return "\(stock) · \(sourceName)"
     }
 
-    /// Second line: the length, then the shank diameter ("L 10 mm · Shank Ø3.175").
-    /// Engraving bits show their tip angle instead of the length ("TA 30° · Shank Ø3.175"),
-    /// since the angle is what tells them apart. Anything the tool doesn't have is left out.
+    /// Second line: the cutting height, the flutes, then the shank diameter
+    /// ("Cut 10 mm · 2 flutes · Shank Ø3.175"). Engraving bits show their tip angle instead of
+    /// the cutting height ("TA 30° · Shank Ø3.175"), since the angle is what tells them apart.
+    /// Anything the tool doesn't have is left out.
     private var detail: String {
         var parts: [String] = []
         if tool.type == .engraving, let tipAngle = tool.tipAngle, tipAngle > 0 {
             parts.append("TA \(Self.number(tipAngle))°")
-        } else if let length = tool.length, length > 0 {
-            parts.append("L \(Self.number(length)) mm")
+        } else if let cuttingHeight = tool.cuttingHeight, cuttingHeight > 0 {
+            parts.append("Cut \(Self.number(cuttingHeight)) mm")
+        }
+        if let flutes = tool.numberOfFlutes, flutes > 0 {
+            parts.append(flutes == 1 ? "1 flute" : "\(flutes) flutes")
         }
         if let shank = tool.shankDescription {
             parts.append(shank)

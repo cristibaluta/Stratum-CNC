@@ -78,18 +78,21 @@ private extension ToolEditorView {
         .listRowInsets(EdgeInsets())
     }
 
-    /// `Tool` in the original file only exposes an optional overall
-    /// `length`. The reference diagram distinguishes shoulder length (LS)
-    /// from flute length (LC) separately — if your model already tracks
-    /// those independently, swap this out for the real properties.
+    /// The flute (LC) is the cutting height.
     var fluteLengthForDiagram: Double {
-        guard let length = tool.length, length > 0 else { return 8 }
-        return length * 0.6
+        guard let height = tool.cuttingHeight, height > 0 else { return 8 }
+        return height
     }
 
+    /// The shoulder (LS) is what is left of the tool length above the flute. Without a tool
+    /// length to measure it from, it is drawn at two thirds of the flute, so the picture still
+    /// looks like a tool.
     var shoulderLengthForDiagram: Double {
-        guard let length = tool.length, length > 0 else { return 6 }
-        return max(length * 0.4, 3)
+        let flute = fluteLengthForDiagram
+        if let length = tool.toolLength, length > flute {
+            return length - flute
+        }
+        return max(flute * 0.67, 3)
     }
 
     /// Maps your `ToolType` to how the tip should be drawn. Adjust the
@@ -124,26 +127,71 @@ private extension ToolEditorView {
                     }
                     .frame(minWidth: 100, maxWidth: 180)
 
+                    Picker("Cutting Direction", selection: $tool.cuttingDirection) {
+                        Text("Not set")
+                            .tag(CuttingDirection?.none)
+                        ForEach(CuttingDirection.allCases, id: \.self) { direction in
+                            Text(direction.displayName)
+                                .tag(CuttingDirection?.some(direction))
+                        }
+                    }
+                    .frame(minWidth: 100, maxWidth: 220)
+
+                    OptionalCountField(title: "Number of Flutes", value: $tool.numberOfFlutes)
+
                     MeasurementField(title: "Shank Diameter (DS)", value: $tool.shankDiameter, unit: "mm")
                     MeasurementField(title: "Tool Diameter (DC)", value: $tool.toolDiameter, unit: "mm")
-                    OptionalMeasurementField(title: "Length (L)", value: $tool.length, unit: "mm")
+                    OptionalMeasurementField(title: "Cutting Height (H)", value: $tool.cuttingHeight, unit: "mm")
+                    OptionalMeasurementField(title: "Tool Length", value: $tool.toolLength, unit: "mm")
 
-                    if tool.tipAngle != nil {
-                        MeasurementField(
-                            title: "Tip Angle (TA)",
-                            value: Binding(
-                                get: { tool.tipAngle ?? 0 },
-                                set: { tool.tipAngle = $0 }
-                            ),
-                            unit: "°"
-                        )
-                    }
+                    typeSpecificFields
                 }
                 Spacer()
                 Divider()
                 diagramSection
             }
         }
+    }
+}
+
+// MARK: - Fields that only some tools have
+
+private extension ToolEditorView {
+
+    @ViewBuilder
+    var typeSpecificFields: some View {
+        if tool.type.hasTipAngle || tool.tipAngle != nil {
+            OptionalMeasurementField(title: "Tip Angle (TA)", value: $tool.tipAngle, unit: "°")
+        }
+
+        if tool.type.hasTipDiameter || tool.tipDiameter != nil {
+            OptionalMeasurementField(title: "Tip Diameter", value: $tool.tipDiameter, unit: "mm")
+        }
+
+        if tool.type.hasCornerRadius || tool.cornerRadius != nil {
+            OptionalMeasurementField(title: "Corner Radius", value: $tool.cornerRadius, unit: "mm")
+        }
+
+        if tool.type == .threadMill {
+            MeasurementField(title: "Min Pitch", value: thread.minPitch, unit: "mm")
+            MeasurementField(title: "Max Pitch", value: thread.maxPitch, unit: "mm")
+            MeasurementField(title: "Thread Profile Angle", value: thread.profileAngle, unit: "°")
+            OptionalCountField(
+                title: "Thread Teeth",
+                value: Binding(
+                    get: { thread.wrappedValue.teeth },
+                    set: { thread.wrappedValue.teeth = $0 ?? 1 }
+                )
+            )
+        }
+    }
+
+    /// The thread mill's thread values, editable even before the tool has any (they start at the defaults).
+    var thread: Binding<ThreadProfile> {
+        Binding(
+            get: { tool.thread ?? ThreadProfile() },
+            set: { tool.thread = $0 }
+        )
     }
 }
 
