@@ -156,7 +156,6 @@ struct ToolTypeRail: View {
             HStack(spacing: 6) {
                 Button(action: onAdd) {
                     Label("Add", systemImage: "plus")
-                        .frame(maxWidth: .infinity)
                 }
                 .help("Add a new tool")
 
