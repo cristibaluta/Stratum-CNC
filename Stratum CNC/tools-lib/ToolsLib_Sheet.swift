@@ -39,15 +39,11 @@ struct ToolsLib_Sheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    /// Type rail on the far left. Added on top of the previous 900 pt minimum so the editor
-    /// column keeps the ~600 pt it had before the rail existed.
     private static let railWidth: CGFloat = 170
     private static let minSheetWidth: CGFloat = 1080
-    /// Fixed: the sheet only grows sideways. Includes the title bar and the bottom bar.
     private static let sheetHeight: CGFloat = 640
 
-    private static let importDialogMessage = "Fusion 360 tools library (.tools, .zip, .json)"
-
+    private static let importDialogMessage = "Fusion 360 tool library (.tools, .zip, .json)"
     private static let importHelp = "Import tools from a Fusion 360 tool library (.tools, or a .zip / .json export). Cutting tools such as end mills, drills and V-bits are added; holders and taps are ignored, and tools already in the library are skipped."
 
     var body: some View {
@@ -55,6 +51,7 @@ struct ToolsLib_Sheet: View {
             titleBar
             Divider()
             HStack(spacing: 0) {
+                // Sidebar
                 ToolTypeRail(
                     filter: $store.filter,
                     types: presentTypes,
@@ -68,7 +65,10 @@ struct ToolsLib_Sheet: View {
                     onManageImports: { isManagingImports = true }
                 )
                 .frame(width: Self.railWidth)
+
                 Divider()
+
+                // Tools list and editor
                 NavigationSplitView {
                     ToolListView(
                         tools: visibleTools,
@@ -97,11 +97,9 @@ struct ToolsLib_Sheet: View {
                             source: store.source(for: current)
                         )
                     } else {
-                        ContentUnavailableView(
-                            "No Tool Selected",
-                            systemImage: "wrench.and.screwdriver",
-                            description: Text("Select a tool from the list.")
-                        )
+                        ContentUnavailableView("No Tool Selected",
+                                               systemImage: "wrench.and.screwdriver",
+                                               description: Text("Select a tool from the list."))
                     }
                 }
                 .navigationTitle("Tools")
@@ -156,8 +154,6 @@ struct ToolsLib_Sheet: View {
         } message: {
             Text(importMessage ?? "")
         }
-        // The sheet owns its minimum size so the editor column keeps its width:
-        // rail + list (ideal 300) + editor (>= 600) = 1080.
         .frame(minWidth: Self.minSheetWidth, minHeight: Self.sheetHeight, maxHeight: Self.sheetHeight)
     }
 
