@@ -27,6 +27,7 @@ struct ToolEditorView: View {
     let source: ToolSourceInfo?
 
     var body: some View {
+        let _ = Self._printChanges()
         Form {
             headerSection
             geometrySection
@@ -127,15 +128,15 @@ private extension ToolEditorView {
                     }
                     .frame(minWidth: 100, maxWidth: 180)
 
-                    Picker("Cutting Direction", selection: $tool.cuttingDirection) {
-                        Text("Not set")
-                            .tag(CuttingDirection?.none)
-                        ForEach(CuttingDirection.allCases, id: \.self) { direction in
-                            Text(direction.displayName)
-                                .tag(CuttingDirection?.some(direction))
-                        }
-                    }
-                    .frame(minWidth: 100, maxWidth: 220)
+//                    Picker("Cutting Direction", selection: $tool.cuttingDirection) {
+//                        Text("Not set")
+//                            .tag(CuttingDirection?.none)
+//                        ForEach(CuttingDirection.allCases, id: \.self) { direction in
+//                            Text(direction.displayName)
+//                                .tag(CuttingDirection?.some(direction))
+//                        }
+//                    }
+//                    .frame(minWidth: 100, maxWidth: 220)
 
                     OptionalCountField(title: "Number of Flutes", value: $tool.numberOfFlutes)
 
@@ -146,8 +147,10 @@ private extension ToolEditorView {
 
                     typeSpecificFields
                 }
+
                 Spacer()
                 Divider()
+
                 diagramSection
             }
         }
