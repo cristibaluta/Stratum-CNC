@@ -32,7 +32,7 @@ struct STEPViewerContent: Sendable {
 final class STEPDocumentScene: ObservableObject, Identifiable {
     let id: UUID
     let content: STEPViewerContent
-    let baseObjects: [RenderObject]
+    @Published private(set) var baseObjects: [RenderObject]
     @Published private(set) var selectedEdges: Set<STEPEdgeID> = []
     @Published private(set) var hiddenBodies: Set<STEPBodyID> = []
     @Published var isModelVisible = true {
@@ -44,9 +44,27 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     init(content: STEPViewerContent) {
         id = content.model.importID
         self.content = content
-        baseObjects = content.geometry.bodies.map {
-            RenderObject(role: .model, points: $0.points, color: CanvasPalette.model, primitive: .lineList)
+        baseObjects = Self.makeBaseObjects(content, isDark: true)
+    }
+
+    /// Edge color follows the canvas background: light edges on dark, dark on light.
+    private static func modelColor(isDark: Bool) -> SIMD4<Float> {
+        isDark ? CanvasPalette.model : SIMD4<Float>(0.12, 0.22, 0.38, 1)
+    }
+
+    private static func makeBaseObjects(_ content: STEPViewerContent, isDark: Bool) -> [RenderObject] {
+        content.geometry.bodies.map {
+            RenderObject(role: .model, points: $0.points, color: modelColor(isDark: isDark), primitive: .lineList)
         }
+    }
+
+    private var isDarkAppearance = true
+
+    /// Rebuilds the edges in the color that suits the current appearance.
+    func setAppearance(isDark: Bool) {
+        guard isDark != isDarkAppearance else { return }
+        isDarkAppearance = isDark
+        baseObjects = Self.makeBaseObjects(content, isDark: isDark)
     }
 
     var visibleObjects: [RenderObject] {

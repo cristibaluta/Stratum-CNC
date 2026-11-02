@@ -147,7 +147,7 @@ struct MetalCanvasView: NSViewRepresentable {
         mtkView.delegate = renderer
         renderer.adaptiveModelFit = adaptiveModelFit
         if adaptiveModelFit {
-            renderer.fitExcludedRoles = [.modelSelection, .axes]
+            renderer.fitExcludedRoles = [.modelSelection, .axes, .ruler]
             renderer.camera.orbit(yaw: -.pi / 4, pitch: .pi / 4)
         }
 

@@ -54,7 +54,7 @@ struct CAMView: View {
                                zoomModel: camModel.canvasZoomModel,
                                mode: showsSTEP ? .step3D : .design2D,
                                stepScene: camModel.stepWorkspace.activeScene,
-                               addToolpathShapeCount: showsSTEP ? 0 : camModel.shapesForNewToolpath.count,
+                               addToolpathShapeCount: camModel.shapesForNewToolpath.count,
                                onAddToolpath: {
                                    withAnimation(.easeOut(duration: 0.15)) {
                                        camModel.addToolpathFromSelection()
@@ -91,26 +91,6 @@ struct CAMView: View {
                     .padding(.bottom, 16)
                 }
 
-                if showsSTEP {
-                    // 3D mode: the STEP info floats over the canvas, top-left.
-                    HStack(alignment: .top) {
-                        STEPInfoPanel(workspace: camModel.stepWorkspace,
-                                      onImport: { camModel.showingFilePicker = true },
-                                      onReload: { id in
-                                          do { try projectModel.reloadSTEPSource(id) }
-                                          catch { fileError = String(describing: error) }
-                                      },
-                                      onRemove: { id in
-                                          do { try projectModel.removeSTEPSource(id) }
-                                          catch { fileError = String(describing: error) }
-                                      })
-                            .frame(width: 280)
-                            .panelShadow()
-                        Spacer()
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                } else {
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right
                 HStack {
@@ -153,6 +133,30 @@ struct CAMView: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .frame(maxHeight: .infinity, alignment: .top)
                 }
+
+                // 3D mode: the STEP info floats over the canvas, bottom-left, under the
+                // same panels as in 2D. Collapsible, so it can get out of the way.
+                if showsSTEP {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            STEPInfoPanel(workspace: camModel.stepWorkspace,
+                                          onImport: { camModel.showingFilePicker = true },
+                                          onReload: { id in
+                                              do { try projectModel.reloadSTEPSource(id) }
+                                              catch { fileError = String(describing: error) }
+                                          },
+                                          onRemove: { id in
+                                              do { try projectModel.removeSTEPSource(id) }
+                                              catch { fileError = String(describing: error) }
+                                          })
+                                .frame(width: 260)
+                                .frame(maxHeight: 340)
+                                .panelShadow()
+                            Spacer()
+                        }
+                    }
+                    .padding(16)
                 }
             }
         }

@@ -44,20 +44,19 @@ struct CAM_Metal_View: View {
     }
 
     var body: some View {
-        switch mode {
-        case .design2D:
-            canvas2D
-        case .step3D:
-            // A different branch means a fresh `MetalCanvasView`: it reads its
-            // interaction mode once, when it is created. `scene` (the 2D
-            // state) stays alive in this view, so coming back to 2D loses nothing.
-            if let stepScene {
-                STEP3DCanvas(scene: stepScene, zoomModel: zoomModel)
-            } else {
-                MetalCanvasView(objects: .constant([]), interactionMode: .free3D,
-                                clearColor: STEPCanvasStyle.clearColor, zoomModel: zoomModel,
-                                adaptiveModelFit: true)
+        Group {
+            switch mode {
+            case .design2D:
+                canvas2D
+            case .step3D:
+                canvas3D
             }
+        }
+        .onAppear {
+            scene.setColorScheme(colorScheme)
+        }
+        .onChange(of: colorScheme) { _, newScheme in
+            scene.setColorScheme(newScheme)
         }
     }
 
@@ -67,12 +66,6 @@ struct CAM_Metal_View: View {
                         clearColor: scene.backgroundColor,
                         pointerHandler: scene.interaction,
                         zoomModel: zoomModel)
-            .onAppear {
-                scene.setColorScheme(colorScheme)
-            }
-            .onChange(of: colorScheme) { _, newScheme in
-                scene.setColorScheme(newScheme)
-            }
             .overlay {
                 AddToolpathTooltipLayer(scene: scene,
                                         zoomModel: zoomModel,
@@ -80,39 +73,52 @@ struct CAM_Metal_View: View {
                                         onAdd: onAddToolpath)
             }
     }
+
+    /// The same scene as 2D (shapes, toolpaths, ruler, stock, selection overlays,
+    /// same background), seen through the free 3D camera, plus the STEP wireframe
+    /// when there is one. A different branch than 2D means a fresh `MetalCanvasView`:
+    /// it reads its interaction mode once, when it is created. `scene` lives in this
+    /// view, so coming back to 2D loses nothing.
+    @ViewBuilder
+    private var canvas3D: some View {
+        if let stepScene {
+            STEP3DCanvas(scene: stepScene, sceneObjects: scene.renderObjects,
+                         clearColor: scene.backgroundColor, isDark: colorScheme == .dark,
+                         zoomModel: zoomModel)
+        } else {
+            MetalCanvasView(objects: .constant(scene.renderObjects),
+                            interactionMode: .free3D,
+                            clearColor: scene.backgroundColor,
+                            zoomModel: zoomModel,
+                            adaptiveModelFit: true)
+        }
+    }
 }
 
-private enum STEPCanvasStyle {
-    /// The model's edge color is light, so the 3D canvas stays dark in both appearances.
-    static let clearColor = SIMD4<Float>(0.075, 0.085, 0.105, 1)
-}
-
-/// The STEP wireframe in the shared canvas: free 3D camera (orbit, pan, zoom,
-/// orientation cube, all from `CanvasInputSettings`) and edge picking.
+/// The CAM scene plus the STEP wireframe in one free 3D canvas: orbit, pan, zoom
+/// and the orientation cube from `CanvasInputSettings`, and edge picking.
 private struct STEP3DCanvas: View {
 
     @ObservedObject var scene: STEPDocumentScene
+    let sceneObjects: [RenderObject]
+    let clearColor: SIMD4<Float>
+    let isDark: Bool
     let zoomModel: CanvasZoomModel
 
     var body: some View {
-        ZStack {
-            MetalCanvasView(objects: .constant(scene.visibleObjects),
-                            interactionMode: .free3D,
-                            clearColor: STEPCanvasStyle.clearColor,
-                            zoomModel: zoomModel,
-                            on3DClick: { point, size, matrix, modifiers in
-                                scene.pick(point: point, viewport: size, matrix: matrix,
-                                           extend: modifiers.contains(.shift) || modifiers.contains(.command))
-                            },
-                            adaptiveModelFit: true,
-                            fitRequest: scene.fitRequest)
-                .id(ObjectIdentifier(scene))
-            if scene.visibleObjects.isEmpty {
-                Text(scene.content.model.edges.isEmpty ? "No supported edges in this source" : "Model hidden")
-                    .foregroundStyle(.white.opacity(0.8))
-                    .allowsHitTesting(false)
-            }
-        }
+        MetalCanvasView(objects: .constant(sceneObjects + scene.visibleObjects),
+                        interactionMode: .free3D,
+                        clearColor: clearColor,
+                        zoomModel: zoomModel,
+                        on3DClick: { point, size, matrix, modifiers in
+                            scene.pick(point: point, viewport: size, matrix: matrix,
+                                       extend: modifiers.contains(.shift) || modifiers.contains(.command))
+                        },
+                        adaptiveModelFit: true,
+                        fitRequest: scene.fitRequest)
+            .id(ObjectIdentifier(scene))
+            .onAppear { scene.setAppearance(isDark: isDark) }
+            .onChange(of: isDark) { _, dark in scene.setAppearance(isDark: dark) }
     }
 }
 
