@@ -2,7 +2,10 @@ import Foundation
 import simd
 
 /// Render-ready geometry, built off the main actor. Source coordinates remain
-/// untouched; a shared origin avoids Float precision loss far from (0,0,0).
+/// untouched. The model is placed like a workpiece on the canvas: the bottom-left
+/// corner of its bounding box (min X, min Y) sits at x0 y0 and its top (max Z)
+/// at z0, so the part extends toward +X, +Y and down to -Z, same as the stock.
+/// The shared origin also avoids Float precision loss far from (0,0,0).
 struct STEPDisplayGeometry: Sendable {
     struct EdgeRange: Sendable {
         let id: STEPEdgeID
@@ -19,7 +22,7 @@ struct STEPDisplayGeometry: Sendable {
     init(model: STEPEdgeModel) throws {
         let origin: SIMD3<Double>
         if let bounds = model.bounds {
-            origin = bounds.min / 2 + bounds.max / 2
+            origin = SIMD3<Double>(bounds.min.x, bounds.min.y, bounds.max.z)
         } else {
             origin = .zero
         }
