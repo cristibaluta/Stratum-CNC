@@ -55,6 +55,10 @@ struct STEPBodyInfo: Sendable {
 struct STEPEdge: Sendable {
     enum CurveKind: Sendable {
         case line
+        /// Partial circular arc, sampled to a polyline.
+        case arc
+        /// Full closed circle, sampled to a polyline.
+        case circle
     }
     let id: STEPEdgeID
     let kind: CurveKind
@@ -62,6 +66,8 @@ struct STEPEdge: Sendable {
     let startVertexID: Int
     let endVertexID: Int
     let adjacentFaceIDs: [Int]
+    /// Worst-case distance (mm) between the sampled polyline and the true curve; 0 for lines.
+    var chordError: Double = 0
 }
 
 struct STEPBounds: Sendable {
@@ -90,4 +96,7 @@ struct STEPEdgeModel: Sendable {
 struct STEPImportOptions: Sendable {
     /// Explicit opt-in only; unresolved units otherwise fail the import.
     var assumedUnitScaleToMM: Double? = nil
+    /// Maximum sagitta (mm) of sampled circular edges. Display geometry only:
+    /// a sampled polyline is not a machining contour.
+    var chordToleranceMM: Double = 0.01
 }

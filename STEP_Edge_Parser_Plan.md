@@ -48,7 +48,7 @@ Index without building the full parameter tree; lazily parse/cache reached entit
 - Tests: display/orbit/fit, click/multi-select, zoom/orbit/Retina/overlap/hidden layers, import replacement/cancellation and project reopen.
 - No surface hidden-line test: RenderObject.occluderFaces needs triangles that this phase does not produce.
 
-## Step 3 — Circles, arcs and trims
+## Step 3[done] — Circles, arcs and trims
 
 - Resolve AXIS2_PLACEMENT_3D defaults; normalize/orthogonalize frames and reject degeneracy.
 - Resolve edge intervals from vertices, same_sense and trims. Closed circular edges need explicit periodic/full-circle handling; coincident coordinates alone are insufficient. ORIENTED_EDGE affects loop traversal, not canonical edge direction.

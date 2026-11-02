@@ -1,6 +1,6 @@
 import Foundation
 
-/// Narrow first milestone: standalone B-rep parts and line edges only.
+/// Standalone B-rep parts: line and circular edges (arcs, full circles, trimmed circles).
 /// The caller supplies a stable import ID when reparsing an unchanged project source.
 enum STEPEdgeImporter {
     static func parse(data: Data, importID: UUID = UUID(), options: STEPImportOptions = STEPImportOptions()) throws -> STEPEdgeModel {
