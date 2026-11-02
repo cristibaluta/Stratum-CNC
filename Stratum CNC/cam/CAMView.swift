@@ -55,6 +55,7 @@ struct CAMView: View {
                                mode: showsSTEP ? .step3D : .design2D,
                                stepScene: camModel.stepWorkspace.activeScene,
                                addToolpathShapeCount: camModel.shapesForNewToolpath.count,
+                               canAddToolpathFromEdges: camModel.selectedToolpathID == nil,
                                onAddToolpath: {
                                    withAnimation(.easeOut(duration: 0.15)) {
                                        camModel.addToolpathFromSelection()

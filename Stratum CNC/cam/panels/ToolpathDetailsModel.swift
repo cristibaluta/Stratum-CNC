@@ -306,15 +306,11 @@ final class ToolpathDetailsModel: ObservableObject {
 
     func shapesTitle(for toolpath: ToolpathData) -> String {
         if toolpath.cutsWholeStock {
-            let ignored = toolpath.targets.count
+            let ignored = toolpath.targets.count + toolpath.stepTargets.count
             return ignored == 0
                 ? "Whole stock"
                 : "Whole stock (\(ignored) selected shape\(ignored == 1 ? "" : "s") ignored)"
         }
-        switch toolpath.targets.count {
-            case 0: return "Click shapes to select"
-            case 1: return "1 shape selected"
-            default: return "\(toolpath.targets.count) shapes selected"
-        }
+        return toolpath.selectionSummary
     }
 }

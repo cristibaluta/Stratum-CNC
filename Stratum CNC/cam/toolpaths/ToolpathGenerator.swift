@@ -83,10 +83,13 @@ enum ToolpathGenerator {
     ///
     /// - Parameter source: for a rest toolpath, the toolpath it is linked to (`nil` when that
     ///   one is gone). Ignored by every other operation.
-    static func prepare(for toolpath: ToolpathData, source: ToolpathData? = nil, canvasState: D2_CanvasState) throws -> Job {
+    /// - Parameter stepContours: resolves the toolpath's STEP edges (`stepTargets`) into contours.
+    static func prepare(for toolpath: ToolpathData, source: ToolpathData? = nil, canvasState: D2_CanvasState,
+                        stepContours: (ToolpathData) throws -> [SC.Contour] = { _ in [] }) throws -> Job {
 
         if toolpath.operation.kind == .restMachining {
-            return try prepareRest(for: toolpath, source: source, canvasState: canvasState)
+            return try prepareRest(for: toolpath, source: source, canvasState: canvasState,
+                                   stepContours: stepContours)
         }
 
         guard toolpath.hasGeometry else {
@@ -113,6 +116,7 @@ enum ToolpathGenerator {
                 }
                 contours += object.machineContours(forPathAt: target.pathIndex)
             }
+            contours += try stepContours(toolpath)
         }
         guard !contours.isEmpty else {
             throw GenerationError.noGeometry
@@ -132,7 +136,8 @@ enum ToolpathGenerator {
 
     /// A rest toolpath: checks the link to its pocket and the tool, and captures the pocket's own
     /// job so `run` can find the corners it leaves.
-    private static func prepareRest(for toolpath: ToolpathData, source: ToolpathData?, canvasState: D2_CanvasState) throws -> Job {
+    private static func prepareRest(for toolpath: ToolpathData, source: ToolpathData?, canvasState: D2_CanvasState,
+                                    stepContours: (ToolpathData) throws -> [SC.Contour]) throws -> Job {
 
         guard toolpath.operation.restSourceID != nil, let source else {
             throw GenerationError.restSourceMissing
@@ -145,7 +150,7 @@ enum ToolpathGenerator {
         }
         try validateOptions(of: toolpath)
 
-        let sourceJob = try prepare(for: source, canvasState: canvasState)
+        let sourceJob = try prepare(for: source, canvasState: canvasState, stepContours: stepContours)
         return Job(contours: [],
                    tool: makeTool(from: toolpath.tool, for: .pocket),
                    settings: makeSettings(from: toolpath),

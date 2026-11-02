@@ -167,6 +167,8 @@ class CAMModel: ObservableObject {
         stepWorkspace.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        // Toolpaths cut from a STEP model's edges follow its position, like an object's
+        stepWorkspace.onModelMoved = { [weak self] in self?.discardGenerations() }
 
         canvasState.onObjectsChanged = { [weak self] in
             guard let self else { return }
@@ -195,7 +197,8 @@ class CAMModel: ObservableObject {
     /// one — and opens it in the settings panel.
     /// - Parameter targets: the shapes the new toolpath starts with. Settings are
     ///   copied from the last toolpath, never its shapes, so the default is none.
-    func addToolpath(targets: [PathSelection] = []) {
+    /// - Parameter stepTargets: the STEP edges it starts with; its End Z is then the depth of those edges.
+    func addToolpath(targets: [PathSelection] = [], stepTargets: [STEPEdgeTarget] = []) {
         var toolpath = toolpaths.last ?? Self.defaultToolpath()
         toolpath.id = UUID()
         // A rest toolpath is tied to its pocket, so a copy of it would be one too: start from
@@ -207,6 +210,13 @@ class CAMModel: ObservableObject {
         // A fresh copy gets its own auto name for its operation.
         toolpath.name = toolpath.operation.kind.nextName(among: Set(toolpaths.map(\.name)))
         toolpath.targets = targets
+        toolpath.stepTargets = stepTargets
+        // Cut as deep as the selected edges are below z0. Marked as set, so changing the
+        // operation later doesn't put its default depth back.
+        if let endZ = stepWorkspace.suggestedEndZ(for: stepTargets) {
+            toolpath.endZ = endZ
+            toolpath.editedFields.insert(.endZ)
+        }
         toolpaths.append(toolpath)
         // Opening it starts picking, seeded with `targets` (see `beginPicking`),
         // which also clears the plain canvas selection they came from.
@@ -258,8 +268,23 @@ class CAMModel: ObservableObject {
         selectedToolpathID == nil ? canvasState.selectedPaths : []
     }
 
-    /// "Add toolpath" from the canvas tooltip: a new toolpath that cuts the selected shapes.
+    /// The STEP edges selected in the 3D canvas that a new toolpath could be built from.
+    /// Empty while a toolpath is open (clicks edit that toolpath's edges then).
+    var stepEdgesForNewToolpath: [STEPEdgeTarget] {
+        guard selectedToolpathID == nil, stepWorkspace.isPresented,
+              let scene = stepWorkspace.activeScene else { return [] }
+        return scene.selectedEdges.sorted { ($0.bodyID.entityID, $0.entityID) < ($1.bodyID.entityID, $1.entityID) }
+            .map(STEPEdgeTarget.init)
+    }
+
+    /// "Add toolpath" from the canvas tooltip: a new toolpath that cuts the selected shapes
+    /// (or, in the 3D canvas, the selected STEP edges).
     func addToolpathFromSelection() {
+        let edges = stepEdgesForNewToolpath
+        if !edges.isEmpty {
+            addToolpath(stepTargets: edges)
+            return
+        }
         let targets = shapesForNewToolpath
         guard !targets.isEmpty else {
             return
@@ -403,11 +428,48 @@ class CAMModel: ObservableObject {
         // report that back through applyPickedPaths, which needs this id.
         pickingToolpathID = id
         canvasState.beginPickingPaths(initial: toolpath.targets)
+        // The same toolpath is picked in the 3D canvas, where the shapes are STEP edges
+        stepWorkspace.beginPicking(targets: toolpath.stepTargets) { [weak self] importID, edges in
+            self?.applyPickedSTEPEdges(importID: importID, edges: edges)
+        }
     }
 
     private func endPicking() {
         pickingToolpathID = nil
         canvasState.endPickingPaths()
+        stepWorkspace.endPicking()
+    }
+
+    /// The edges of one model were clicked while a toolpath is open: they are written into
+    /// the toolpath live, like picked shapes. The edges of other models stay as they were.
+    private func applyPickedSTEPEdges(importID: UUID, edges: Set<STEPEdgeID>) {
+        guard let id = pickingToolpathID,
+              let index = toolpaths.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let old = toolpaths[index].stepTargets
+        let oldOfModel = Set(old.filter { $0.importID == importID }.map(\.edgeID))
+        var updated = old.filter { $0.importID != importID || edges.contains($0.edgeID) }
+        updated += edges.subtracting(oldOfModel)
+            .sorted { ($0.bodyID.entityID, $0.entityID) < ($1.bodyID.entityID, $1.entityID) }
+            .map(STEPEdgeTarget.init)
+        guard updated != old else {
+            return
+        }
+
+        var toolpath = toolpaths[index]
+        toolpath.stepTargets = updated
+        // End Z follows the selection until it is set by hand: it still equals the depth of
+        // the previous selection, or was never set.
+        if let depth = stepWorkspace.suggestedEndZ(for: updated) {
+            let previous = stepWorkspace.suggestedEndZ(for: old)
+            let followsSelection = previous.map { abs(toolpath.endZ - $0) < 1e-6 } ?? !toolpath.editedFields.contains(.endZ)
+            if followsSelection {
+                toolpath.endZ = depth
+                toolpath.editedFields.insert(.endZ)
+            }
+        }
+        toolpaths[index] = toolpath
     }
 
     // MARK: Toolpath generation
@@ -433,7 +495,10 @@ class CAMModel: ObservableObject {
 
         let job: ToolpathGenerator.Job
         do {
-            job = try ToolpathGenerator.prepare(for: toolpath, source: linkedSource, canvasState: canvasState)
+            job = try ToolpathGenerator.prepare(for: toolpath, source: linkedSource, canvasState: canvasState,
+                                                stepContours: { [workspace = stepWorkspace] in
+                                                    try workspace.contours(for: $0.stepTargets)
+                                                })
         } catch {
             // Bad input (no shapes, invalid depth…): report it right away.
             PerfLog.log("gen", "prepare failed: \(ToolpathGenerator.message(for: error))")

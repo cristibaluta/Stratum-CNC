@@ -350,7 +350,7 @@ class GCodeStore: ObservableObject {
     /// either never been generated or was edited since. A toolpath whose current settings
     /// already failed is left alone — running it again would fail the same way.
     private static func needsGeneration(_ toolpath: ToolpathData, in camModel: CAMModel) -> Bool {
-        guard !toolpath.targets.isEmpty else {
+        guard toolpath.hasSelectedTargets else {
             return false
         }
         guard let generation = camModel.generations[toolpath.id] else {
@@ -361,7 +361,7 @@ class GCodeStore: ObservableObject {
 
     /// Where a toolpath stands right now, judged the same way `ToolpathGCodeBuilder.plan` will.
     private static func state(of toolpath: ToolpathData, in camModel: CAMModel) -> CAMProgressItem.State {
-        guard !toolpath.targets.isEmpty else {
+        guard toolpath.hasSelectedTargets else {
             return .skipped("No shapes selected.")
         }
         guard let generation = camModel.generations[toolpath.id] else {

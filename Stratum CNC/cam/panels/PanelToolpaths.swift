@@ -169,11 +169,11 @@ struct PanelToolpaths: View {
                     .help(source.map { "Cuts the corners of \($0.name)" } ?? "The pocket this belongs to was deleted")
             } else if !toolpath.cutsWholeStock {
                 // The same hint as in the details panel: orange while nothing is selected yet
-                Label("\(toolpath.targets.count)", systemImage: "cursorarrow.click")
+                Label("\(toolpath.targets.count + toolpath.stepTargets.count)", systemImage: "cursorarrow.click")
                     .labelStyle(CompactLabelStyle())
                     .foregroundStyle(toolpath.hasGeometry ? Color.secondary : Color.orange)
                     .fixedSize()
-                    .help(toolpath.targets.count == 1 ? "1 shape selected" : "\(toolpath.targets.count) shapes selected")
+                    .help(toolpath.selectionSummary)
             }
 
             Text(Self.endZText(of: toolpath))

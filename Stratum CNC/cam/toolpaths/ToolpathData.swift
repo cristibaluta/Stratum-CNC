@@ -42,6 +42,9 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     /// user picks some — picked on the canvas while the toolpath is open (see CAMModel.selectedToolpathID).
     var targets: [PathSelection] = []
 
+    /// The STEP model edges this toolpath cuts, picked in the 3D canvas. Cut together with `targets`.
+    var stepTargets: [STEPEdgeTarget] = []
+
     /// What the toolpath does (contour, pocket, drill…) and that operation's own options.
     /// `contour` (the contour's side) and `ramping` (the entry) above are used by the
     /// operations that have them; see `OperationKind`.
@@ -60,7 +63,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
         case contour, ramping
         case feedRate, plungeRate, spindleRPM
         case stepDown, stepOverPercent, safeZ, retractZ, entryZ
-        case targets
+        case targets, stepTargets
         case operation, editedFields
     }
 }
@@ -152,7 +155,20 @@ extension ToolpathData {
         if operation.kind == .restMachining {
             return operation.restSourceID != nil   // its geometry is its source pocket's corners
         }
-        return !targets.isEmpty || cutsWholeStock
+        return hasSelectedTargets || cutsWholeStock
+    }
+
+    /// Shapes or STEP edges are selected.
+    var hasSelectedTargets: Bool {
+        !targets.isEmpty || !stepTargets.isEmpty
+    }
+
+    /// What is selected, for the panels: "2 shapes selected", "3 edges selected".
+    var selectionSummary: String {
+        var parts: [String] = []
+        if !targets.isEmpty { parts.append("\(targets.count) shape\(targets.count == 1 ? "" : "s")") }
+        if !stepTargets.isEmpty { parts.append("\(stepTargets.count) edge\(stepTargets.count == 1 ? "" : "s")") }
+        return parts.isEmpty ? "Click shapes to select" : parts.joined(separator: " + ") + " selected"
     }
 
     /// How far the tool goes down from the top of the stock (or from Start Z when that is
@@ -304,6 +320,7 @@ extension ToolpathData {
         }
 
         targets = try c.decodeIfPresent([PathSelection].self, forKey: .targets) ?? []
+        stepTargets = try c.decodeIfPresent([STEPEdgeTarget].self, forKey: .stepTargets) ?? []
 
         // Projects saved before operations existed were all contours.
         operation = try c.decodeIfPresent(OperationSettings.self, forKey: .operation) ?? OperationSettings()

@@ -26,6 +26,8 @@ struct CAM_Metal_View: View {
     /// How many shapes an "Add toolpath" tooltip would use; 0 hides the tooltip.
     /// The owner decides when it is allowed (e.g. not while a toolpath is open).
     let addToolpathShapeCount: Int
+    /// 3D mode: the selected STEP edges can become a toolpath (false while a toolpath is open).
+    let canAddToolpathFromEdges: Bool
     let onAddToolpath: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
@@ -34,12 +36,14 @@ struct CAM_Metal_View: View {
          mode: CAMCanvasMode = .design2D,
          stepScene: STEPDocumentScene? = nil,
          addToolpathShapeCount: Int = 0,
+         canAddToolpathFromEdges: Bool = false,
          onAddToolpath: @escaping () -> Void = {}) {
         _scene = StateObject(wrappedValue: CAMSceneModel(canvasState: canvasState))
         self.zoomModel = zoomModel
         self.mode = mode
         self.stepScene = stepScene
         self.addToolpathShapeCount = addToolpathShapeCount
+        self.canAddToolpathFromEdges = canAddToolpathFromEdges
         self.onAddToolpath = onAddToolpath
     }
 
@@ -84,7 +88,8 @@ struct CAM_Metal_View: View {
         if let stepScene {
             STEP3DCanvas(scene: stepScene, sceneObjects: scene.renderObjects,
                          clearColor: scene.backgroundColor, isDark: colorScheme == .dark,
-                         zoomModel: zoomModel)
+                         zoomModel: zoomModel,
+                         canAddToolpath: canAddToolpathFromEdges, onAddToolpath: onAddToolpath)
         } else {
             MetalCanvasView(objects: .constant(scene.renderObjects),
                             interactionMode: .free3D,
@@ -104,6 +109,8 @@ private struct STEP3DCanvas: View {
     let clearColor: SIMD4<Float>
     let isDark: Bool
     let zoomModel: CanvasZoomModel
+    let canAddToolpath: Bool
+    let onAddToolpath: () -> Void
 
     var body: some View {
         MetalCanvasView(objects: .constant(sceneObjects + scene.visibleObjects),
@@ -119,6 +126,69 @@ private struct STEP3DCanvas: View {
             .id(ObjectIdentifier(scene))
             .onAppear { scene.setAppearance(isDark: isDark) }
             .onChange(of: isDark) { _, dark in scene.setAppearance(isDark: dark) }
+            .overlay {
+                if canAddToolpath {
+                    STEPAddToolpathTooltipLayer(scene: scene, zoomModel: zoomModel, onAdd: onAddToolpath)
+                }
+            }
+    }
+}
+
+/// The "Add toolpath" tooltip of the 2D canvas, over the selected STEP edges. It follows the
+/// selection's top as the camera orbits, pans and zooms.
+private struct STEPAddToolpathTooltipLayer: View {
+
+    @ObservedObject var scene: STEPDocumentScene
+    let zoomModel: CanvasZoomModel
+    let onAdd: () -> Void
+
+    @State private var frameTick = 0
+
+    private static let gap: CGFloat = 6
+    private static let minAnchorY: CGFloat = 56
+    private static let horizontalMargin: CGFloat = 110
+
+    var body: some View {
+        let _ = frameTick
+        GeometryReader { proxy in
+            let count = scene.selectedEdges.count
+            if count > 0, let anchor = anchor(in: proxy.size) {
+                AddToolpathTooltip(shapeCount: count, noun: "edge", onAdd: onAdd)
+                    .fixedSize()
+                    .frame(width: 0, height: 0, alignment: .bottom)
+                    .position(anchor)
+                    .transition(.opacity)
+            }
+        }
+        .onReceive(zoomModel.frameRendered.receive(on: DispatchQueue.main)) { _ in
+            frameTick &+= 1
+        }
+    }
+
+    /// The highest point of the selection's bounding box on screen, centered horizontally on it.
+    private func anchor(in size: CGSize) -> CGPoint? {
+        guard let box = scene.selectionBox, size.width > 0, size.height > 0 else {
+            return nil
+        }
+        var projected: [CGPoint] = []
+        for x in [box.min.x, box.max.x] {
+            for y in [box.min.y, box.max.y] {
+                for z in [box.min.z, box.max.z] {
+                    if let point = zoomModel.normalizedViewPoint(forWorld: SIMD3<Float>(x, y, z)) {
+                        projected.append(point)
+                    }
+                }
+            }
+        }
+        guard let top = projected.map(\.y).min(),
+              let left = projected.map(\.x).min(),
+              let right = projected.map(\.x).max() else {
+            return nil
+        }
+        let margin = min(Self.horizontalMargin, size.width / 2)
+        let x = min(max((left + right) / 2 * size.width, margin), size.width - margin)
+        let y = max(top * size.height - Self.gap, Self.minAnchorY)
+        return CGPoint(x: x, y: y)
     }
 }
 
@@ -179,13 +249,14 @@ private struct AddToolpathTooltipLayer: View {
 private struct AddToolpathTooltip: View {
 
     let shapeCount: Int
+    var noun = "shape"
     let onAdd: () -> Void
 
     private static let arrowSize = CGSize(width: 16, height: 8)
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(shapeCount == 1 ? "1 shape selected" : "\(shapeCount) shapes selected")
+            Text(shapeCount == 1 ? "1 \(noun) selected" : "\(shapeCount) \(noun)s selected")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             Button(action: onAdd) {
