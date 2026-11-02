@@ -4,12 +4,6 @@
 //
 //  Created by Cristian Baluta on 21.09.2026.
 //
-
-
-//
-//  D2_RenderObjectBuilder.swift
-//  Stratum CNC
-//
 //  Converts CAM's vector data — `D2_Object`'s Bezier paths, and
 //  `D2_CanvasState.toolpathsPath` — into `RenderObject`s the Metal canvas
 //  can draw. This is the "B"/"C" workstream of the plan to reuse

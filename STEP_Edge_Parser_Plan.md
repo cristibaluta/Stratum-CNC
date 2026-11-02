@@ -26,7 +26,7 @@ Selection identity is import ID + representation/body identity + EDGE_CURVE enti
 
 Index without building the full parameter tree; lazily parse/cache reached entities. Bound tokens, nesting, reference recursion and sampling; check cancellation during scans/traversal. Structural corruption is fatal; unsupported/broken individual edges are skipped with diagnostics. Never swallow cancellation as a geometry warning or manufacture selectable straight chords for unsupported curves.
 
-## Step 1 — Tokenizer/index, context units and scoped line extraction
+## Step 1[done] — Tokenizer/index, context units and scoped line extraction
 
 - Lex DATA/ENDSEC, sparse/forward refs, simple/complex records, nested lists, doubled-quote strings, comments, enums, `$`, `*`, signed integers, decimal/exponent reals and typed values such as LENGTH_MEASURE(25.4).
 - Reject duplicate IDs, malformed/truncated input, excessive nesting and nonfinite numbers. Preserve string escape text; decoding STEP non-ASCII name escapes can wait. Initially support one unparameterized DATA section.
@@ -37,7 +37,7 @@ Index without building the full parameter tree; lazily parse/cache reached entit
 - Synchronous testable core plus async URL entry that runs off the main actor and propagates cancellation. No app import wiring yet.
 - Tests: generated 10 × 10 × 1 box (12 edges, 8 vertex IDs, two adjacent faces per edge); mm/metre/inch/foot/context-specific units; complex/sparse records; unrelated edges; broken refs; unsupported curves; empty results; malformed input and cancellation.
 
-## Step 2 — Free-3D display and edge selection
+## Step 2 [done] — Free-3D display and edge selection
 
 - Wire CAMModel STEP import dispatch (extensions are already advertised).
 - CAM_Metal_View is locked2D; add a dedicated STEP scene/free3D path without regressing 2D editing. MetalCanvasView.handleClick is currently a stub.

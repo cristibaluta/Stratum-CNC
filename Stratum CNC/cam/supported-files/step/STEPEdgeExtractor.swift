@@ -6,10 +6,14 @@ final class STEPEdgeExtractor {
     private let options: STEPImportOptions
     private var model: STEPEdgeModel
     private static let representationTypes: Set<String> = [
-        "SHAPE_REPRESENTATION", "ADVANCED_BREP_SHAPE_REPRESENTATION",
-        "MANIFOLD_SURFACE_SHAPE_REPRESENTATION", "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION"
+        "SHAPE_REPRESENTATION",
+        "ADVANCED_BREP_SHAPE_REPRESENTATION",
+        "MANIFOLD_SURFACE_SHAPE_REPRESENTATION",
+        "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION"
     ]
-    private static let bodyTypes: Set<String> = ["MANIFOLD_SOLID_BREP", "BREP_WITH_VOIDS", "SHELL_BASED_SURFACE_MODEL"]
+    private static let bodyTypes: Set<String> = ["MANIFOLD_SOLID_BREP",
+                                                 "BREP_WITH_VOIDS",
+                                                 "SHELL_BASED_SURFACE_MODEL"]
 
     init(file: STEPFile, importID: UUID, options: STEPImportOptions) {
         self.file = file
@@ -22,17 +26,28 @@ final class STEPEdgeExtractor {
         if let scale = options.assumedUnitScaleToMM, !scale.isFinite || scale <= 0 {
             throw STEPParseError("Assumed unit scale must be finite and positive")
         }
-        let assemblies = file.entities(ofTypes: ["MAPPED_ITEM", "NEXT_ASSEMBLY_USAGE_OCCURRENCE", "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION"])
-        guard assemblies.isEmpty else { throw STEPParseError("Assembly placement is not supported yet (entity #\(assemblies[0]))") }
+        let assemblies = file.entities(ofTypes: ["MAPPED_ITEM",
+                                                 "NEXT_ASSEMBLY_USAGE_OCCURRENCE",
+                                                 "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION"])
+        guard assemblies.isEmpty else {
+            throw STEPParseError("Assembly placement is not supported yet (entity #\(assemblies[0]))")
+        }
         model.indexedEntityCount = file.index.count
+
         for representationID in file.entities(ofTypes: Self.representationTypes) {
             try Task.checkCancellation()
             let parts = try file.components(representationID)
+
             guard let representation = parts.first(where: { $0.type == "REPRESENTATION" })
-                ?? parts.first(where: { Self.representationTypes.contains($0.type) }) else { continue }
+                ?? parts.first(where: { Self.representationTypes.contains($0.type) }) else {
+                continue
+            }
             let items = try representation.parameters.references(at: 1)
             let bodyIDs = Set(items.filter { id in Self.bodyTypes.contains { file.hasType(id, $0) } }).sorted()
-            guard !bodyIDs.isEmpty else { continue }
+
+            guard !bodyIDs.isEmpty else {
+                continue
+            }
             let contextID = try representation.parameters.reference(at: 2)
             let scale: Double
             let assumed: Bool
@@ -40,7 +55,9 @@ final class STEPEdgeExtractor {
                 scale = try STEPUnits(file: file).scaleToMM(contextID: contextID)
                 assumed = false
             } catch let error as STEPParseError {
-                guard let fallback = options.assumedUnitScaleToMM else { throw error }
+                guard let fallback = options.assumedUnitScaleToMM else {
+                    throw error
+                }
                 scale = fallback
                 assumed = true
                 diagnose(contextID, "\(error); explicitly assuming \(fallback) mm per source unit")
@@ -67,6 +84,7 @@ final class STEPEdgeExtractor {
         }
         if model.bodies.isEmpty { diagnose(nil, "No supported solid/shell bodies in shape representations") }
         if model.edges.isEmpty { diagnose(nil, "No supported line edges were extracted") }
+
         return model
     }
 
@@ -143,14 +161,22 @@ final class STEPEdgeExtractor {
         }
         // Vertex order is canonical EDGE_CURVE order, independent of ORIENTED_EDGE uses.
         let points = [try vertex(start, scale: scale), try vertex(end, scale: scale)]
-        guard points[0] != points[1] else { throw STEPParseError("Degenerate line edge") }
-        return STEPEdge(id: STEPEdgeID(importID: model.importID, bodyID: body, entityID: id), kind: .line,
-                        points: points, startVertexID: start, endVertexID: end, adjacentFaceIDs: faces)
+        guard points[0] != points[1] else {
+            throw STEPParseError("Degenerate line edge")
+        }
+        return STEPEdge(id: STEPEdgeID(importID: model.importID, bodyID: body, entityID: id),
+                        kind: .line,
+                        points: points,
+                        startVertexID: start,
+                        endVertexID: end,
+                        adjacentFaceIDs: faces)
     }
 
     private func unwrapCurve(_ id: Int, visited: Set<Int>) throws -> Int {
         try Task.checkCancellation()
-        guard visited.count < 64, !visited.contains(id) else { throw STEPParseError("Cyclic/deep curve reference #\(id)") }
+        guard visited.count < 64, !visited.contains(id) else {
+            throw STEPParseError("Cyclic/deep curve reference #\(id)")
+        }
         let parts = try file.components(id)
         if let wrapper = parts.first(where: { ["SURFACE_CURVE", "SEAM_CURVE", "INTERSECTION_CURVE"].contains($0.type) }) {
             var visited = visited

@@ -14,7 +14,7 @@ struct STEPDisplayGeometry: Sendable {
         let edges: [EdgeRange]
     }
     let origin: SIMD3<Double>
-    let bodies: [Body]
+    var bodies: [Body]
 
     init(model: STEPEdgeModel) throws {
         let origin: SIMD3<Double>

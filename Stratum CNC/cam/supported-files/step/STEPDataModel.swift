@@ -53,7 +53,9 @@ struct STEPBodyInfo: Sendable {
 }
 
 struct STEPEdge: Sendable {
-    enum CurveKind: Sendable { case line }
+    enum CurveKind: Sendable {
+        case line
+    }
     let id: STEPEdgeID
     let kind: CurveKind
     let points: [SIMD3<Double>]
