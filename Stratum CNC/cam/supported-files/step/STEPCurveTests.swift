@@ -70,6 +70,30 @@ private final class StepBuilder {
         add("EDGE_CURVE('',#\(start),#\(end),#\(curve),.\(sameSense ? "T" : "F").)")
     }
 
+    func ellipse(placement: Int, semiAxis1: Double, semiAxis2: Double) -> Int {
+        add("ELLIPSE('',#\(placement),\(Self.real(semiAxis1)),\(Self.real(semiAxis2)))")
+    }
+
+    func polyline(_ points: [SIMD3<Double>]) -> Int {
+        let ids = points.map { point($0) }
+        return add("POLYLINE('',(\(ids.map { "#\($0)" }.joined(separator: ","))))")
+    }
+
+    /// Simple record when `weights` is nil, otherwise the complex rational record.
+    func bspline(degree: Int, points: [SIMD3<Double>], weights: [Double]? = nil,
+                 multiplicities: [Int], knots: [Double]) -> Int {
+        let refs = "(" + points.map { "#\(point($0))" }.joined(separator: ",") + ")"
+        let mults = "(" + multiplicities.map { String($0) }.joined(separator: ",") + ")"
+        let knotList = "(" + knots.map { Self.real($0) }.joined(separator: ",") + ")"
+        guard let weights else {
+            return add("B_SPLINE_CURVE_WITH_KNOTS('',\(degree),\(refs),.UNSPECIFIED.,.F.,.F.,\(mults),\(knotList),.UNSPECIFIED.)")
+        }
+        let w = "(" + weights.map { Self.real($0) }.joined(separator: ",") + ")"
+        return add("( BOUNDED_CURVE() B_SPLINE_CURVE(\(degree),\(refs),.UNSPECIFIED.,.F.,.F.) "
+                   + "B_SPLINE_CURVE_WITH_KNOTS(\(mults),\(knotList),.UNSPECIFIED.) CURVE() "
+                   + "GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE(\(w)) REPRESENTATION_ITEM('') )")
+    }
+
     typealias Use = (edge: Int, forward: Bool)
     static func fwd(_ edge: Int) -> Use { (edge, true) }
     static func rev(_ edge: Int) -> Use { (edge, false) }
@@ -476,13 +500,17 @@ struct STEPCurveTests {
         }
     }
 
-    @Test func otherCurvesAreStillSkippedWithADiagnostic() throws {
-        let b = StepBuilder()
-        let ellipse = b.add("ELLIPSE('',#\(b.placement(origin: .zero)),5.E+00,3.E+00)")
-        let edge = b.edge(start: b.vertex(SIMD3(5, 0, 0)), end: b.vertex(SIMD3(0, 3, 0)), curve: ellipse)
-        let model = try parse(b.data(loops: [[StepBuilder.fwd(edge)]]))
-        #expect(model.edges.isEmpty)
-        #expect(model.diagnostics.contains { $0.message.contains("Unsupported curve ELLIPSE") })
+    @Test func unsupportedCurvesAreStillSkippedWithADiagnostic() throws {
+        for (type, body) in [("PARABOLA", "PARABOLA('',#PLACEMENT,2.E+00)"),
+                             ("HYPERBOLA", "HYPERBOLA('',#PLACEMENT,2.E+00,1.E+00)"),
+                             ("QUASI_UNIFORM_CURVE", "QUASI_UNIFORM_CURVE('',2,(),.UNSPECIFIED.,.F.,.F.)")] {
+            let b = StepBuilder()
+            let curve = b.add(body.replacingOccurrences(of: "PLACEMENT", with: "\(b.placement(origin: .zero))"))
+            let edge = b.edge(start: b.vertex(SIMD3(5, 0, 0)), end: b.vertex(SIMD3(0, 3, 0)), curve: curve)
+            let model = try parse(b.data(loops: [[StepBuilder.fwd(edge)]]))
+            #expect(model.edges.isEmpty)
+            #expect(model.diagnostics.contains { $0.message.contains("Unsupported curve \(type)") }, "\(type)")
+        }
     }
 }
 
@@ -497,4 +525,386 @@ struct TrimCase: Sendable, CustomTestStringConvertible {
     let sameSense: Bool
     let reversedVertices: Bool
     var testDescription: String { name }
+}
+
+// MARK: - Step 4 helpers
+
+/// One edge on a curve built by `curve`; `sameVertex` reuses the start vertex as the end.
+private func singleEdge(_ b: StepBuilder = StepBuilder(), start: SIMD3<Double>, end: SIMD3<Double>,
+                        sameSense: Bool = true, sameVertex: Bool = false,
+                        curve: (StepBuilder) -> Int) -> Data {
+    let curveID = curve(b)
+    let startVertex = b.vertex(start)
+    let endVertex = sameVertex ? startVertex : b.vertex(end)
+    let edge = b.edge(start: startVertex, end: endVertex, curve: curveID, sameSense: sameSense)
+    return b.data(loops: [[StepBuilder.fwd(edge)]])
+}
+
+/// Largest distance from a densely sampled true curve to the polyline that stands in for it.
+private func deviation(of polyline: [SIMD3<Double>], from curve: (Double) -> SIMD3<Double>,
+                       over range: ClosedRange<Double>, samples: Int = 1500) -> Double {
+    var worst = 0.0
+    for index in 0...samples {
+        let t = range.lowerBound + (range.upperBound - range.lowerBound) * Double(index) / Double(samples)
+        let target = curve(t)
+        var best = Double.infinity
+        for (a, b) in zip(polyline, polyline.dropFirst()) {
+            best = min(best, STEPSegment.closest(to: target, a, b).distance)
+        }
+        worst = max(worst, best)
+    }
+    return worst
+}
+
+private let rationalWeight = 2.0.squareRoot() / 2
+
+/// Quarter circle of radius 5 as a degree-2 rational B-spline: exactly round.
+private func quarterCircle(_ b: StepBuilder) -> Int {
+    b.bspline(degree: 2, points: [SIMD3(5, 0, 0), SIMD3(5, 5, 0), SIMD3(0, 5, 0)],
+              weights: [1, rationalWeight, 1], multiplicities: [3, 3], knots: [0, 1])
+}
+
+/// Full circle of radius 5 as a closed, clamped, degree-2 rational B-spline starting at (5, 0).
+private func fullCircle(_ b: StepBuilder) -> Int {
+    b.bspline(degree: 2,
+              points: [SIMD3(5, 0, 0), SIMD3(5, 5, 0), SIMD3(0, 5, 0), SIMD3(-5, 5, 0), SIMD3(-5, 0, 0),
+                       SIMD3(-5, -5, 0), SIMD3(0, -5, 0), SIMD3(5, -5, 0), SIMD3(5, 0, 0)],
+              weights: [1, rationalWeight, 1, rationalWeight, 1, rationalWeight, 1, rationalWeight, 1],
+              multiplicities: [3, 2, 2, 2, 3], knots: [0, 0.25, 0.5, 0.75, 1])
+}
+
+private let bezierPoints = [SIMD3<Double>(0, 0, 0), SIMD3(10, 20, 0), SIMD3(30, 20, 0), SIMD3(40, 0, 0)]
+
+private func bezier(_ t: Double) -> SIMD3<Double> {
+    let u = 1 - t
+    return u * u * u * bezierPoints[0] + 3 * u * u * t * bezierPoints[1]
+        + 3 * u * t * t * bezierPoints[2] + t * t * t * bezierPoints[3]
+}
+
+private func cubicBezier(_ b: StepBuilder) -> Int {
+    b.bspline(degree: 3, points: bezierPoints, multiplicities: [4, 4], knots: [0, 1])
+}
+
+private func ellipsePoint(_ t: Double, _ a: Double, _ b: Double) -> SIMD3<Double> { SIMD3(a * cos(t), b * sin(t), 0) }
+
+// MARK: - Ellipses
+
+@Suite("STEP ellipses")
+struct STEPEllipseTests {
+
+    @Test func fullEllipseStaysWithinTolerance() throws {
+        let data = singleEdge(start: SIMD3(10, 0, 0), end: .zero, sameVertex: true) { b in
+            b.ellipse(placement: b.placement(origin: .zero), semiAxis1: 10, semiAxis2: 5)
+        }
+        let edge = try #require(try parse(data).edges.first)
+        #expect(edge.kind == .ellipse)
+        #expect(near(edge.points.first!, edge.points.last!))
+        #expect(edge.points.allSatisfy { abs($0.x * $0.x / 100 + $0.y * $0.y / 25 - 1) < 1e-9 && abs($0.z) < 1e-12 })
+        #expect(edge.chordError <= 0.01 + 1e-9)
+        #expect(deviation(of: edge.points, from: { ellipsePoint($0, 10, 5) }, over: 0...(2 * .pi)) <= 0.01 + 1e-6)
+    }
+
+    @Test func ellipticalArcUsesTheEdgeInterval() throws {
+        // A 1 mm tolerance keeps the quarter at two segments, so the middle sample is t = π/4.
+        let data = singleEdge(start: SIMD3(10, 0, 0), end: SIMD3(0, 5, 0)) { b in
+            b.ellipse(placement: b.placement(origin: .zero), semiAxis1: 10, semiAxis2: 5)
+        }
+        let edge = try #require(try parse(data, STEPImportOptions(chordToleranceMM: 1)).edges.first)
+        #expect(edge.kind == .ellipticalArc)
+        #expect(edge.points.count == 3)
+        #expect(near(edge.points[1], ellipsePoint(.pi / 4, 10, 5)))
+        #expect(near(edge.points[0], SIMD3(10, 0, 0)) && near(edge.points[2], SIMD3(0, 5, 0)))
+    }
+
+    @Test func reversedEllipseTakesTheShortWayBack() throws {
+        let data = singleEdge(start: SIMD3(0, 5, 0), end: SIMD3(10, 0, 0), sameSense: false) { b in
+            b.ellipse(placement: b.placement(origin: .zero), semiAxis1: 10, semiAxis2: 5)
+        }
+        let edge = try #require(try parse(data).edges.first)
+        #expect(edge.points.allSatisfy { $0.x > -1e-9 && $0.y > -1e-9 }, "stays in the first quadrant")
+        #expect(near(edge.points.first!, SIMD3(0, 5, 0)) && near(edge.points.last!, SIMD3(10, 0, 0)))
+    }
+
+    @Test func semiAxisOneRunsAlongTheFrameX() throws {
+        // (0, 10) lies on the 5 × 10 ellipse (x-axis 5, y-axis 10) but not on the 10 × 5 one.
+        func edge(_ first: Double, _ second: Double) throws -> STEPEdgeModel {
+            try parse(singleEdge(start: SIMD3(5, 0, 0), end: SIMD3(0, 10, 0)) { b in
+                b.ellipse(placement: b.placement(origin: .zero), semiAxis1: first, semiAxis2: second)
+            })
+        }
+        #expect(try edge(5, 10).edges.count == 1)
+        let wrong = try edge(10, 5)
+        #expect(wrong.edges.isEmpty && wrong.diagnostics.contains { $0.message.contains("not on its ellipse") })
+    }
+
+    @Test func parameterTrimsAreEllipseParameters() throws {
+        // t = π/2 is (0, b), not the point at polar angle π/2 on a unit circle of radius a.
+        let data = singleEdge(start: SIMD3(10, 0, 0), end: SIMD3(0, 5, 0)) { b in
+            let ellipse = b.ellipse(placement: b.placement(origin: .zero), semiAxis1: 10, semiAxis2: 5)
+            return b.trimmed(basis: ellipse, first: "(PARAMETER_VALUE(0.E+00))",
+                             second: "(PARAMETER_VALUE(\(StepBuilder.real(.pi / 2))))",
+                             senseAgreement: true, master: "PARAMETER")
+        }
+        #expect(try parse(data).edges.first?.kind == .ellipticalArc)
+    }
+
+    @Test func eccentricEllipseIsRefinedWhereItBends() throws {
+        let data = singleEdge(start: SIMD3(50, 0, 0), end: .zero, sameVertex: true) { b in
+            b.ellipse(placement: b.placement(origin: .zero), semiAxis1: 50, semiAxis2: 1)
+        }
+        let model = try parse(data)
+        let edge = try #require(model.edges.first)
+        #expect(model.diagnostics.isEmpty, "a probe-verified polygon must not trigger the tolerance warning")
+        #expect(deviation(of: edge.points, from: { ellipsePoint($0, 50, 1) }, over: 0...(2 * .pi), samples: 4000) <= 0.01 + 1e-6)
+    }
+}
+
+// MARK: - Polylines
+
+@Suite("STEP polylines")
+struct STEPPolylineTests {
+    private let path = [SIMD3<Double>(0, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 10, 0), SIMD3(20, 10, 0)]
+
+    private func parseEdge(from start: SIMD3<Double>, to end: SIMD3<Double>, sameSense: Bool = true,
+                           polyline: [SIMD3<Double>]? = nil) throws -> STEPEdgeModel {
+        try parse(singleEdge(start: start, end: end, sameSense: sameSense) { $0.polyline(polyline ?? path) })
+    }
+
+    @Test func wholePolyline() throws {
+        let edge = try #require(try parseEdge(from: path[0], to: path[3]).edges.first)
+        #expect(edge.kind == .polyline)
+        #expect(edge.points.count == 4)
+        #expect(zip(edge.points, path).allSatisfy { near($0, $1) })
+    }
+
+    @Test func edgeIsCutOutOfTheMiddle() throws {
+        let edge = try #require(try parseEdge(from: SIMD3(5, 0, 0), to: SIMD3(10, 5, 0)).edges.first)
+        let expected = [SIMD3<Double>(5, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 5, 0)]
+        #expect(edge.points.count == 3 && zip(edge.points, expected).allSatisfy { near($0, $1) })
+    }
+
+    @Test func reversedSenseWalksBackwards() throws {
+        let edge = try #require(try parseEdge(from: SIMD3(10, 5, 0), to: SIMD3(5, 0, 0), sameSense: false).edges.first)
+        let expected = [SIMD3<Double>(10, 5, 0), SIMD3(10, 0, 0), SIMD3(5, 0, 0)]
+        #expect(edge.points.count == 3 && zip(edge.points, expected).allSatisfy { near($0, $1) })
+    }
+
+    @Test func contradictoryDirectionAndOffCurveVerticesAreSkipped() throws {
+        let backwards = try parseEdge(from: SIMD3(10, 5, 0), to: SIMD3(5, 0, 0))
+        #expect(backwards.edges.isEmpty && backwards.diagnostics.contains { $0.message.contains("contradict") })
+        let off = try parseEdge(from: SIMD3(5, 3, 0), to: path[3])
+        #expect(off.edges.isEmpty && off.diagnostics.contains { $0.message.contains("not on its curve") })
+    }
+
+    @Test func closedPolylineWrapsAroundItsSeam() throws {
+        let square = [SIMD3<Double>(0, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 10, 0), SIMD3(0, 10, 0), SIMD3(0, 0, 0)]
+        // (10,10) → (5,0) forward must continue past the seam: three corners, then back along the bottom.
+        let edge = try #require(try parseEdge(from: SIMD3(10, 10, 0), to: SIMD3(5, 0, 0), polyline: square).edges.first)
+        let expected = [SIMD3<Double>(10, 10, 0), SIMD3(0, 10, 0), SIMD3(0, 0, 0), SIMD3(5, 0, 0)]
+        #expect(edge.points.count == 4 && zip(edge.points, expected).allSatisfy { near($0, $1) })
+
+        let lap = try #require(try parse(singleEdge(start: square[0], end: square[0], sameVertex: true) { $0.polyline(square) }).edges.first)
+        #expect(lap.points.count == 5 && near(lap.points.first!, lap.points.last!))
+    }
+}
+
+// MARK: - B-splines
+
+@Suite("STEP B-splines")
+struct STEPBSplineTests {
+
+    // MARK: Evaluation (independent closed forms)
+
+    @Test func cubicBezierMatchesBernsteinForm() throws {
+        let spline = try STEPBSpline(degree: 3, controlPoints: bezierPoints, weights: nil, multiplicities: [4, 4], knotValues: [0, 1])
+        for t in stride(from: 0.0, through: 1.0, by: 0.125) {
+            #expect(near(spline.point(at: t), bezier(t)))
+        }
+    }
+
+    @Test func rationalQuarterCircleIsExactlyRound() throws {
+        let spline = try STEPBSpline(degree: 2, controlPoints: [SIMD3(5, 0, 0), SIMD3(5, 5, 0), SIMD3(0, 5, 0)],
+                                     weights: [1, rationalWeight, 1], multiplicities: [3, 3], knotValues: [0, 1])
+        for t in stride(from: 0.0, through: 1.0, by: 0.05) {
+            #expect(abs(simd_length(spline.point(at: t)) - 5) < 1e-12)
+        }
+        #expect(near(spline.point(at: 0.5), SIMD3(5 * cos(.pi / 4), 5 * sin(.pi / 4), 0)))
+    }
+
+    @Test func interiorKnotsAndUnclampedKnotVectors() throws {
+        // Interior knot of multiplicity 3 = degree: the curve passes through that control point.
+        let c0 = try STEPBSpline(degree: 3,
+                                 controlPoints: [SIMD3(0, 0, 0), SIMD3(1, 1, 0), SIMD3(2, -1, 0), SIMD3(3, 0, 0),
+                                                 SIMD3(4, 1, 0), SIMD3(5, -1, 0), SIMD3(6, 0, 0)],
+                                 weights: nil, multiplicities: [4, 3, 4], knotValues: [0, 1, 2])
+        #expect(c0.domain == 0...2)
+        #expect(near(c0.point(at: 0), SIMD3(0, 0, 0)) && near(c0.point(at: 1), SIMD3(3, 0, 0)) && near(c0.point(at: 2), SIMD3(6, 0, 0)))
+        // Uniform knots 0...7, degree 2, five points: the domain is [2, 5] and the ends are midpoints.
+        let open = try STEPBSpline(degree: 2,
+                                   controlPoints: [SIMD3(0, 0, 0), SIMD3(1, 1, 0), SIMD3(2, 0, 0), SIMD3(3, 1, 0), SIMD3(4, 0, 0)],
+                                   weights: nil, multiplicities: Array(repeating: 1, count: 8), knotValues: (0..<8).map { Double($0) })
+        #expect(open.domain == 2...5)
+        #expect(near(open.point(at: 2), SIMD3(0.5, 0.5, 0)) && near(open.point(at: 5), SIMD3(3.5, 0.5, 0)))
+    }
+
+    @Test func invalidSplinesAreRejected() {
+        let points = Array(repeating: SIMD3<Double>(0, 0, 0), count: 6)
+        func make(degree: Int = 3, count: Int = 4, weights: [Double]? = nil, mults: [Int] = [4, 4],
+                  knots: [Double] = [0, 1]) throws -> STEPBSpline {
+            try STEPBSpline(degree: degree, controlPoints: Array(points.prefix(count)), weights: weights,
+                            multiplicities: mults, knotValues: knots)
+        }
+        #expect(throws: STEPParseError.self) { try make(degree: 0) }                       // degree
+        #expect(throws: STEPParseError.self) { try make(count: 3, mults: [4, 3]) }         // too few points
+        #expect(throws: STEPParseError.self) { try make(mults: [4, 3]) }                   // knot count
+        #expect(throws: STEPParseError.self) { try make(mults: [4, 4], knots: [1, 1]) }    // not increasing
+        #expect(throws: STEPParseError.self) { try make(knots: [1, 0]) }
+        #expect(throws: STEPParseError.self) { try make(mults: [5, 3]) }                   // end multiplicity
+        #expect(throws: STEPParseError.self) { try make(count: 5, mults: [4, 4, 4], knots: [0, 1, 2]) }
+        #expect(throws: STEPParseError.self) { try make(weights: [1, 1, 0, 1]) }           // zero weight
+        #expect(throws: STEPParseError.self) { try make(weights: [1, 1, 1]) }              // weight count
+    }
+
+    @Test func projectionFindsTheParameter() throws {
+        let spline = try STEPBSpline(degree: 3, controlPoints: bezierPoints, weights: nil, multiplicities: [4, 4], knotValues: [0, 1])
+        let hit = STEPBSplineProjector(spline).closest(to: bezier(0.3))
+        #expect(abs(hit.t - 0.3) < 1e-6 && hit.distance < 1e-9)
+    }
+
+    // MARK: Sampling
+
+    @Test func bezierEdgeFollowsTheCurve() throws {
+        let data = singleEdge(start: bezierPoints[0], end: bezierPoints[3]) { cubicBezier($0) }
+        let model = try parse(data)
+        let edge = try #require(model.edges.first)
+        #expect(edge.kind == .bspline && model.diagnostics.isEmpty)
+        #expect(near(edge.points.first!, bezierPoints[0]) && near(edge.points.last!, bezierPoints[3]))
+        let spline = try STEPBSpline(degree: 3, controlPoints: bezierPoints, weights: nil, multiplicities: [4, 4], knotValues: [0, 1])
+        let projector = STEPBSplineProjector(spline)
+        #expect(edge.points.allSatisfy { projector.closest(to: $0).distance < 1e-6 }, "every sample lies on the curve")
+        #expect(deviation(of: edge.points, from: bezier, over: 0...1) <= 0.01 + 1e-6)
+        #expect(edge.chordError <= 0.01)
+    }
+
+    @Test func sBendWhoseMidpointLiesOnTheChordIsNotMissed() throws {
+        // Anti-symmetric control polygon: the t = 0.5 point is on the chord, so a midpoint-only
+        // flatness test would accept the whole curve as one segment.
+        let points = [SIMD3<Double>(0, 0, 0), SIMD3(10, 30, 0), SIMD3(20, -30, 0), SIMD3(30, 0, 0)]
+        func s(_ t: Double) -> SIMD3<Double> {
+            let u = 1 - t
+            return u * u * u * points[0] + 3 * u * u * t * points[1] + 3 * u * t * t * points[2] + t * t * t * points[3]
+        }
+        #expect(near(s(0.5), SIMD3(15, 0, 0)))
+        let data = singleEdge(start: points[0], end: points[3]) { b in
+            b.bspline(degree: 3, points: points, multiplicities: [4, 4], knots: [0, 1])
+        }
+        let edge = try #require(try parse(data).edges.first)
+        #expect(edge.points.count > 10)
+        #expect(deviation(of: edge.points, from: s, over: 0...1) <= 0.01 + 1e-6)
+    }
+
+    @Test func rationalComplexRecordIsExactlyRound() throws {
+        let data = singleEdge(start: SIMD3(5, 0, 0), end: SIMD3(0, 5, 0)) { quarterCircle($0) }
+        let edge = try #require(try parse(data).edges.first)
+        #expect(edge.kind == .bspline)
+        #expect(edge.points.dropFirst().dropLast().allSatisfy { abs(simd_length($0) - 5) < 1e-9 })
+        #expect(deviation(of: edge.points, from: { onCircle($0) }, over: 0...(.pi / 2)) <= 0.01 + 1e-6)
+    }
+
+    @Test func tightToleranceIsCappedAndReported() throws {
+        let data = singleEdge(start: bezierPoints[0], end: bezierPoints[3]) { cubicBezier($0) }
+        let model = try parse(data, STEPImportOptions(chordToleranceMM: 1e-9))
+        let edge = try #require(model.edges.first)
+        #expect(edge.points.count <= 25_000)
+        #expect(model.diagnostics.contains { $0.message.contains("exceeds") })
+    }
+
+    // MARK: Edge intervals
+
+    @Test func reversedSenseRunsFromTheCurveEnd() throws {
+        let data = singleEdge(start: SIMD3(0, 5, 0), end: SIMD3(5, 0, 0), sameSense: false) { quarterCircle($0) }
+        let edge = try #require(try parse(data).edges.first)
+        #expect(near(edge.points.first!, SIMD3(0, 5, 0)) && near(edge.points.last!, SIMD3(5, 0, 0)))
+        #expect(edge.points.count > 2)
+
+        let backwards = try parse(singleEdge(start: SIMD3(0, 5, 0), end: SIMD3(5, 0, 0)) { quarterCircle($0) })
+        #expect(backwards.edges.isEmpty && backwards.diagnostics.contains { $0.message.contains("contradict") })
+    }
+
+    @Test func midCurveVerticesAreFoundByProjection() throws {
+        let t0 = 0.25, t1 = 0.75
+        let data = singleEdge(start: bezier(t0), end: bezier(t1)) { cubicBezier($0) }
+        let edge = try #require(try parse(data).edges.first)
+        #expect(near(edge.points.first!, bezier(t0)) && near(edge.points.last!, bezier(t1)))
+        #expect(deviation(of: edge.points, from: bezier, over: t0...t1) <= 0.01 + 1e-6)
+        // Nothing beyond the edge's own interval: x grows monotonically for this curve.
+        #expect(edge.points.allSatisfy { $0.x >= bezier(t0).x - 1e-6 && $0.x <= bezier(t1).x + 1e-6 })
+    }
+
+    @Test func closedSplineFullLapAndSeamHandling() throws {
+        let seam = SIMD3<Double>(5, 0, 0)
+        let top = SIMD3<Double>(0, 5, 0)
+
+        let lap = try #require(try parse(singleEdge(start: seam, end: seam, sameVertex: true) { fullCircle($0) }).edges.first)
+        #expect(near(lap.points.first!, lap.points.last!) && lap.points.count > 9)
+        #expect(lap.points.dropFirst().dropLast().allSatisfy { abs(simd_length($0) - 5) < 1e-9 })
+
+        // A → seam runs the long way (270°), and backwards only a quarter: the seam vertex is both
+        // ends of the curve, so its role in the edge decides which one it is.
+        let long = try #require(try parse(singleEdge(start: top, end: seam) { fullCircle($0) }).edges.first)
+        #expect(long.points.contains { $0.x < -3 && $0.y < -3 })
+        #expect(near(long.points.first!, top) && near(long.points.last!, seam))
+        let short = try #require(try parse(singleEdge(start: top, end: seam, sameSense: false) { fullCircle($0) }).edges.first)
+        #expect(short.points.allSatisfy { $0.x > -1e-9 && $0.y > -1e-9 })
+
+        // The vertex halfway round a closed curve: a lap that starts and ends there.
+        let midLap = try #require(try parse(singleEdge(start: top, end: top, sameVertex: true) { fullCircle($0) }).edges.first)
+        #expect(near(midLap.points.first!, top) && near(midLap.points.last!, top))
+        #expect(midLap.points.contains { near($0, seam, 1e-9) }, "the lap passes through the seam")
+    }
+
+    @Test func distinctVerticesAtTheSeamNeedProofOfAFullLap() throws {
+        let seam = SIMD3<Double>(5, 0, 0)
+        let ambiguous = try parse(singleEdge(start: seam, end: seam) { fullCircle($0) })
+        #expect(ambiguous.edges.isEmpty && ambiguous.diagnostics.contains { $0.message.contains("Ambiguous") })
+
+        let proven = try parse(singleEdge(start: seam, end: seam) { b in
+            b.trimmed(basis: fullCircle(b), first: "(PARAMETER_VALUE(0.E+00))", second: "(PARAMETER_VALUE(1.E+00))",
+                      senseAgreement: true, master: "PARAMETER")
+        })
+        #expect(proven.edges.first?.kind == .bspline)
+    }
+
+    @Test func openCurveRejectsCoincidentVerticesAndOffCurveVertices() throws {
+        let same = try parse(singleEdge(start: bezier(0.5), end: bezier(0.5), sameVertex: true) { cubicBezier($0) })
+        #expect(same.edges.isEmpty && same.diagnostics.contains { $0.message.contains("coincident") })
+        let off = try parse(singleEdge(start: bezier(0.2) + SIMD3(0, 1, 0), end: bezier(0.8)) { cubicBezier($0) })
+        #expect(off.edges.isEmpty && off.diagnostics.contains { $0.message.contains("not on its curve") })
+    }
+
+    // MARK: Wrappers and bad files
+
+    @Test func wrappersAndOpposedTrimsAroundASpline() throws {
+        // SURFACE_CURVE → TRIMMED_CURVE (sense FALSE) → spline: the edge follows the trim, so it
+        // starts at the curve's end.
+        func data(start: SIMD3<Double>, end: SIMD3<Double>) -> Data {
+            singleEdge(start: start, end: end) { b in
+                let trimmed = b.trimmed(basis: cubicBezier(b), first: "(PARAMETER_VALUE(1.E+00))",
+                                        second: "(PARAMETER_VALUE(0.E+00))", senseAgreement: false, master: "PARAMETER")
+                return b.surfaceCurve(trimmed)
+            }
+        }
+        let ok = try #require(try parse(data(start: bezierPoints[3], end: bezierPoints[0])).edges.first)
+        #expect(near(ok.points.first!, bezierPoints[3]) && near(ok.points.last!, bezierPoints[0]))
+        #expect(try parse(data(start: bezierPoints[0], end: bezierPoints[3])).edges.isEmpty)
+    }
+
+    @Test func malformedSplinesAreSkippedWithADiagnostic() throws {
+        let data = singleEdge(start: bezierPoints[0], end: bezierPoints[3]) { b in
+            // Degree 3 with four points needs eight knots; the multiplicities give seven.
+            b.bspline(degree: 3, points: bezierPoints, multiplicities: [4, 3], knots: [0, 1])
+        }
+        let model = try parse(data)
+        #expect(model.edges.isEmpty && model.diagnostics.contains { $0.message.contains("knots") })
+    }
 }

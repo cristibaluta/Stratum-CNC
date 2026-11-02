@@ -56,7 +56,7 @@ Index without building the full parameter tree; lazily parse/cache reached entit
 - Default 0.01 mm chord tolerance with robust tiny-radius handling, minimum segments, caps and approximation diagnostics.
 - Tests: cylinder, 90-degree midpoint, reversed sense, full circle, tilted/default frames, trim combinations and tiny radii.
 
-## Step 4 — More curves driven by real files
+## Step 4[done] — More curves driven by real files
 
 - ELLIPSE/POLYLINE with edge intervals; extend wrapper combinations.
 - B_SPLINE_CURVE_WITH_KNOTS including rational complex forms: validate degree/knots/multiplicities/weights and evaluate with de Boor.

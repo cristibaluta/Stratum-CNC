@@ -88,7 +88,7 @@ final class STEPEdgeExtractor {
             }
         }
         if model.bodies.isEmpty { diagnose(nil, "No supported solid/shell bodies in shape representations") }
-        if model.edges.isEmpty { diagnose(nil, "No supported line edges were extracted") }
+        if model.edges.isEmpty { diagnose(nil, "No supported edges were extracted") }
 
         return model
     }

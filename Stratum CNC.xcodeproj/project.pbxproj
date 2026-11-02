@@ -36,6 +36,7 @@
 		5691E0A030985AD10028FFE5 /* Exceptions for "Stratum CNC" folder in "Stratum CNC" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"cam/supported-files/step/INFO.md",
 				"cam/supported-files/step/STEPCurveTests.swift",
 			);
 			target = 56CEA04C30356265008167CA /* Stratum CNC */;

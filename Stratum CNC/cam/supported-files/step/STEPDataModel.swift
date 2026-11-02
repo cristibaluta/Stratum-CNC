@@ -59,6 +59,11 @@ struct STEPEdge: Sendable {
         case arc
         /// Full closed circle, sampled to a polyline.
         case circle
+        case ellipse
+        case ellipticalArc
+        /// A file polyline, cut to the edge's extent.
+        case polyline
+        case bspline
     }
     let id: STEPEdgeID
     let kind: CurveKind
@@ -66,7 +71,8 @@ struct STEPEdge: Sendable {
     let startVertexID: Int
     let endVertexID: Int
     let adjacentFaceIDs: [Int]
-    /// Worst-case distance (mm) between the sampled polyline and the true curve; 0 for lines.
+    /// Distance (mm) between the sampled polyline and the true curve: a bound for lines,
+    /// circles and ellipses, a probed estimate for B-splines. 0 for lines and file polylines.
     var chordError: Double = 0
 }
 
