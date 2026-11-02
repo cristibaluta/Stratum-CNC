@@ -851,7 +851,7 @@ private extension MetalRenderer {
         // No depth writes, and no coplanar tie with the base line's .less test.
         encoder.setDepthStencilState(depthStateOverlay)
         for batch in renderBatches where batch.role == .modelSelection {
-            drawBatch(batch, mvp: mvp, dashLength: 0, encoder: encoder)
+            drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0, encoder: encoder)
         }
     }
 

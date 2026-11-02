@@ -99,6 +99,15 @@ private struct STEPSceneDetails: View {
     let onReload: () -> Void
     let onRemove: () -> Void
 
+    /// Z of the selection, relative to the model's top (z0), which is also the
+    /// height of the blue projection above or below the edges.
+    private static func zText(_ range: ClosedRange<Float>) -> String {
+        if range.upperBound - range.lowerBound < 1e-4 {
+            return String(format: "Z %.3f mm", range.lowerBound)
+        }
+        return String(format: "Z %.3f … %.3f mm", range.lowerBound, range.upperBound)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle(CanvasLayer.model.label, isOn: $scene.isModelVisible)
@@ -120,6 +129,10 @@ private struct STEPSceneDetails: View {
                     .controlSize(.small)
                     .disabled(scene.selectedEdges.isEmpty)
             }
+            if let z = scene.selectionZRange {
+                Text(Self.zText(z)).font(.subheadline).monospacedDigit()
+            }
+            Toggle("Project onto z0", isOn: $scene.showsProjection)
             Text("Click an edge to select. Shift-click or Command-click toggles it.")
                 .font(.caption).foregroundStyle(.secondary)
 

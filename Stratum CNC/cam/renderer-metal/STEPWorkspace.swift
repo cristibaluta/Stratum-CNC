@@ -39,6 +39,12 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         didSet { if !isModelVisible { clearSelection() } }
     }
     @Published private(set) var selectionObjects: [RenderObject] = []
+    /// Draw the selected edges flattened onto the z0 plane (blue, dotted), with
+    /// vertical drop lines from their endpoints.
+    @Published var showsProjection = true { didSet { rebuildHighlight() } }
+    /// Lowest and highest Z of the selected edges, in display coordinates
+    /// (the model's top is z0). `nil` when nothing is selected.
+    @Published private(set) var selectionZRange: ClosedRange<Float>?
     @Published var fitRequest = 0
 
     init(content: STEPViewerContent) {
@@ -102,18 +108,58 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     func clearSelection() {
         selectedEdges.removeAll()
         selectionObjects.removeAll()
+        selectionZRange = nil
     }
+
+    private static let projectionColor = SIMD4<Float>(0.15, 0.45, 1.0, 1)
+    /// Dash and gap length (mm) of the projection lines: a fine dotted line.
+    private static let projectionDash: Float = 0.5
 
     private func rebuildHighlight() {
         var points: [SIMD3<Float>] = []
+        var projected: [SIMD3<Float>] = []   // the edges flattened onto z0
+        var drops: [SIMD3<Float>] = []       // pairs: edge endpoint, same x/y at z0
+        var dropped = Set<SIMD3<Float>>()
+        var zMin = Float.infinity, zMax = -Float.infinity
+
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
             for edge in body.edges where selectedEdges.contains(edge.id) {
-                points.append(contentsOf: body.points[edge.vertices])
+                let edgePoints = Array(body.points[edge.vertices])
+                points.append(contentsOf: edgePoints)
+                let edgeMin = edgePoints.map(\.z).min() ?? 0
+                let edgeMax = edgePoints.map(\.z).max() ?? 0
+                zMin = min(zMin, edgeMin)
+                zMax = max(zMax, edgeMax)
+
+                // An edge that already lies on z0 is its own projection.
+                guard max(abs(edgeMin), abs(edgeMax)) > 1e-4 else { continue }
+                projected.append(contentsOf: edgePoints.map { SIMD3<Float>($0.x, $0.y, 0) })
+                if let first = edgePoints.first, let last = edgePoints.last {
+                    for end in (first == last ? [first] : [first, last])
+                    where abs(end.z) > 1e-4 && dropped.insert(end).inserted {
+                        drops.append(end)
+                        drops.append(SIMD3<Float>(end.x, end.y, 0))
+                    }
+                }
             }
         }
-        // A new small overlay buffer, never new identities for the base objects.
-        selectionObjects = points.isEmpty ? [] : [RenderObject(role: .modelSelection, points: points,
-                                                               color: CanvasPalette.modelSelection, primitive: .lineList)]
+
+        // New small overlay buffers, never new identities for the base objects.
+        // The projection goes first so the orange selection stays on top of it.
+        var objects: [RenderObject] = []
+        if showsProjection {
+            for line in [projected, drops] where !line.isEmpty {
+                objects.append(RenderObject(role: .modelSelection, points: line,
+                                            color: Self.projectionColor, primitive: .lineList,
+                                            isDashed: true, dashLength: Self.projectionDash))
+            }
+        }
+        if !points.isEmpty {
+            objects.append(RenderObject(role: .modelSelection, points: points,
+                                        color: CanvasPalette.modelSelection, primitive: .lineList))
+        }
+        selectionObjects = objects
+        selectionZRange = points.isEmpty ? nil : zMin...zMax
     }
 }
 
