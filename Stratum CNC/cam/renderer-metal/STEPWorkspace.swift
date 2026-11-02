@@ -22,7 +22,9 @@ struct STEPViewerContent: Sendable {
             let result = try await worker.value
             try Task.checkCancellation()
             return result
-        } onCancel: { worker.cancel() }
+        } onCancel: {
+            worker.cancel()
+        }
     }
 }
 
