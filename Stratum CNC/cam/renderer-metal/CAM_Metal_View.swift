@@ -6,11 +6,23 @@
 //
 import SwiftUI
 
+/// What the CAM canvas is showing. Same canvas, same place on screen: only the
+/// camera scheme and the geometry change.
+enum CAMCanvasMode {
+    /// Shapes and toolpaths, camera locked top-down, shapes selectable.
+    case design2D
+    /// STEP wireframe, free orbit like the controller's canvas, edges selectable.
+    case step3D
+}
+
 @MainActor
 struct CAM_Metal_View: View {
 
     @StateObject private var scene: CAMSceneModel
     let zoomModel: CanvasZoomModel
+    let mode: CAMCanvasMode
+    /// The STEP scene drawn in `.step3D`. `nil` while it is still loading or failed to load.
+    let stepScene: STEPDocumentScene?
     /// How many shapes an "Add toolpath" tooltip would use; 0 hides the tooltip.
     /// The owner decides when it is allowed (e.g. not while a toolpath is open).
     let addToolpathShapeCount: Int
@@ -19,15 +31,37 @@ struct CAM_Metal_View: View {
 
     init(canvasState: D2_CanvasState,
          zoomModel: CanvasZoomModel,
+         mode: CAMCanvasMode = .design2D,
+         stepScene: STEPDocumentScene? = nil,
          addToolpathShapeCount: Int = 0,
          onAddToolpath: @escaping () -> Void = {}) {
         _scene = StateObject(wrappedValue: CAMSceneModel(canvasState: canvasState))
         self.zoomModel = zoomModel
+        self.mode = mode
+        self.stepScene = stepScene
         self.addToolpathShapeCount = addToolpathShapeCount
         self.onAddToolpath = onAddToolpath
     }
 
     var body: some View {
+        switch mode {
+        case .design2D:
+            canvas2D
+        case .step3D:
+            // A different branch means a fresh `MetalCanvasView`: it reads its
+            // interaction mode once, when it is created. `scene` (the 2D
+            // state) stays alive in this view, so coming back to 2D loses nothing.
+            if let stepScene {
+                STEP3DCanvas(scene: stepScene, zoomModel: zoomModel)
+            } else {
+                MetalCanvasView(objects: .constant([]), interactionMode: .free3D,
+                                clearColor: STEPCanvasStyle.clearColor, zoomModel: zoomModel,
+                                adaptiveModelFit: true)
+            }
+        }
+    }
+
+    private var canvas2D: some View {
         MetalCanvasView(objects: .constant(scene.renderObjects),
                         interactionMode: .locked2D,
                         clearColor: scene.backgroundColor,
@@ -45,6 +79,40 @@ struct CAM_Metal_View: View {
                                         shapeCount: addToolpathShapeCount,
                                         onAdd: onAddToolpath)
             }
+    }
+}
+
+private enum STEPCanvasStyle {
+    /// The model's edge color is light, so the 3D canvas stays dark in both appearances.
+    static let clearColor = SIMD4<Float>(0.075, 0.085, 0.105, 1)
+}
+
+/// The STEP wireframe in the shared canvas: free 3D camera (orbit, pan, zoom,
+/// orientation cube, all from `CanvasInputSettings`) and edge picking.
+private struct STEP3DCanvas: View {
+
+    @ObservedObject var scene: STEPDocumentScene
+    let zoomModel: CanvasZoomModel
+
+    var body: some View {
+        ZStack {
+            MetalCanvasView(objects: .constant(scene.visibleObjects),
+                            interactionMode: .free3D,
+                            clearColor: STEPCanvasStyle.clearColor,
+                            zoomModel: zoomModel,
+                            on3DClick: { point, size, matrix, modifiers in
+                                scene.pick(point: point, viewport: size, matrix: matrix,
+                                           extend: modifiers.contains(.shift) || modifiers.contains(.command))
+                            },
+                            adaptiveModelFit: true,
+                            fitRequest: scene.fitRequest)
+                .id(ObjectIdentifier(scene))
+            if scene.visibleObjects.isEmpty {
+                Text(scene.content.model.edges.isEmpty ? "No supported edges in this source" : "Model hidden")
+                    .foregroundStyle(.white.opacity(0.8))
+                    .allowsHitTesting(false)
+            }
+        }
     }
 }
 

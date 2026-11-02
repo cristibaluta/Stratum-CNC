@@ -107,10 +107,14 @@ final class STEPWorkspace: ObservableObject {
     @Published private(set) var loadingIDs: Set<UUID> = []
     @Published private(set) var errors: [UUID: String] = [:]
     @Published var activeID: UUID?
+    /// True while the CAM canvas is in 3D (STEP) mode instead of the 2D design mode.
     @Published var isPresented = false
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var tokens: [UUID: UUID] = [:]
     private let loader: Loader
+
+    /// The scene of the active source, once it has finished loading.
+    var activeScene: STEPDocumentScene? { activeID.flatMap { documents[$0] } }
 
     init(loader: @escaping Loader = { try await STEPViewerContent.load(url: $0, importID: $1) }) {
         self.loader = loader
