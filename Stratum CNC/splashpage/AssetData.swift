@@ -23,6 +23,8 @@ struct AssetData: Codable, Hashable {
     var objects: [AssetObjectData]? = nil
     /// STEP sources are reparsed on reopen; viewer selection is session-only.
     var stepImportID: UUID? = nil
+    /// Where a STEP model sits on the canvas: x, y and z in mm.
+    var stepOffset: [Double]? = nil
 }
 
 struct AssetObjectData: Codable, Hashable {

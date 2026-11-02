@@ -16,6 +16,22 @@ enum ObjectProperty: String {
     case rotation
 }
 
+/// A STEP model as a row of the objects list.
+struct STEPModelItem: Identifiable {
+    let id: UUID
+    let name: String
+    let isVisible: Bool
+    /// Where the model sits (its corner and its top), in mm. `nil` while it is
+    /// loading or when it failed to load.
+    let position: SIMD3<Float>?
+    /// Width (X), depth (Y) and height (Z) of the model, in mm.
+    let size: SIMD3<Float>?
+}
+
+enum STEPModelAxis {
+    case x, y, z
+}
+
 struct PanelObjectsInspector: View {
 
     let elements: [D2_Object]
@@ -40,6 +56,15 @@ struct PanelObjectsInspector: View {
     /// Right-click "Generate Project Preview": the project card's picture is made from this object alone.
     var onGeneratePreview: ((UUID) -> Void)?
 
+    /// STEP models are listed after the 2D objects. Selecting one shows its X, Y, Z.
+    var stepModels: [STEPModelItem] = []
+    var selectedStepModelID: UUID?
+    var onSelectStepModel: ((UUID) -> Void)?
+    var onToggleStepModelVisibility: ((UUID) -> Void)?
+    var onStepModelValueChanged: ((UUID, STEPModelAxis, CGFloat) -> Void)?
+    var onStepModelNudge: ((UUID, STEPModelAxis, CGFloat) -> Void)?
+    var onDeleteStepModel: ((UUID) -> Void)?
+
     /// Narrow, left-aligned label column: leaves the width to the fields.
     private static let labelWidth: CGFloat = 56
 
@@ -58,7 +83,10 @@ struct PanelObjectsInspector: View {
             objectsSection
 
             let selected = elements.filter { selectedIDs.contains($0.id) }
-            if selected.count == 1, let object = selected.first {
+            if selected.isEmpty, let model = stepModels.first(where: { $0.id == selectedStepModelID }) {
+                stepModelPropertiesSection(for: model)
+                    .padding(.top, 10)
+            } else if selected.count == 1, let object = selected.first {
                 propertiesSection(for: object)
                     .padding(.top, 10)
             } else if selected.count > 1, let bounds = selectionBounds {
@@ -76,7 +104,7 @@ struct PanelObjectsInspector: View {
 
     private var objectsSection: some View {
         Group {
-            if elements.isEmpty {
+            if elements.isEmpty && stepModels.isEmpty {
                 Text("No object imported!")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 12))
@@ -85,6 +113,9 @@ struct PanelObjectsInspector: View {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(elements, id: \.id) { object in
                         objectRow(object)
+                    }
+                    ForEach(stepModels) { model in
+                        stepModelRow(model)
                     }
                 }
             }
@@ -128,7 +159,93 @@ struct PanelObjectsInspector: View {
         }
     }
 
+    private func stepModelRow(_ model: STEPModelItem) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                onSelectStepModel?(model.id)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "cube")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Text(model.name)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .opacity(model.isVisible ? 1 : 0.5)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            InspectorVisibilityButton(isVisible: model.isVisible,
+                                      showHelp: "Show on canvas",
+                                      hideHelp: "Hide from canvas") {
+                onToggleStepModelVisibility?(model.id)
+            }
+        }
+        .inspectorListRow(isSelected: selectedStepModelID == model.id)
+        .contextMenu {
+            Button(role: .destructive) {
+                onDeleteStepModel?(model.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
     // MARK: - Properties
+
+    private func stepModelPropertiesSection(for model: STEPModelItem) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let position = model.position {
+                InspectorSection(title: "Position") {
+                    stepAxisRow("X", model.id, .x, position.x)
+                    stepAxisRow("Y", model.id, .y, position.y)
+                    // The top of the model; 0 puts its top at the stock's top surface.
+                    stepAxisRow("Z", model.id, .z, position.z)
+                }
+                if let size = model.size {
+                    InspectorSection(title: "Size") {
+                        readOnlyRow("Width", size.x)
+                        readOnlyRow("Depth", size.y)
+                        readOnlyRow("Height", size.z)
+                    }
+                }
+            } else {
+                Text("The model is not loaded.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func stepAxisRow(_ title: String, _ id: UUID, _ axis: STEPModelAxis, _ value: Float) -> some View {
+        valueRow(title, value: CGFloat(value), unit: "mm") {
+            onStepModelValueChanged?(id, axis, $0)
+        } trailing: {
+            SmallButton("−1") { onStepModelNudge?(id, axis, -1) }
+            SmallButton("+1") { onStepModelNudge?(id, axis, 1) }
+        }
+    }
+
+    private func readOnlyRow(_ title: String, _ value: Float) -> some View {
+        InspectorRow(label: title, labelWidth: Self.labelWidth, labelAlignment: .leading) {
+            HStack(spacing: 6) {
+                Text(NumberField2.format(CGFloat(value)))
+                    .font(.system(size: 12))
+                Text("mm")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Image(systemName: "lock")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .inspectorField()
+        }
+    }
 
     private func propertiesSection(for object: D2_Object) -> some View {
         VStack(alignment: .leading, spacing: 0) {

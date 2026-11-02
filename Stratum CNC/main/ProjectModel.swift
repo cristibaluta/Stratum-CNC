@@ -186,6 +186,14 @@ class ProjectModel: ObservableObject {
             self?.updateAssetTransforms(from: objects)
         }
 
+        // A STEP model moved: remember where, like an object's transform.
+        camModel.stepWorkspace.onOffsetChanged = { [weak self] id, offset in
+            guard let self,
+                  let index = self.projectData.assets?.firstIndex(where: { $0.stepImportID == id }) else { return }
+            self.projectData.assets?[index].stepOffset = [Double(offset.x), Double(offset.y), Double(offset.z)]
+            self.hasUnsavedChanges = true
+        }
+
         Timer.publish(every: Self.autosaveInterval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -289,6 +297,10 @@ class ProjectModel: ObservableObject {
         }
         guard beginFolderAccess() else { throw ProjectError.projectFolderMissing }
         let endAccess = endFolderAccess
+        if let saved = projectData.assets?.first(where: { $0.name == asset.name })?.stepOffset ?? asset.stepOffset,
+           saved.count == 3 {
+            camModel.stepWorkspace.restorePosition(SIMD3<Float>(Float(saved[0]), Float(saved[1]), Float(saved[2])), for: id)
+        }
         camModel.loadAndParseFileAt(paths.assetsDirectory.appendingPathComponent(asset.name), stepImportID: id,
                                    onSTEPFinished: { endAccess() })
     }

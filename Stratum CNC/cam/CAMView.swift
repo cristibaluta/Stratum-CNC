@@ -258,6 +258,7 @@ struct CAMView: View {
             selectedIDs: camModel.canvasState.selectedObjectIDs,
             selectionBounds: camModel.canvasState.selectionBounds,
             onSelectionChanged: { id, extend in
+                camModel.stepWorkspace.selectedModelID = nil
                 if extend {
                     camModel.canvasState.toggleObjectSelection(id)
                 } else {
@@ -302,8 +303,67 @@ struct CAMView: View {
                 // Just this object, even while it is hidden on the canvas
                 guard let object = camModel.canvasState.object(withID: id) else { return }
                 projectModel.updatePreview(from: [object], ignoringVisibility: true)
+            },
+            stepModels: stepModelItems,
+            // A selected 2D object wins: the model's fields only show when none is selected.
+            selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
+                ? camModel.stepWorkspace.selectedModelID : nil,
+            onSelectStepModel: { id in
+                // Selecting a model switches the canvas to 3D, where it is drawn.
+                camModel.canvasState.clearSelection()
+                camModel.stepWorkspace.selectedModelID = id
+                camModel.stepWorkspace.activeID = id
+                camModel.stepWorkspace.isPresented = true
+            },
+            onToggleStepModelVisibility: { id in
+                camModel.stepWorkspace.documents[id]?.isModelVisible.toggle()
+            },
+            onStepModelValueChanged: { id, axis, value in
+                moveSTEPModel(id, axis: axis, to: Float(value))
+            },
+            onStepModelNudge: { id, axis, amount in
+                let workspace = camModel.stepWorkspace
+                let current = workspace.position(of: id)
+                let value: Float
+                switch axis {
+                    case .x: value = current.x
+                    case .y: value = current.y
+                    case .z: value = current.z
+                }
+                moveSTEPModel(id, axis: axis, to: value + Float(amount))
+            },
+            onDeleteStepModel: { id in
+                do { try projectModel.removeSTEPSource(id) }
+                catch { fileError = String(describing: error) }
             }
         )
+    }
+
+    private var stepModelItems: [STEPModelItem] {
+        let workspace = camModel.stepWorkspace
+        return workspace.sources.map { source in
+            let scene = workspace.documents[source.id]
+            let size = scene?.content.model.bounds.map { bounds in
+                SIMD3<Float>(Float(bounds.max.x - bounds.min.x),
+                             Float(bounds.max.y - bounds.min.y),
+                             Float(bounds.max.z - bounds.min.z))
+            }
+            return STEPModelItem(id: source.id,
+                                 name: source.name,
+                                 isVisible: scene?.isModelVisible ?? true,
+                                 position: scene == nil ? nil : workspace.position(of: source.id),
+                                 size: size)
+        }
+    }
+
+    private func moveSTEPModel(_ id: UUID, axis: STEPModelAxis, to value: Float) {
+        var position = camModel.stepWorkspace.position(of: id)
+        switch axis {
+            case .x: position.x = value
+            case .y: position.y = value
+            case .z: position.z = value
+        }
+        camModel.stepWorkspace.setPosition(position, for: id)
     }
 
     /// The toolpath open in the settings panel, if any. Looked up by id on every

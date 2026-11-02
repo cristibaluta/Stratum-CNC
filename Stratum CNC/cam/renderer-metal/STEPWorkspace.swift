@@ -35,6 +35,10 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     @Published private(set) var baseObjects: [RenderObject]
     @Published private(set) var selectedEdges: Set<STEPEdgeID> = []
     @Published private(set) var hiddenBodies: Set<STEPBodyID> = []
+    /// Where the model sits on the canvas, in mm. The model's own corner (min X,
+    /// min Y) and top (max Z) are at 0, so this is the position of that corner
+    /// and of the top surface. Changed through `STEPWorkspace.setPosition`.
+    @Published private(set) var offset: SIMD3<Float>
     @Published var isModelVisible = true {
         didSet { if !isModelVisible { clearSelection() } }
     }
@@ -47,10 +51,25 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     @Published private(set) var selectionZRange: ClosedRange<Float>?
     @Published var fitRequest = 0
 
-    init(content: STEPViewerContent) {
+    init(content: STEPViewerContent, offset: SIMD3<Float> = .zero) {
         id = content.model.importID
         self.content = content
-        baseObjects = Self.makeBaseObjects(content, isDark: true)
+        self.offset = offset
+        baseObjects = Self.makeBaseObjects(content, isDark: true, offset: offset)
+    }
+
+    /// Moves the model: its edges and the selection overlay are rebuilt translated.
+    func setOffset(_ newOffset: SIMD3<Float>) {
+        guard newOffset != offset else { return }
+        offset = newOffset
+        baseObjects = Self.makeBaseObjects(content, isDark: isDarkAppearance, offset: newOffset)
+        rebuildHighlight()
+    }
+
+    private static func translation(_ t: SIMD3<Float>) -> simd_float4x4 {
+        var matrix = matrix_identity_float4x4
+        matrix.columns.3 = SIMD4<Float>(t.x, t.y, t.z, 1)
+        return matrix
     }
 
     /// Edge color follows the canvas background: light edges on dark, dark on light.
@@ -58,9 +77,11 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         isDark ? CanvasPalette.model : SIMD4<Float>(0.12, 0.22, 0.38, 1)
     }
 
-    private static func makeBaseObjects(_ content: STEPViewerContent, isDark: Bool) -> [RenderObject] {
+    private static func makeBaseObjects(_ content: STEPViewerContent, isDark: Bool,
+                                        offset: SIMD3<Float>) -> [RenderObject] {
         content.geometry.bodies.map {
-            RenderObject(role: .model, points: $0.points, color: modelColor(isDark: isDark), primitive: .lineList)
+            let points = offset == .zero ? $0.points : $0.points.map { $0 + offset }
+            return RenderObject(role: .model, points: points, color: modelColor(isDark: isDark), primitive: .lineList)
         }
     }
 
@@ -70,7 +91,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     func setAppearance(isDark: Bool) {
         guard isDark != isDarkAppearance else { return }
         isDarkAppearance = isDark
-        baseObjects = Self.makeBaseObjects(content, isDark: isDark)
+        baseObjects = Self.makeBaseObjects(content, isDark: isDark, offset: offset)
     }
 
     var visibleObjects: [RenderObject] {
@@ -89,7 +110,12 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     }
 
     func pick(point: CGPoint, viewport: CGSize, matrix: simd_float4x4, extend: Bool) {
-        let hit = isModelVisible ? content.geometry.hitTest(at: point, viewport: viewport, matrix: matrix, hiddenBodies: hiddenBodies) : nil
+        // The geometry is stored at the origin; the matrix the canvas hands over
+        // sees it moved, so move it back into place first.
+        let hit = isModelVisible
+            ? content.geometry.hitTest(at: point, viewport: viewport, matrix: matrix * Self.translation(offset),
+                                       hiddenBodies: hiddenBodies)
+            : nil
         select(hit, extend: extend)
     }
 
@@ -124,7 +150,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
             for edge in body.edges where selectedEdges.contains(edge.id) {
-                let edgePoints = Array(body.points[edge.vertices])
+                let edgePoints = body.points[edge.vertices].map { $0 + offset }
                 points.append(contentsOf: edgePoints)
                 let edgeMin = edgePoints.map(\.z).min() ?? 0
                 let edgeMax = edgePoints.map(\.z).max() ?? 0
@@ -171,6 +197,12 @@ final class STEPWorkspace: ObservableObject {
     @Published private(set) var loadingIDs: Set<UUID> = []
     @Published private(set) var errors: [UUID: String] = [:]
     @Published var activeID: UUID?
+    /// The model selected in the objects list, whose position the inspector edits.
+    @Published var selectedModelID: UUID?
+    /// Where each source sits, kept here (not in the scene) so a reload keeps it.
+    private var offsets: [UUID: SIMD3<Float>] = [:]
+    /// Called after the user moved a model, so the project can save it.
+    var onOffsetChanged: (@MainActor (UUID, SIMD3<Float>) -> Void)?
     /// True while the CAM canvas is in 3D (STEP) mode instead of the 2D design mode.
     @Published var isPresented = false
     private var tasks: [UUID: Task<Void, Never>] = [:]
@@ -182,6 +214,23 @@ final class STEPWorkspace: ObservableObject {
 
     init(loader: @escaping Loader = { try await STEPViewerContent.load(url: $0, importID: $1) }) {
         self.loader = loader
+    }
+
+    func position(of id: UUID) -> SIMD3<Float> { offsets[id] ?? .zero }
+
+    /// Puts a saved position back before the source loads. Not a user edit.
+    func restorePosition(_ position: SIMD3<Float>, for id: UUID) {
+        offsets[id] = position
+        documents[id]?.setOffset(position)
+    }
+
+    func setPosition(_ position: SIMD3<Float>, for id: UUID) {
+        guard position.x.isFinite, position.y.isFinite, position.z.isFinite,
+              position != self.position(of: id) else { return }
+        offsets[id] = position
+        documents[id]?.setOffset(position)
+        objectWillChange.send()
+        onOffsetChanged?(id, position)
     }
 
     func load(_ source: STEPSourceReference, onFinished: @escaping @MainActor () -> Void = {}) {
@@ -202,7 +251,7 @@ final class STEPWorkspace: ObservableObject {
                 let content = try await loader(source.url, source.id)
                 try Task.checkCancellation()
                 guard let self, self.tokens[source.id] == token else { return }
-                self.documents[source.id] = STEPDocumentScene(content: content)
+                self.documents[source.id] = STEPDocumentScene(content: content, offset: self.offsets[source.id] ?? .zero)
                 self.finish(source.id)
             } catch {
                 guard let self, self.tokens[source.id] == token else { return }
@@ -240,6 +289,8 @@ final class STEPWorkspace: ObservableObject {
         documents.removeValue(forKey: id)
         errors.removeValue(forKey: id)
         sources.removeAll { $0.id == id }
+        offsets.removeValue(forKey: id)
+        if selectedModelID == id { selectedModelID = nil }
         if activeID == id { activeID = sources.last?.id }
         if sources.isEmpty { isPresented = false }
     }
@@ -252,6 +303,8 @@ final class STEPWorkspace: ObservableObject {
         documents.removeAll()
         errors.removeAll()
         sources.removeAll()
+        offsets.removeAll()
+        selectedModelID = nil
         activeID = nil
         isPresented = false
     }
