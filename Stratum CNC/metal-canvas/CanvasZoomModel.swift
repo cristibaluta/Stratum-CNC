@@ -59,6 +59,7 @@ final class CanvasZoomModel: ObservableObject {
 
     /// Called only by `MetalCanvasView.Coordinator`, once per frame drawn.
     func updatePercent(_ value: Double) {
+        guard abs(value - percent) > 0.001 else { return }
         percent = value
     }
 

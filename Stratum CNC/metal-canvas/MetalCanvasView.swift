@@ -162,18 +162,13 @@ struct MetalCanvasView: NSViewRepresentable {
             guard let coordinator else {
                 return
             }
-            coordinator.updateZoomPercent()
-            // Views that follow a point on the canvas (the coordinate pills)
-            // want to know the moment a frame is drawn — for a pan or an
-            // orbit that is straight from the gesture, where state can be
-            // changed right away. A frame drawn from `updateNSView` is
-            // inside SwiftUI's own update pass, where it can't, so only
-            // those are handed over a runloop turn later.
             if coordinator.isInsideSwiftUIUpdate {
                 DispatchQueue.main.async { [weak coordinator] in
+                    coordinator?.updateZoomPercent()
                     coordinator?.zoomModel?.frameRendered.send()
                 }
             } else {
+                coordinator.updateZoomPercent()
                 coordinator.zoomModel?.frameRendered.send()
             }
         }
