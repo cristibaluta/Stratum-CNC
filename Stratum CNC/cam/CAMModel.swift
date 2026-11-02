@@ -33,6 +33,7 @@ class CAMModel: ObservableObject {
     // ---- TEMPORARY UI STATE (session-only) ----
     @Published var showingFilePicker = false
     @Published var canvasState = D2_CanvasState()
+    let stepWorkspace = STEPWorkspace()
 
     /// Bridges the canvas's 100% button to `CAM_Metal_View`'s
     /// `MetalCanvasView` — see `CanvasZoomModel`. Unrelated to the legacy
@@ -161,6 +162,9 @@ class CAMModel: ObservableObject {
         // leave CAMView's body — the inspector, the objects list — stale,
         // since CAMView only observes camModel. This forwards it explicitly.
         canvasState.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        stepWorkspace.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
 
@@ -633,9 +637,15 @@ class CAMModel: ObservableObject {
     }
 
     @discardableResult
-    func loadAndParseFileAt(_ url: URL, restoring savedObjects: [AssetObjectData]? = nil) -> D2_Object? {
+    func loadAndParseFileAt(_ url: URL, restoring savedObjects: [AssetObjectData]? = nil,
+                           stepImportID: UUID? = nil,
+                           onSTEPFinished: @escaping @MainActor () -> Void = {}) -> D2_Object? {
         let imported: [D2_Object]
         switch url.pathExtension.lowercased() {
+        case "step", "stp":
+            stepWorkspace.load(STEPSourceReference(id: stepImportID ?? UUID(), name: url.lastPathComponent, url: url),
+                               onFinished: onSTEPFinished)
+            return nil
         case "svg": imported = SVGImporter().parse(url: url).map { [$0] } ?? []
         case "dxf": imported = DXFImporter().parse(url: url).map { [$0] } ?? []
         case "zip": imported = GerberImporter().parse(url: url)
@@ -664,6 +674,7 @@ class CAMModel: ObservableObject {
     }
 
     func clear() {
+        stepWorkspace.clear()
         endPicking()
         discardGenerations()
         canvasState.removeAll()

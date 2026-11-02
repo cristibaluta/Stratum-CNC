@@ -33,6 +33,7 @@ struct CAMView: View {
     @ObservedObject var appModel: AppModel
     @ObservedObject var camModel: CAMModel
     @ObservedObject var projectModel: ProjectModel
+    @State private var fileError: String?
 
     /// The mouse-icon button opens the Settings window on its Canvas tab, which
     /// edits the same `CanvasInputSettings.shared` as the controller's canvas —
@@ -42,7 +43,18 @@ struct CAMView: View {
     var body: some View {
         let _ = Self._printChanges()
         ZStack {
-            if $camModel.canvasState.objects.isEmpty {
+            if camModel.stepWorkspace.isPresented {
+                STEPWorkspaceView(workspace: camModel.stepWorkspace,
+                                  onImport: { camModel.showingFilePicker = true },
+                                  onReload: { id in
+                                      do { try projectModel.reloadSTEPSource(id) }
+                                      catch { fileError = String(describing: error) }
+                                  },
+                                  onRemove: { id in
+                                      do { try projectModel.removeSTEPSource(id) }
+                                      catch { fileError = String(describing: error) }
+                                  })
+            } else if camModel.canvasState.objects.isEmpty {
                 emptyView
             } else {
                 // The "Add toolpath" tooltip sits on the selected shapes, inside the canvas
@@ -122,6 +134,20 @@ struct CAMView: View {
         .onAppear {
             camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
+        .overlay(alignment: .top) {
+            if !camModel.stepWorkspace.isPresented, !camModel.stepWorkspace.sources.isEmpty {
+                Button("STEP models (\(camModel.stepWorkspace.sources.count))") {
+                    camModel.stepWorkspace.isPresented = true
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(16)
+            }
+        }
+        .alert("File operation failed", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
+            Button("OK", role: .cancel) { fileError = nil }
+        } message: {
+            Text(fileError ?? "")
+        }
         .fileImporter(isPresented: $camModel.showingFilePicker,
                       allowedContentTypes: camModel.supportedFiles,
                       allowsMultipleSelection: false) { result in
@@ -129,20 +155,27 @@ struct CAMView: View {
             case .success(let urls):
                 if let url = urls.first {
                     guard url.startAccessingSecurityScopedResource() else {
-                        print("Could not access:", url)
+                        fileError = "Could not access \(url.lastPathComponent)"
                         return
                     }
+                    defer { url.stopAccessingSecurityScopedResource() }
                     // Imports asset to project directory
-                    if let asset = try? projectModel.importAsset(from: url) {
-                        camModel.loadAndParseFileAt(projectModel.paths.assetsDirectory.appendingPathComponent(asset.name))
-                        // The object is on the canvas now: take the project card's picture from it
-                        projectModel.updatePreview(from: camModel.canvasState.objects)
+                    do {
+                        let asset = try projectModel.importAsset(from: url)
+                        if ProjectModel.isSTEPAsset(asset.name) {
+                            try projectModel.loadSTEPAsset(asset)
+                        } else {
+                            camModel.loadAndParseFileAt(projectModel.paths.assetsDirectory.appendingPathComponent(asset.name))
+                            camModel.stepWorkspace.isPresented = false
+                            projectModel.updatePreview(from: camModel.canvasState.objects)
+                        }
+                    } catch {
+                        fileError = String(describing: error)
                     }
-                    url.stopAccessingSecurityScopedResource()
                 }
 
             case .failure(let error):
-                print("Failed:", error)
+                fileError = String(describing: error)
             }
         }
     }
@@ -167,7 +200,7 @@ struct CAMView: View {
             Text("No objects added yet!")
                 .font(.headline)
                 .foregroundColor(.primary)
-            Text("File types you can import: SVG, DXF, Gerber (zipped)")
+            Text("File types you can import: STEP, SVG, DXF, Gerber (zipped)")
                 .font(.caption)
                 .foregroundColor(.secondary)
             Button("Import") {

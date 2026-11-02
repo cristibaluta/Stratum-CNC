@@ -21,6 +21,8 @@ struct AssetData: Codable, Hashable {
     var transform: AssetTransform?
     // One archive can produce several canvas objects, each with its own identity.
     var objects: [AssetObjectData]? = nil
+    /// STEP sources are reparsed on reopen; viewer selection is session-only.
+    var stepImportID: UUID? = nil
 }
 
 struct AssetObjectData: Codable, Hashable {

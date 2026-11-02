@@ -11,6 +11,7 @@
 import SwiftUI
 
 enum CanvasLayer: String, CaseIterable, Identifiable {
+    case model
     case stock
     case rapidMoves
     case cuttingMoves
@@ -27,6 +28,7 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
+            case .model:        return "Model"
             case .stock:        return "Stock"
             case .rapidMoves:   return "Rapid moves"
             case .cuttingMoves: return "Cutting moves"
@@ -43,6 +45,7 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
     /// the matching program moves, so one checkbox covers both.
     var roles: Set<RenderRole> {
         switch self {
+            case .model:        return [.model, .modelSelection]
             case .stock:        return [.stock]
             case .rapidMoves:   return [.toolpathRapid, .macroRapid]
             case .cuttingMoves: return [.toolpathCutting, .macroCutting]
@@ -60,6 +63,7 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
     /// coordinate pills take their colors from the bed and the anchor).
     var color: SIMD4<Float>? {
         switch self {
+            case .model:        return CanvasPalette.model
             case .stock:        return CanvasPalette.stock
             case .rapidMoves:   return CanvasPalette.rapid
             case .cuttingMoves: return CanvasPalette.cutting

@@ -211,6 +211,16 @@ class ProjectModel: ObservableObject {
         // saved position/scale/rotation on top of the freshly-parsed one.
         for asset in projectData.assets ?? [] {
             let url = paths.assetsDirectory.appendingPathComponent(asset.name)
+            if Self.isSTEPAsset(asset.name) {
+                do { try loadSTEPAsset(asset) }
+                catch {
+                    let id = projectData.assets?.first(where: { $0.name == asset.name })?.stepImportID ?? asset.stepImportID ?? UUID()
+                    camModel.stepWorkspace.reportFailure(
+                        STEPSourceReference(id: id, name: asset.name, url: url),
+                        message: String(describing: error))
+                }
+                continue
+            }
             if let object = camModel.loadAndParseFileAt(url, restoring: asset.objects) {
                 loadedAssetNames.insert(asset.name)
                 if asset.objects == nil, let transform = asset.transform {
@@ -253,12 +263,51 @@ class ProjectModel: ObservableObject {
 
         // 2. Add asset to json
         var assets = projectData.assets ?? []
-        let asset = AssetData(name: destination.lastPathComponent, transform: nil)
+        let asset = AssetData(name: destination.lastPathComponent, transform: nil,
+                              stepImportID: Self.isSTEPAsset(destination.lastPathComponent) ? UUID() : nil)
         assets.append(asset)
         projectData.assets = assets
         try saveProjectMetadata()
 
         return asset
+    }
+
+    static func isSTEPAsset(_ name: String) -> Bool {
+        ["step", "stp"].contains(URL(fileURLWithPath: name).pathExtension.lowercased())
+    }
+
+    /// Source retention/reparse, not a serialized GPU mesh or D2_Object transform.
+    /// Access must remain active until the asynchronous reader has finished.
+    func loadSTEPAsset(_ asset: AssetData) throws {
+        guard Self.isSTEPAsset(asset.name) else { return }
+        let savedID = projectData.assets?.first(where: { $0.name == asset.name })?.stepImportID
+        let id = savedID ?? asset.stepImportID ?? UUID()
+        if savedID == nil,
+           let index = projectData.assets?.firstIndex(where: { $0.name == asset.name }) {
+            projectData.assets?[index].stepImportID = id
+            try saveProjectMetadata()
+        }
+        guard beginFolderAccess() else { throw ProjectError.projectFolderMissing }
+        let endAccess = endFolderAccess
+        camModel.loadAndParseFileAt(paths.assetsDirectory.appendingPathComponent(asset.name), stepImportID: id,
+                                   onSTEPFinished: { endAccess() })
+    }
+
+    func reloadSTEPSource(_ id: UUID) throws {
+        guard let asset = projectData.assets?.first(where: { $0.stepImportID == id }) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        try loadSTEPAsset(asset)
+    }
+
+    func removeSTEPSource(_ id: UUID) throws {
+        let previous = projectData.assets
+        projectData.assets?.removeAll { $0.stepImportID == id }
+        do { try saveProjectMetadata() }
+        catch { projectData.assets = previous; throw error }
+        // Leave the source copy on disk; only referenced assets reopen. Avoid
+        // deleting data while an in-flight mapped reader is finishing cancellation.
+        camModel.stepWorkspace.remove(id)
     }
 
     /// Draws the canvas objects into the project's `preview.png`, the picture on its card.
@@ -335,7 +384,6 @@ class ProjectModel: ObservableObject {
         defer { endFolderAccess() }
         return try body()
     }
-
 
     // MARK: CAM -> Controller
 

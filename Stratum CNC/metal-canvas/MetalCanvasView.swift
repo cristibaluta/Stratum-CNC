@@ -128,6 +128,11 @@ struct MetalCanvasView: NSViewRepresentable {
     /// across re-renders, not this reference to it.
     var zoomModel: CanvasZoomModel? = nil
 
+    /// Bottom-left view-point coordinates and the exact rendering matrix.
+    var on3DClick: ((CGPoint, CGSize, simd_float4x4, NSEvent.ModifierFlags) -> Void)? = nil
+    var adaptiveModelFit = false
+    var fitRequest = 0
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -140,6 +145,11 @@ struct MetalCanvasView: NSViewRepresentable {
 
         context.coordinator.renderer = renderer
         mtkView.delegate = renderer
+        renderer.adaptiveModelFit = adaptiveModelFit
+        if adaptiveModelFit {
+            renderer.fitExcludedRoles = [.modelSelection, .axes]
+            renderer.camera.orbit(yaw: -.pi / 4, pitch: .pi / 4)
+        }
 
         // Wire the 100% button, if the owner offers one: the canvas reports
         // its zoom after every frame it draws (see `MetalRenderer
@@ -227,6 +237,16 @@ struct MetalCanvasView: NSViewRepresentable {
             mtkView.onMouseUp = { [weak coordinator = context.coordinator] event in
                 coordinator?.handleMouseUp(event)
             }
+        } else if interactionMode == .free3D, on3DClick != nil {
+            mtkView.onMouseDown = { [weak coordinator = context.coordinator] event in
+                coordinator?.handle3DMouseDown(event)
+            }
+            mtkView.onMouseDragged = { [weak coordinator = context.coordinator] event in
+                coordinator?.handle3DMouseDragged(event)
+            }
+            mtkView.onMouseUp = { [weak coordinator = context.coordinator] event in
+                coordinator?.handle3DMouseUp(event)
+            }
         } else {
             let panGesture = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
             mtkView.addGestureRecognizer(panGesture)
@@ -248,6 +268,7 @@ struct MetalCanvasView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: MTKView, context: Context) {
+        context.coordinator.parent = self
         context.coordinator.isInsideSwiftUIUpdate = true
         defer { context.coordinator.isInsideSwiftUIUpdate = false }
 
@@ -256,6 +277,10 @@ struct MetalCanvasView: NSViewRepresentable {
                                               blue: Double(clearColor.z), alpha: Double(clearColor.w))
         }
         context.coordinator.renderer?.updateGeometry(objects: objects)
+        if context.coordinator.lastFitRequest != fitRequest {
+            context.coordinator.lastFitRequest = fitRequest
+            context.coordinator.renderer?.requestFit()
+        }
         context.coordinator.renderer?.renderMode = renderMode
         context.coordinator.renderer?.xyOffset = xyOffset
         context.coordinator.renderer?.anchorOrigin = anchorOrigin
@@ -292,6 +317,9 @@ struct MetalCanvasView: NSViewRepresentable {
         /// (see `updateNSView`). `nil` alongside `heightmapMesh == nil`
         /// means nothing's been uploaded yet.
         var lastHeightmapMeshID: UUID?
+        var lastFitRequest = 0
+        private var clickTracker = CanvasClickTracker()
+        private var last3DPoint = CGPoint.zero
         /// Weak: so the view — which owns the coordinator via AppKit's
         /// retain graph, not the other way around — can be requested to
         /// draw() from the gesture handlers below without creating a cycle.
@@ -488,8 +516,36 @@ struct MetalCanvasView: NSViewRepresentable {
                                       pointsPerWorldUnit: CGFloat(1 / max(worldPerPoint, 1e-9)))
         }
 
-        @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
-            // Optional: Handle selection / Raycasting targeting
+        func handle3DMouseDown(_ event: NSEvent) {
+            guard let view = metalView else { return }
+            last3DPoint = view.convert(event.locationInWindow, from: nil)
+            clickTracker.begin(at: last3DPoint)
+        }
+
+        func handle3DMouseDragged(_ event: NSEvent) {
+            guard let view = metalView, let camera = renderer?.camera else { return }
+            let point = view.convert(event.locationInWindow, from: nil)
+            clickTracker.move(to: point)
+            let translation = CGPoint(x: point.x - last3DPoint.x, y: point.y - last3DPoint.y)
+            last3DPoint = point
+            guard clickTracker.isDragging else { return }
+            let trigger: CanvasInputTrigger = event.modifierFlags.contains(.shift) ? .modified : .primary
+            switch CanvasInputSettings.shared.action(for: trigger) {
+                case .orbit: performOrbit(translation: translation)
+                case .pan: performPan(translation: translation)
+                case .zoom: performDragZoom(translation: translation)
+                case .zoomToCursor:
+                    applyZoom(to: camera.distance - Float(translation.y) * camera.distance * 0.006, towards: point, in: view)
+                case .snapToFace, .none: break
+            }
+            view.draw()
+        }
+
+        func handle3DMouseUp(_ event: NSEvent) {
+            guard let view = metalView, let camera = renderer?.camera else { return }
+            let point = view.convert(event.locationInWindow, from: nil)
+            guard clickTracker.end(at: point), view.bounds.contains(point) else { return }
+            parent.on3DClick?(point, view.bounds.size, camera.updateMatrix(), event.modifierFlags)
         }
 
         @objc func handleMagnification( _ gesture: NSMagnificationGestureRecognizer) {
@@ -733,7 +789,8 @@ struct MetalCanvasView: NSViewRepresentable {
 
         /// Clamp distance to prevent clipping into target or zooming out into infinity.
         private func clampedDistance(_ distance: Float) -> Float {
-            max(2.0, min(2000.0, distance))
+            let limits = renderer?.camera.zoomLimits ?? 2...2000
+            return max(limits.lowerBound, min(limits.upperBound, distance))
         }
 
         private func clampZoomDistance(_ camera: Camera) {

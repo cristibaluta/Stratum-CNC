@@ -18,6 +18,8 @@ enum CanvasPalette {
     static let workbed     = SIMD4<Float>(0.55, 0.6, 0.65, 1.0)
     static let anchor      = SIMD4<Float>(0.95, 0.55, 0.15, 1.0)
     static let ruler       = anchor
+    static let model       = SIMD4<Float>(0.78, 0.84, 0.92, 1)
+    static let modelSelection = SIMD4<Float>(1, 0.65, 0.12, 1)
 }
 
 /// How the points in a `RenderObject` should be connected.
@@ -39,8 +41,11 @@ typealias SolidVertex = HeightmapMesh.Vertex
 /// freshly-built stock wireframe whenever `CAMModel.selectedStockMaterial`
 /// changes, or refreshing the toolpath preview whenever a G-code file
 /// (re)loads, without disturbing the other objects in the scene).
-/// Nothing about rendering depends on this — it's purely a lookup tag.
+/// Also identifies the selection overlay's special depth behavior.
 enum RenderRole: Hashable {
+    case model
+    /// All-edges viewer highlight, drawn last without depth testing/writes.
+    case modelSelection
     case stock
     /// G0 rapid moves, tessellated from `GCodeParser`'s `ToolpathSegment`s.
     case toolpathRapid

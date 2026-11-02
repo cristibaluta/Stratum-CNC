@@ -34,7 +34,22 @@ class Camera {
     /// view direction — comfortably more than any job on the machine.
     /// Depth is linear in an orthographic projection, so a longer range
     /// costs no precision to speak of.
-    private static let viewStandoff: Float = 1000.0
+    private var viewStandoff: Float = 1000.0
+    private(set) var zoomLimits: ClosedRange<Float> = 2...2000
+
+    /// STEP opts in; existing 2D/controller fits keep their historic limits.
+    func fit(center: SIMD3<Float>, radius: Float, aspect: Float, padding: Float = 1.3, adaptive: Bool = false) {
+        guard radius.isFinite, radius > 0, aspect.isFinite, aspect > 0 else { return }
+        let required = radius * padding / min(aspect, 1) / tan(fov * 0.5)
+        guard required.isFinite else { return }
+        if adaptive {
+            viewStandoff = max(1000, radius * 2)
+            farZ = viewStandoff * 2
+            zoomLimits = 0.001...max(2000, required * 100)
+        }
+        target = center
+        distance = min(max(required, zoomLimits.lowerBound), zoomLimits.upperBound)
+    }
 
     /// Which way the camera faces, as a rotation of world space: its
     /// columns are the camera's right, up and back (target → eye) directions
@@ -272,7 +287,7 @@ class Camera {
         // near plane and vanished. So the eye sits at a fixed standoff and
         // the clip range is centered on `target`: `viewStandoff` of depth
         // either side of it.
-        let eye = target + back * Self.viewStandoff
+        let eye = target + back * viewStandoff
         let view = matrix_look_at(eye: eye, target: target, up: up)
 
         let halfHeight = distance * tan(fov * 0.5)
@@ -280,7 +295,7 @@ class Camera {
 
         let proj = matrix_orthographic(left: -halfWidth, right: halfWidth,
                                        bottom: -halfHeight, top: halfHeight,
-                                       nearZ: nearZ, farZ: Self.viewStandoff * 2)
+                                       nearZ: nearZ, farZ: farZ)
 
         return simd_mul(proj, view)
     }

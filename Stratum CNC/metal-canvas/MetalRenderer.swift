@@ -125,6 +125,7 @@ class MetalRenderer: NSObject {
     // second pass that picks up everything the first pass occluded.
     private var depthStateVisible: MTLDepthStencilState!
     private var depthStateHidden: MTLDepthStencilState!
+    private var depthStateOverlay: MTLDepthStencilState!
     /// Always passes and writes depth. Only used to reset the depth buffer
     /// inside the orientation cube's viewport (see `drawOrientationCube`).
     private var depthStateAlways: MTLDepthStencilState!
@@ -153,6 +154,10 @@ class MetalRenderer: NSObject {
     private let occluderDepthBiasSlope: Float = 2.0
 
     var camera = Camera()
+    var adaptiveModelFit = false
+
+    func requestFit() { hasFittedInitialContent = false }
+
     private var renderBatches: [RenderBatch] = []
 
     /// Fired at the end of every `draw(in:)` — interaction-triggered,
@@ -453,6 +458,11 @@ class MetalRenderer: NSObject {
         hiddenDescriptor.isDepthWriteEnabled = false
         depthStateHidden = device.makeDepthStencilState(descriptor: hiddenDescriptor)
 
+        let overlayDescriptor = MTLDepthStencilDescriptor()
+        overlayDescriptor.depthCompareFunction = .always
+        overlayDescriptor.isDepthWriteEnabled = false
+        depthStateOverlay = device.makeDepthStencilState(descriptor: overlayDescriptor)
+
         let alwaysDescriptor = MTLDepthStencilDescriptor()
         alwaysDescriptor.depthCompareFunction = .always
         alwaysDescriptor.isDepthWriteEnabled = true
@@ -576,17 +586,7 @@ class MetalRenderer: NSObject {
         }
 
         let aspect = Float(viewSize.width / viewSize.height)
-        let paddedRadius = radius * padding // padding > 1 leaves margin around the content
-
-        // Orthographic half-extents at the current distance are
-        // `distance * tan(fov/2)` vertically and that times aspect
-        // horizontally; solve for the distance that makes both at least
-        // `paddedRadius` so the content fits regardless of the view's shape.
-        let halfHeight = paddedRadius / min(aspect, 1)
-        let requiredDistance = halfHeight / tan(camera.fov * 0.5)
-
-        camera.target = center
-        camera.distance = min(max(requiredDistance, 2.0), 2000.0)
+        camera.fit(center: center, radius: radius, aspect: aspect, padding: padding, adaptive: adaptiveModelFit)
 
         hasFittedInitialContent = true
     }
@@ -741,7 +741,7 @@ private extension MetalRenderer {
 extension MetalRenderer: MTKViewDelegate {
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        camera.aspectRatio = Float(size.width / size.height)
+        if size.width > 0, size.height > 0 { camera.aspectRatio = Float(size.width / size.height) }
         // The view is manually driven (see `MetalCanvasView.makeNSView`), so
         // without this a resize wouldn't redraw until the next scrub/pan/
         // zoom — leaving a stretched or stale frame on screen in the
@@ -751,6 +751,8 @@ extension MetalRenderer: MTKViewDelegate {
 
     func draw(in view: MTKView) {
 
+        guard view.drawableSize.width > 0, view.drawableSize.height > 0 else { return }
+        camera.aspectRatio = Float(view.drawableSize.width / view.drawableSize.height)
         attemptInitialFit(viewSize: view.drawableSize)
 
         guard let descriptor = view.currentRenderPassDescriptor,
@@ -823,7 +825,7 @@ private extension MetalRenderer {
         // Pass 1 — visible geometry. Normal depth test, writes depth, drawn
         // however each object specifies (solid, or its own dash pattern).
         encoder.setDepthStencilState(depthStateVisible)
-        for batch in renderBatches {
+        for batch in renderBatches where batch.role != .modelSelection {
             drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0.0, encoder: encoder)
         }
 
@@ -835,7 +837,7 @@ private extension MetalRenderer {
         // behind the stock.
         if showHiddenLines {
             encoder.setDepthStencilState(depthStateHidden)
-            for batch in renderBatches {
+            for batch in renderBatches where batch.role != .modelSelection {
                 let dash: Float
                 if batch.role == .stock {
                     dash = batch.isDashed ? batch.dashLength : hiddenLineDashLength
@@ -844,6 +846,12 @@ private extension MetalRenderer {
                 }
                 drawBatch(batch, mvp: mvp, dashLength: dash, encoder: encoder)
             }
+        }
+        // STEP uses all-edges selection: highlight even overlapping/rear edges.
+        // No depth writes, and no coplanar tie with the base line's .less test.
+        encoder.setDepthStencilState(depthStateOverlay)
+        for batch in renderBatches where batch.role == .modelSelection {
+            drawBatch(batch, mvp: mvp, dashLength: 0, encoder: encoder)
         }
     }
 
