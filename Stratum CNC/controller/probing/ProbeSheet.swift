@@ -3,23 +3,29 @@
 //  Stratum CNC
 //
 //  The guided 3D probing dialog: what to probe → where to jog → probe → result.
-//  The rules live in `ProbeFlow`; this only presents them. Step 1 ("What")
-//  is built; the others are placeholders until their milestones.
+//  The rules live in `ProbeFlow`; this only presents them. Steps 1 ("What")
+//  and 2 ("Position") are built; the others are placeholders until their
+//  milestones.
 //
 
 import SwiftUI
+import StratumLink
 
 struct ProbeSheet: View {
 
     @ObservedObject var model: ControllerModel
     let geometry: StockGeometry
+    /// Observed directly so the live position and the jog pad follow the machine.
+    @ObservedObject var connection: SL.Connection
 
     @Environment(\.dismiss) private var dismiss
     @State private var flow: ProbeFlow
+    @State private var isShowingSettings = false
 
-    init(model: ControllerModel, geometry: StockGeometry) {
+    init(model: ControllerModel, geometry: StockGeometry, connection: SL.Connection) {
         self.model = model
         self.geometry = geometry
+        self.connection = connection
         _flow = State(initialValue: ProbeFlow(geometry: geometry))
     }
 
@@ -36,7 +42,7 @@ struct ProbeSheet: View {
             Group {
                 switch flow.step {
                     case .what: whatStep
-                    case .position: placeholderStep("Position", "The stock drawing with the pulsing dot, and a jog pad.")
+                    case .position: positionStep
                     case .probe: placeholderStep("Probe", "The safety checklist and the probing moves.")
                     case .result: placeholderStep("Result", "Measured values, the stock check and Apply.")
                 }
@@ -47,7 +53,7 @@ struct ProbeSheet: View {
             Divider()
             footer
         }
-        .frame(width: 560)
+        .frame(width: flow.step == .what ? 560 : 780)
     }
 
     // MARK: Header / footer
@@ -112,25 +118,20 @@ struct ProbeSheet: View {
 
     // MARK: Step 1: what
 
-    private var shapeBinding: Binding<ProbeShape> {
-        Binding(get: { flow.shape }, set: { flow.setShape($0) })
-    }
-
     private var whatStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("What do you want to probe?")
                 .font(.subheadline.weight(.medium))
 
-            VStack(alignment: .leading, spacing: 6) {
-                Picker("Shape", selection: shapeBinding) {
-                    ForEach(ProbeShape.allCases) { shape in
-                        Text(shape.title).tag(shape)
-                    }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
+                      spacing: 10) {
+                ForEach(flow.availableKinds) { kind in
+                    kindTile(kind)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+            }
 
-                Text(shapeHint)
+            if flow.shape == .circle {
+                Text("Round stock has no corners or straight sides, so only Z and the center can be probed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -145,13 +146,6 @@ struct ProbeSheet: View {
                 .labelsHidden()
             }
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)],
-                      spacing: 10) {
-                ForEach(flow.availableKinds) { kind in
-                    kindTile(kind)
-                }
-            }
-
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "info.circle")
                     .foregroundStyle(.secondary)
@@ -160,13 +154,6 @@ struct ProbeSheet: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        }
-    }
-
-    private var shapeHint: String {
-        switch flow.shape {
-            case .rectangle: "Stock with straight sides: the top and the sides are touched."
-            case .circle: "Round stock or a hole: the center is found from four touches."
         }
     }
 
@@ -200,6 +187,94 @@ struct ProbeSheet: View {
             .contentShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: Step 2: position
+
+    private var positionStep: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(spacing: 8) {
+                ProbeStockDiagram(flow: $flow, inset: model.probeSettings.startInset)
+                    .frame(minWidth: 360, maxWidth: .infinity, minHeight: 380)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "circle.circle.fill")
+                        .foregroundStyle(Color.accentColor)
+                    Text("\(selectionHint) The dot is where to jog the probe to, not where it is now.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                livePosition
+                instructionList
+                settingsRow
+                ProbeJogPad(model: model, connection: connection)
+            }
+            .frame(width: 280)
+        }
+    }
+
+    private var selectionHint: String {
+        if flow.needsCorner { return "Click a corner to choose it." }
+        if flow.needsEdge { return "Click a side to choose it." }
+        return ""
+    }
+
+    private var livePosition: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("WORK POSITION")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            if let status = connection.status {
+                Text(String(format: "X %.3f   Y %.3f   Z %.3f",
+                            status.workPosition.x, status.workPosition.y, status.workPosition.z))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+            } else {
+                Text("Not connected")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private var instructionList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(flow.instructions(settings: model.probeSettings).enumerated()), id: \.offset) { index, text in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(index + 1)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 14, height: 14)
+                        .background(Circle().fill(Color.primary.opacity(0.08)))
+                    Text(text)
+                        .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var settingsRow: some View {
+        let settings = model.probeSettings
+        return HStack(alignment: .top, spacing: 8) {
+            Text("Safe Z \(ProbeFlow.mm(settings.safeZ)) · feed \(ProbeFlow.mm(settings.searchFeed))/\(ProbeFlow.mm(settings.measureFeed)) mm/min · ball Ø\(ProbeFlow.mm(settings.ballDiameter))")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button {
+                isShowingSettings.toggle()
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
+            .buttonStyle(.quiet)
+            .popover(isPresented: $isShowingSettings, arrowEdge: .bottom) {
+                ProbeSettingsView(settings: $model.probeSettings)
+            }
+        }
     }
 
     // MARK: Other steps (not built yet)

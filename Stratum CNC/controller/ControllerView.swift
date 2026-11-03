@@ -231,7 +231,7 @@ struct ControllerView: View {
             BitChangeSheet(model: model, gCodeModel: gCodeModel, connection: model.connection)
         }
         .sheet(isPresented: $model.isShowingProbe) {
-            ProbeSheet(model: model, geometry: camModel.selectedStockMaterial.geometry)
+            ProbeSheet(model: model, geometry: camModel.selectedStockMaterial.geometry, connection: model.connection)
         }
         .sheet(isPresented: $model.isShowingMachinePicker) {
             MachineConnectSheet(model: model, connection: model.connection)
