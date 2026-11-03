@@ -230,6 +230,9 @@ struct ControllerView: View {
         .sheet(isPresented: $model.isShowingBitChange) {
             BitChangeSheet(model: model, gCodeModel: gCodeModel, connection: model.connection)
         }
+        .sheet(isPresented: $model.isShowingProbe) {
+            ProbeSheet(model: model, geometry: camModel.selectedStockMaterial.geometry)
+        }
         .sheet(isPresented: $model.isShowingMachinePicker) {
             MachineConnectSheet(model: model, connection: model.connection)
         }

@@ -109,6 +109,14 @@ class ControllerModel: ObservableObject {
     /// Drives `BitChangeSheet`: change the bit and carry on from where the job stopped.
     @Published var isShowingBitChange = false
 
+    /// Drives `ProbeSheet`, the guided 3D probing dialog.
+    @Published var isShowingProbe = false
+
+    /// Heights, feeds and the probe's ball for 3D probing. Persisted.
+    @Published var probeSettings = ProbeSettings.load() {
+        didSet { probeSettings.save() }
+    }
+
     @Published var isGCodeImporterPresented = false
 
     /// The right-hand G-CODE / MACROS tabs. Only one is shown at a time.

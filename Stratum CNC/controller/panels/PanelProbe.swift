@@ -18,6 +18,32 @@ struct PanelProbe: View {
     @State private var isShowingLevelOptions = false
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            quickRow
+            guidedRow
+        }
+        .buttonStyle(.quiet)
+    }
+
+    /// The guided dialog for corners and centers. Its own row: the quick row
+    /// above already fills the panel's width.
+    private var guidedRow: some View {
+        HStack(spacing: 6) {
+            PanelRowLabel("")
+
+            Button {
+                model.isShowingProbe = true
+            } label: {
+                Label("3D Probe…", systemImage: "cube.transparent")
+            }
+            .buttonStyle(QuietButtonStyle(tint: .accentColor))
+            .help("Find a corner or the center of the stock with the 3D probe")
+
+            Spacer(minLength: 4)
+        }
+    }
+
+    private var quickRow: some View {
         HStack(spacing: 6) {
             PanelRowLabel("PROBE")
 
@@ -56,7 +82,6 @@ struct PanelProbe: View {
                 levelOptions
             }
         }
-        .buttonStyle(.quiet)
     }
 
     private var levelOptions: some View {
