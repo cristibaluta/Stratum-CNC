@@ -55,6 +55,8 @@ struct ProbeSettings: Codable, Equatable {
     /// Work coordinate system the result is written to: 1 = G54 … 6 = G59.
     var workCoordinateSystem = 1
     var setsZ = true
+    /// Circles: touch four sides, move to the center found, and touch again.
+    var refinesCircle = true
 
     // MARK: Derived
 

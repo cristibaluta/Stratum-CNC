@@ -56,6 +56,7 @@ struct ProbeSettingsView: View {
                     }
                 }
                 Toggle("Set Z as well", isOn: $settings.setsZ)
+                Toggle("Touch circles twice (more accurate)", isOn: $settings.refinesCircle)
             }
 
             ForEach(settings.problems, id: \.self) { problem in
@@ -69,6 +70,10 @@ struct ProbeSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onChange(of: settings.ballDiameter) { _, _ in
+            // A different ball has to be confirmed again before the next run.
+            settings.hasConfirmedBallDiameter = false
+        }
         .frame(width: 380, height: 520)
     }
 }

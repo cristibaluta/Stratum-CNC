@@ -107,6 +107,13 @@ final class JobCoordinator: ObservableObject {
     /// `G32`'s H: the height the probe lifts to between points.
     private let levelProbeHeight = 2.0
 
+    /// `jobRunner` has one pair of hooks and this object owns it. Anyone else
+    /// who runs a macro through the runner (3D probing) listens here instead.
+    /// They fire for every macro, so a listener must only act while its own is
+    /// running.
+    var onMacroFinished: (() -> Void)?
+    var onMacroFailed: (() -> Void)?
+
     private var cancellables = Set<AnyCancellable>()
 
     init(session: SL.Session, store: JobProgressStore = JobProgressStore()) {
@@ -126,9 +133,11 @@ final class JobCoordinator: ObservableObject {
             self?.uploadCompleted(remotePath: path)
         }
         jobRunner.onFinish = { [weak self] in
+            self?.onMacroFinished?()
             self?.preRunFinished()
         }
         jobRunner.onFailure = { [weak self] in
+            self?.onMacroFailed?()
             self?.pendingPlayPath = nil
             self?.abandonStartingProgress()
         }
