@@ -2,7 +2,8 @@
 //  ProbeStockDiagram.swift
 //  Stratum CNC
 //
-//  The stock seen from above, drawn to scale, with the pulsing dot that marks
+//  The thing being probed seen from above, drawn to scale (the stock, or the
+//  pocket or hole when probing the inside), with the pulsing dot that marks
 //  where the probe tip should be jogged to. The dot is a target, not the
 //  probe's position: the drawing does not know where the probe is.
 //
@@ -23,7 +24,7 @@ struct ProbeStockDiagram: View {
 
     // MARK: Layout
 
-    /// Maps stock coordinates (origin bottom-left, Y up) to points in the view.
+    /// Maps feature coordinates (origin bottom-left, Y up) to points in the view.
     private struct Layout {
         let rect: CGRect
         let scale: CGFloat
@@ -46,7 +47,7 @@ struct ProbeStockDiagram: View {
     }
 
     private var size: (width: Double, height: Double) {
-        ProbeFlow.footprint(of: flow.geometry)
+        flow.featureSize
     }
 
     // MARK: Body
@@ -82,6 +83,37 @@ struct ProbeStockDiagram: View {
 
     @ViewBuilder
     private func stock(_ layout: Layout) -> some View {
+        if flow.isInside {
+            pocket(layout)
+        } else {
+            outsideStock(layout)
+        }
+    }
+
+    /// The inside of a pocket or hole: an empty shape with a dashed outline,
+    /// because the stock around it is not what is being touched.
+    @ViewBuilder
+    private func pocket(_ layout: Layout) -> some View {
+        let path = flow.shape == .circle
+            ? Path(ellipseIn: layout.rect)
+            : Path(roundedRect: layout.rect, cornerRadius: 2)
+        path.fill(Color.primary.opacity(0.06))
+        path.stroke(stockLine, style: StrokeStyle(lineWidth: 2, dash: [7, 4]))
+    }
+
+    @ViewBuilder
+    private func outsideStock(_ layout: Layout) -> some View {
+        if flow.isRoundBoss {
+            let path = Path(ellipseIn: layout.rect)
+            path.fill(stockFill)
+            path.stroke(stockLine, lineWidth: 1.5)
+        } else {
+            stockOfGeometry(layout)
+        }
+    }
+
+    @ViewBuilder
+    private func stockOfGeometry(_ layout: Layout) -> some View {
         switch flow.geometry {
             case .rectangular, .cylindrical:
                 let path = Path(roundedRect: layout.rect, cornerRadius: 3)
@@ -104,7 +136,8 @@ struct ProbeStockDiagram: View {
 
     private func dimensionLabels(_ layout: Layout) -> some View {
         let isRound = flow.shape == .circle
-        let widthText = isRound ? "Ø\(ProbeFlow.mm(size.width)) mm" : "\(ProbeFlow.mm(size.width)) mm"
+        let name = flow.isInside ? (flow.hasHole ? "Hole " : "Pocket ") : (flow.isRoundBoss ? "Boss " : "")
+        let widthText = name + (isRound ? "Ø\(ProbeFlow.mm(size.width)) mm" : "\(ProbeFlow.mm(size.width)) mm")
         return ZStack {
             Text(widthText)
                 .position(x: layout.rect.midX, y: layout.rect.minY - 24)
@@ -140,34 +173,28 @@ struct ProbeStockDiagram: View {
         .allowsHitTesting(false)
     }
 
-    // MARK: Choosing a corner or a side
+    // MARK: Choosing a point
 
+    /// The nine points of a rectangle: four corners, four side midpoints and
+    /// the center. A round feature only has its center, so nothing to choose.
     @ViewBuilder
     private func handles(_ layout: Layout) -> some View {
-        if flow.needsCorner {
-            ForEach(ProbeCorner.allCases) { corner in
-                handle(isSelected: corner == flow.corner, help: "\(corner.title) corner") {
-                    flow.corner = corner
+        if flow.choosesPoint {
+            ForEach(ProbePoint.allCases) { point in
+                handle(isSelected: point == flow.point, help: point.title(inside: flow.isInside)) {
+                    flow.point = point
                 }
-                .position(layout.point(corner.isLeft ? 0 : size.width, corner.isBottom ? 0 : size.height))
-            }
-        } else if flow.needsEdge {
-            ForEach(ProbeEdge.allCases) { edge in
-                handle(isSelected: edge == flow.edge, help: "\(edge.title) side") {
-                    flow.edge = edge
-                }
-                .position(edgePoint(edge, layout))
+                .position(layout.point(x(of: point), y(of: point)))
             }
         }
     }
 
-    private func edgePoint(_ edge: ProbeEdge, _ layout: Layout) -> CGPoint {
-        switch edge {
-            case .left: layout.point(0, size.height / 2)
-            case .right: layout.point(size.width, size.height / 2)
-            case .bottom: layout.point(size.width / 2, 0)
-            case .top: layout.point(size.width / 2, size.height)
-        }
+    private func x(of point: ProbePoint) -> Double {
+        point.column < 0 ? 0 : (point.column > 0 ? size.width : size.width / 2)
+    }
+
+    private func y(of point: ProbePoint) -> Double {
+        point.row < 0 ? 0 : (point.row > 0 ? size.height : size.height / 2)
     }
 
     private func handle(isSelected: Bool, help: String, action: @escaping () -> Void) -> some View {

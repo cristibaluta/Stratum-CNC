@@ -2,7 +2,9 @@
 //  ProbeSheet.swift
 //  Stratum CNC
 //
-//  The guided 3D probing dialog: what to probe → where to jog → probe → result.
+//  The guided 3D probing dialog: what to probe (a Z surface or an X/Y point,
+//  on the stock or inside a pocket) → where to jog (and which corner, side or
+//  center, chosen on the drawing) → probe → result.
 //  The rules live in `ProbeFlow`; this only presents them. Steps 1 ("What")
 //  2 ("Position"), 3 ("Probe") and 4 ("Result") are all built.
 //
@@ -147,20 +149,33 @@ struct ProbeSheet: View {
                 }
             }
 
-            if flow.shape == .circle {
-                Text("Round stock has no corners or straight sides, so only Z and the center can be probed.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            if showsSurfacePicker {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("PROBE THE")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Picker("Surface", selection: $flow.surface) {
+                        ForEach(ProbeSurface.allCases) { surface in
+                            Text(surface.title(hasHole: flow.hasHole)).tag(surface)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
             }
 
-            if flow.needsCircleSide {
-                Picker("Side", selection: $flow.circleSide) {
-                    ForEach(CircleSide.allCases) { side in
-                        Text(side.title).tag(side)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+            if flow.probesPocket {
+                pocketFields
+            }
+
+            if showsRoundBossPicker {
+                roundBossFields
+            }
+
+            if flow.kind == .point, flow.shape == .circle {
+                Text("A round \(flow.isInside ? (flow.hasHole ? "hole" : "pocket") : (flow.isRoundBoss ? "boss" : "stock")) has no corners or straight sides, so its center is probed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             HStack(alignment: .top, spacing: 8) {
@@ -171,6 +186,61 @@ struct ProbeSheet: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// The Z surface of a disk with a hole is always its top, so there is
+    /// nothing to choose.
+    private var showsSurfacePicker: Bool {
+        !(flow.kind == .zSurface && flow.hasHole)
+    }
+
+    /// A rectangular stock can carry a round boss: offer to probe that instead.
+    private var showsRoundBossPicker: Bool {
+        flow.kind == .point && !flow.isInside && !flow.isDisk
+    }
+
+    private var roundBossFields: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("SHAPE OF THE STOCK")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Picker("Shape", selection: $flow.outsideIsRound) {
+                Text("As the stock").tag(false)
+                Text("Round boss").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            if flow.outsideIsRound {
+                MeasurementField(title: "Diameter", value: $flow.bossDiameter, unit: "mm")
+            }
+        }
+    }
+
+    /// The stock does not know about a pocket, so it is described here.
+    private var pocketFields: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("THE POCKET")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Picker("Pocket shape", selection: $flow.pocketShape) {
+                ForEach(ProbeShape.allCases) { shape in
+                    Text(shape.title).tag(shape)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            if flow.pocketShape == .circle {
+                MeasurementField(title: "Diameter", value: $flow.pocketWidth, unit: "mm")
+            } else {
+                MeasurementField(title: "Width (X)", value: $flow.pocketWidth, unit: "mm")
+                MeasurementField(title: "Height (Y)", value: $flow.pocketHeight, unit: "mm")
+            }
+            MeasurementField(title: "Depth", value: $flow.pocketDepth, unit: "mm")
         }
     }
 
@@ -186,7 +256,7 @@ struct ProbeSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(kind.title)
                         .font(.callout.weight(.medium))
-                    Text(kind.subtitle(shape: flow.shape))
+                    Text(kind.subtitle(surface: flow.surface))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
@@ -235,9 +305,7 @@ struct ProbeSheet: View {
     }
 
     private var selectionHint: String {
-        if flow.needsCorner { return "Click a corner to choose it." }
-        if flow.needsEdge { return "Click a side to choose it." }
-        return ""
+        flow.choosesPoint ? "Click a corner, a side or the center to choose it." : ""
     }
 
     private var livePosition: some View {
@@ -568,7 +636,7 @@ struct ProbeSheet: View {
                 Text("Machine X \(x)   Y \(y)")
                     .font(.system(size: 12, design: .monospaced))
             } else if let z = result.surfaceZ {
-                Text("Z0 was set on the top of the stock (machine Z \(ProbeResult.format(z))). Nothing else to apply.")
+                Text("Z0 was set on the \(flow.probesPocket ? "floor of the pocket" : "top of the stock") (machine Z \(ProbeResult.format(z))). Nothing else to apply.")
                     .font(.callout)
             } else {
                 Text("No origin could be worked out from the measurements.")
@@ -637,7 +705,7 @@ struct ProbeSheet: View {
                 .controlSize(.large)
                 .disabled(connectionIsBusy)
 
-                Text("Done without applying leaves the origin as it was. Z0 was already set during probing.")
+                Text("Done without applying leaves the origin as it was. \(flow.setsZ(settings: model.probeSettings) ? "Z0 was already set during probing." : "Z0 was not changed.")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

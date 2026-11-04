@@ -6,8 +6,9 @@
 //  being probed, and where the probe should be jogged to. Pure state;
 //  `ProbeSheet` presents it. Same split as `BitChangeFlow` / `BitChangeSheet`.
 //
-//  Stock coordinates used here: origin at the stock's bottom-left corner seen
-//  from above, X to the right, Y up, millimeters.
+//  Feature coordinates used here: origin at the bottom-left corner of the thing
+//  being probed (the stock, or the pocket) seen from above, X to the right,
+//  Y up, millimeters.
 //
 
 import Foundation
@@ -34,25 +35,92 @@ struct ProbeFlow: Equatable {
 
     let geometry: StockGeometry
 
-    var kind: ProbeKind
-    var circleSide: CircleSide
-    var corner: ProbeCorner = .bottomLeft
-    var edge: ProbeEdge = .left
+    var kind: ProbeKind = .point
+    var surface: ProbeSurface
+    /// Which of the nine points is probed. Round features only have the center.
+    var point: ProbePoint = .bottomLeft
+
+    /// A pocket the person describes, because the stock does not know about
+    /// it. Used when probing the inside of anything but a disk's hole.
+    var pocketShape: ProbeShape = .rectangle
+    var pocketWidth = 40.0
+    var pocketHeight = 30.0
+    var pocketDepth = 10.0
+
+    /// A round boss or pin on a stock that is not itself round (a disk is
+    /// already round). Probed from outside like round stock; its diameter is
+    /// entered because the stock does not know about it.
+    var outsideIsRound = false
+    var bossDiameter = 30.0
 
     init(geometry: StockGeometry) {
         self.geometry = geometry
-        circleSide = Self.defaultCircleSide(for: geometry)
-        kind = Self.defaultShape(for: geometry) == .circle ? .center : .corner
+        surface = Self.defaultSurface(for: geometry)
+        if Self.defaultShape(for: geometry) == .circle { point = .center }
     }
 
-    /// Follows the stock; it is not chosen. The center is one of the kinds.
-    var shape: ProbeShape { Self.defaultShape(for: geometry) }
+    // MARK: What is being probed
+
+    /// The shape and size, seen from above, of the thing the probe touches:
+    /// the stock when probing the outside, the pocket or hole when probing
+    /// the inside.
+    struct Feature: Equatable {
+        var shape: ProbeShape
+        var width: Double
+        var height: Double
+    }
 
     /// A disk with a hole can be probed from outside or from inside.
     var hasHole: Bool {
         if case let .disk(_, innerDiameter, _) = geometry { return innerDiameter > 0 }
         return false
     }
+
+    var isDisk: Bool {
+        if case .disk = geometry { return true }
+        return false
+    }
+
+    /// The outside of a round boss sitting on a rectangular stock.
+    var isRoundBoss: Bool { !isInside && outsideIsRound && !isDisk }
+
+    /// True when the inside is probed. The Z surface of a disk with a hole is
+    /// always the top of the stock (the ring), so it never counts as inside.
+    var isInside: Bool { surface == .inside && !(kind == .zSurface && hasHole) }
+
+    /// The inside of a disk's hole: its size is known, it goes all the way
+    /// through, and Z is touched on the ring around it.
+    var probesInsideHole: Bool { kind == .point && isInside && hasHole }
+
+    /// The inside of a pocket the person described: it has a floor, and that
+    /// is where Z is touched.
+    var probesPocket: Bool { isInside && !hasHole }
+
+    var feature: Feature {
+        guard isInside else {
+            if isRoundBoss { return Feature(shape: .circle, width: bossDiameter, height: bossDiameter) }
+            let size = Self.footprint(of: geometry)
+            return Feature(shape: Self.defaultShape(for: geometry), width: size.width, height: size.height)
+        }
+        if case let .disk(_, innerDiameter, _) = geometry, innerDiameter > 0 {
+            return Feature(shape: .circle, width: innerDiameter, height: innerDiameter)
+        }
+        switch pocketShape {
+            case .rectangle: return Feature(shape: .rectangle, width: pocketWidth, height: pocketHeight)
+            case .circle: return Feature(shape: .circle, width: pocketWidth, height: pocketWidth)
+        }
+    }
+
+    var shape: ProbeShape { feature.shape }
+
+    /// Size of the feature seen from above.
+    var featureSize: (width: Double, height: Double) { (feature.width, feature.height) }
+
+    /// The point actually probed: a round feature only has its center.
+    var effectivePoint: ProbePoint { shape == .circle ? .center : point }
+
+    /// Whether the drawing offers the nine points to choose from.
+    var choosesPoint: Bool { kind == .point && shape == .rectangle }
 
     // MARK: Defaults from the stock
 
@@ -66,7 +134,7 @@ struct ProbeFlow: Equatable {
     }
 
     /// A disk with a hole defaults to probing the hole.
-    static func defaultCircleSide(for geometry: StockGeometry) -> CircleSide {
+    static func defaultSurface(for geometry: StockGeometry) -> ProbeSurface {
         if case let .disk(_, innerDiameter, _) = geometry, innerDiameter > 0 {
             return .inside
         }
@@ -88,27 +156,55 @@ struct ProbeFlow: Equatable {
 
     // MARK: Choosing
 
-    /// What can be probed on the chosen shape. A circle has no corners or
-    /// straight edges.
-    var availableKinds: [ProbeKind] {
-        switch shape {
-            case .rectangle: ProbeKind.allCases
-            case .circle: [.zSurface, .center]
-        }
+    var availableKinds: [ProbeKind] { ProbeKind.allCases }
+
+    /// The sides the chosen point needs touched, in the order they are
+    /// probed. A corner is two sides, a side midpoint one, the center four.
+    var sides: [ProbeEdge] {
+        guard kind == .point else { return [] }
+        let chosen = effectivePoint
+        if chosen.isCenter { return [.left, .right, .bottom, .top] }
+        var result: [ProbeEdge] = []
+        if chosen.column < 0 { result.append(.left) }
+        if chosen.column > 0 { result.append(.right) }
+        if chosen.row < 0 { result.append(.bottom) }
+        if chosen.row > 0 { result.append(.top) }
+        return result
     }
 
-    var needsCorner: Bool { kind == .corner }
-    var needsEdge: Bool { kind == .edge }
-    var needsCircleSide: Bool { shape == .circle && kind == .center && hasHole }
+    /// The way the probe moves to touch `side`, and the axis it moves on.
+    /// From outside the probe moves toward the stock (+ to reach the left or
+    /// bottom side); from inside it moves out toward the wall (the opposite).
+    func probeDirection(for side: ProbeEdge) -> (axis: ProbeAxis, direction: Int) {
+        let towardPositive = side == .left || side == .bottom
+        return (side.axis, (!isInside) == towardPositive ? 1 : -1)
+    }
 
     /// X and Y both need Z first: the sides are touched at a depth below the top.
     var probesZFirst: Bool { kind != .zSurface }
+
+    /// Whether Z0 is written during the cycle. Inside a pocket the floor is
+    /// touched to find the height, but Z0 is only set there when Z is the thing
+    /// being probed: it is normally on the top of the stock, which is not
+    /// touched.
+    func setsZ(settings: ProbeSettings) -> Bool {
+        if kind == .zSurface { return true }
+        return settings.setsZ && !probesPocket
+    }
+
+    /// Whether the sizes the person typed (a pocket, a round boss) make sense.
+    var entriesAreValid: Bool {
+        let size = featureSize
+        if probesPocket { return size.width > 0 && size.height > 0 && pocketDepth > 0 }
+        if isRoundBoss { return bossDiameter > 0 }
+        return true
+    }
 
     // MARK: Moving through the steps
 
     var canAdvance: Bool {
         switch step {
-            case .what: availableKinds.contains(kind)
+            case .what: availableKinds.contains(kind) && entriesAreValid
             case .position, .probe: true
             case .result: false
         }
@@ -132,10 +228,12 @@ struct ProbeFlow: Equatable {
         max(1, min(requested, width / 4, height / 4))
     }
 
-    /// Where the probe tip should be jogged to (above the stock), in stock
-    /// coordinates. This is a target, not the probe's current position.
+    /// Where the probe tip should be jogged to (above the stock, or inside the
+    /// pocket), in feature coordinates: origin at the bottom-left of the
+    /// feature, X right, Y up. This is a target, not the probe's current
+    /// position.
     func targetPoint(inset requested: Double) -> (x: Double, y: Double) {
-        let size = Self.footprint(of: geometry)
+        let size = featureSize
         let width = size.width
         let height = size.height
         let inset = Self.clampedInset(requested, width: width, height: height)
@@ -147,92 +245,74 @@ struct ProbeFlow: Equatable {
                     return (width / 2 + (outerDiameter + innerDiameter) / 4, height / 2)
                 }
                 return (width / 2, height / 2)
-            case .edge:
-                switch edge {
-                    case .left: return (inset, height / 2)
-                    case .right: return (width - inset, height / 2)
-                    case .bottom: return (width / 2, inset)
-                    case .top: return (width / 2, height - inset)
-                }
-            case .corner:
-                return (corner.isLeft ? inset : width - inset,
-                        corner.isBottom ? inset : height - inset)
-            case .center:
-                return (width / 2, height / 2)
+            case .point:
+                let chosen = effectivePoint
+                let x = chosen.column < 0 ? inset : (chosen.column > 0 ? width - inset : width / 2)
+                let y = chosen.row < 0 ? inset : (chosen.row > 0 ? height - inset : height / 2)
+                return (x, y)
         }
     }
 
-    /// The points on the stock's outline the probe will touch, in stock
+    /// The points on the feature's outline the probe will touch, in feature
     /// coordinates. The drawing joins them to the dot with dashed lines.
     func touchPoints(inset requested: Double) -> [(x: Double, y: Double)] {
-        let size = Self.footprint(of: geometry)
-        let width = size.width
-        let height = size.height
+        let size = featureSize
         let target = targetPoint(inset: requested)
 
-        switch kind {
-            case .zSurface:
-                return []
-            case .edge:
-                switch edge {
-                    case .left: return [(0, target.y)]
-                    case .right: return [(width, target.y)]
-                    case .bottom: return [(target.x, 0)]
-                    case .top: return [(target.x, height)]
-                }
-            case .corner:
-                return [(corner.isLeft ? 0 : width, target.y),
-                        (target.x, corner.isBottom ? 0 : height)]
-            case .center:
-                var radiusX = width / 2
-                var radiusY = height / 2
-                if circleSide == .inside, case let .disk(_, innerDiameter, _) = geometry, innerDiameter > 0 {
-                    radiusX = innerDiameter / 2
-                    radiusY = innerDiameter / 2
-                }
-                let centerX = width / 2
-                let centerY = height / 2
-                return [(centerX - radiusX, centerY), (centerX + radiusX, centerY),
-                        (centerX, centerY - radiusY), (centerX, centerY + radiusY)]
+        return sides.map { side -> (x: Double, y: Double) in
+            switch side {
+                case .left: return (0, target.y)
+                case .right: return (size.width, target.y)
+                case .bottom: return (target.x, 0)
+                case .top: return (target.x, size.height)
+            }
         }
     }
-
-    /// True when the center is probed inside a hole, where Z can't be touched
-    /// at the dot and is touched on the ring instead.
-    var probesInsideHole: Bool { kind == .center && shape == .circle && circleSide == .inside && hasHole }
 
     /// What the person has to do on the position step.
     func instructions(settings: ProbeSettings) -> [String] {
-        let size = Self.footprint(of: geometry)
+        let size = featureSize
         let inset = Self.clampedInset(settings.startInset, width: size.width, height: size.height)
         var steps = ["Put the probe (T\(settings.probeTool)) in the spindle and check that it triggers when you touch the tip."]
 
+        let thing = isInside ? (hasHole ? "hole" : "pocket") : "stock"
         switch kind {
             case .zSurface:
-                steps.append("Jog the tip above the dot, a few millimeters above the stock.")
-            case .edge:
-                steps.append("Jog the tip above the dot on the \(edge.title.lowercased()) side, \(Self.mm(inset)) mm from the edge.")
-            case .corner:
-                steps.append("Jog the tip above the dot at the \(corner.title.lowercased()) corner, \(Self.mm(inset)) mm from both sides.")
-            case .center:
-                if shape == .rectangle {
-                    steps.append("Jog the tip above the dot in the middle of the stock.")
-                } else if probesInsideHole {
-                    steps.append("Jog the tip above the dot in the middle of the hole.")
+                if probesPocket {
+                    steps.append("Jog the tip above the dot, inside the pocket.")
                 } else {
-                    steps.append("Jog the tip above the dot in the middle of the round stock.")
+                    steps.append("Jog the tip above the dot, a few millimeters above the stock.")
+                }
+            case .point:
+                let chosen = effectivePoint
+                let title = chosen.title(inside: isInside).lowercased()
+                if chosen.isCenter {
+                    steps.append("Jog the tip above the dot in the middle of the \(centerSubject).")
+                } else if chosen.isCorner {
+                    steps.append("Jog the tip above the dot at the \(title) of the \(thing), \(Self.mm(inset)) mm from both \(isInside ? "walls" : "sides").")
+                } else {
+                    steps.append("Jog the tip above the dot at the \(title) of the \(thing), \(Self.mm(inset)) mm from it.")
                 }
         }
 
-        steps.append("Stay within about 2 mm of the dot in X and Y. The height does not need to be exact, but keep the tip above the stock.")
+        steps.append("Stay within about 2 mm of the dot in X and Y. The height does not need to be exact, but keep the tip clear of the \(isInside ? "pocket floor" : "stock").")
 
         if probesInsideHole {
             steps.append("The top is touched on the ring around the hole first, then the probe comes back to the hole.")
+        } else if probesPocket {
+            if kind == .point {
+                steps.append("The floor is touched first, only to know the height. The walls are then touched \(Self.mm(wallHeight(settings: settings))) mm above it.")
+            }
         } else if probesZFirst {
             let depth = settings.edgeDepth(forStockThickness: thickness)
             steps.append("The top is touched first. The sides are then touched \(Self.mm(depth)) mm below it, starting \(Self.mm(settings.outsideClearance)) mm outside the edge.")
         }
         return steps
+    }
+
+    /// How far above the pocket's floor its walls are touched.
+    func wallHeight(settings: ProbeSettings) -> Double {
+        settings.edgeDepth(forStockThickness: pocketDepth)
     }
 
     /// 10 → "10", 1.5 → "1.5".
@@ -242,29 +322,43 @@ struct ProbeFlow: Equatable {
 
     // MARK: Text
 
-    /// Where the work origin ends up, for the summary line.
-    var originDescription: String {
-        switch kind {
-            case .zSurface:
-                "Sets Z0 on the top of the stock."
-            case .edge:
-                switch edge {
-                    case .left, .right: "Sets X0 on the \(edge.title.lowercased()) side."
-                    case .bottom, .top: "Sets Y0 on the \(edge.title.lowercased()) side."
-                }
-            case .corner:
-                "Sets X0 Y0 Z0 at the \(corner.title.lowercased()) corner of the stock top."
-            case .center:
-                shape == .rectangle
-                    ? "Sets X0 Y0 at the center of the stock, and Z0 on its top."
-                    : "Sets X0 Y0 at the center of the \(circleSide == .outside ? "round stock" : "hole"), and Z0 on its top."
+    private var centerSubject: String {
+        switch (isInside, shape) {
+            case (false, .circle): "round stock"
+            case (false, .rectangle): "stock"
+            case (true, _): hasHole ? "hole" : "pocket"
         }
     }
+
+    /// Where the work origin ends up, for the summary line.
+    var originDescription: String {
+        let chosen = effectivePoint
+        let thing = isInside ? (hasHole ? "hole" : "pocket") : "stock"
+
+        switch kind {
+            case .zSurface:
+                return probesPocket ? "Sets Z0 on the floor of the pocket." : "Sets Z0 on the top of the stock."
+            case .point:
+                if chosen.isCenter {
+                    return "Sets X0 Y0 at the center of the \(centerSubject)\(zSuffix)."
+                }
+                if chosen.isCorner {
+                    return "Sets X0 Y0 at the \(chosen.title(inside: isInside).lowercased()) of the \(thing)\(zSuffix)."
+                }
+                let axis = chosen.column != 0 ? "X0" : "Y0"
+                return "Sets \(axis) on the \(chosen.title(inside: isInside).lowercased()) of the \(thing)\(zSuffix)."
+        }
+    }
+
+    /// ", and Z0 on its top" for the summaries. A pocket does not set Z0.
+    private var zSuffix: String { probesPocket ? "" : ", and Z0 on its top" }
 
     /// One or two sentences on what will happen, shown on the first step.
     var summary: String {
         var text = originDescription
-        if probesZFirst {
+        if probesPocket, kind == .point {
+            text += " The floor is touched first to know the height; Z0 is left alone."
+        } else if probesZFirst {
             text += " The top is touched first, because the sides are touched below it."
         }
         return text

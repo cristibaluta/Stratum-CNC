@@ -5,6 +5,13 @@
 //  Turns "what to probe" + the settings + the stock into the list of steps a
 //  cycle runs. Pure: no machine, no UI, so every sign and distance is tested.
 //
+//  Two ways in, depending on the surface:
+//    outside (stock): touch the top, then each side from outside, lowering
+//      beside the stock first.
+//    inside (pocket): touch the floor to know the height, rise a little, then
+//      touch each wall from inside, moving out. A disk's through-hole has no
+//      floor, so there the top is touched on the ring around it instead.
+//
 //  The cycle starts with the probe tip above the dot (see `ProbeFlow.targetPoint`)
 //  and moves RELATIVE (G91) from there, so it does not depend on the work
 //  offset. Positions that matter are read back in machine coordinates and the
@@ -39,12 +46,21 @@ struct ProbeCycleBuilder {
     /// Reasons the cycle can't run with this choice and these settings.
     static func problems(flow: ProbeFlow, settings: ProbeSettings) -> [String] {
         var result = settings.problems
-        if flow.probesInsideHole,
-           case let .disk(_, innerDiameter, _) = flow.geometry,
-           innerDiameter / 2 <= settings.ballRadius + 0.5 {
-            result.append("The hole is too small for the probe ball.")
+        let size = flow.featureSize
+
+        if flow.kind == .point, flow.isInside,
+           min(size.width, size.height) / 2 <= settings.ballRadius + 0.5 {
+            result.append("The \(flow.hasHole ? "hole" : "pocket") is too small for the probe ball.")
         }
-        if flow.probesZFirst, flow.thickness < 2 {
+        if flow.probesPocket {
+            let stock = ProbeFlow.footprint(of: flow.geometry)
+            if size.width > stock.width || size.height > stock.height {
+                result.append("The pocket is bigger than the stock.")
+            }
+            if flow.kind == .point, flow.pocketDepth < 2 {
+                result.append("The pocket is too shallow to touch its walls.")
+            }
+        } else if flow.probesZFirst, flow.thickness < 2 {
             result.append("The stock is too thin to touch its sides.")
         }
         return result
@@ -57,30 +73,28 @@ struct ProbeCycleBuilder {
 
         switch flow.kind {
             case .zSurface:
-                steps += topSteps(ringOffset: nil)
+                steps += flow.probesPocket ? floorSteps() : topSteps(ringOffset: nil)
 
-            case .edge:
-                steps += topSteps(ringOffset: nil)
-                let (axis, direction) = edgeSide
-                steps += sideSteps(axis: axis, direction: direction, distance: edgeDistance(axis, direction),
-                                   depth: depth(for: axis), pass: 0, name: sideName(axis, direction))
+            case .point:
+                let isCenter = flow.effectivePoint.isCenter
+                let isRound = flow.shape == .circle
 
-            case .corner:
-                steps += topSteps(ringOffset: nil)
-                let xDirection = flow.corner.isLeft ? 1 : -1
-                let yDirection = flow.corner.isBottom ? 1 : -1
-                steps += sideSteps(axis: .x, direction: xDirection, distance: edgeDistance(.x, xDirection),
-                                   depth: depth(for: .x), pass: 0, name: sideName(.x, xDirection))
-                steps += sideSteps(axis: .y, direction: yDirection, distance: edgeDistance(.y, yDirection),
-                                   depth: depth(for: .y), pass: 0, name: sideName(.y, yDirection))
-
-            case .center:
-                if flow.shape == .rectangle {
-                    steps += topSteps(ringOffset: nil)
-                    steps += rectangleCenterSteps()
-                } else {
-                    steps += topSteps(ringOffset: flow.probesInsideHole ? ringOffset : nil)
+                if flow.probesInsideHole {
+                    steps += topSteps(ringOffset: ringOffset)
                     steps += circleCenterSteps()
+                } else if flow.probesPocket {
+                    steps += floorSteps()
+                    steps += isCenter && isRound ? circleCenterSteps() : pocketWallSteps(pass: 0)
+                    if isCenter && !isRound { steps.append(moveToCenterStep(pass: 0, title: "Move to the center")) }
+                    steps.append(raiseOutOfPocket)
+                } else {
+                    steps += topSteps(ringOffset: nil)
+                    if isCenter && isRound {
+                        steps += circleCenterSteps()
+                    } else {
+                        steps += stockSideSteps(pass: 0)
+                        if isCenter { steps.append(moveToCenterStep(pass: 0, title: "Move to the center")) }
+                    }
                 }
         }
 
@@ -91,7 +105,7 @@ struct ProbeCycleBuilder {
     // MARK: Numbers
 
     private var radius: Double { settings.ballRadius }
-    private var size: (width: Double, height: Double) { ProbeFlow.footprint(of: flow.geometry) }
+    private var size: (width: Double, height: Double) { flow.featureSize }
     private var dot: (x: Double, y: Double) { flow.targetPoint(inset: settings.startInset) }
 
     /// 10 → "10", 1.5 → "1.5", −0.0004 → "0".
@@ -107,40 +121,24 @@ struct ProbeCycleBuilder {
     /// How far below the top a side is touched. A cylinder lying on the bed is
     /// widest at its middle, so its long sides are touched at half its height.
     private func depth(for axis: ProbeAxis) -> Double {
-        if case .cylindrical = flow.geometry, axis == .y {
+        if case .cylindrical = flow.geometry, axis == .y, !flow.isRoundBoss {
             return flow.thickness / 2
         }
         return settings.edgeDepth(forStockThickness: flow.thickness)
     }
 
-    /// The side the single-edge cycle touches.
-    private var edgeSide: (ProbeAxis, Int) {
-        switch flow.edge {
-            case .left: (.x, 1)
-            case .right: (.x, -1)
-            case .bottom: (.y, 1)
-            case .top: (.y, -1)
+    /// Distance from the dot to `side` of the feature.
+    private func distance(to side: ProbeEdge) -> Double {
+        switch side {
+            case .left: dot.x
+            case .right: size.width - dot.x
+            case .bottom: dot.y
+            case .top: size.height - dot.y
         }
     }
 
-    /// Distance from the dot to the side the probe touches when moving in
-    /// `direction` (+1 touches the left or bottom side, −1 the right or top).
-    private func edgeDistance(_ axis: ProbeAxis, _ direction: Int) -> Double {
-        switch (axis, direction > 0) {
-            case (.x, true): dot.x
-            case (.x, false): size.width - dot.x
-            case (.y, true): dot.y
-            case (.y, false): size.height - dot.y
-        }
-    }
-
-    private func sideName(_ axis: ProbeAxis, _ direction: Int) -> String {
-        switch (axis, direction > 0) {
-            case (.x, true): "left side"
-            case (.x, false): "right side"
-            case (.y, true): "bottom side"
-            case (.y, false): "top side"
-        }
+    private func sideName(_ side: ProbeEdge) -> String {
+        "\(side.rawValue) \(flow.isInside ? "wall" : "side")"
     }
 
     /// Between the ring around a hole and its center, along X.
@@ -191,28 +189,64 @@ struct ProbeCycleBuilder {
         }
 
         var lines = touchLines("Z", -1, distance: settings.searchDistance)
-        if flow.kind == .zSurface || settings.setsZ {
-            lines.append(settings.zOffset == 0
-                ? zeroZCommand
-                : "G10 L20 P\(settings.workCoordinateSystem) Z\(n(settings.zOffset))")
-        }
+        if flow.setsZ(settings: settings) { lines.append(zeroLine) }
         lines.append("G0 Z\(n(settings.safeZ))")
 
         steps.append(ProbeStepPlan("Touch the top",
                                    measure: ProbeKey.zTop,
                                    recovery: raiseLines,
-                                   check: { contacts in
-            guard let start = contacts[ProbeKey.start], let top = contacts[ProbeKey.zTop] else { return nil }
-            if start.z - top.z < 0.05 {
-                return "The probe did not move before it touched. It may already be triggered: check the probe and its cable or battery."
-            }
-            return nil
-        }, fixed: lines))
+                                   check: Self.movedBeforeTouching,
+                                   fixed: lines))
 
         if ring != nil {
             steps.append(ProbeStepPlan("Back over the hole", fixed: ["G0 X\(n(-(ring ?? 0)))"]))
         }
         return steps
+    }
+
+    /// The line that makes the touched surface Z0.
+    private var zeroLine: String {
+        settings.zOffset == 0
+            ? zeroZCommand
+            : "G10 L20 P\(settings.workCoordinateSystem) Z\(n(settings.zOffset))"
+    }
+
+    /// A probe that did not move before it "touched" is already triggered.
+    private static func movedBeforeTouching(_ contacts: ProbeContacts) -> String? {
+        guard let start = contacts[ProbeKey.start], let top = contacts[ProbeKey.zTop] else { return nil }
+        if start.z - top.z < 0.05 {
+            return "The probe did not move before it touched. It may already be triggered: check the probe and its cable or battery."
+        }
+        return nil
+    }
+
+    // MARK: Pocket floor
+
+    /// How far above the floor the walls are touched.
+    private var wallHeight: Double { flow.wallHeight(settings: settings) }
+
+    /// Touch the floor of a pocket. For a Z surface it becomes Z0 and the
+    /// probe goes back up; for a point it only gives the height the walls are
+    /// touched at (the probe stays just above the floor).
+    private func floorSteps() -> [ProbeStepPlan] {
+        // The tip starts above the stock, so the floor can be a whole pocket depth away.
+        var lines = touchLines("Z", -1, distance: max(settings.searchDistance, flow.pocketDepth + settings.safeZ))
+        if flow.kind == .zSurface {
+            lines.append(zeroLine)
+            lines.append("G0 Z\(n(flow.pocketDepth + settings.safeZ))")
+        } else {
+            lines.append("G0 Z\(n(wallHeight))")
+        }
+        return [ProbeStepPlan("Touch the floor of the pocket",
+                              measure: ProbeKey.zTop,
+                              recovery: raiseLines,
+                              check: Self.movedBeforeTouching,
+                              fixed: lines)]
+    }
+
+    private var raiseOutOfPocket: ProbeStepPlan {
+        ProbeStepPlan("Raise out of the pocket",
+                      fixed: ["G0 Z\(n(flow.pocketDepth - wallHeight + settings.safeZ))"])
     }
 
     /// Straight up by the safe height, to get away from the stock.
@@ -268,16 +302,34 @@ struct ProbeCycleBuilder {
         }
     }
 
-    // MARK: Rectangle center
+    // MARK: Sides of a rectangle
 
-    private func rectangleCenterSteps() -> [ProbeStepPlan] {
-        var steps: [ProbeStepPlan] = []
-        for (axis, direction) in [(ProbeAxis.x, 1), (.x, -1), (.y, 1), (.y, -1)] {
-            steps += sideSteps(axis: axis, direction: direction, distance: edgeDistance(axis, direction),
-                               depth: depth(for: axis), pass: 0, name: sideName(axis, direction))
+    /// The chosen sides of the stock, one after another, each from outside.
+    private func stockSideSteps(pass: Int) -> [ProbeStepPlan] {
+        flow.sides.flatMap { side -> [ProbeStepPlan] in
+            let (axis, direction) = flow.probeDirection(for: side)
+            return sideSteps(axis: axis, direction: direction, distance: distance(to: side),
+                             depth: depth(for: axis), pass: pass, name: sideName(side))
         }
-        steps.append(moveToCenterStep(pass: 0, title: "Move to the center"))
-        return steps
+    }
+
+    /// The chosen walls of a pocket, one after another, each from inside: touch
+    /// the wall, then come back to where the probe started.
+    private func pocketWallSteps(pass: Int) -> [ProbeStepPlan] {
+        let travel = max(settings.searchDistance,
+                         flow.sides.map { distance(to: $0) }.max().map { $0 + settings.outsideClearance } ?? 0)
+        return flow.sides.flatMap { side -> [ProbeStepPlan] in
+            let (axis, direction) = flow.probeDirection(for: side)
+            let sign = Double(direction)
+            return [
+                ProbeStepPlan("Touch the \(sideName(side))",
+                              measure: ProbeKey.side(axis, direction, pass: pass),
+                              recovery: raiseLines,
+                              fixed: touchLines(axis.letter, direction, distance: travel)),
+                ProbeStepPlan("Back to the start",
+                              fixed: ["G0 \(axis.letter)\(n(-sign * (distance(to: side) - radius)))"]),
+            ]
+        }
     }
 
     /// A move, in machine coordinates, to the middle of the contacts of `pass`.
@@ -304,22 +356,16 @@ struct ProbeCycleBuilder {
             if pass > 0 {
                 steps.append(moveToCenterStep(pass: pass - 1, title: "Move to the center found so far"))
             }
-            steps += flow.probesInsideHole ? holeSteps(pass: pass) : bossSteps(pass: pass)
+            if flow.probesInsideHole {
+                steps += holeSteps(pass: pass)
+            } else if flow.probesPocket {
+                steps += pocketWallSteps(pass: pass)
+            } else {
+                steps += stockSideSteps(pass: pass)
+            }
         }
         steps.append(moveToCenterStep(pass: passes - 1, title: "Move to the center"))
         return steps
-    }
-
-    private var circleDirections: [(ProbeAxis, Int)] { [(.x, 1), (.x, -1), (.y, 1), (.y, -1)] }
-
-    /// Round stock: touched from outside, one side after another.
-    private func bossSteps(pass: Int) -> [ProbeStepPlan] {
-        let outer = size.width / 2
-        let depth = settings.edgeDepth(forStockThickness: flow.thickness)
-        return circleDirections.flatMap { axis, direction in
-            sideSteps(axis: axis, direction: direction, distance: outer, depth: depth,
-                      pass: pass, name: "\(sideName(axis, direction)) of the stock")
-        }
     }
 
     /// A hole: lowered into once, touched from inside in four directions.
@@ -338,9 +384,10 @@ struct ProbeCycleBuilder {
                           fixed: [lowerLine(depth: depth)]),
         ]
 
-        for (axis, direction) in circleDirections {
+        for side in flow.sides {
+            let (axis, direction) = flow.probeDirection(for: side)
             let sign = Double(direction)
-            steps.append(ProbeStepPlan("Touch the \(sideName(axis, direction).replacingOccurrences(of: "side", with: "wall"))",
+            steps.append(ProbeStepPlan("Touch the \(sideName(side))",
                                        measure: ProbeKey.side(axis, direction, pass: pass),
                                        recovery: raiseLines,
                                        fixed: touchLines(axis.letter, direction, distance: travel)))

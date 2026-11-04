@@ -59,37 +59,32 @@ struct ProbeResult: Equatable {
 
         if let top = contacts[ProbeKey.zTop] {
             surfaceZ = top.z
-            rows.append(Row(label: "Top of the stock (machine Z)", value: Self.format(top.z)))
+            rows.append(Row(label: flow.probesPocket ? "Floor of the pocket (machine Z)" : "Top of the stock (machine Z)",
+                            value: Self.format(top.z)))
         }
+
+        let subject = flow.isInside ? (flow.hasHole ? "hole" : "pocket") : "stock"
+        let sideWord = flow.isInside ? "wall" : "side"
 
         switch flow.kind {
             case .zSurface:
                 break
 
-            case .edge:
-                let (axis, direction) = Self.edgeSide(flow.edge)
-                if let edge = Self.edge(contacts, axis, direction, pass: 0, radius: radius) {
-                    assign(axis, edge)
-                    rows.append(Row(label: "\(flow.edge.title) side (machine \(axis.letter))", value: Self.format(edge)))
-                }
-
-            case .corner:
-                let xDirection = flow.corner.isLeft ? 1 : -1
-                let yDirection = flow.corner.isBottom ? 1 : -1
-                if let x = Self.edge(contacts, .x, xDirection, pass: 0, radius: radius) {
-                    originX = x
-                    rows.append(Row(label: "\(xDirection > 0 ? "Left" : "Right") side (machine X)", value: Self.format(x)))
-                }
-                if let y = Self.edge(contacts, .y, yDirection, pass: 0, radius: radius) {
-                    originY = y
-                    rows.append(Row(label: "\(yDirection > 0 ? "Bottom" : "Top") side (machine Y)", value: Self.format(y)))
-                }
-
-            case .center:
-                if flow.shape == .rectangle {
-                    rectangleCenter(flow: flow, contacts: contacts, radius: radius)
+            case .point:
+                if flow.effectivePoint.isCenter {
+                    if flow.shape == .rectangle {
+                        rectangleCenter(flow: flow, contacts: contacts, radius: radius, subject: subject)
+                    } else {
+                        circleCenter(flow: flow, contacts: contacts, radius: radius, subject: subject)
+                    }
                 } else {
-                    circleCenter(flow: flow, contacts: contacts, radius: radius)
+                    for side in flow.sides {
+                        if let value = Self.surface(flow, side, contacts, pass: 0, radius: radius) {
+                            assign(side.axis, value)
+                            rows.append(Row(label: "\(side.title) \(sideWord) (machine \(side.axis.letter))",
+                                            value: Self.format(value)))
+                        }
+                    }
                 }
         }
 
@@ -105,11 +100,11 @@ struct ProbeResult: Equatable {
         }
     }
 
-    private mutating func rectangleCenter(flow: ProbeFlow, contacts: ProbeContacts, radius: Double) {
-        guard let left = Self.edge(contacts, .x, 1, pass: 0, radius: radius),
-              let right = Self.edge(contacts, .x, -1, pass: 0, radius: radius),
-              let bottom = Self.edge(contacts, .y, 1, pass: 0, radius: radius),
-              let top = Self.edge(contacts, .y, -1, pass: 0, radius: radius)
+    private mutating func rectangleCenter(flow: ProbeFlow, contacts: ProbeContacts, radius: Double, subject: String) {
+        guard let left = Self.surface(flow, .left, contacts, pass: 0, radius: radius),
+              let right = Self.surface(flow, .right, contacts, pass: 0, radius: radius),
+              let bottom = Self.surface(flow, .bottom, contacts, pass: 0, radius: radius),
+              let top = Self.surface(flow, .top, contacts, pass: 0, radius: radius)
         else { return }
 
         originX = (left + right) / 2
@@ -121,22 +116,24 @@ struct ProbeResult: Equatable {
         rows.append(Row(label: "Height", value: Self.format(height, unit: "mm")))
         rows.append(Row(label: "Center (machine)", value: "X \(Self.format(originX ?? 0))   Y \(Self.format(originY ?? 0))"))
 
-        let stock = ProbeFlow.footprint(of: flow.geometry)
-        compare(width, with: stock.width, name: "width")
-        compare(height, with: stock.height, name: "height")
+        let expected = flow.featureSize
+        compare(width, with: expected.width, name: "width", subject: subject)
+        compare(height, with: expected.height, name: "height", subject: subject)
     }
 
-    private mutating func circleCenter(flow: ProbeFlow, contacts: ProbeContacts, radius: Double) {
+    private mutating func circleCenter(flow: ProbeFlow, contacts: ProbeContacts, radius: Double, subject: String) {
         // The refined pass, if it ran, otherwise the first.
         for pass in [1, 0] {
-            guard let left = Self.edge(contacts, .x, 1, pass: pass, radius: radius),
-                  let right = Self.edge(contacts, .x, -1, pass: pass, radius: radius),
-                  let bottom = Self.edge(contacts, .y, 1, pass: pass, radius: radius),
-                  let top = Self.edge(contacts, .y, -1, pass: pass, radius: radius)
+            guard let left = Self.surface(flow, .left, contacts, pass: pass, radius: radius),
+                  let right = Self.surface(flow, .right, contacts, pass: pass, radius: radius),
+                  let bottom = Self.surface(flow, .bottom, contacts, pass: pass, radius: radius),
+                  let top = Self.surface(flow, .top, contacts, pass: pass, radius: radius)
             else { continue }
 
-            // From inside, the +direction touch finds the far wall, so the
-            // two are swapped; the size and the middle don't care.
+            // The middle of a chord is the center whatever row the chord is on
+            // (the perpendicular bisector of any chord passes through the
+            // center). The chord is only the full diameter when it passes
+            // through the center, which is what the second pass is for.
             let diameterX = abs(right - left)
             let diameterY = abs(top - bottom)
             originX = (left + right) / 2
@@ -146,19 +143,16 @@ struct ProbeResult: Equatable {
             rows.append(Row(label: "Diameter (Y)", value: Self.format(diameterY, unit: "mm")))
             rows.append(Row(label: "Center (machine)", value: "X \(Self.format(originX ?? 0))   Y \(Self.format(originY ?? 0))"))
 
-            var nominal = ProbeFlow.footprint(of: flow.geometry).width
-            if flow.probesInsideHole, case let .disk(_, innerDiameter, _) = flow.geometry {
-                nominal = innerDiameter
-            }
-            compare(diameterX, with: nominal, name: "diameter in X")
-            compare(diameterY, with: nominal, name: "diameter in Y")
+            let nominal = flow.featureSize.width
+            compare(diameterX, with: nominal, name: "diameter in X", subject: subject)
+            compare(diameterY, with: nominal, name: "diameter in Y", subject: subject)
             return
         }
     }
 
-    private mutating func compare(_ measured: Double, with stock: Double, name: String) {
-        guard abs(measured - stock) > Self.sizeTolerance else { return }
-        warnings.append("The measured \(name) is \(Self.format(measured, unit: "mm")), but the stock is \(Self.format(stock, unit: "mm")). The wrong stock may be selected, or a wrong surface was touched.")
+    private mutating func compare(_ measured: Double, with expected: Double, name: String, subject: String) {
+        guard abs(measured - expected) > Self.sizeTolerance else { return }
+        warnings.append("The measured \(name) is \(Self.format(measured, unit: "mm")), but the \(subject) is \(Self.format(expected, unit: "mm")). The wrong \(subject == "stock" ? "stock may be selected" : "size may be entered"), or a wrong surface was touched.")
     }
 
     /// The origin has to be on the bed.
@@ -173,13 +167,11 @@ struct ProbeResult: Equatable {
 
     // MARK: Edges
 
-    private static func edgeSide(_ edge: ProbeEdge) -> (ProbeAxis, Int) {
-        switch edge {
-            case .left: (.x, 1)
-            case .right: (.x, -1)
-            case .bottom: (.y, 1)
-            case .top: (.y, -1)
-        }
+    /// The surface of `side` of the feature, from the touch that found it.
+    static func surface(_ flow: ProbeFlow, _ side: ProbeEdge, _ contacts: ProbeContacts,
+                        pass: Int, radius: Double) -> Double? {
+        let (axis, direction) = flow.probeDirection(for: side)
+        return edge(contacts, axis, direction, pass: pass, radius: radius)
     }
 
     /// The surface found by a touch: contact + direction · radius.

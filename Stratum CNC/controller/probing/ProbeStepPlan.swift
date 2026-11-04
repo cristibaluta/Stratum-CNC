@@ -40,7 +40,7 @@ enum ProbeKey {
 }
 
 /// The machine positions read so far in a cycle.
-struct ProbeContacts: Equatable {
+struct ProbeContacts: Equatable, Sendable {
     var points: [String: SIMD3<Double>] = [:]
 
     subscript(key: String) -> SIMD3<Double>? {
