@@ -383,7 +383,6 @@ struct CAMView: View {
             hiddenIDs: camModel.hiddenToolpathIDs,
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
-            generations: camModel.generations,
             onSelect: { id in
                 withAnimation(.easeOut(duration: 0.15)) {
                     camModel.toggleToolpathSelection(id)
@@ -402,11 +401,6 @@ struct CAMView: View {
                     camModel.addToolpath()
                 }
             },
-            onAddToSetup: { setupID in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.addToolpath(setupID: setupID)
-                }
-            },
             onMove: { id, index in
                 camModel.moveToolpath(id, toIndexInSetup: index)
             },
@@ -419,17 +413,6 @@ struct CAMView: View {
             onAddSetup: { face in
                 withAnimation(.easeOut(duration: 0.15)) {
                     _ = camModel.addSetup(face: face)
-                }
-            },
-            onRenameSetup: { id, name in
-                camModel.renameSetup(id, to: name)
-            },
-            onSetSetupFace: { id, face in
-                camModel.setSetupFace(id, to: face)
-            },
-            onMoveSetup: { id, index in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.moveSetup(id, to: index)
                 }
             },
             onDeleteSetup: { id in

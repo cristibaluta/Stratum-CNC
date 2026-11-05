@@ -78,20 +78,22 @@ struct CAM_Metal_View: View {
             }
     }
 
-    /// The same scene as 2D (shapes, toolpaths, ruler, stock, selection overlays,
-    /// same background), seen through the free 3D camera, plus the STEP wireframe
-    /// when there is one. A different branch than 2D means a fresh `MetalCanvasView`:
-    /// it reads its interaction mode once, when it is created. `scene` lives in this
+    /// The same scene as 2D (shapes, toolpaths, stock, selection overlays, same
+    /// background), seen through the free 3D camera, plus the STEP wireframe when
+    /// there is one. The ruler sits on the stock's bottom face here, and the XYZ
+    /// origin axes are drawn (see `CAMSceneModel.renderObjects3D`).
+    /// A different branch than 2D means a fresh `MetalCanvasView`: it reads its
+    /// interaction mode once, when it is created. `scene` lives in this
     /// view, so coming back to 2D loses nothing.
     @ViewBuilder
     private var canvas3D: some View {
         if let stepScene {
-            STEP3DCanvas(scene: stepScene, sceneObjects: scene.renderObjects,
+            STEP3DCanvas(scene: stepScene, sceneObjects: scene.renderObjects3D,
                          clearColor: scene.backgroundColor, isDark: colorScheme == .dark,
                          zoomModel: zoomModel,
                          canAddToolpath: canAddToolpathFromEdges, onAddToolpath: onAddToolpath)
         } else {
-            MetalCanvasView(objects: .constant(scene.renderObjects),
+            MetalCanvasView(objects: .constant(scene.renderObjects3D),
                             interactionMode: .free3D,
                             clearColor: scene.backgroundColor,
                             zoomModel: zoomModel,

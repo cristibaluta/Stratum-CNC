@@ -45,6 +45,28 @@ final class CAMSceneModel: ObservableObject {
         static let rulerColor = SIMD4<Float>(0.55, 0.55, 0.55, 1)
     }
 
+    /// `renderObjects` as the free 3D camera should see it: the 2D scene with
+    /// its ruler (which sits at the stock's top face, z = 0) swapped for one at
+    /// the stock's *bottom* face, where the real anchor and ruler are, plus the
+    /// XYZ axes gizmo marking 0, 0, 0 at the top of the stock. The 2D view keeps
+    /// using `renderObjects` unchanged.
+    ///
+    /// Computed from the published `renderObjects`, so a scene change or a scrub
+    /// tick refreshes it for free. The swapped-in objects are cached per bottom Z
+    /// so they keep their `RenderObject.id` — and so their GPU buffers — instead
+    /// of being re-uploaded on every read.
+    var renderObjects3D: [RenderObject] {
+        let bottomZ = canvasState.stock.map { RenderObject.bottomZ(of: $0) } ?? 0
+        if fixtures3DCache?.bottomZ != bottomZ {
+            fixtures3DCache = (bottomZ: bottomZ,
+                               objects: [.ruler(z: bottomZ, length: Style.rulerLength, color: Style.rulerColor)]
+                                        + RenderObject.axes())
+        }
+        return renderObjects.filter { $0.role != .ruler } + (fixtures3DCache?.objects ?? [])
+    }
+
+    private var fixtures3DCache: (bottomZ: Float, objects: [RenderObject])?
+
     /// Mouse handling for this scene: hit-tests against `renderPaths` and
     /// writes selection / moves back into the canvas state. Created on
     /// first use; handed to `MetalCanvasView.pointerHandler`.

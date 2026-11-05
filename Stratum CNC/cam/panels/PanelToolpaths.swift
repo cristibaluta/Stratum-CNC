@@ -14,68 +14,61 @@ struct PanelToolpaths: View {
     let selectedID: UUID?
     var hiddenIDs: Set<UUID> = []
 
-    // Setups. With one (or none) the panel looks as it did before setups: a plain list. With
-    // several, the list is grouped under one collapsible header per setup, in machining order.
+    // Faces (setups). With one (or none) the panel is a plain list. With several, a segmented
+    // control named after each face picks which one's toolpaths the list shows.
     var setups: [Setup] = []
     var activeSetupID: UUID?
-    /// Results, for the status mark of each setup's header.
-    var generations: [UUID: ToolpathGeneration] = [:]
 
     var onSelect: ((UUID) -> Void)?
     var onToggleVisibility: ((UUID) -> Void)?
     var onDelete: ((UUID) -> Void)?
-    /// The header's "+": adds to the active setup.
+    /// "Add toolpath" in the header's menu: adds to the active face.
     var onAdd: (() -> Void)?
-    var onAddToSetup: ((UUID) -> Void)?
-    /// Called once when a drag ends. The index is within the toolpath's own setup.
+    /// Called once when a drag ends. The index is within the toolpath's own face.
     var onMove: ((UUID, Int) -> Void)?
     /// (toolpath, setup): "Move to" in a row's menu.
     var onMoveToSetup: ((UUID, UUID) -> Void)?
     var onSelectSetup: ((UUID) -> Void)?
     var onAddSetup: ((SetupFace) -> Void)?
-    var onRenameSetup: ((UUID, String) -> Void)?
-    var onSetSetupFace: ((UUID, SetupFace) -> Void)?
-    var onMoveSetup: ((UUID, Int) -> Void)?
     var onDeleteSetup: ((UUID) -> Void)?
 
-    /// One drag at a time across all the sections; a row only follows it when its own
-    /// section is the one being dragged (see `rows(_:)`).
     @StateObject private var reorder = ToolpathReorderModel()
-    @State private var collapsedSetups: Set<UUID> = []
-    @State private var renamingSetupID: UUID?
-    @State private var renameText = ""
-    @FocusState private var renameFocused: Bool
     @State private var setupToDelete: Setup?
 
-    private var showsSections: Bool {
+    private var showsFaces: Bool {
         setups.count > 1
+    }
+
+    /// The face the list shows: the active one, or the first when the active id is unknown.
+    private var activeSetup: Setup? {
+        setups.first { $0.id == activeSetupID } ?? setups.first
+    }
+
+    /// What the list shows: the active face's toolpaths, or all of them when there is one face.
+    private var visibleToolpaths: [ToolpathData] {
+        guard showsFaces, let activeSetup else {
+            return toolpaths
+        }
+        return toolpathsOf(activeSetup)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            InspectorHeader(title: "Toolpaths", addHelp: addHelp) {
-                onAdd?()
-            }
+            header
 
             Divider()
 
-            if showsSections {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(setups.enumerated()), id: \.element.id) { index, setup in
-                        section(for: setup, at: index)
-                    }
-                }
-            } else if toolpaths.isEmpty {
+            if showsFaces {
+                facePicker
+            }
+
+            if visibleToolpaths.isEmpty {
                 Text("No toolpaths")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 12))
                     .padding(.vertical, 2)
             } else {
-                rows(toolpaths)
-            }
-
-            if onAddSetup != nil {
-                addSetupMenu
+                rows(visibleToolpaths)
             }
         }
         .padding(12)
@@ -86,22 +79,68 @@ struct PanelToolpaths: View {
                             isPresented: Binding(get: { setupToDelete != nil },
                                                  set: { if !$0 { setupToDelete = nil } }),
                             presenting: setupToDelete) { setup in
-            Button("Delete setup and its \(toolpathsOf(setup).count) toolpaths", role: .destructive) {
+            Button("Delete face and its \(toolpathsOf(setup).count) toolpaths", role: .destructive) {
                 onDeleteSetup?(setup.id)
             }
         } message: { _ in
-            Text("The setup's toolpaths are deleted with it. This can't be undone.")
+            Text("The face's toolpaths are deleted with it. This can't be undone.")
         }
     }
 
-    private var addHelp: String {
-        guard showsSections, let active = setups.first(where: { $0.id == activeSetupID }) else {
-            return "Add a toolpath"
+    // MARK: - Header
+
+    private var header: some View {
+        HStack {
+            Text("Toolpaths")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Menu {
+                Menu("Add face") {
+                    ForEach(SetupFace.allCases) { face in
+                        Button(face.title) {
+                            onAddSetup?(face)
+                        }
+                    }
+                }
+                .disabled(onAddSetup == nil)
+
+                Button("Add toolpath") {
+                    onAdd?()
+                }
+                .disabled(onAdd == nil)
+
+                Divider()
+
+                Button("Delete active face", role: .destructive) {
+                    guard let activeSetup else {
+                        return
+                    }
+                    if toolpathsOf(activeSetup).isEmpty {
+                        onDeleteSetup?(activeSetup.id)
+                    } else {
+                        setupToDelete = activeSetup
+                    }
+                }
+                // The last face can't be deleted
+                .disabled(!showsFaces || onDeleteSetup == nil)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 20, height: 16)
+                    .contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .foregroundStyle(.secondary)
+            .help("Add a face or a toolpath")
         }
-        return "Add a toolpath to \(active.name)"
     }
 
-    // MARK: - Setup sections
+    // MARK: - Faces
 
     private func toolpathsOf(_ setup: Setup) -> [ToolpathData] {
         let known = Set(setups.map(\.id))
@@ -112,200 +151,17 @@ struct PanelToolpaths: View {
         }
     }
 
-    private func section(for setup: Setup, at index: Int) -> some View {
-        let items = toolpathsOf(setup)
-        let isCollapsed = collapsedSetups.contains(setup.id)
-
-        return VStack(alignment: .leading, spacing: 2) {
-            setupHeader(setup, at: index, items: items, isCollapsed: isCollapsed)
-
-            if !isCollapsed {
-                VStack(alignment: .leading, spacing: 2) {
-                    if items.isEmpty {
-                        Text("No toolpaths")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    } else {
-                        rows(items)
-                    }
-                    Button {
-                        onAddToSetup?(setup.id)
-                    } label: {
-                        Label("Add toolpath", systemImage: "plus")
-                            .font(.system(size: 11))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 2)
-                }
-                .padding(.leading, 12)
+    private var facePicker: some View {
+        Picker("Face", selection: Binding(
+            get: { activeSetup?.id ?? UUID() },
+            set: { onSelectSetup?($0) }
+        )) {
+            ForEach(setups) { setup in
+                Text(setup.name).tag(setup.id)
             }
         }
-    }
-
-    private func setupHeader(_ setup: Setup, at index: Int, items: [ToolpathData], isCollapsed: Bool) -> some View {
-        let isActive = setup.id == activeSetupID
-
-        return HStack(spacing: 6) {
-            Button {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    if isCollapsed { collapsedSetups.remove(setup.id) } else { collapsedSetups.insert(setup.id) }
-                }
-            } label: {
-                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-                    .frame(width: 12, height: 16)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help(isCollapsed ? "Show the toolpaths" : "Hide the toolpaths")
-
-            SetupGlyph(angle: setup.angle)
-                .frame(width: 14, height: 14)
-                .help("Stock turned \(Int(setup.angle.rounded()))° about X: \(setup.orientationTitle) up")
-
-            if renamingSetupID == setup.id {
-                TextField("Name", text: $renameText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12, weight: .medium))
-                    .focused($renameFocused)
-                    .onAppear { renameFocused = true }
-                    .onSubmit { commitRename(of: setup) }
-                    .onExitCommand { renamingSetupID = nil }
-                    .onChange(of: renameFocused) { _, focused in
-                        if !focused, renamingSetupID == setup.id { commitRename(of: setup) }
-                    }
-            } else {
-                Text("\(index + 1) · \(setup.name)")
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-
-            statusMark(for: items)
-
-            Text("\(items.count)")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            setupMenu(for: setup, at: index, items: items)
-        }
-        .padding(.vertical, 3)
-        .padding(.horizontal, 4)
-        .background(RoundedRectangle(cornerRadius: 5)
-            .fill(isActive ? Color.accentColor.opacity(0.14) : Color.clear))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelectSetup?(setup.id)
-        }
-    }
-
-    private func setupMenu(for setup: Setup, at index: Int, items: [ToolpathData]) -> some View {
-        Menu {
-            Button("Rename…") {
-                renameText = setup.name
-                renamingSetupID = setup.id
-                renameFocused = true
-            }
-            Menu("Face") {
-                ForEach(SetupFace.allCases) { face in
-                    Button {
-                        onSetSetupFace?(setup.id, face)
-                    } label: {
-                        if setup.face == face {
-                            Label(face.title, systemImage: "checkmark")
-                        } else {
-                            Text(face.title)
-                        }
-                    }
-                }
-            }
-            Button("Add toolpath") {
-                onAddToSetup?(setup.id)
-            }
-            Divider()
-            Button("Move up") {
-                onMoveSetup?(setup.id, index - 1)
-            }
-            .disabled(index == 0)
-            Button("Move down") {
-                onMoveSetup?(setup.id, index + 1)
-            }
-            .disabled(index >= setups.count - 1)
-            Divider()
-            Button("Delete setup", role: .destructive) {
-                if items.isEmpty {
-                    onDeleteSetup?(setup.id)
-                } else {
-                    setupToDelete = setup
-                }
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 11))
-                .frame(width: 16, height: 16)
-                .contentShape(Rectangle())
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .foregroundStyle(.secondary)
-    }
-
-    private func commitRename(of setup: Setup) {
-        guard renamingSetupID == setup.id else {
-            return
-        }
-        renamingSetupID = nil
-        onRenameSetup?(setup.id, renameText)
-    }
-
-    /// A tick when every toolpath of the setup has a current result; a warning with the count
-    /// when some are not generated, failed or outdated. Nothing for a setup with nothing to cut.
-    @ViewBuilder
-    private func statusMark(for items: [ToolpathData]) -> some View {
-        let cutting = items.filter(\.hasGeometry)
-        let pending = cutting.filter { toolpath in
-            guard let generation = generations[toolpath.id], case .success = generation.outcome else {
-                return true
-            }
-            return !generation.isCurrent(for: toolpath)
-        }.count
-
-        if !cutting.isEmpty {
-            if pending == 0 {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .help("Every toolpath is generated")
-            } else {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.orange)
-                    .help(pending == 1 ? "1 toolpath is not generated or is outdated"
-                                       : "\(pending) toolpaths are not generated or are outdated")
-            }
-        }
-    }
-
-    private var addSetupMenu: some View {
-        Menu {
-            ForEach(SetupFace.allCases) { face in
-                Button(face.title) {
-                    onAddSetup?(face)
-                }
-            }
-        } label: {
-            Label("Add setup", systemImage: "plus.square.on.square")
-                .font(.system(size: 11))
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .foregroundStyle(.secondary)
-        .help("Machine another side of the stock")
+        .pickerStyle(.segmented)
+        .labelsHidden()
     }
 
     // MARK: - Rows
@@ -385,8 +241,8 @@ struct PanelToolpaths: View {
         }
         .gesture(dragGesture(for: toolpath, at: index, count: count))
         .contextMenu {
-            if showsSections, toolpath.operation.kind != .restMachining {
-                Menu("Move to setup") {
+            if showsFaces, toolpath.operation.kind != .restMachining {
+                Menu("Move to face") {
                     ForEach(setups.filter { $0.id != toolpath.setupID }) { setup in
                         Button(setup.name) {
                             onMoveToSetup?(toolpath.id, setup.id)
