@@ -12,6 +12,7 @@
 //    `select(_:extend:)`
 //  - any other drag orbits / pans the camera, except one that starts on the rotation-center
 //    handle of a selected object, which moves the selection (`pointerDown` -> `.handled`)
+//  - the handle of the STEP model selected in the objects list moves that model the same way
 //  - Shift or Cmd extends/toggles the selection; an empty-space click clears it only without those
 //  - while picking shapes for a toolpath, clicks toggle picks instead of changing the selection
 //
@@ -39,6 +40,13 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
 
     private var isMovingSelection = false
     private var lastDragWorldPoint: CGPoint?
+
+    /// The STEP model selected in the objects list: its id and where its handle sits (the middle
+    /// of its footprint, in canvas mm). Set by the owner; `nil` when no model is selected.
+    var stepModelHandle: (id: UUID, center: CGPoint)?
+    /// A drag on the model's handle moved it by this much (canvas mm).
+    var onStepModelMoved: ((UUID, CGFloat, CGFloat) -> Void)?
+    private var movingStepModelID: UUID?
 
     init(canvasState: D2_CanvasState, renderPaths: @escaping () -> [D2_RenderPath]) {
         self.canvasState = canvasState
@@ -93,11 +101,16 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
     func pointerDown(_ event: CanvasPointerEvent) -> CanvasPointerDragAction {
         lastDragWorldPoint = event.worldPoint
         isMovingSelection = false
+        movingStepModelID = nil
 
         // The rotation-center handle of a selected object moves the selection. Checked before
         // anything else, so objects selected in the list can be dragged while a toolpath is open.
         if isSelectedObjectHandleHit(event) {
             isMovingSelection = true
+            return .handled
+        }
+        if let handle = stepModelHandle, isHit(event, at: handle.center) {
+            movingStepModelID = handle.id
             return .handled
         }
         return .camera
@@ -111,12 +124,16 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
             didMoveInThisEvent = true
             onSelectionMoved?()
         }
+        if let id = movingStepModelID, let lastWorld = lastDragWorldPoint {
+            onStepModelMoved?(id, event.worldPoint.x - lastWorld.x, event.worldPoint.y - lastWorld.y)
+        }
         lastDragWorldPoint = event.worldPoint
     }
 
     func pointerUp(_ event: CanvasPointerEvent) {
         lastDragWorldPoint = nil
         isMovingSelection = false
+        movingStepModelID = nil
     }
 
     var liveRenderObjects: [RenderObject]? {
@@ -138,7 +155,10 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
     /// object — the caller only asks about that one. Its center is the
     /// object's center, and the reach is 10 screen points at any zoom.
     private func isRotationCenterHit(_ event: CanvasPointerEvent, object: D2_Object) -> Bool {
-        let center = object.center
+        isHit(event, at: object.center)
+    }
+
+    private func isHit(_ event: CanvasPointerEvent, at center: CGPoint) -> Bool {
         let distance = hypot(event.worldPoint.x - center.x, event.worldPoint.y - center.y)
         return distance <= Self.rotationCenterHitRadius / max(event.pointsPerWorldUnit, 0.000001)
     }

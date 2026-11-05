@@ -62,6 +62,18 @@ struct CAMView: View {
                                addToolpathShapeCount: camModel.shapesForNewToolpath.count,
                                canAddToolpathFromEdges: camModel.selectedToolpathID == nil,
                                fitRequest: fitRequest,
+                               // A selected 2D object wins, like in the objects list
+                               selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
+                                   ? camModel.stepWorkspace.selectedModelID : nil,
+                               onMoveStepModel: { id, dx, dy in
+                                   var position = camModel.stepWorkspace.position(of: id)
+                                   position.x += Float(dx)
+                                   position.y += Float(dy)
+                                   camModel.stepWorkspace.setPosition(position, for: id)
+                               },
+                               onDeselectStepModel: {
+                                   camModel.stepWorkspace.selectedModelID = nil
+                               },
                                onAddToolpath: {
                                    withAnimation(.easeOut(duration: 0.15)) {
                                        camModel.addToolpathFromSelection()

@@ -41,6 +41,44 @@ enum CAMSelectionOverlay {
          selectionBox(for: object, color: boxColor)]
     }
 
+    /// What a STEP model selected in the objects list gets, in the same look as a selected
+    /// shape: the dashed box of its footprint and the handle at its middle, which is what
+    /// the mouse grabs to move it (see `CAMCanvasInteraction.stepModelHandle`). Flat at z = 0,
+    /// in the shapes' own frame like the rest of the overlay (`.faceOverlay`).
+    static func renderObjects(forSTEPModelAt origin: SIMD2<Float>,
+                              size: SIMD2<Float>,
+                              boxColor: SIMD4<Float>,
+                              handleColor: SIMD4<Float>) -> [RenderObject] {
+        func point(_ x: Float, _ y: Float) -> SIMD3<Float> {
+            SIMD3<Float>(x, y, 0)
+        }
+
+        let center = origin + size / 2
+        let radius = Float(handleRadius)
+        let cross = Float(handleCrossSize)
+
+        var handle: [SIMD3<Float>] = []
+        for i in 0..<handleSegments {
+            let a0 = Float(i) / Float(handleSegments) * 2 * .pi
+            let a1 = Float(i + 1) / Float(handleSegments) * 2 * .pi
+            handle.append(point(center.x + radius * cos(a0), center.y + radius * sin(a0)))
+            handle.append(point(center.x + radius * cos(a1), center.y + radius * sin(a1)))
+        }
+        handle.append(point(center.x - cross, center.y))
+        handle.append(point(center.x + cross, center.y))
+        handle.append(point(center.x, center.y - cross))
+        handle.append(point(center.x, center.y + cross))
+
+        let corners = [point(origin.x, origin.y), point(origin.x + size.x, origin.y),
+                       point(origin.x + size.x, origin.y + size.y), point(origin.x, origin.y + size.y),
+                       point(origin.x, origin.y)]
+
+        // Handle first, like `renderObjects(for:)`: it should win where lines coincide
+        return [RenderObject(role: .faceOverlay, points: handle, color: handleColor, primitive: .lineList),
+                RenderObject(role: .faceOverlay, points: corners, color: boxColor,
+                             primitive: .lineStrip, isDashed: true, dashLength: dashLength)]
+    }
+
     private static func selectionBox(for object: D2_Object, color: SIMD4<Float>) -> RenderObject {
         let w = object.originalSize.width
         let h = object.originalSize.height

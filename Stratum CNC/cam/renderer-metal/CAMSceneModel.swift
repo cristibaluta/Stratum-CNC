@@ -305,7 +305,7 @@ final class CAMSceneModel: ObservableObject {
         PerfLog.log("metal-cam", "rebuild: \(paths.count) path(s) → \(objects.count) object(s) in \(PerfLog.fmt(PerfLog.ms(since: t0)))")
     }
 
-    private static func rgba(_ color: NSColor) -> SIMD4<Float> {
+    static func rgba(_ color: NSColor) -> SIMD4<Float> {
         guard let c = color.usingColorSpace(.sRGB) else {
             return SIMD4<Float>(0.2, 0.2, 0.2, 1)
         }
