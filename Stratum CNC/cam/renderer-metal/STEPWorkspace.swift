@@ -115,14 +115,14 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         }
     }
 
-    func pick(point: CGPoint, viewport: CGSize, matrix: simd_float4x4, extend: Bool) {
+    /// The edge under `point`, if any.
+    func edge(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> STEPEdgeID? {
         // The geometry is stored at the origin; the matrix the canvas hands over
         // sees it moved, so move it back into place first.
-        let hit = isModelVisible
+        isModelVisible
             ? content.geometry.hitTest(at: point, viewport: viewport, matrix: matrix * Self.translation(offset),
                                        hiddenBodies: hiddenBodies)
             : nil
-        select(hit, extend: extend)
     }
 
     func select(_ id: STEPEdgeID?, extend: Bool) {
@@ -240,8 +240,6 @@ final class STEPWorkspace: ObservableObject {
     private var picking: (targets: [STEPEdgeTarget], onChange: (UUID, Set<STEPEdgeID>) -> Void)?
     /// Called after the user moved a model, so the project can save it.
     var onOffsetChanged: (@MainActor (UUID, SIMD3<Float>) -> Void)?
-    /// True while the CAM canvas is in 3D (STEP) mode instead of the 2D design mode.
-    @Published var isPresented = false
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var tokens: [UUID: UUID] = [:]
     private let loader: Loader
@@ -301,7 +299,6 @@ final class STEPWorkspace: ObservableObject {
         errors.removeValue(forKey: source.id)
         loadingIDs.insert(source.id)
         activeID = source.id
-        isPresented = true
         let loader = loader
         tasks[source.id] = Task { [weak self] in
             defer { onFinished() }
@@ -335,7 +332,6 @@ final class STEPWorkspace: ObservableObject {
         documents.removeValue(forKey: source.id)
         errors[source.id] = message
         activeID = source.id
-        isPresented = true
     }
 
     func cancel(_ id: UUID) {
@@ -353,7 +349,6 @@ final class STEPWorkspace: ObservableObject {
         offsets.removeValue(forKey: id)
         if selectedModelID == id { selectedModelID = nil }
         if activeID == id { activeID = sources.last?.id }
-        if sources.isEmpty { isPresented = false }
     }
 
     func clear() {
@@ -368,7 +363,6 @@ final class STEPWorkspace: ObservableObject {
         picking = nil
         selectedModelID = nil
         activeID = nil
-        isPresented = false
     }
 
     deinit { for task in tasks.values { task.cancel() } }

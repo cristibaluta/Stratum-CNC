@@ -4,26 +4,16 @@
 //
 //  Created by Cristian Baluta on 21.09.2026.
 //
-//  The plan's "E": `D2_CanvasNSView.mouseDown/mouseDragged/mouseUp`, ported
-//  almost verbatim. The state machine (`pendingPick`, `dragMode`,
-//  `clickDragThreshold`) and every call into `D2_CanvasState`
-//  (`selectPath`, `togglePathSelection`, `clearSelection`, `moveObject`,
-//  `togglePickedPath`) are unchanged. The two substitutions:
-//    - `layer?.convert(viewPoint, to: workLayer)` → `event.worldPoint`
-//      (`Camera.worldPoint(atScreenNDC:)`, done by `MetalCanvasView`)
-//    - `PathHitTester` against layers → against `D2_RenderPath.worldPath`
-//  Panning is `MetalCanvasView`'s job now: returning `.pan` from
-//  `pointerDown` is the old `dragMode = .pan`.
+//  Mouse handling for the CAM canvas, which is always the free 3D camera: shapes are drawn
+//  flat at z = 0 and are picked by intersecting the camera ray with that plane.
 //
-//  Behavior kept on purpose, even where it's odd:
-//    - a plain drag always pans, even when it started on a shape (it only
-//      *selects* it); the one exception is a drag that starts on the
-//      selected object's rotation-center handle, which moves the object
-//    - Shift or Cmd extends/toggles the path selection; an empty-space
-//      click clears it only without those modifiers
-//    - while picking shapes for a toolpath, clicks toggle picks on mouse-UP
-//      and only if the cursor barely moved, so click-dragging over a shape
-//      pans instead of toggling it
+//  - a click (press and release without moving) selects the shape under it; the owner
+//    (`CAM_Metal_View`) decides between shapes and STEP edges, using `shapeHit(at:)` and
+//    `select(_:extend:)`
+//  - any other drag orbits / pans the camera, except one that starts on the rotation-center
+//    handle of a selected object, which moves the selection (`pointerDown` -> `.handled`)
+//  - Shift or Cmd extends/toggles the selection; an empty-space click clears it only without those
+//  - while picking shapes for a toolpath, clicks toggle picks instead of changing the selection
 //
 
 import Foundation
@@ -32,13 +22,6 @@ import CoreGraphics
 @MainActor
 final class CAMCanvasInteraction: CanvasPointerHandler {
 
-    private enum DragMode {
-        case pan
-        /// Moves every selected object (the rotation-center handle of any of them was grabbed).
-        case moveSelection
-    }
-
-    private static let clickDragThreshold: CGFloat = 4
     /// Screen points, like `PathHitTester.tolerance`.
     private static let rotationCenterHitRadius: CGFloat = 10
 
@@ -54,97 +37,93 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
     var liveObjects: (() -> [RenderObject])?
     private var didMoveInThisEvent = false
 
-    private var dragMode: DragMode = .pan
+    private var isMovingSelection = false
     private var lastDragWorldPoint: CGPoint?
-    private var pendingPick: (selection: PathSelection, startLocation: CGPoint)?
 
     init(canvasState: D2_CanvasState, renderPaths: @escaping () -> [D2_RenderPath]) {
         self.canvasState = canvasState
         self.renderPaths = renderPaths
     }
 
-    // MARK: CanvasPointerHandler
+    // MARK: Clicks
 
-    func pointerDown(_ event: CanvasPointerEvent) -> CanvasPointerDragAction {
+    /// A toolpath is open: clicks toggle its shapes instead of selecting.
+    var isPicking: Bool { canvasState.isPickingPaths }
 
-        lastDragWorldPoint = event.worldPoint
-        dragMode = .pan
-        pendingPick = nil
+    /// The shape under the pointer, if any.
+    func shapeHit(at event: CanvasPointerEvent) -> PathSelection? {
+        hitTester.hitTest(worldPoint: event.worldPoint,
+                          paths: renderPaths(),
+                          pointsPerWorldUnit: event.pointsPerWorldUnit)
+    }
 
-        // The rotation-center handle of a selected object moves the selection. Checked before
-        // picking, so objects selected in the list can be dragged while a toolpath is open.
-        if isSelectedObjectHandleHit(event) {
-            dragMode = .moveSelection
-            return .handled
-        }
-
-        // Picking shapes for a toolpath: bypass the normal path
-        // selection entirely (see D2_CanvasState.isPickingPaths).
+    /// Applies a click that landed on `hit` (a shape) or on nothing (`nil`).
+    func select(_ hit: PathSelection?, extend: Bool) {
+        // Picking shapes for a toolpath bypasses the normal selection entirely
+        // (see D2_CanvasState.isPickingPaths); an empty click keeps the picks.
         if canvasState.isPickingPaths {
-            if let hit = hitTest(event) {
-                pendingPick = (selection: hit, startLocation: event.viewPoint)
+            if let hit {
+                canvasState.togglePickedPath(objectID: hit.objectID, pathIndex: hit.pathIndex)
             }
-            return .pan
+            return
         }
-
-        // Shift or Cmd held -> extend/toggle the selection instead of replacing it.
-        let isMultiSelectModifierDown = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
-
-        if let hit = hitTest(event) {
-            if isMultiSelectModifierDown {
+        if let hit {
+            if extend {
                 canvasState.togglePathSelection(objectID: hit.objectID, pathIndex: hit.pathIndex)
             } else {
                 canvasState.selectPath(objectID: hit.objectID, pathIndex: hit.pathIndex)
             }
-        } else if !isMultiSelectModifierDown {
+        } else if !extend {
             // Only clear on an empty-space click when not multi-selecting,
             // so a stray shift/cmd click on empty canvas doesn't wipe the selection.
             canvasState.clearSelection()
         }
-        return .pan
+    }
+
+    /// Drops the shape selection (not the picks of an open toolpath).
+    func clearSelection() {
+        guard !canvasState.isPickingPaths else {
+            return
+        }
+        canvasState.clearSelection()
+    }
+
+    // MARK: CanvasPointerHandler
+
+    func pointerDown(_ event: CanvasPointerEvent) -> CanvasPointerDragAction {
+        lastDragWorldPoint = event.worldPoint
+        isMovingSelection = false
+
+        // The rotation-center handle of a selected object moves the selection. Checked before
+        // anything else, so objects selected in the list can be dragged while a toolpath is open.
+        if isSelectedObjectHandleHit(event) {
+            isMovingSelection = true
+            return .handled
+        }
+        return .camera
     }
 
     func pointerDragged(_ event: CanvasPointerEvent) {
-
-        // Moved too far to be a click: it's a pan, not a pick.
-        if let pick = pendingPick,
-           hypot(event.viewPoint.x - pick.startLocation.x,
-                 event.viewPoint.y - pick.startLocation.y) > Self.clickDragThreshold {
-            pendingPick = nil
-        }
-
         didMoveInThisEvent = false
-        if case .moveSelection = dragMode, let lastWorld = lastDragWorldPoint {
+        if isMovingSelection, let lastWorld = lastDragWorldPoint {
             canvasState.moveSelection(dx: event.worldPoint.x - lastWorld.x,
                                       dy: event.worldPoint.y - lastWorld.y)
             didMoveInThisEvent = true
             onSelectionMoved?()
         }
-
         lastDragWorldPoint = event.worldPoint
     }
 
     func pointerUp(_ event: CanvasPointerEvent) {
-        if let pick = pendingPick {
-            canvasState.togglePickedPath(objectID: pick.selection.objectID,
-                                         pathIndex: pick.selection.pathIndex)
-            pendingPick = nil
-        }
         lastDragWorldPoint = nil
-        dragMode = .pan
+        isMovingSelection = false
     }
 
     var liveRenderObjects: [RenderObject]? {
         didMoveInThisEvent ? liveObjects?() : nil
     }
 
-    // MARK: Hit testing
-
-    private func hitTest(_ event: CanvasPointerEvent) -> PathSelection? {
-        hitTester.hitTest(worldPoint: event.worldPoint,
-                          paths: renderPaths(),
-                          pointsPerWorldUnit: event.pointsPerWorldUnit)
-    }
+    // MARK: Handle hit testing
 
     /// Whether the pointer is on the handle of any selected, visible object.
     private func isSelectedObjectHandleHit(_ event: CanvasPointerEvent) -> Bool {

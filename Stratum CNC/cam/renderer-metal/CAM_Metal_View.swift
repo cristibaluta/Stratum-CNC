@@ -7,141 +7,164 @@
 import SwiftUI
 import simd
 
-/// What the CAM canvas is showing. Same canvas, same place on screen: only the
-/// camera scheme and the geometry change.
-enum CAMCanvasMode {
-    /// Shapes and toolpaths, camera locked top-down, shapes selectable.
-    case design2D
-    /// STEP wireframe, free orbit like the controller's canvas, edges selectable.
-    case step3D
-}
-
+/// The CAM canvas: one free 3D camera (orbit, pan, zoom and the orientation cube from
+/// `CanvasInputSettings`) over the whole scene — the stock, the shapes (flat, at z = 0), the
+/// toolpaths and, when there is one, the STEP wireframe. Shapes and STEP edges are both selectable.
 @MainActor
 struct CAM_Metal_View: View {
 
     @StateObject private var scene: CAMSceneModel
     let zoomModel: CanvasZoomModel
-    let mode: CAMCanvasMode
-    /// The STEP scene drawn in `.step3D`. `nil` while it is still loading or failed to load.
+    /// The STEP scene drawn with the shapes. `nil` without a STEP model, or while it is still
+    /// loading or failed to load.
     let stepScene: STEPDocumentScene?
-    /// The active setup's map: the 3D canvas turns the stock and model with it so that setup's
+    /// Flat work only (no STEP model): the camera starts straight above, as a 2D view would.
+    /// With a STEP model it starts at the orbited 3D view instead. Only read when the canvas is created.
+    let startsTopDown: Bool
+    /// The active setup's map: the canvas turns the stock and model with it so that setup's
     /// face is the one facing up, with the origin where it was.
     let partFrame: SetupFrame
     /// How many shapes an "Add toolpath" tooltip would use; 0 hides the tooltip.
     /// The owner decides when it is allowed (e.g. not while a toolpath is open).
     let addToolpathShapeCount: Int
-    /// 3D mode: the selected STEP edges can become a toolpath (false while a toolpath is open).
+    /// The selected STEP edges can become a toolpath (false while a toolpath is open).
     let canAddToolpathFromEdges: Bool
+    /// Bumped by the owner to frame the whole scene again.
+    let fitRequest: Int
     let onAddToolpath: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
     init(canvasState: D2_CanvasState,
          zoomModel: CanvasZoomModel,
-         mode: CAMCanvasMode = .design2D,
          stepScene: STEPDocumentScene? = nil,
+         startsTopDown: Bool = true,
          partFrame: SetupFrame = .identity,
          addToolpathShapeCount: Int = 0,
          canAddToolpathFromEdges: Bool = false,
+         fitRequest: Int = 0,
          onAddToolpath: @escaping () -> Void = {}) {
         _scene = StateObject(wrappedValue: CAMSceneModel(canvasState: canvasState))
         self.zoomModel = zoomModel
-        self.mode = mode
         self.stepScene = stepScene
+        self.startsTopDown = startsTopDown
         self.partFrame = partFrame
         self.addToolpathShapeCount = addToolpathShapeCount
         self.canAddToolpathFromEdges = canAddToolpathFromEdges
+        self.fitRequest = fitRequest
         self.onAddToolpath = onAddToolpath
     }
 
     var body: some View {
-        Group {
-            switch mode {
-            case .design2D:
-                canvas2D
-            case .step3D:
-                canvas3D
+        canvas
+            .onAppear {
+                scene.setColorScheme(colorScheme)
             }
-        }
-        .onAppear {
-            scene.setColorScheme(colorScheme)
-        }
-        .onChange(of: colorScheme) { _, newScheme in
-            scene.setColorScheme(newScheme)
-        }
-    }
-
-    private var canvas2D: some View {
-        MetalCanvasView(objects: .constant(scene.renderObjects),
-                        interactionMode: .locked2D,
-                        clearColor: scene.backgroundColor,
-                        pointerHandler: scene.interaction,
-                        zoomModel: zoomModel)
-            .overlay {
-                AddToolpathTooltipLayer(scene: scene,
-                                        zoomModel: zoomModel,
-                                        shapeCount: addToolpathShapeCount,
-                                        onAdd: onAddToolpath)
+            .onChange(of: colorScheme) { _, newScheme in
+                scene.setColorScheme(newScheme)
             }
     }
 
-    /// The same scene as 2D (shapes, toolpaths, stock, selection overlays, same
-    /// background), seen through the free 3D camera, plus the STEP wireframe when
-    /// there is one. The ruler sits on the stock's bottom face here, and the XYZ
-    /// origin axes are drawn (see `CAMSceneModel.renderObjects3D`).
-    /// A different branch than 2D means a fresh `MetalCanvasView`: it reads its
-    /// interaction mode once, when it is created. `scene` lives in this
-    /// view, so coming back to 2D loses nothing.
+    /// The CAM scene (shapes, toolpaths, stock, selection overlays; the ruler on the stock's
+    /// bottom face and the XYZ origin axes — see `CAMSceneModel.renderObjects3D`), plus the STEP
+    /// wireframe when there is one. A different branch for STEP means a fresh `MetalCanvasView`
+    /// (the camera starts over, at the orbited view). `scene` lives in this view, so nothing is lost.
     @ViewBuilder
-    private var canvas3D: some View {
+    private var canvas: some View {
         if let stepScene {
-            STEP3DCanvas(scene: stepScene, sceneObjects: scene.renderObjects3D(frame: partFrame),
+            STEP3DCanvas(scene: stepScene, shapes: scene, sceneObjects: scene.renderObjects3D(frame: partFrame),
                          partTransform: partFrame.matrix,
                          previewTransform: partFrame.previewMatrix,
                          clearColor: scene.backgroundColor, isDark: colorScheme == .dark,
                          zoomModel: zoomModel,
-                         canAddToolpath: canAddToolpathFromEdges, onAddToolpath: onAddToolpath)
+                         addToolpathShapeCount: addToolpathShapeCount,
+                         canAddToolpath: canAddToolpathFromEdges,
+                         fitRequest: fitRequest,
+                         onAddToolpath: onAddToolpath)
         } else {
             MetalCanvasView(objects: .constant(scene.renderObjects3D(frame: partFrame)),
-                            interactionMode: .free3D,
                             clearColor: scene.backgroundColor,
+                            pointerHandler: scene.interaction,
                             zoomModel: zoomModel,
+                            onClick: { click in
+                                Self.route(click, shapes: scene.interaction, step: nil)
+                            },
                             partTransform: partFrame.matrix,
                             previewTransform: partFrame.previewMatrix,
-                            adaptiveModelFit: true)
+                            startsTopDown: startsTopDown,
+                            adaptiveModelFit: true,
+                            fitRequest: fitRequest)
+                .overlay {
+                    AddToolpathTooltipLayer(scene: scene,
+                                            zoomModel: zoomModel,
+                                            shapeCount: addToolpathShapeCount,
+                                            onAdd: onAddToolpath)
+                }
         }
+    }
+
+    /// Resolves a click on the canvas: a flat shape wins (it lies on the stock's top face, in
+    /// front of the model's edges), then a STEP edge, then empty space. Shapes and edges are never
+    /// selected together, except as the picks of an open toolpath.
+    static func route(_ click: CanvasClick, shapes: CAMCanvasInteraction, step: STEPDocumentScene?) {
+        let extend = click.extendsSelection
+        let picking = shapes.isPicking
+
+        if let pointer = click.pointer, let hit = shapes.shapeHit(at: pointer) {
+            shapes.select(hit, extend: extend)
+            if !picking { step?.clearSelection() }
+            return
+        }
+        if let step, let edge = step.edge(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
+            step.select(edge, extend: extend)
+            if !picking { shapes.clearSelection() }
+            return
+        }
+        // Empty space: keeps a toolpath's picks, and a multi-select's selection
+        guard !picking, !extend else {
+            return
+        }
+        shapes.select(nil, extend: false)
+        step?.clearSelection()
     }
 }
 
-/// The CAM scene plus the STEP wireframe in one free 3D canvas: orbit, pan, zoom
-/// and the orientation cube from `CanvasInputSettings`, and edge picking.
+/// The CAM scene plus the STEP wireframe in one canvas, with edge picking next to shape picking.
 private struct STEP3DCanvas: View {
 
     @ObservedObject var scene: STEPDocumentScene
+    let shapes: CAMSceneModel
     let sceneObjects: [RenderObject]
     let partTransform: simd_float4x4
     let previewTransform: simd_float4x4
     let clearColor: SIMD4<Float>
     let isDark: Bool
     let zoomModel: CanvasZoomModel
+    let addToolpathShapeCount: Int
     let canAddToolpath: Bool
+    let fitRequest: Int
     let onAddToolpath: () -> Void
 
     var body: some View {
         MetalCanvasView(objects: .constant(sceneObjects + scene.visibleObjects),
-                        interactionMode: .free3D,
                         clearColor: clearColor,
+                        pointerHandler: shapes.interaction,
                         zoomModel: zoomModel,
-                        on3DClick: { point, size, matrix, modifiers in
-                            scene.pick(point: point, viewport: size, matrix: matrix,
-                                       extend: modifiers.contains(.shift) || modifiers.contains(.command))
+                        onClick: { click in
+                            CAM_Metal_View.route(click, shapes: shapes.interaction, step: scene)
                         },
                         partTransform: partTransform,
                         previewTransform: previewTransform,
                         adaptiveModelFit: true,
-                        fitRequest: scene.fitRequest)
+                        fitRequest: scene.fitRequest &+ fitRequest)
             .id(ObjectIdentifier(scene))
             .onAppear { scene.setAppearance(isDark: isDark) }
             .onChange(of: isDark) { _, dark in scene.setAppearance(isDark: dark) }
+            .overlay {
+                AddToolpathTooltipLayer(scene: shapes,
+                                        zoomModel: zoomModel,
+                                        shapeCount: addToolpathShapeCount,
+                                        onAdd: onAddToolpath)
+            }
             .overlay {
                 if canAddToolpath {
                     STEPAddToolpathTooltipLayer(scene: scene, zoomModel: zoomModel, onAdd: onAddToolpath)
@@ -150,7 +173,7 @@ private struct STEP3DCanvas: View {
     }
 }
 
-/// The "Add toolpath" tooltip of the 2D canvas, over the selected STEP edges. It follows the
+/// The "Add toolpath" tooltip over the selected STEP edges. It follows the
 /// selection's top as the camera orbits, pans and zooms.
 private struct STEPAddToolpathTooltipLayer: View {
 
@@ -209,7 +232,7 @@ private struct STEPAddToolpathTooltipLayer: View {
 }
 
 /// Covers the canvas and keeps an "Add toolpath" tooltip on top of the selected
-/// shapes, arrow pointing down at them. It follows the shapes through pan, zoom
+/// shapes, arrow pointing down at them. It follows the shapes through orbit, pan, zoom
 /// and resize by re-reading the camera after every frame the canvas draws.
 private struct AddToolpathTooltipLayer: View {
 
@@ -248,16 +271,23 @@ private struct AddToolpathTooltipLayer: View {
         }
     }
 
-    /// Top-center of the selection's bounding box, in this view's points.
+    /// Top-center of the selection's bounding box, in this view's points. The box lies flat at
+    /// z = 0; under an orbited camera its highest corner on screen is what the arrow points at.
     private func anchor(in size: CGSize) -> CGPoint? {
-        guard let bounds = scene.selectionWorldBounds,
-              let top = zoomModel.normalizedViewPoint(forWorld: CGPoint(x: bounds.midX, y: bounds.maxY)),
-              size.width > 0, size.height > 0 else {
+        guard let bounds = scene.selectionWorldBounds, size.width > 0, size.height > 0 else {
+            return nil
+        }
+        let corners = [CGPoint(x: bounds.minX, y: bounds.minY), CGPoint(x: bounds.maxX, y: bounds.minY),
+                       CGPoint(x: bounds.minX, y: bounds.maxY), CGPoint(x: bounds.maxX, y: bounds.maxY)]
+        let projected = corners.compactMap { zoomModel.normalizedViewPoint(forWorld: $0) }
+        guard let top = projected.map(\.y).min(),
+              let left = projected.map(\.x).min(),
+              let right = projected.map(\.x).max() else {
             return nil
         }
         let margin = min(Self.horizontalMargin, size.width / 2)
-        let x = min(max(top.x * size.width, margin), size.width - margin)
-        let y = max(top.y * size.height - Self.gap, Self.minAnchorY)
+        let x = min(max((left + right) / 2 * size.width, margin), size.width - margin)
+        let y = max(top * size.height - Self.gap, Self.minAnchorY)
         return CGPoint(x: x, y: y)
     }
 }

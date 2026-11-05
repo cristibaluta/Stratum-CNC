@@ -319,7 +319,7 @@ class CAMModel: ObservableObject {
     /// The STEP edges selected in the 3D canvas that a new toolpath could be built from.
     /// Empty while a toolpath is open (clicks edit that toolpath's edges then).
     var stepEdgesForNewToolpath: [STEPEdgeTarget] {
-        guard selectedToolpathID == nil, stepWorkspace.isPresented,
+        guard selectedToolpathID == nil,
               let scene = stepWorkspace.activeScene else { return [] }
         return scene.selectedEdges.sorted { ($0.bodyID.entityID, $0.entityID) < ($1.bodyID.entityID, $1.entityID) }
             .map(STEPEdgeTarget.init)

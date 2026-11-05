@@ -57,10 +57,10 @@ final class CAMSceneModel: ObservableObject {
         }
     }
 
-    /// `renderObjects` as the free 3D camera should see it: the 2D scene with its ruler (which
+    /// `renderObjects` as the canvas should draw it: the flat scene with its ruler (which
     /// sits at the stock's top face, z = 0) swapped for one at the stock's *bottom* face, where
     /// the real anchor and ruler are, plus the XYZ axes gizmo marking 0, 0, 0 at the top of the
-    /// stock. The 2D view keeps using `renderObjects` unchanged.
+    /// stock.
     ///
     /// `frame` is the active setup's: the canvas turns the stock and model with it (see
     /// `MetalCanvasView.partTransform`), so the face that is up is z = 0 and the physical bottom

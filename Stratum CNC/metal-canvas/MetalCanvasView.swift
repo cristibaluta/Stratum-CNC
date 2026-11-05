@@ -34,7 +34,7 @@ struct MetalCanvasView: NSViewRepresentable {
         }
 
         // Direct mouse forwarding, used only when the owner installs these
-        // (CAM's locked 2D view, which needs press/drag/release rather than
+        // (CAM, which needs press/drag/release and clicks rather than
         // a pan gesture). Left `nil` — the controller — the events fall
         // through to `super` and the gesture recognizers, exactly as before.
         var onMouseDown: ((NSEvent) -> Void)?
@@ -67,14 +67,6 @@ struct MetalCanvasView: NSViewRepresentable {
     }
 
     @Binding var objects: [RenderObject]
-
-    /// Which input scheme drives the camera — see `CanvasInteractionMode`.
-    /// A plain `let`, like `renderMode` below: nothing downstream ever
-    /// needs to change it back once the view's been created for a given
-    /// screen (the controller always passes `.free3D`, CAM's 2D view always
-    /// passes `.locked2D`), so it's read once in `makeNSView` rather than
-    /// re-applied on every `updateNSView`.
-    var interactionMode: CanvasInteractionMode = .free3D
 
     /// M4: which draw path `MetalRenderer.draw(in:)` takes, forwarded
     /// straight through in `updateNSView`. A plain `let`, not a `@Binding` —
@@ -113,29 +105,34 @@ struct MetalCanvasView: NSViewRepresentable {
     /// Applied in `updateNSView`, so changing it just needs a redraw.
     var clearColor: SIMD4<Float>? = nil
 
-    /// Receives press / drag / release in `.locked2D` (CAM's shape
-    /// selection). Read once in `makeNSView`, like `interactionMode`. When
-    /// set, the plain left-button drag is no longer a pan *gesture* — a
-    /// recognizer would swallow the mouse events — so the handler's
-    /// `pointerDown` answer decides between panning and doing something
-    /// else with the drag. Ignored in `.free3D`.
+    /// Receives press / drag / release (CAM's moving of the selected shapes). When set (or
+    /// when `onClick` is), the plain left-button drag is no longer a pan *gesture* — a
+    /// recognizer would swallow the mouse events — so the handler's `pointerDown`
+    /// answer decides between moving the camera and doing something else with the drag.
+    /// Read once in `makeNSView`.
     var pointerHandler: (any CanvasPointerHandler)? = nil
 
     /// Bridge for the "100%" / true-to-life zoom button (see
     /// `CanvasZoomModel`, `CanvasZoomButton`). `nil` if the owner doesn't
-    /// offer that control. Read once in `makeNSView`, like `interactionMode`
-    /// and `pointerHandler` above — the object itself is what stays live
+    /// offer that control. Read once in `makeNSView`, like `pointerHandler`
+    /// above — the object itself is what stays live
     /// across re-renders, not this reference to it.
     var zoomModel: CanvasZoomModel? = nil
 
-    /// Bottom-left view-point coordinates and the exact rendering matrix.
-    var on3DClick: ((CGPoint, CGSize, simd_float4x4, NSEvent.ModifierFlags) -> Void)? = nil
+    /// A press and release that did not move: what was clicked, for the owner to resolve
+    /// (CAM: a flat shape, or an edge of a STEP model).
+    var onClick: ((CanvasClick) -> Void)? = nil
     /// Turns the part (stock, model, shapes, toolpaths) about the machine, which
     /// keeps its fixtures and origin where they are — see `MetalRenderer.partTransform`.
     /// Identity leaves the scene as built.
     var partTransform: simd_float4x4 = matrix_identity_float4x4
     /// The flat toolpath overlay's own turn (XY only) — see `MetalRenderer.previewTransform`.
     var previewTransform: simd_float4x4 = matrix_identity_float4x4
+    /// The camera always orbits freely (see `CanvasInputSettings`). This only decides where it
+    /// starts: straight down from above (flat work: shapes only), or the orbited 3D view.
+    /// Read once in `makeNSView`; only has an effect together with `adaptiveModelFit`.
+    var startsTopDown = false
+
     var adaptiveModelFit = false
     var fitRequest = 0
 
@@ -154,7 +151,11 @@ struct MetalCanvasView: NSViewRepresentable {
         renderer.adaptiveModelFit = adaptiveModelFit
         if adaptiveModelFit {
             renderer.fitExcludedRoles = [.modelSelection, .axes, .ruler]
-            renderer.camera.orbit(yaw: -.pi / 4, pitch: .pi / 4)
+            if startsTopDown {
+                renderer.camera.snap(to: .top)
+            } else {
+                renderer.camera.orbit(yaw: -.pi / 4, pitch: .pi / 4)
+            }
         }
 
         // Wire the 100% button, if the owner offers one: the canvas reports
@@ -188,23 +189,6 @@ struct MetalCanvasView: NSViewRepresentable {
             coordinator?.normalizedViewPoint(forWorld3D: world)
         }
 
-        if interactionMode == .locked2D {
-            // `Camera`'s own default orientation already matches
-            // `StandardView.top` (see its doc comment), so this is belt-
-            // and-suspenders rather than strictly required — but making it
-            // explicit means a locked 2D view is never at the mercy of
-            // `Camera`'s default happening to still be `.top` later. Never
-            // orbited away from afterwards: `handlePan`/`handleScroll`
-            // below route every input to pan/zoom in this mode, orbit is
-            // simply never called.
-            renderer.camera.snap(to: .top)
-            // Only one face exists in this mode, so a cube for orienting
-            // between faces has nothing useful to show.
-            renderer.showOrientationCube = false
-            // Frame the drawing (and stock), not the 200 mm ruler.
-            renderer.fitExcludedRoles = [.ruler]
-        }
-
         // Render on demand rather than continuously. The scene is static
         // almost all the time — nothing to redraw between a scrub tick, a
         // pan, or a zoom — so a 60fps timer here was burning GPU (and
@@ -227,7 +211,7 @@ struct MetalCanvasView: NSViewRepresentable {
         // Plain left-button drag and Shift+drag. handlePan tells these two
         // apart via the Shift modifier and looks up what each one should do
         // in CanvasInputSettings (see CanvasControlsSettingsView).
-        if interactionMode == .locked2D, let pointerHandler {
+        if pointerHandler != nil || onClick != nil {
             context.coordinator.pointerHandler = pointerHandler
             mtkView.onMouseDown = { [weak coordinator = context.coordinator] event in
                 coordinator?.handleMouseDown(event)
@@ -237,16 +221,6 @@ struct MetalCanvasView: NSViewRepresentable {
             }
             mtkView.onMouseUp = { [weak coordinator = context.coordinator] event in
                 coordinator?.handleMouseUp(event)
-            }
-        } else if interactionMode == .free3D, on3DClick != nil {
-            mtkView.onMouseDown = { [weak coordinator = context.coordinator] event in
-                coordinator?.handle3DMouseDown(event)
-            }
-            mtkView.onMouseDragged = { [weak coordinator = context.coordinator] event in
-                coordinator?.handle3DMouseDragged(event)
-            }
-            mtkView.onMouseUp = { [weak coordinator = context.coordinator] event in
-                coordinator?.handle3DMouseUp(event)
             }
         } else {
             let panGesture = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
@@ -322,7 +296,6 @@ struct MetalCanvasView: NSViewRepresentable {
         var lastHeightmapMeshID: UUID?
         var lastFitRequest = 0
         private var clickTracker = CanvasClickTracker()
-        private var last3DPoint = CGPoint.zero
         /// Weak: so the view — which owns the coordinator via AppKit's
         /// retain graph, not the other way around — can be requested to
         /// draw() from the gesture handlers below without creating a cycle.
@@ -350,9 +323,9 @@ struct MetalCanvasView: NSViewRepresentable {
             let translation = gesture.translation(in: gesture.view)
 
             // Which physical input this drag is decides the right entry of
-            // CanvasInputSettings — same lookup for Locked 2D (CAM) and Free
-            // 3D (controller) now, so reassigning a mapping in
-            // CanvasControlsSettingsView affects both canvases identically.
+            // CanvasInputSettings — same lookup for CAM and the controller, so
+            // reassigning a mapping in CanvasControlsSettingsView affects both
+            // canvases identically.
             // Shift+left-drag and a plain left-drag are told apart by the
             // modifier flag; middle-button drag is its own recognizer (see
             // `middleDragGesture`), never this one with the modifier held.
@@ -371,14 +344,6 @@ struct MetalCanvasView: NSViewRepresentable {
 
             switch action {
             case .orbit:
-                // Locked 2D (CAM) is pinned to `.top` and never orbits —
-                // see `CanvasInteractionMode.locked2D` — so an input
-                // mapped to Orbit simply does nothing there rather than
-                // tilting a view the rest of CAM (hit-testing, the
-                // selection overlay) assumes stays top-down.
-                guard parent.interactionMode == .free3D else {
-                    break
-                }
                 performOrbit(translation: translation)
             case .pan:
                 performPan(translation: translation)
@@ -446,91 +411,42 @@ struct MetalCanvasView: NSViewRepresentable {
             applyZoom(to: newDistance, towards: gesture.location(in: view), in: view)
         }
 
-        // MARK: - Direct mouse (locked 2D with a pointer handler)
+        // MARK: - Direct mouse (CAM: shapes, STEP edges)
 
         /// Weak: the owner (CAM's scene model) outlives the view.
         weak var pointerHandler: (any CanvasPointerHandler)?
-        private var dragAction: CanvasPointerDragAction = .pan
-        private var lastDragViewPoint: CGPoint = .zero
+        private var dragAction: CanvasPointerDragAction = .camera
 
         func handleMouseDown(_ event: NSEvent) {
-            guard let pointer = pointerEvent(for: event) else {
-                dragAction = .pan
-                return
+            guard let view = metalView else { return }
+            lastMousePosition = view.convert(event.locationInWindow, from: nil)
+            clickTracker.begin(at: lastMousePosition)
+            dragAction = .camera
+            if let pointer = pointerEvent(for: event) {
+                dragAction = pointerHandler?.pointerDown(pointer) ?? .camera
             }
-            lastDragViewPoint = pointer.viewPoint
-            dragAction = pointerHandler?.pointerDown(pointer) ?? .pan
-            metalView?.draw()
+            view.draw()
         }
 
         func handleMouseDragged(_ event: NSEvent) {
-            guard let pointer = pointerEvent(for: event) else {
-                return
-            }
-            // The event was built from the camera as it is *now*; pan after,
-            // so the handler sees the point that was actually under the
-            // cursor rather than one shifted by this same drag step.
-            pointerHandler?.pointerDragged(pointer)
-
-            // The handler may have just changed geometry (moving objects): show it in this frame.
-            if let live = pointerHandler?.liveRenderObjects {
-                renderer?.updateGeometry(objects: live)
-            }
-
-            if dragAction == .pan {
-                performPan(translation: CGPoint(x: pointer.viewPoint.x - lastDragViewPoint.x,
-                                                y: pointer.viewPoint.y - lastDragViewPoint.y))
-            }
-            lastDragViewPoint = pointer.viewPoint
-            metalView?.draw()
-        }
-
-        func handleMouseUp(_ event: NSEvent) {
-            if let pointer = pointerEvent(for: event) {
-                pointerHandler?.pointerUp(pointer)
-            }
-            dragAction = .pan
-            metalView?.draw()
-        }
-
-        /// View point → world point (z = 0) + the zoom, packaged for the
-        /// handler. Same view-point → NDC mapping `applyZoom` uses, since
-        /// this view isn't flipped (origin bottom-left, y up).
-        private func pointerEvent(for event: NSEvent) -> CanvasPointerEvent? {
-            guard let camera = renderer?.camera, let view = metalView else {
-                return nil
-            }
-            let size = view.bounds.size
-            guard size.width > 0, size.height > 0 else {
-                return nil
-            }
-            let location = view.convert(event.locationInWindow, from: nil)
-            let ndc = SIMD2<Float>(Float(location.x / size.width) * 2 - 1,
-                                   Float(location.y / size.height) * 2 - 1)
-            guard let world = camera.worldPoint(atScreenNDC: ndc) else {
-                return nil
-            }
-            // Same relation `Camera.pan` uses: the view spans
-            // 2 * distance * tan(fov/2) world units vertically.
-            let worldPerPoint = 2 * camera.distance * tan(camera.fov * 0.5) / Float(size.height)
-            return CanvasPointerEvent(worldPoint: CGPoint(x: CGFloat(world.x), y: CGFloat(world.y)),
-                                      viewPoint: location,
-                                      modifierFlags: event.modifierFlags,
-                                      pointsPerWorldUnit: CGFloat(1 / max(worldPerPoint, 1e-9)))
-        }
-
-        func handle3DMouseDown(_ event: NSEvent) {
-            guard let view = metalView else { return }
-            last3DPoint = view.convert(event.locationInWindow, from: nil)
-            clickTracker.begin(at: last3DPoint)
-        }
-
-        func handle3DMouseDragged(_ event: NSEvent) {
             guard let view = metalView, let camera = renderer?.camera else { return }
             let point = view.convert(event.locationInWindow, from: nil)
             clickTracker.move(to: point)
-            let translation = CGPoint(x: point.x - last3DPoint.x, y: point.y - last3DPoint.y)
-            last3DPoint = point
+            let translation = CGPoint(x: point.x - lastMousePosition.x, y: point.y - lastMousePosition.y)
+            lastMousePosition = point
+
+            if dragAction == .handled {
+                if let pointer = pointerEvent(for: event) {
+                    pointerHandler?.pointerDragged(pointer)
+                }
+                // The handler may have just changed geometry (moving objects): show it in this frame.
+                if let live = pointerHandler?.liveRenderObjects {
+                    renderer?.updateGeometry(objects: live)
+                }
+                view.draw()
+                return
+            }
+
             guard clickTracker.isDragging else { return }
             let trigger: CanvasInputTrigger = event.modifierFlags.contains(.shift) ? .modified : .primary
             switch CanvasInputSettings.shared.action(for: trigger) {
@@ -544,11 +460,62 @@ struct MetalCanvasView: NSViewRepresentable {
             view.draw()
         }
 
-        func handle3DMouseUp(_ event: NSEvent) {
+        func handleMouseUp(_ event: NSEvent) {
             guard let view = metalView, let camera = renderer?.camera else { return }
             let point = view.convert(event.locationInWindow, from: nil)
-            guard clickTracker.end(at: point), view.bounds.contains(point) else { return }
-            parent.on3DClick?(point, view.bounds.size, camera.updateMatrix() * (renderer?.partTransform ?? matrix_identity_float4x4), event.modifierFlags)
+            let pointer = pointerEvent(for: event)
+            let wasHandled = dragAction == .handled
+            dragAction = .camera
+            if let pointer {
+                pointerHandler?.pointerUp(pointer)
+            }
+            let clicked = clickTracker.end(at: point)
+            guard !wasHandled, clicked, view.bounds.contains(point) else {
+                view.draw()
+                return
+            }
+            onClickInView(CanvasClick(pointer: pointer,
+                                      viewPoint: point,
+                                      viewSize: view.bounds.size,
+                                      matrix: camera.updateMatrix() * (renderer?.partTransform ?? matrix_identity_float4x4),
+                                      modifierFlags: event.modifierFlags))
+            view.draw()
+        }
+
+        private func onClickInView(_ click: CanvasClick) {
+            parent.onClick?(click)
+        }
+
+        /// View point → the point on the shapes' plane under it + the zoom, packaged for the
+        /// handler. The view isn't flipped (origin bottom-left, y up). The camera ray through
+        /// the cursor meets z = 0 wherever the camera is orbited to; the flat overlay may be
+        /// turned (`previewTransform`), so the point is taken back into the shapes' own frame.
+        /// `nil` when the camera is edge-on to that plane.
+        private func pointerEvent(for event: NSEvent) -> CanvasPointerEvent? {
+            guard let camera = renderer?.camera, let view = metalView else {
+                return nil
+            }
+            let size = view.bounds.size
+            guard size.width > 0, size.height > 0 else {
+                return nil
+            }
+            let location = view.convert(event.locationInWindow, from: nil)
+            let ndc = SIMD2<Float>(Float(location.x / size.width) * 2 - 1,
+                                   Float(location.y / size.height) * 2 - 1)
+            // Nearly edge-on, a pixel is metres of drawing: nothing sensible to hit
+            guard abs(camera.back.z) > 0.02,
+                  let drawn = camera.worldPoint(atScreenNDC: ndc) else {
+                return nil
+            }
+            let overlay = renderer?.previewTransform ?? matrix_identity_float4x4
+            let shape = simd_inverse(overlay) * SIMD4<Float>(drawn, 1)
+            // Same relation `Camera.pan` uses: the view spans
+            // 2 * distance * tan(fov/2) world units vertically.
+            let worldPerPoint = 2 * camera.distance * tan(camera.fov * 0.5) / Float(size.height)
+            return CanvasPointerEvent(worldPoint: CGPoint(x: CGFloat(shape.x), y: CGFloat(shape.y)),
+                                      viewPoint: location,
+                                      modifierFlags: event.modifierFlags,
+                                      pointsPerWorldUnit: CGFloat(1 / max(worldPerPoint, 1e-9)))
         }
 
         @objc func handleMagnification( _ gesture: NSMagnificationGestureRecognizer) {
@@ -607,21 +574,12 @@ struct MetalCanvasView: NSViewRepresentable {
                     performCursorZoom(event: event)
 
                 case .orbit:
-                    guard parent.interactionMode == .free3D else {
-                        break
-                    }
                     performOrbit(translation: scrollTranslation(event))
 
                 case .pan:
                     performPan(translation: scrollTranslation(event))
 
                 case .snapToFace:
-                    // Snapping to a standard view (front/back/left/right) would
-                    // tip Locked 2D off the top-down view it's pinned to — same
-                    // reasoning as `.orbit` above.
-                    guard parent.interactionMode == .free3D else {
-                        break
-                    }
                     performViewSnap(event)
 
                 case .none:
@@ -834,18 +792,21 @@ struct MetalCanvasView: NSViewRepresentable {
             zoomModel.updatePercent(Double(pointsPerWorldUnit / truePointsPerWorldUnit) * 100)
         }
 
-        /// World point (z = 0) → where it is in this view, as fractions of its
-        /// size with the origin top-left (see `CanvasZoomModel.normalizedViewPoint`).
-        /// The inverse of `pointerEvent(for:)`'s view point → world point, so
-        /// it is only meaningful for the top-down view CAM's 2D canvas is
-        /// locked to; the camera's right/up vectors are used so it stays
-        /// correct regardless.
+        /// A point on the shapes' plane (z = 0, the shapes' own coordinates) → where it is in this
+        /// view, as fractions of its size with the origin top-left (see
+        /// `CanvasZoomModel.normalizedViewPoint`). The inverse of `pointerEvent(for:)`. The flat
+        /// overlay is what turns with a setup (`previewTransform`), not the part.
         func normalizedViewPoint(forWorld point: CGPoint) -> CGPoint? {
-            normalizedViewPoint(forWorld3D: SIMD3<Float>(Float(point.x), Float(point.y), 0))
+            normalizedViewPoint(forWorld3D: SIMD3<Float>(Float(point.x), Float(point.y), 0),
+                                through: renderer?.previewTransform ?? matrix_identity_float4x4)
         }
 
         /// Same, for a point at any height.
         func normalizedViewPoint(forWorld3D point: SIMD3<Float>) -> CGPoint? {
+            normalizedViewPoint(forWorld3D: point, through: renderer?.partTransform ?? matrix_identity_float4x4)
+        }
+
+        private func normalizedViewPoint(forWorld3D point: SIMD3<Float>, through transform: simd_float4x4) -> CGPoint? {
             guard let camera = renderer?.camera else {
                 return nil
             }
@@ -854,8 +815,8 @@ struct MetalCanvasView: NSViewRepresentable {
             guard halfWidth > 0, halfHeight > 0 else {
                 return nil
             }
-            // The point is in the part's frame: where the part is turned to is where it shows
-            let turned = (renderer?.partTransform ?? matrix_identity_float4x4) * SIMD4<Float>(point, 1)
+            // The point is in its own frame: where that is turned to is where it shows
+            let turned = transform * SIMD4<Float>(point, 1)
             let offset = SIMD3<Float>(turned.x, turned.y, turned.z) - camera.target
             let ndcX = simd_dot(offset, camera.right) / halfWidth
             let ndcY = simd_dot(offset, camera.up) / halfHeight

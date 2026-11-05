@@ -18,12 +18,12 @@ import SwiftUI
     - CAMModel
         - D2_CanvasState (single source of truth for the canvas: objects,
           selection, stock render state, live zoom — everything the
-          inspector, material panel and 2D view all read from and write to)
+          inspector, material panel and canvas all read from and write to)
     - ProjectModel (ProjectData)               <- persisted project data
-    - CAM_Metal_View                           <- canvas (Metal), replaced CAM_2D_View (CoreAnimation) in step 6
+    - CAM_Metal_View                           <- canvas (Metal), always the free 3D camera; shapes sit flat at z0
         - CAMSceneModel (D2_CanvasState -> [RenderObject] via D2_RenderObjectBuilder)
-        - MetalCanvasView (.locked2D in design mode, .free3D in STEP mode)
-    - STEPInfoPanel                            <- floating over the canvas in STEP mode (layers, selection, details)
+        - MetalCanvasView
+    - STEPInfoPanel                            <- floating over the canvas while there is a STEP model (layers, selection, details)
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
     - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
     - ToolpathListView                         <- left, under the objects panel: select / show-hide / delete toolpaths
@@ -35,10 +35,12 @@ struct CAMView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var projectModel: ProjectModel
     @State private var fileError: String?
+    /// Bumped by the fit button to frame the whole scene again.
+    @State private var fitRequest = 0
 
     /// The mouse-icon button opens the Settings window on its Canvas tab, which
     /// edits the same `CanvasInputSettings.shared` as the controller's canvas —
-    /// see `CanvasControlsSettingsView`'s doc comment and `CanvasInteractionMode.locked2D`.
+    /// see `CanvasControlsSettingsView`'s doc comment.
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
@@ -49,14 +51,16 @@ struct CAMView: View {
             } else {
                 // The "Add toolpath" tooltip sits on the selected shapes, inside the canvas
                 // view (it needs the camera). Hidden while a toolpath is open.
-                // One canvas for both: 2D design mode, or the 3D mode for STEP models.
+                // One 3D canvas for everything. Flat shapes (SVG, DXF, Gerber) sit at z0 and start
+                // from a top view; with a STEP model it starts from the orbited 3D view.
                 CAM_Metal_View(canvasState: camModel.canvasState,
                                zoomModel: camModel.canvasZoomModel,
-                               mode: showsSTEP ? .step3D : .design2D,
                                stepScene: camModel.stepWorkspace.activeScene,
+                               startsTopDown: !hasSTEP,
                                partFrame: camModel.activeSetupFrame,
                                addToolpathShapeCount: camModel.shapesForNewToolpath.count,
                                canAddToolpathFromEdges: camModel.selectedToolpathID == nil,
+                               fitRequest: fitRequest,
                                onAddToolpath: {
                                    withAnimation(.easeOut(duration: 0.15)) {
                                        camModel.addToolpathFromSelection()
@@ -68,16 +72,13 @@ struct CAMView: View {
                 VStack {
                     Spacer()
                     HStack(spacing: 8) {
-                        if showsSTEP {
-                            Button {
-                                camModel.stepWorkspace.activeScene?.fitRequest &+= 1
-                            } label: {
-                                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            }
-                            .buttonStyle(.bordered)
-                            .help("Fit model")
-                            .disabled(camModel.stepWorkspace.activeScene?.visibleObjects.isEmpty ?? true)
+                        Button {
+                            fitRequest &+= 1
+                        } label: {
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
                         }
+                        .buttonStyle(.bordered)
+                        .help("Fit to view")
 
                         CanvasZoomButton(zoomModel: camModel.canvasZoomModel)
 
@@ -136,9 +137,9 @@ struct CAMView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
                 }
 
-                // 3D mode: the STEP info floats over the canvas, bottom-left, under the
-                // same panels as in 2D. Collapsible, so it can get out of the way.
-                if showsSTEP {
+                // The STEP info floats over the canvas, bottom-left, under the
+                // other panels. Collapsible, so it can get out of the way.
+                if hasSTEP {
                     VStack {
                         Spacer()
                         HStack {
@@ -165,22 +166,6 @@ struct CAMView: View {
         .onAppear {
             camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
-        .overlay(alignment: .top) {
-            // Only offered once there is a STEP model to look at
-            if !camModel.stepWorkspace.sources.isEmpty {
-                Picker("Canvas", selection: Binding(
-                    get: { camModel.stepWorkspace.isPresented },
-                    set: { camModel.stepWorkspace.isPresented = $0 }
-                )) {
-                    Text("2D").tag(false)
-                    Text("3D").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 120)
-                .padding(16)
-            }
-        }
         .alert("File operation failed", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
             Button("OK", role: .cancel) { fileError = nil }
         } message: {
@@ -204,7 +189,6 @@ struct CAMView: View {
                             try projectModel.loadSTEPAsset(asset)
                         } else {
                             camModel.loadAndParseFileAt(projectModel.paths.assetsDirectory.appendingPathComponent(asset.name))
-                            camModel.stepWorkspace.isPresented = false
                             projectModel.updatePreview(from: camModel.canvasState.objects)
                         }
                     } catch {
@@ -218,9 +202,9 @@ struct CAMView: View {
         }
     }
 
-    /// The canvas is in 3D (STEP) mode.
-    private var showsSTEP: Bool {
-        camModel.stepWorkspace.isPresented
+    /// There is a STEP model in the project.
+    private var hasSTEP: Bool {
+        !camModel.stepWorkspace.sources.isEmpty
     }
 
     /// The single funnel for stock visibility: ProjectData stays the
@@ -311,11 +295,9 @@ struct CAMView: View {
             selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
                 ? camModel.stepWorkspace.selectedModelID : nil,
             onSelectStepModel: { id in
-                // Selecting a model switches the canvas to 3D, where it is drawn.
                 camModel.canvasState.clearSelection()
                 camModel.stepWorkspace.selectedModelID = id
                 camModel.stepWorkspace.activeID = id
-                camModel.stepWorkspace.isPresented = true
             },
             onToggleStepModelVisibility: { id in
                 camModel.stepWorkspace.documents[id]?.isModelVisible.toggle()
