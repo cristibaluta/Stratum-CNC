@@ -68,6 +68,33 @@ final class D2_CanvasState: ObservableObject, Equatable {
         toolpathsPath = path
     }
 
+    /// One face's generated toolpaths, for the 3D view, which shows every face's at once.
+    struct FaceToolpaths: Equatable {
+        /// The setup they were generated for
+        var setupID: UUID
+        /// That setup's face, which picks the color; nil for an angle between faces
+        var face: SetupFace?
+        /// The face's toolpaths as one path in the part's XY
+        var path: CGPath
+        /// Height of the face's z0 in the part's frame (see `SetupFrame.z0InPartFrame`)
+        var z: CGFloat
+
+        static func == (a: FaceToolpaths, b: FaceToolpaths) -> Bool {
+            a.setupID == b.setupID && a.face == b.face && a.path === b.path && a.z == b.z
+        }
+    }
+
+    /// Every face's toolpaths, not only the active setup's like `toolpathsPath`: the 3D view
+    /// draws them all, each face in its own color, each on its own face of the stock.
+    @Published private(set) var faceToolpaths: [FaceToolpaths] = []
+
+    func setFaceToolpaths(_ faces: [FaceToolpaths]) {
+        guard faces != faceToolpaths else {
+            return
+        }
+        faceToolpaths = faces
+    }
+
     /// The corners the open pocket's tool couldn't reach, in world coordinates; nil when none
     /// are to be shown.
     @Published private(set) var restRegionsPath: CGPath?

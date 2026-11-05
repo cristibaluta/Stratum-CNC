@@ -196,6 +196,40 @@ class MetalRenderer: NSObject {
     /// before. See `drawOffset(for:)`.
     var anchorOrigin: SIMD2<Float> = .zero
 
+    /// Turns the *part* — the stock, the model, the shapes and toolpaths drawn on
+    /// it — about the machine, e.g. to show the face a CAM setup machines facing
+    /// up. The machine's own fixtures (work bed, anchor, ruler, axes gizmo) are
+    /// not part of it and stay where they are, so the origin stays put while the
+    /// stock flips around it. Identity (the default) changes nothing, which is
+    /// what the controller's scene and CAM's 2D view always use.
+    var partTransform: matrix_float4x4 = matrix_identity_float4x4
+
+    /// For CAM's flat 2D content (`.faceOverlay`: shapes, toolpath, rest corners): the part's XY turned like the part,
+    /// but Z left alone. The overlay is machine-frame work (cut from the face that is up, at
+    /// z0), drawn flat at z = 0, so it must land on the new top and not ride along to the
+    /// face it was drawn on. Identity by default.
+    var previewTransform: matrix_float4x4 = matrix_identity_float4x4
+
+    /// Roles that belong to the machine rather than to the part.
+    static let machineFrameRoles: Set<RenderRole> = [.workbed, .anchor, .ruler, .axes]
+
+    /// Where objects of `role` are turned to: the machine's stay, the overlay follows
+    /// `previewTransform`, the part's own objects follow `partTransform`.
+    func transform(for role: RenderRole?) -> matrix_float4x4 {
+        guard let role else {
+            return partTransform
+        }
+        if Self.machineFrameRoles.contains(role) {
+            return matrix_identity_float4x4
+        }
+        return role == .faceOverlay ? previewTransform : partTransform
+    }
+
+    /// `mvp` for a batch of `role`, with its transform folded in.
+    func partMVP(_ mvp: matrix_float4x4, for role: RenderRole?) -> matrix_float4x4 {
+        mvp * transform(for: role)
+    }
+
     /// The heightmap surface's current GPU buffers, if a mesh has been
     /// uploaded. `nil` — the default, and also what a mesh with no
     /// triangles collapses to in `updateHeightmapMesh` — means heightmap
@@ -606,15 +640,21 @@ class MetalRenderer: NSObject {
             // Frame things where they are drawn, not where they were built.
             let shift = drawOffset(for: object.role)
             let shift3 = SIMD3<Float>(shift.x, shift.y, 0)
+            let objectTransform = transform(for: object.role)
+            func placed(_ point: SIMD3<Float>) -> SIMD3<Float> {
+                let shifted = point + shift3
+                let turned = objectTransform * SIMD4<Float>(shifted, 1)
+                return SIMD3<Float>(turned.x, turned.y, turned.z)
+            }
             for point in object.points {
                 found = true
-                minPoint = simd_min(minPoint, point + shift3)
-                maxPoint = simd_max(maxPoint, point + shift3)
+                minPoint = simd_min(minPoint, placed(point))
+                maxPoint = simd_max(maxPoint, placed(point))
             }
             for vertex in object.solidTriangles {
                 found = true
-                minPoint = simd_min(minPoint, vertex.position + shift3)
-                maxPoint = simd_max(maxPoint, vertex.position + shift3)
+                minPoint = simd_min(minPoint, placed(vertex.position))
+                maxPoint = simd_max(maxPoint, placed(vertex.position))
             }
         }
 
@@ -646,7 +686,7 @@ private extension MetalRenderer {
         // track the same shift as the toolpath it's following. The stock
         // box, axes, and the workbed/anchor fixtures are drawn at their true
         // position regardless — see `drawOffset(for:)`.
-        var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: dashLength, offset: drawOffset(for: batch.role))
+        var uniforms = Uniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role), dashLength: dashLength, offset: drawOffset(for: batch.role))
 
         // Bind uniforms to Vertex Shader (buffer index 1)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
@@ -705,7 +745,7 @@ private extension MetalRenderer {
                 pipelineBound = true
             }
 
-            var uniforms = HeightmapUniforms(modelViewProjectionMatrix: mvp,
+            var uniforms = HeightmapUniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role),
                                              lightDirection: heightmapLightDirection,
                                              baseColor: batch.solidColor,
                                              ambient: heightmapAmbient,
@@ -816,7 +856,7 @@ private extension MetalRenderer {
             drawOccluder(occluderBuffer,
                          vertexCount: batch.occluderVertexCount,
                          offset: drawOffset(for: batch.role),
-                         mvp: mvp,
+                         mvp: partMVP(mvp, for: batch.role),
                          encoder: encoder)
         }
         encoder.setDepthBias(0, slopeScale: 0, clamp: 0)

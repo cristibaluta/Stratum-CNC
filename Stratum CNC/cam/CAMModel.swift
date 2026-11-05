@@ -460,6 +460,15 @@ class CAMModel: ObservableObject {
         (try? setupFrame(for: toolpath)) ?? .identity
     }
 
+    /// The map into the active setup, for the 3D canvas to turn the stock and model with:
+    /// identity when the stock or angle can't be handled (Generate says why).
+    var activeSetupFrame: SetupFrame {
+        guard let setup = setups.first(where: { $0.id == activeSetupID }) else {
+            return .identity
+        }
+        return (try? SetupFrame.make(angle: setup.angle, stock: selectedStockMaterial)) ?? .identity
+    }
+
     func activateSetup(_ id: UUID) {
         guard setups.contains(where: { $0.id == id }) else {
             return
@@ -872,6 +881,7 @@ class CAMModel: ObservableObject {
             .compactMap { generations[$0.id]?.previewPath }
 
         updateRestRegions()
+        updateFaceToolpaths()
 
         switch paths.count {
             case 0:
@@ -883,6 +893,31 @@ class CAMModel: ObservableObject {
                 paths.forEach { combined.addPath($0) }
                 canvasState.setToolpathsPath(combined)
         }
+    }
+
+    /// Every setup's generated toolpaths, one group per face, for the 3D view: it shows them
+    /// all whichever face is up. Each group carries the height of its face's z0 in the part's
+    /// frame, so the canvas puts it on that face and the turn to the active face does the rest.
+    private func updateFaceToolpaths() {
+        guard canvasState.toolpathScrub == nil else {
+            canvasState.setFaceToolpaths([])
+            return
+        }
+        var faces: [D2_CanvasState.FaceToolpaths] = []
+        for setup in setups {
+            let paths = toolpaths
+                .filter { !hiddenToolpathIDs.contains($0.id) && self.setup(for: $0).id == setup.id }
+                .compactMap { generations[$0.id]?.previewPath }
+            guard !paths.isEmpty else {
+                continue
+            }
+            let combined = CGMutablePath()
+            paths.forEach { combined.addPath($0) }
+            let frame = try? SetupFrame.make(angle: setup.angle, stock: selectedStockMaterial)
+            faces.append(.init(setupID: setup.id, face: setup.face, path: combined,
+                               z: CGFloat(frame?.z0InPartFrame ?? 0)))
+        }
+        canvasState.setFaceToolpaths(faces)
     }
 
     private func isInActiveSetup(_ toolpath: ToolpathData) -> Bool {

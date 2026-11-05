@@ -54,6 +54,7 @@ struct CAMView: View {
                                zoomModel: camModel.canvasZoomModel,
                                mode: showsSTEP ? .step3D : .design2D,
                                stepScene: camModel.stepWorkspace.activeScene,
+                               partFrame: camModel.activeSetupFrame,
                                addToolpathShapeCount: camModel.shapesForNewToolpath.count,
                                canAddToolpathFromEdges: camModel.selectedToolpathID == nil,
                                onAddToolpath: {

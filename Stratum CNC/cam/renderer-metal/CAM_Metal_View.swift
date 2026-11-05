@@ -5,6 +5,7 @@
 //  Created by Cristian Baluta on 21.09.2026.
 //
 import SwiftUI
+import simd
 
 /// What the CAM canvas is showing. Same canvas, same place on screen: only the
 /// camera scheme and the geometry change.
@@ -23,6 +24,9 @@ struct CAM_Metal_View: View {
     let mode: CAMCanvasMode
     /// The STEP scene drawn in `.step3D`. `nil` while it is still loading or failed to load.
     let stepScene: STEPDocumentScene?
+    /// The active setup's map: the 3D canvas turns the stock and model with it so that setup's
+    /// face is the one facing up, with the origin where it was.
+    let partFrame: SetupFrame
     /// How many shapes an "Add toolpath" tooltip would use; 0 hides the tooltip.
     /// The owner decides when it is allowed (e.g. not while a toolpath is open).
     let addToolpathShapeCount: Int
@@ -35,6 +39,7 @@ struct CAM_Metal_View: View {
          zoomModel: CanvasZoomModel,
          mode: CAMCanvasMode = .design2D,
          stepScene: STEPDocumentScene? = nil,
+         partFrame: SetupFrame = .identity,
          addToolpathShapeCount: Int = 0,
          canAddToolpathFromEdges: Bool = false,
          onAddToolpath: @escaping () -> Void = {}) {
@@ -42,6 +47,7 @@ struct CAM_Metal_View: View {
         self.zoomModel = zoomModel
         self.mode = mode
         self.stepScene = stepScene
+        self.partFrame = partFrame
         self.addToolpathShapeCount = addToolpathShapeCount
         self.canAddToolpathFromEdges = canAddToolpathFromEdges
         self.onAddToolpath = onAddToolpath
@@ -88,15 +94,19 @@ struct CAM_Metal_View: View {
     @ViewBuilder
     private var canvas3D: some View {
         if let stepScene {
-            STEP3DCanvas(scene: stepScene, sceneObjects: scene.renderObjects3D,
+            STEP3DCanvas(scene: stepScene, sceneObjects: scene.renderObjects3D(frame: partFrame),
+                         partTransform: partFrame.matrix,
+                         previewTransform: partFrame.previewMatrix,
                          clearColor: scene.backgroundColor, isDark: colorScheme == .dark,
                          zoomModel: zoomModel,
                          canAddToolpath: canAddToolpathFromEdges, onAddToolpath: onAddToolpath)
         } else {
-            MetalCanvasView(objects: .constant(scene.renderObjects3D),
+            MetalCanvasView(objects: .constant(scene.renderObjects3D(frame: partFrame)),
                             interactionMode: .free3D,
                             clearColor: scene.backgroundColor,
                             zoomModel: zoomModel,
+                            partTransform: partFrame.matrix,
+                            previewTransform: partFrame.previewMatrix,
                             adaptiveModelFit: true)
         }
     }
@@ -108,6 +118,8 @@ private struct STEP3DCanvas: View {
 
     @ObservedObject var scene: STEPDocumentScene
     let sceneObjects: [RenderObject]
+    let partTransform: simd_float4x4
+    let previewTransform: simd_float4x4
     let clearColor: SIMD4<Float>
     let isDark: Bool
     let zoomModel: CanvasZoomModel
@@ -123,6 +135,8 @@ private struct STEP3DCanvas: View {
                             scene.pick(point: point, viewport: size, matrix: matrix,
                                        extend: modifiers.contains(.shift) || modifiers.contains(.command))
                         },
+                        partTransform: partTransform,
+                        previewTransform: previewTransform,
                         adaptiveModelFit: true,
                         fitRequest: scene.fitRequest)
             .id(ObjectIdentifier(scene))

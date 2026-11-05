@@ -43,27 +43,51 @@ final class CAMSceneModel: ObservableObject {
         /// Same length `D2_CanvasRenderer` gives its `RulerShapeLayer`.
         static let rulerLength: Float = 200
         static let rulerColor = SIMD4<Float>(0.55, 0.55, 0.55, 1)
+
+        /// The toolpaths of each face, so they can be told apart in the 3D view. Top keeps the
+        /// canvas's usual blue.
+        static func toolpathColor(for face: SetupFace?) -> SIMD4<Float> {
+            switch face {
+                case .top?:    return SIMD4<Float>(0.2, 0.5, 1.0, 1)
+                case .front?:  return SIMD4<Float>(0.25, 0.8, 0.4, 1)
+                case .bottom?: return SIMD4<Float>(1.0, 0.6, 0.15, 1)
+                case .back?:   return SIMD4<Float>(0.75, 0.4, 1.0, 1)
+                case nil:      return SIMD4<Float>(0.9, 0.85, 0.2, 1)
+            }
+        }
     }
 
-    /// `renderObjects` as the free 3D camera should see it: the 2D scene with
-    /// its ruler (which sits at the stock's top face, z = 0) swapped for one at
-    /// the stock's *bottom* face, where the real anchor and ruler are, plus the
-    /// XYZ axes gizmo marking 0, 0, 0 at the top of the stock. The 2D view keeps
-    /// using `renderObjects` unchanged.
+    /// `renderObjects` as the free 3D camera should see it: the 2D scene with its ruler (which
+    /// sits at the stock's top face, z = 0) swapped for one at the stock's *bottom* face, where
+    /// the real anchor and ruler are, plus the XYZ axes gizmo marking 0, 0, 0 at the top of the
+    /// stock. The 2D view keeps using `renderObjects` unchanged.
     ///
-    /// Computed from the published `renderObjects`, so a scene change or a scrub
-    /// tick refreshes it for free. The swapped-in objects are cached per bottom Z
-    /// so they keep their `RenderObject.id` — and so their GPU buffers — instead
-    /// of being re-uploaded on every read.
-    var renderObjects3D: [RenderObject] {
-        let bottomZ = canvasState.stock.map { RenderObject.bottomZ(of: $0) } ?? 0
+    /// `frame` is the active setup's: the canvas turns the stock and model with it (see
+    /// `MetalCanvasView.partTransform`), so the face that is up is z = 0 and the physical bottom
+    /// is the stock's thickness below. The ruler and axes belong to the machine and are not
+    /// turned, which is what keeps the origin where it was.
+    ///
+    /// Computed from the published `renderObjects`, so a scene change or a scrub tick refreshes
+    /// it for free. The swapped-in objects are cached per bottom Z so they keep their
+    /// `RenderObject.id` — and so their GPU buffers — instead of being re-uploaded on every read.
+    func renderObjects3D(frame: SetupFrame = .identity) -> [RenderObject] {
+        let bottomZ = frame.bottomZ ?? canvasState.stock.map { RenderObject.bottomZ(of: $0) } ?? 0
         if fixtures3DCache?.bottomZ != bottomZ {
             fixtures3DCache = (bottomZ: bottomZ,
                                objects: [.ruler(z: bottomZ, length: Style.rulerLength, color: Style.rulerColor)]
                                         + RenderObject.axes())
         }
-        return renderObjects.filter { $0.role != .ruler } + (fixtures3DCache?.objects ?? [])
+        // The 2D scene's toolpath is the active face's only: the 3D view shows every face's,
+        // each in its own color and on its own face (`faceToolpathObjects`).
+        return renderObjects.filter { $0.role != .ruler && $0.id != planarToolpathID }
+            + faceToolpathObjects
+            + (fixtures3DCache?.objects ?? [])
     }
+
+    /// Every face's toolpaths for the 3D view, built with the scene (see `rebuild`).
+    private var faceToolpathObjects: [RenderObject] = []
+    /// The 2D scene's own toolpath object, which the 3D view leaves out.
+    private var planarToolpathID: UUID?
 
     private var fixtures3DCache: (bottomZ: Float, objects: [RenderObject])?
 
@@ -181,6 +205,9 @@ final class CAMSceneModel: ObservableObject {
             paths = D2_RenderObjectBuilder.renderPaths(for: canvasState)
             toolpath = D2_RenderObjectBuilder.toolpathRenderObject(for: canvasState)
             restRegions = D2_RenderObjectBuilder.restRegionsRenderObject(for: canvasState)
+            // Flat 2D content is tagged (see `.faceOverlay`) so the 3D canvas projects it onto the
+            // face that is up instead of carrying it along with the stock
+            restRegions?.role = .faceOverlay
             background = Self.rgba(NSColor.textBackgroundColor)
 
             // Dashed box + rotation-center handle for whichever objects
@@ -227,11 +254,16 @@ final class CAMSceneModel: ObservableObject {
         // top), then shapes (the thing being selected), then the toolpath
         // preview, then the ruler, then the stock outline.
         // (The cutter marker goes first of all, so it is on top.)
+        func flat(_ object: RenderObject) -> RenderObject {
+            var tagged = object
+            tagged.role = tagged.role ?? .faceOverlay
+            return tagged
+        }
         var objects: [RenderObject] = scrubMarker.map { [$0] } ?? []
-        objects.append(contentsOf: overlay)
+        objects.append(contentsOf: overlay.map(flat))
         objects.reserveCapacity(objects.count + paths.count + 4)
         for path in paths where !path.renderObject.points.isEmpty {
-            objects.append(path.renderObject)
+            objects.append(flat(path.renderObject))
         }
         if let toolpath {
             objects.append(toolpath)
@@ -245,6 +277,12 @@ final class CAMSceneModel: ObservableObject {
         objects.append(.ruler(z: 0, length: Style.rulerLength, color: Style.rulerColor))
         if canvasState.isStockVisible, let stock = canvasState.stock {
             objects.append(.stockBox(for: stock, color: stock.material.surfaceColor))
+        }
+
+        planarToolpathID = toolpath?.id
+        faceToolpathObjects = canvasState.faceToolpaths.compactMap { group in
+            D2_RenderObjectBuilder.toolpathRenderObject(path: group.path, z: Float(group.z),
+                                                        color: Style.toolpathColor(for: group.face))
         }
 
         var selectionBounds: CGRect?

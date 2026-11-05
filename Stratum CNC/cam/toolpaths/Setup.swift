@@ -175,6 +175,44 @@ struct SetupFrame: Sendable, Equatable {
         }
     }
 
+    /// `map` as a matrix, for drawing: the canvas turns the stock, the model and the shapes
+    /// with it so the setup's face is the one facing up, while the origin stays where it was.
+    var matrix: simd_float4x4 {
+        if isIdentity { return matrix_identity_float4x4 }
+        let (c, s) = cosSin
+        let ty = axisY - c * axisY - s * axisZ
+        let tz = s * axisY - c * axisZ - surfaceDistance
+        return simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0),
+                                       SIMD4<Float>(0, Float(c), Float(-s), 0),
+                                       SIMD4<Float>(0, Float(s), Float(c), 0),
+                                       SIMD4<Float>(0, Float(ty), Float(tz), 1)))
+    }
+
+    /// The toolpath overlay's turn: the part's XY mapped to the setup's (a mirror in Y about the
+    /// stock's centre line for the bottom), Z untouched. The overlay is flat at z0, and in the
+    /// setup's frame z0 is the face that is up, so it must not be dropped with the part.
+    /// Identity for every setup but the bottom (front and back have no top-down overlay).
+    var previewMatrix: simd_float4x4 {
+        guard quarterTurns == 2 else { return matrix_identity_float4x4 }
+        return simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0),
+                                       SIMD4<Float>(0, -1, 0, 0),
+                                       SIMD4<Float>(0, 0, 1, 0),
+                                       SIMD4<Float>(0, Float(2 * axisY), 0, 1)))
+    }
+
+    /// Where this setup's z0 plane is in the *part's* frame: the part's top face for the top setup,
+    /// the stock's thickness below it for the bottom (whose z0 is the part's underside). A toolpath
+    /// preview, flat at z0 and mapped back to the part's XY, is placed at this height.
+    var z0InPartFrame: Double {
+        quarterTurns == 2 ? -2 * surfaceDistance : 0
+    }
+
+    /// Z of the stock's bottom face in the setup's frame: the stock's own thickness below z0.
+    /// Nil for the top setup, where the stock's depth says it.
+    var bottomZ: Float? {
+        isIdentity ? nil : -Float(2 * surfaceDistance)
+    }
+
     func map(_ p: SIMD3<Double>) -> SIMD3<Double> {
         if isIdentity { return p }
         let (c, s) = cosSin

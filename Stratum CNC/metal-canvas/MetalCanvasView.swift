@@ -130,6 +130,12 @@ struct MetalCanvasView: NSViewRepresentable {
 
     /// Bottom-left view-point coordinates and the exact rendering matrix.
     var on3DClick: ((CGPoint, CGSize, simd_float4x4, NSEvent.ModifierFlags) -> Void)? = nil
+    /// Turns the part (stock, model, shapes, toolpaths) about the machine, which
+    /// keeps its fixtures and origin where they are — see `MetalRenderer.partTransform`.
+    /// Identity leaves the scene as built.
+    var partTransform: simd_float4x4 = matrix_identity_float4x4
+    /// The flat toolpath overlay's own turn (XY only) — see `MetalRenderer.previewTransform`.
+    var previewTransform: simd_float4x4 = matrix_identity_float4x4
     var adaptiveModelFit = false
     var fitRequest = 0
 
@@ -271,6 +277,8 @@ struct MetalCanvasView: NSViewRepresentable {
             nsView.clearColor = MTLClearColor(red: Double(clearColor.x), green: Double(clearColor.y),
                                               blue: Double(clearColor.z), alpha: Double(clearColor.w))
         }
+        context.coordinator.renderer?.partTransform = partTransform
+        context.coordinator.renderer?.previewTransform = previewTransform
         context.coordinator.renderer?.updateGeometry(objects: objects)
         if context.coordinator.lastFitRequest != fitRequest {
             context.coordinator.lastFitRequest = fitRequest
@@ -540,7 +548,7 @@ struct MetalCanvasView: NSViewRepresentable {
             guard let view = metalView, let camera = renderer?.camera else { return }
             let point = view.convert(event.locationInWindow, from: nil)
             guard clickTracker.end(at: point), view.bounds.contains(point) else { return }
-            parent.on3DClick?(point, view.bounds.size, camera.updateMatrix(), event.modifierFlags)
+            parent.on3DClick?(point, view.bounds.size, camera.updateMatrix() * (renderer?.partTransform ?? matrix_identity_float4x4), event.modifierFlags)
         }
 
         @objc func handleMagnification( _ gesture: NSMagnificationGestureRecognizer) {
@@ -846,7 +854,9 @@ struct MetalCanvasView: NSViewRepresentable {
             guard halfWidth > 0, halfHeight > 0 else {
                 return nil
             }
-            let offset = point - camera.target
+            // The point is in the part's frame: where the part is turned to is where it shows
+            let turned = (renderer?.partTransform ?? matrix_identity_float4x4) * SIMD4<Float>(point, 1)
+            let offset = SIMD3<Float>(turned.x, turned.y, turned.z) - camera.target
             let ndcX = simd_dot(offset, camera.right) / halfWidth
             let ndcY = simd_dot(offset, camera.up) / halfHeight
             return CGPoint(x: CGFloat((ndcX + 1) / 2), y: CGFloat(1 - (ndcY + 1) / 2))

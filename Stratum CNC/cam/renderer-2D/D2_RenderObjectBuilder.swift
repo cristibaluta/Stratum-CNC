@@ -136,9 +136,14 @@ enum D2_RenderObjectBuilder {
         guard let path = state.toolpathsPath else {
             return nil
         }
-        let subpaths = flattenedSubpaths(path)
-        let simdSubpaths = subpaths.map { subpath in
-            subpath.map { SIMD3<Float>(Float($0.x), Float($0.y), 0) }
+        return toolpathRenderObject(path: path, z: 0, color: color)
+    }
+
+    /// A toolpath preview path (one face's, see `D2_CanvasState.faceToolpaths`) as lines at
+    /// height `z`.
+    static func toolpathRenderObject(path: CGPath, z: Float, color: SIMD4<Float>) -> RenderObject? {
+        let simdSubpaths = flattenedSubpaths(path).map { subpath in
+            subpath.map { SIMD3<Float>(Float($0.x), Float($0.y), z) }
         }
         return lineListObject(from: simdSubpaths, color: color)
     }

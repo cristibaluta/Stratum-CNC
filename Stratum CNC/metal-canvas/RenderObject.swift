@@ -82,6 +82,12 @@ enum RenderRole: Hashable {
     /// The XYZ axis gizmo at the origin (all three arrows). Tagged only so
     /// the canvas's objects list can switch it off — see `CanvasLayer`.
     case axes
+    /// CAM's flat 2D content as its canvas builds it — the drawn shapes and their selection
+    /// handles, holding tabs, the generated toolpath and the pocket's rest corners: flat, in the
+    /// part's XY, at z0. It is a projection onto the face that is cut, so once the part is
+    /// turned to a setup's face it lies on the face that is *up*, not on the one it was drawn
+    /// on: it follows `MetalRenderer.previewTransform` rather than `partTransform`.
+    case faceOverlay
 }
 
 /// A single drawable "thing" — a toolpath, the stock outline, a position marker, etc.
