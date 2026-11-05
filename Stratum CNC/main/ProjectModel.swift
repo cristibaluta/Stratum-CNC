@@ -147,7 +147,8 @@ class ProjectModel: ObservableObject {
         )
 
         camModel = CAMModel(selectedStockMaterial: projectData.stock ?? defaultStock,
-                            toolpaths: [])
+                            toolpaths: [],
+                            setups: projectData.setups ?? [])
 
 //        projectData.isStockVisible.publisher.sink { [weak self] newValue in
 //            print("new isStockVisible \(newValue)")
@@ -170,6 +171,12 @@ class ProjectModel: ObservableObject {
                 self.projectData.xyOffset = offset
             }
             .store(in: &cancellables)
+
+        // Faces added, renamed, turned, reordered or deleted. Wired after the load, which
+        // restores the saved ones through the initializer, so opening is not an edit.
+        camModel.onSetupsChanged = { [weak self] setups in
+            self?.projectData.setups = setups
+        }
 
         camModel.onToolpathsChanged = { [weak self] toolpaths in
             self?.toolpaths = toolpaths

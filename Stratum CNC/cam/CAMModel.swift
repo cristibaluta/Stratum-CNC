@@ -186,8 +186,8 @@ class CAMModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    /// - Parameter setups: the project's saved setups. Empty for a project saved before setups
-    ///   existed: it gets the top, and every toolpath goes in it.
+    /// - Parameter setups: the project's saved setups. Empty when it has none saved yet: it gets
+    ///   the top, and every toolpath goes in it.
     init(selectedStockMaterial: StockMaterial, toolpaths: [ToolpathData], setups: [Setup] = []) {
         PerfLog.start()
         let initialSetups = setups.isEmpty ? [Setup(face: .top)] : setups

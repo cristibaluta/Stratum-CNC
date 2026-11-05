@@ -24,13 +24,18 @@ struct ProjectData: Identifiable, Codable, Hashable {
     /// bed), in millimeters. Saved as `[x, y]`. `nil` in projects saved before
     /// this existed, which load with a zero offset.
     var xyOffset: SIMD2<Float>?
+    /// The faces the stock is machined from, in machining order (see `Setup`): a name, and the
+    /// angle and axis the stock is turned by. Toolpaths point at one by `ToolpathData.setupID`.
+    /// `nil` until the project has been saved with them: it then has the top only.
+    var setups: [Setup]?
 
     init(id: UUID = UUID(),
          name: String? = nil,
          stock: StockMaterial?,
          isStockVisible: Bool?,
          assets: [AssetData]?,
-         xyOffset: SIMD2<Float>? = nil) {
+         xyOffset: SIMD2<Float>? = nil,
+         setups: [Setup]? = nil) {
         
         self.id = id
         self.name = name
@@ -38,5 +43,6 @@ struct ProjectData: Identifiable, Codable, Hashable {
         self.isStockVisible = isStockVisible
         self.assets = assets
         self.xyOffset = xyOffset
+        self.setups = setups
     }
 }

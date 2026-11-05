@@ -113,12 +113,8 @@ struct Setup: Identifiable, Codable, Hashable, Sendable {
     var name: String
     /// Rotation of the stock about `axis`, degrees, in 0..<360.
     var angle: Double
-    /// The machine axis the stock turns about. Older projects only ever turned about X.
+    /// The machine axis the stock turns about.
     var axis: SetupAxis
-
-    private enum CodingKeys: String, CodingKey {
-        case id, name, angle, axis
-    }
 
     init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x) {
         self.id = id
@@ -130,14 +126,6 @@ struct Setup: Identifiable, Codable, Hashable, Sendable {
     init(face: SetupFace, axis: SetupAxis? = nil, name: String? = nil) {
         let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
         self.init(name: name ?? Self.baseName(for: face, axis: axis), angle: face.angle, axis: axis)
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        name = try c.decode(String.self, forKey: .name)
-        angle = Self.normalized(try c.decode(Double.self, forKey: .angle))
-        axis = try c.decodeIfPresent(SetupAxis.self, forKey: .axis) ?? .x
     }
 
     var orientation: SetupOrientation { SetupOrientation(angle: angle, axis: axis) }
