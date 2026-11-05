@@ -67,6 +67,9 @@ enum ToolpathGenerator {
         /// The selected shapes are slot *outlines*: turn each into the centre line the
         /// engine's `.slotting` expects before generating (see `run`).
         let derivesSlotCenterline: Bool
+        /// The setup the contours were mapped into. The engine works in that frame; the canvas
+        /// draws in the part's, so the preview is mapped back with it (see `SetupFrame.previewInPartFrame`).
+        let frame: SetupFrame
     }
 
     /// The pocket a rest toolpath is linked to, as the engine needs it.
@@ -84,12 +87,15 @@ enum ToolpathGenerator {
     /// - Parameter source: for a rest toolpath, the toolpath it is linked to (`nil` when that
     ///   one is gone). Ignored by every other operation.
     /// - Parameter stepContours: resolves the toolpath's STEP edges (`stepTargets`) into contours.
+    ///   They must already be in `frame`: the caller maps them (see `STEPWorkspace.contours(for:frame:)`).
+    /// - Parameter frame: the setup the toolpath is cut in (`.identity` for the top).
     static func prepare(for toolpath: ToolpathData, source: ToolpathData? = nil, canvasState: D2_CanvasState,
+                        frame: SetupFrame = .identity,
                         stepContours: (ToolpathData) throws -> [SC.Contour] = { _ in [] }) throws -> Job {
 
         if toolpath.operation.kind == .restMachining {
             return try prepareRest(for: toolpath, source: source, canvasState: canvasState,
-                                   stepContours: stepContours)
+                                   frame: frame, stepContours: stepContours)
         }
 
         guard toolpath.hasGeometry else {
@@ -105,8 +111,18 @@ enum ToolpathGenerator {
             guard let stock = canvasState.stock else {
                 throw GenerationError.invalidOption("There is no stock to face. Choose a material first.")
             }
+            // The footprint is the same when the stock is turned over, but not on its side.
+            guard frame.hasTopDownPreview else {
+                throw GenerationError.invalidOption("Facing the whole stock isn't supported on the front and back setups yet.")
+            }
             contours = [stock.footprintContour]
         } else {
+            // 2D shapes are drawn flat on the top face. Until they can be mapped to another
+            // side, they are only cut from the top.
+            guard frame.isIdentity || toolpath.targets.isEmpty else {
+                throw GenerationError.invalidOption(
+                    "2D shapes can only be cut from the Top setup. Pick STEP edges for this side, or move the toolpath to the Top setup.")
+            }
             for target in toolpath.targets {
                 guard let object = canvasState.object(withID: target.objectID) else {
                     throw GenerationError.objectNotFound
@@ -131,12 +147,14 @@ enum ToolpathGenerator {
                    startZ: toolpath.startZ,
                    restSource: nil,
                    derivesSlotCenterline: toolpath.operation.kind == .slotting
-                       && toolpath.operation.slotSource == .outline)
+                       && toolpath.operation.slotSource == .outline,
+                   frame: frame)
     }
 
     /// A rest toolpath: checks the link to its pocket and the tool, and captures the pocket's own
     /// job so `run` can find the corners it leaves.
     private static func prepareRest(for toolpath: ToolpathData, source: ToolpathData?, canvasState: D2_CanvasState,
+                                    frame: SetupFrame,
                                     stepContours: (ToolpathData) throws -> [SC.Contour]) throws -> Job {
 
         guard toolpath.operation.restSourceID != nil, let source else {
@@ -150,7 +168,8 @@ enum ToolpathGenerator {
         }
         try validateOptions(of: toolpath)
 
-        let sourceJob = try prepare(for: source, canvasState: canvasState, stepContours: stepContours)
+        // The pocket and its rest toolpath are always in the same setup (`CAMModel` moves them together)
+        let sourceJob = try prepare(for: source, canvasState: canvasState, frame: frame, stepContours: stepContours)
         return Job(contours: [],
                    tool: makeTool(from: toolpath.tool, for: .pocket),
                    settings: makeSettings(from: toolpath),
@@ -160,7 +179,8 @@ enum ToolpathGenerator {
                                           tool: sourceJob.tool,
                                           settings: sourceJob.settings,
                                           operation: sourceJob.operation),
-                   derivesSlotCenterline: false)
+                   derivesSlotCenterline: false,
+                   frame: frame)
     }
 
     /// The slow part: runs StratumCAM. Touches no shared state, so it's safe

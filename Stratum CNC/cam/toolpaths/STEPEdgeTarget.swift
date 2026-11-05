@@ -136,7 +136,9 @@ extension STEPWorkspace {
 
     /// The contours of the edges, for the toolpath engine. Throws when a model or an edge
     /// is gone (the source was removed, or replaced by a different file).
-    func contours(for targets: [STEPEdgeTarget]) throws -> [SC.Contour] {
+    /// - Parameter frame: the setup the toolpath is cut in. The edges are mapped into it first,
+    ///   so the contours are what the machine sees when the stock is turned that way.
+    func contours(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity) throws -> [SC.Contour] {
         var polylines: [[SIMD3<Double>]] = []
         for importID in importIDs(in: targets) {
             guard let scene = documents[importID] else {
@@ -148,7 +150,7 @@ extension STEPWorkspace {
                 guard let edge = points[target.edgeID] else {
                     throw ToolpathGenerator.GenerationError.shapeNotFound
                 }
-                polylines.append(edge.map { SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z)) })
+                polylines.append(edge.map { frame.map(SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z))) })
             }
         }
         return STEPContourBuilder.contours(from: polylines)
@@ -158,14 +160,17 @@ extension STEPWorkspace {
     /// the shortest one when they are at different heights. An edge's height is the mean Z
     /// of its points; edges at or above z0 have no depth to cut and are ignored.
     /// `nil` when none of them is below z0.
-    func suggestedEndZ(for targets: [STEPEdgeTarget]) -> Double? {
+    /// - Parameter frame: the setup the toolpath is cut in: depth is measured from that setup's z0.
+    func suggestedEndZ(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity) -> Double? {
         var depths: [Double] = []
         for importID in importIDs(in: targets) {
             guard let scene = documents[importID] else { continue }
             let ids = Set(targets.filter { $0.importID == importID }.map(\.edgeID))
             for points in scene.edgePoints(for: ids).values where !points.isEmpty {
-                let meanZ = points.reduce(Float(0)) { $0 + $1.z } / Float(points.count)
-                if -Double(meanZ) > 0.001 { depths.append(-Double(meanZ)) }
+                let meanZ = points.reduce(0.0) { sum, point in
+                    sum + frame.map(SIMD3<Double>(Double(point.x), Double(point.y), Double(point.z))).z
+                } / Double(points.count)
+                if -meanZ > 0.001 { depths.append(-meanZ) }
             }
         }
         guard let shortest = depths.min() else { return nil }

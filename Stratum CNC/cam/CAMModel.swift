@@ -26,7 +26,36 @@ class CAMModel: ObservableObject {
         didSet {
             revision &+= 1
             canvasState.stock = selectedStockMaterial
+            // A turned setup is built from the stock's size, so its results are outdated too
+            if setups.contains(where: { $0.angle != 0 }) {
+                discardGenerations()
+            }
             onStockChanged?(selectedStockMaterial)
+        }
+    }
+
+    /// How the stock is held, in the order the setups are machined (see `Setup`). Never empty:
+    /// a project always has at least the top. `toolpaths` is kept in the same order: all of the
+    /// first setup's toolpaths, then the second's… (see `orderedBySetup`), so the G-code of one
+    /// setup is a contiguous run of the list.
+    @Published private(set) var setups: [Setup] {
+        didSet {
+            revision &+= 1
+            onSetupsChanged?(setups)
+            // Renaming or reordering changes nothing that is cut; a different angle does
+            if Self.angles(of: oldValue) != Self.angles(of: setups) {
+                discardGenerations()
+            }
+        }
+    }
+
+    /// The setup the toolpath list is looking at: "Add toolpath" adds to it, and its toolpaths are
+    /// the ones drawn on the canvas. Opening a toolpath makes its setup the active one.
+    @Published private(set) var activeSetupID: UUID {
+        didSet {
+            if oldValue != activeSetupID {
+                updateToolpathPreview()
+            }
         }
     }
 
@@ -62,6 +91,12 @@ class CAMModel: ObservableObject {
     /// mode for it, and closing the panel ends picking (see `syncPickingWithSelection`).
     @Published var selectedToolpathID: UUID? {
         didSet {
+            // The open toolpath's setup becomes the active one
+            if let id = selectedToolpathID,
+               let setupID = toolpaths.first(where: { $0.id == id })?.setupID,
+               setups.contains(where: { $0.id == setupID }) {
+                activeSetupID = setupID
+            }
             // A toolpath and objects are never selected together
             if selectedToolpathID != nil, !canvasState.selectedObjectIDs.isEmpty {
                 canvasState.clearSelection()
@@ -140,6 +175,9 @@ class CAMModel: ObservableObject {
     // ---- CALLBACKS FOR PERSISTENCE ----
     var onStockChanged: ((StockMaterial) -> Void)?
     var onToolpathsChanged: (([ToolpathData]) -> Void)?
+    /// Fired when a setup is added, removed, renamed, reordered or turned. ProjectModel saves them
+    /// with the project (the toolpaths refer to them by id).
+    var onSetupsChanged: (([Setup]) -> Void)?
     /// Fired after any object is added/removed/moved/resized/rotated on the
     /// canvas, with the full current object list. ProjectModel uses this to
     /// mirror each object's transform back into `ProjectData.assets` and
@@ -148,10 +186,15 @@ class CAMModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(selectedStockMaterial: StockMaterial, toolpaths: [ToolpathData]) {
+    /// - Parameter setups: the project's saved setups. Empty for a project saved before setups
+    ///   existed: it gets the top, and every toolpath goes in it.
+    init(selectedStockMaterial: StockMaterial, toolpaths: [ToolpathData], setups: [Setup] = []) {
         PerfLog.start()
+        let initialSetups = setups.isEmpty ? [Setup(face: .top)] : setups
+        self.setups = initialSetups
+        self.activeSetupID = initialSetups[0].id
         self.selectedStockMaterial = selectedStockMaterial
-        self.toolpaths = toolpaths
+        self.toolpaths = Self.orderedBySetup(toolpaths, setups: initialSetups)
         self.canvasState.stock = selectedStockMaterial
 
         // D2_CanvasState is an ObservableObject nested inside a @Published
@@ -198,9 +241,13 @@ class CAMModel: ObservableObject {
     /// - Parameter targets: the shapes the new toolpath starts with. Settings are
     ///   copied from the last toolpath, never its shapes, so the default is none.
     /// - Parameter stepTargets: the STEP edges it starts with; its End Z is then the depth of those edges.
-    func addToolpath(targets: [PathSelection] = [], stepTargets: [STEPEdgeTarget] = []) {
-        var toolpath = toolpaths.last ?? Self.defaultToolpath()
+    /// - Parameter setupID: the setup it is cut in; the active one by default. Settings are copied from
+    ///   the last toolpath of that setup, or from the last one of any setup when it has none yet.
+    func addToolpath(targets: [PathSelection] = [], stepTargets: [STEPEdgeTarget] = [], setupID: UUID? = nil) {
+        let setupID = setupID.flatMap { id in setups.contains { $0.id == id } ? id : nil } ?? activeSetupID
+        var toolpath = toolpaths.last(where: { $0.setupID == setupID }) ?? toolpaths.last ?? Self.defaultToolpath()
         toolpath.id = UUID()
+        toolpath.setupID = setupID
         // A rest toolpath is tied to its pocket, so a copy of it would be one too: start from
         // the pocket's kind of operation instead.
         if toolpath.operation.kind == .restMachining {
@@ -213,11 +260,12 @@ class CAMModel: ObservableObject {
         toolpath.stepTargets = stepTargets
         // Cut as deep as the selected edges are below z0. Marked as set, so changing the
         // operation later doesn't put its default depth back.
-        if let endZ = stepWorkspace.suggestedEndZ(for: stepTargets) {
+        if let endZ = stepWorkspace.suggestedEndZ(for: stepTargets, frame: frameOrIdentity(for: toolpath)) {
             toolpath.endZ = endZ
             toolpath.editedFields.insert(.endZ)
         }
-        toolpaths.append(toolpath)
+        // At the end of its setup's run, not of the whole list
+        toolpaths = Self.orderedBySetup(toolpaths + [toolpath], setups: setups)
         // Opening it starts picking, seeded with `targets` (see `beginPicking`),
         // which also clears the plain canvas selection they came from.
         selectedToolpathID = toolpath.id
@@ -333,6 +381,185 @@ class CAMModel: ObservableObject {
         toolpaths = reordered
         // The preview is drawn in list order
         updateToolpathPreview()
+    }
+
+    /// Moves a toolpath to `newIndex` among the toolpaths of its own setup. The panel's drag works
+    /// inside one setup's section, so this is its index there, not in the whole list.
+    func moveToolpath(_ id: UUID, toIndexInSetup newIndex: Int) {
+        guard let setupID = toolpaths.first(where: { $0.id == id })?.setupID else {
+            return
+        }
+        let group = toolpaths.filter { $0.setupID == setupID }
+        guard let from = group.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let to = min(max(newIndex, 0), group.count - 1)
+        guard from != to else {
+            return
+        }
+        var reordered = group
+        reordered.insert(reordered.remove(at: from), at: to)
+        // The setup's toolpaths go back into the slots they occupied
+        var next = reordered.makeIterator()
+        var result = toolpaths
+        for index in result.indices where result[index].setupID == setupID {
+            if let toolpath = next.next() {
+                result[index] = toolpath
+            }
+        }
+        toolpaths = result
+        updateToolpathPreview()
+    }
+
+    /// Moves a toolpath to the end of another setup. Its results are outdated by the move (the
+    /// setup is part of what they were generated from), and a pocket takes its rest toolpaths
+    /// along. A rest toolpath can't move alone: it has to stay with its pocket.
+    func moveToolpath(_ id: UUID, toSetup setupID: UUID) {
+        guard setups.contains(where: { $0.id == setupID }),
+              let toolpath = toolpaths.first(where: { $0.id == id }),
+              toolpath.setupID != setupID,
+              toolpath.operation.kind != .restMachining else {
+            return
+        }
+        let moving = Set([id] + toolpaths.filter {
+            $0.operation.kind == .restMachining && $0.operation.restSourceID == id
+        }.map(\.id))
+        var moved = toolpaths.filter { moving.contains($0.id) }
+        for index in moved.indices {
+            moved[index].setupID = setupID
+        }
+        let staying = toolpaths.filter { !moving.contains($0.id) }
+        toolpaths = Self.orderedBySetup(staying + moved, setups: setups)
+        updateToolpathPreview()
+    }
+
+    // MARK: Setups
+
+    func setup(withID id: UUID?) -> Setup? {
+        id.flatMap { id in setups.first { $0.id == id } }
+    }
+
+    /// The toolpath's setup. A toolpath whose setup is gone (it was saved without setups) is in the first.
+    func setup(for toolpath: ToolpathData) -> Setup {
+        setup(withID: toolpath.setupID) ?? setups[0]
+    }
+
+    func toolpaths(in setupID: UUID) -> [ToolpathData] {
+        toolpaths.filter { $0.setupID == setupID }
+    }
+
+    /// The map into the toolpath's setup. Throws a message for the Generate button when this
+    /// stock or angle can't be handled (see `SetupFrame.make`).
+    func setupFrame(for toolpath: ToolpathData) throws -> SetupFrame {
+        try SetupFrame.make(angle: setup(for: toolpath).angle, stock: selectedStockMaterial)
+    }
+
+    /// For the places that only need a best guess (the suggested depth): identity when the
+    /// frame can't be made, and Generate then reports why.
+    private func frameOrIdentity(for toolpath: ToolpathData) -> SetupFrame {
+        (try? setupFrame(for: toolpath)) ?? .identity
+    }
+
+    func activateSetup(_ id: UUID) {
+        guard setups.contains(where: { $0.id == id }) else {
+            return
+        }
+        activeSetupID = id
+    }
+
+    /// Adds a setup at the end and makes it the active one.
+    @discardableResult
+    func addSetup(face: SetupFace) -> UUID {
+        let setup = Setup(face: face, name: Setup.uniqueName(for: face, among: Set(setups.map(\.name))))
+        setups.append(setup)
+        activeSetupID = setup.id
+        return setup.id
+    }
+
+    func renameSetup(_ id: UUID, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let index = setups.firstIndex(where: { $0.id == id }),
+              setups[index].name != trimmed else {
+            return
+        }
+        setups[index].name = trimmed
+    }
+
+    /// Turns a setup to another face. Its toolpaths are outdated by it (see `setups`' `didSet`).
+    /// A name that was just the old face's ("Front 2" included) follows the face.
+    func setSetupFace(_ id: UUID, to face: SetupFace) {
+        guard let index = setups.firstIndex(where: { $0.id == id }),
+              setups[index].angle != face.angle else {
+            return
+        }
+        let wasDefaultName = setups[index].face.map { old in
+            setups[index].name == old.title || setups[index].name.hasPrefix(old.title + " ")
+        } ?? false
+        setups[index].angle = face.angle
+        if wasDefaultName {
+            let others = Set(setups.enumerated().filter { $0.offset != index }.map(\.element.name))
+            setups[index].name = Setup.uniqueName(for: face, among: others)
+        }
+    }
+
+    /// Moves a setup to `newIndex` in the machining order; its toolpaths go with it.
+    func moveSetup(_ id: UUID, to newIndex: Int) {
+        guard let from = setups.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let to = min(max(newIndex, 0), setups.count - 1)
+        guard from != to else {
+            return
+        }
+        var reordered = setups
+        reordered.insert(reordered.remove(at: from), at: to)
+        setups = reordered
+        toolpaths = Self.orderedBySetup(toolpaths, setups: setups)
+        updateToolpathPreview()
+    }
+
+    /// Deletes a setup and the toolpaths cut in it. The last one can't be deleted.
+    func deleteSetup(_ id: UUID) {
+        guard setups.count > 1, setups.contains(where: { $0.id == id }) else {
+            return
+        }
+        for toolpath in toolpaths(in: id) {
+            deleteToolpath(toolpath.id)
+        }
+        setups.removeAll { $0.id == id }
+        if activeSetupID == id {
+            activeSetupID = setups[0].id
+        }
+    }
+
+    /// Puts saved setups back (a project was opened) and attaches the toolpaths that have none.
+    /// Not a user edit, but it does report through `onSetupsChanged`.
+    func restoreSetups(_ saved: [Setup]) {
+        setups = saved.isEmpty ? [Setup(face: .top)] : saved
+        activeSetupID = setups[0].id
+        toolpaths = Self.orderedBySetup(toolpaths, setups: setups)
+    }
+
+    private static func angles(of setups: [Setup]) -> [UUID: Double] {
+        Dictionary(setups.map { ($0.id, $0.angle) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Every toolpath in a setup that exists (the first when it has none or its setup is gone), and
+    /// the list in setup order, each setup keeping the toolpaths' own order.
+    private static func orderedBySetup(_ toolpaths: [ToolpathData], setups: [Setup]) -> [ToolpathData] {
+        guard let first = setups.first else {
+            return toolpaths
+        }
+        let rank = Dictionary(setups.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { a, _ in a })
+        var list = toolpaths
+        for index in list.indices where list[index].setupID.flatMap({ rank[$0] }) == nil {
+            list[index].setupID = first.id
+        }
+        return list.enumerated().sorted { a, b in
+            let ra = a.element.setupID.flatMap { rank[$0] } ?? 0
+            let rb = b.element.setupID.flatMap { rank[$0] } ?? 0
+            return ra != rb ? ra < rb : a.offset < b.offset
+        }.map(\.element)
     }
 
     /// Shows or hides one toolpath's generated result on the canvas.
@@ -461,8 +688,9 @@ class CAMModel: ObservableObject {
         toolpath.stepTargets = updated
         // End Z follows the selection until it is set by hand: it still equals the depth of
         // the previous selection, or was never set.
-        if let depth = stepWorkspace.suggestedEndZ(for: updated) {
-            let previous = stepWorkspace.suggestedEndZ(for: old)
+        let frame = frameOrIdentity(for: toolpath)
+        if let depth = stepWorkspace.suggestedEndZ(for: updated, frame: frame) {
+            let previous = stepWorkspace.suggestedEndZ(for: old, frame: frame)
             let followsSelection = previous.map { abs(toolpath.endZ - $0) < 1e-6 } ?? !toolpath.editedFields.contains(.endZ)
             if followsSelection {
                 toolpath.endZ = depth
@@ -495,9 +723,12 @@ class CAMModel: ObservableObject {
 
         let job: ToolpathGenerator.Job
         do {
+            // The stock as the machine holds it in this toolpath's setup
+            let frame = try setupFrame(for: toolpath)
             job = try ToolpathGenerator.prepare(for: toolpath, source: linkedSource, canvasState: canvasState,
+                                                frame: frame,
                                                 stepContours: { [workspace = stepWorkspace] in
-                                                    try workspace.contours(for: $0.stepTargets)
+                                                    try workspace.contours(for: $0.stepTargets, frame: frame)
                                                 })
         } catch {
             // Bad input (no shapes, invalid depth…): report it right away.
@@ -519,9 +750,13 @@ class CAMModel: ObservableObject {
                 do {
                     let outputs = try ToolpathGenerator.run(job)
                     let pathStart = PerfLog.now()
-                    let previewPath = ToolpathPathBuilder.path(for: outputs, options: previewOptions)
-                    let scrub = ToolpathPathBuilder.scrubData(for: outputs, options: previewOptions)
-                    let restPath = ToolpathPathBuilder.restPath(for: outputs.flatMap(\.restCorners))
+                    // The engine ran in the setup's frame, the canvas draws the part's: map the
+                    // overlays back. Front and back have no top-down view, so nothing is drawn
+                    // (and the scrub slider, which has no mapping yet, is off for turned setups).
+                    let frame = job.frame
+                    let previewPath = frame.previewInPartFrame(ToolpathPathBuilder.path(for: outputs, options: previewOptions))
+                    let scrub = frame.isIdentity ? ToolpathPathBuilder.scrubData(for: outputs, options: previewOptions) : nil
+                    let restPath = frame.previewInPartFrame(ToolpathPathBuilder.restPath(for: outputs.flatMap(\.restCorners)))
                     PerfLog.log("gen", "background work finished; preview path + scrub data took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
                     return ComputedGeneration(outcome: .success(outputs),
                                               previewPath: previewPath,
@@ -630,8 +865,10 @@ class CAMModel: ObservableObject {
         }
         // While one toolpath is being scrubbed, it is the only one on the canvas
         // (the scrubber draws it); the rest come back when the panel closes.
+        // Only the active setup's toolpaths: another setup is cut with the stock turned, so its
+        // overlay would sit on the wrong side of the part.
         let paths = canvasState.toolpathScrub != nil ? [] : toolpaths
-            .filter { !hiddenToolpathIDs.contains($0.id) }
+            .filter { !hiddenToolpathIDs.contains($0.id) && isInActiveSetup($0) }
             .compactMap { generations[$0.id]?.previewPath }
 
         updateRestRegions()
@@ -646,6 +883,10 @@ class CAMModel: ObservableObject {
                 paths.forEach { combined.addPath($0) }
                 canvasState.setToolpathsPath(combined)
         }
+    }
+
+    private func isInActiveSetup(_ toolpath: ToolpathData) -> Bool {
+        setups.count < 2 || setup(for: toolpath).id == activeSetupID
     }
 
     // MARK: Toolpath scrubbing
@@ -746,6 +987,9 @@ class CAMModel: ObservableObject {
         selectedToolpathID = nil
         hiddenToolpathIDs.removeAll()
         toolpaths.removeAll()
+        // Back to a lone top setup (the next project restores its own, see `restoreSetups`)
+        setups = [Setup(face: .top)]
+        activeSetupID = setups[0].id
     }
 
     /// True-to-life scale (Points Per MM for current display)

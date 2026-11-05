@@ -38,6 +38,7 @@
 			membershipExceptions = (
 				"cam/supported-files/step/INFO.md",
 				"cam/supported-files/step/STEPCurveTests.swift",
+				cam/toolpaths/INFO.md,
 			);
 			target = 56CEA04C30356265008167CA /* Stratum CNC */;
 		};

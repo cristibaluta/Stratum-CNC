@@ -110,3 +110,15 @@ A rest toolpath (`OperationKind.restMachining`) cleans the corners a pocket's la
 - **Overlay:** the pocket's `ToolpathGeneration.restPath` is drawn on the canvas while the pocket is open and current (`CAMModel.showsRestAreas`).
 - **Limits:** only line-to-line corners, only the pocket's outer boundary (islands ignored), regions are geometric (wall minus the tool circle), not the roughing actually cut.
 
+
+## Setups
+
+A setup is one way the stock is held (`Setup`): a name and an **angle**, the rotation of the stock about the machine's X axis. Top 0°, Front 90°, Bottom 180°, Back 270° (`SetupFace`); a rotary axis later just means other angles. Left and right are not offered.
+
+- **Frame:** `SetupFrame.make(angle:stock:)` rotates the part by −angle about the stock's centre line and puts z0 on the surface that faces up. STEP edges are mapped through it before they become contours (`STEPWorkspace.contours(for:frame:)`), so the engine sees what the machine sees and every Z field stays "depth below this setup's z0".
+- **Link:** `ToolpathData.setupID` (nil only in old projects: `CAMModel` puts those in the first setup). `CAMModel.setups` is never empty, and `toolpaths` is kept in setup order, so a setup's toolpaths are one contiguous run.
+- **Results:** a toolpath's setup is part of its settings, so moving it outdates its result; turning a setup or changing the stock discards all results.
+- **Preview:** drawn in the part's frame for Top and Bottom (Bottom is mirrored back in Y); nothing for Front/Back and no scrub for turned setups yet. Only the active setup's toolpaths are drawn.
+- **Limits for now:** 2D shapes (SVG/DXF/Gerber) are cut from the Top only; whole-stock facing is not offered on Front/Back; Front/Back need rectangular stock. Stock is assumed to sit with its front edge at Y = 0 (`StockMaterial.setupExtents`).
+- **G-code:** one program per setup. `ToolpathGCodeBuilder.plan(…, setup:)` takes the setup to post; with several setups and no `setup` it refuses everything rather than merge them, because the stock has to be turned between setups.
+- **Panel:** with one setup `PanelToolpaths` is the plain list; with several, one collapsible section per setup (face glyph, name, status, count, menu). Drag reorders inside a section; "Move to setup" is in the row's menu.

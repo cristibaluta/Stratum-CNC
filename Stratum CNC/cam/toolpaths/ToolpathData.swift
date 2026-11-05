@@ -45,6 +45,10 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     /// The STEP model edges this toolpath cuts, picked in the 3D canvas. Cut together with `targets`.
     var stepTargets: [STEPEdgeTarget] = []
 
+    /// The setup (stock orientation) this toolpath is cut in; see `Setup`. `nil` only on projects
+    /// saved before setups existed: `CAMModel` puts those in the first setup when it loads them.
+    var setupID: UUID? = nil
+
     /// What the toolpath does (contour, pocket, drill…) and that operation's own options.
     /// `contour` (the contour's side) and `ramping` (the entry) above are used by the
     /// operations that have them; see `OperationKind`.
@@ -63,7 +67,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
         case contour, ramping
         case feedRate, plungeRate, spindleRPM
         case stepDown, stepOverPercent, safeZ, retractZ, entryZ
-        case targets, stepTargets
+        case targets, stepTargets, setupID
         case operation, editedFields
     }
 }
@@ -321,6 +325,7 @@ extension ToolpathData {
 
         targets = try c.decodeIfPresent([PathSelection].self, forKey: .targets) ?? []
         stepTargets = try c.decodeIfPresent([STEPEdgeTarget].self, forKey: .stepTargets) ?? []
+        setupID = try c.decodeIfPresent(UUID.self, forKey: .setupID)
 
         // Projects saved before operations existed were all contours.
         operation = try c.decodeIfPresent(OperationSettings.self, forKey: .operation) ?? OperationSettings()

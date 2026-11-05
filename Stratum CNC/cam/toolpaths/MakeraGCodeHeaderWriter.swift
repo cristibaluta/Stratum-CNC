@@ -43,6 +43,9 @@ enum MakeraGCodeHeaderWriter {
         var machine: Machine = .carveraAir
         /// `nil` → no MATERIAL / STOCK lines.
         var stock: StockMaterial?
+        /// The setup this program cuts, when the project has several: named in a comment so the
+        /// operator knows how to put the stock down. `nil` → no such line.
+        var setup: Setup?
         var camName = "Stratum CNC"
         var camVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
     }
@@ -95,6 +98,9 @@ enum MakeraGCodeHeaderWriter {
         }
         lines.append(";@MKR|END")
         lines.append("G90 G21")
+        if let setup = job.setup {
+            lines.append("; Setup: \(clean(setup.name)) (\(setup.orientationTitle), stock turned \(Int(setup.angle.rounded())) deg about X)")
+        }
 
         for (index, section) in sections.enumerated() {
             lines.append(";@MKR|TOOLPATH_START|toolpath_number=\(index + 1)")

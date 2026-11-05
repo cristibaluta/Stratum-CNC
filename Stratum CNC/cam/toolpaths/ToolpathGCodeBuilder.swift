@@ -67,7 +67,22 @@ enum ToolpathGCodeBuilder {
     /// and shapes goes into the program. That is exactly what the preview in CAM shows, so the
     /// G-code can never disagree with what the user looked at. Anything else is reported, not
     /// silently dropped — a missing toolpath in a CNC job should never be a surprise.
-    static func plan(toolpaths: [ToolpathData], generations: [UUID: ToolpathGeneration]) -> Plan {
+    ///
+    /// A program is one setup: the stock has to be turned between setups, so a program that
+    /// carried on from one into the next would cut in the wrong frame. Pass the `setup` to post.
+    /// Without one, a project with several setups is refused (every toolpath is reported), never
+    /// merged; a project with a single setup posts as before.
+    static func plan(toolpaths allToolpaths: [ToolpathData], generations: [UUID: ToolpathGeneration],
+                     setup: Setup? = nil) -> Plan {
+
+        if setup == nil, Set(allToolpaths.compactMap(\.setupID)).count > 1 {
+            var refused = Plan(totalCount: allToolpaths.count)
+            refused.skipped = allToolpaths.map {
+                Skipped(name: $0.name, reason: "the project has several setups. Generate the G-code one setup at a time.")
+            }
+            return refused
+        }
+        let toolpaths = setup.map { setup in allToolpaths.filter { $0.setupID == setup.id } } ?? allToolpaths
 
         var plan = Plan(totalCount: toolpaths.count)
 
@@ -109,7 +124,7 @@ enum ToolpathGCodeBuilder {
     /// One `SCGCodeEngine.generateGCode` call per toolpath, each with its own settings, joined
     /// in order into a single program that starts with a Makera-style `;@MKR|…` header
     /// (machine, stock, tools, time estimate, toolpath list).
-    static func generate(_ sections: [Section], stock: StockMaterial? = nil) -> String {
+    static func generate(_ sections: [Section], stock: StockMaterial? = nil, setup: Setup? = nil) -> String {
 
         let engine = SCGCodeEngine()
 
@@ -126,6 +141,6 @@ enum ToolpathGCodeBuilder {
             return ""
         }
         return MakeraGCodeHeaderWriter.program(sections: programs,
-                                               job: MakeraGCodeHeaderWriter.JobInfo(stock: stock))
+                                               job: MakeraGCodeHeaderWriter.JobInfo(stock: stock, setup: setup))
     }
 }
