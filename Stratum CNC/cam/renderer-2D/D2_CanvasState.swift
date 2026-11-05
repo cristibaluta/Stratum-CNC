@@ -367,7 +367,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used for continuous drag-to-move on the canvas.
     func moveObject(_ id: UUID, to position: CGPoint) {
-        guard let object = object(withID: id) else {
+        guard let object = object(withID: id), !object.isParametric else {
             return
         }
         objectWillChange.send()
@@ -385,6 +385,11 @@ final class D2_CanvasState: ObservableObject, Equatable {
         objects.filter { selectedObjectIDs.contains($0.id) }
     }
 
+    /// The selected objects that can be moved and scaled by hand (not the parametric ones).
+    private var editableSelectedObjects: [D2_Object] {
+        selectedObjects.filter { !$0.isParametric }
+    }
+
     /// The union of the selected objects' bounds, or nil with nothing selected.
     var selectionBounds: CGRect? {
         let selected = selectedObjects
@@ -396,7 +401,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Moves every selected object by the same amount. Used by the canvas drag and the nudge buttons.
     func moveSelection(dx: CGFloat, dy: CGFloat) {
-        let selected = selectedObjects
+        let selected = editableSelectedObjects
         guard !selected.isEmpty, dx != 0 || dy != 0 else {
             return
         }
@@ -411,7 +416,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// Scales every selected object, and the gaps between them, by `factor`, keeping the
     /// group's bottom-left corner where it is.
     func scaleSelection(by factor: CGFloat) {
-        let selected = selectedObjects
+        let selected = editableSelectedObjects
         guard let bounds = selectionBounds, factor > 0, factor != 1 else {
             return
         }
@@ -456,7 +461,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used by the inspector's text fields (X, Y, Width, Height, Rotation).
     func setValue(_ value: CGFloat, for property: ObjectProperty, objectID: UUID) {
-        guard let object = object(withID: objectID) else {
+        guard let object = object(withID: objectID), !object.isParametric else {
             return
         }
         objectWillChange.send()
@@ -472,7 +477,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used by the inspector's +1/-1 nudge buttons.
     func nudge(_ objectID: UUID, property: ObjectProperty, amount: CGFloat) {
-        guard let object = object(withID: objectID) else {
+        guard let object = object(withID: objectID), !object.isParametric else {
             return
         }
         objectWillChange.send()
@@ -486,7 +491,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used by the inspector's ÷2/×2 buttons.
     func scaleWidth(_ objectID: UUID, factor: Int) {
-        guard let object = object(withID: objectID), factor != 0 else {
+        guard let object = object(withID: objectID), !object.isParametric, factor != 0 else {
             return
         }
         objectWillChange.send()
@@ -498,12 +503,56 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Used by the inspector's -90°/+90° buttons.
     func rotateObject(_ objectID: UUID, by degrees: CGFloat) {
-        guard let object = object(withID: objectID) else {
+        guard let object = object(withID: objectID), !object.isParametric else {
             return
         }
         objectWillChange.send()
         object.rotate(by: degrees)
         onObjectsChanged?()
+    }
+
+    // MARK: Alignment pins
+
+    /// The inspector's Diameter and Offset fields. Returns a message when the pins would not fit
+    /// the stock (nothing changes then), nil when they were rebuilt.
+    func setAlignmentPins(_ id: UUID, diameter: Double, offset: Double) -> String? {
+        guard let object = object(withID: id), object.alignmentPins != nil else {
+            return nil
+        }
+        let spec = AlignmentPinsSpec(diameter: diameter, offset: offset)
+        do {
+            let rebuilt = try AlignmentPins.makeObject(name: object.name, spec: spec, stock: stock)
+            objectWillChange.send()
+            object.adoptGeometry(of: rebuilt)
+            object.alignmentPins = spec
+            onObjectsChanged?()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// After the stock changed: rebuilds every set of alignment pins for the new size, pulling
+    /// the offset back inside what fits. Pins that no longer fit at all are left as they are.
+    func refitAlignmentPins() {
+        var changed = false
+        for object in objects {
+            guard let spec = object.alignmentPins,
+                  let fitted = AlignmentPins.fitted(spec, on: stock),
+                  let rebuilt = try? AlignmentPins.makeObject(name: object.name, spec: fitted, stock: stock) else {
+                continue
+            }
+            if fitted == spec, rebuilt.position == object.position, rebuilt.originalSize == object.originalSize {
+                continue
+            }
+            object.adoptGeometry(of: rebuilt)
+            object.alignmentPins = fitted
+            changed = true
+        }
+        if changed {
+            objectWillChange.send()
+            onObjectsChanged?()
+        }
     }
 
     /// Used by the inspector's eye toggle. Deliberately does NOT call

@@ -174,9 +174,9 @@ struct CAMView: View {
         }
         .sheet(isPresented: $showingAlignmentPins) {
             AlignmentPinsSheet(stock: camModel.canvasState.stock,
-                               onCreate: { diameter, inset in
+                               onCreate: { diameter, offset in
                                    showingAlignmentPins = false
-                                   createAlignmentPins(diameter: diameter, inset: inset)
+                                   createAlignmentPins(diameter: diameter, offset: offset)
                                },
                                onCancel: { showingAlignmentPins = false })
         }
@@ -211,25 +211,22 @@ struct CAMView: View {
         }
     }
 
-    /// Makes the four alignment pins as one object: a generated DXF that is imported like any
-    /// other file, so it is saved with the project and reloads as a single entry in the list.
-    private func createAlignmentPins(diameter: Double, inset: Double) {
+    /// Makes the alignment pins: one parametric object (see `AlignmentPins`), saved with the
+    /// project as its diameter and offset.
+    private func createAlignmentPins(diameter: Double, offset: Double) {
+        let taken = Set(camModel.canvasState.objects.map(\.name))
+        var name = AlignmentPins.defaultName
+        var n = 2
+        while taken.contains(name) {
+            name = "\(AlignmentPins.defaultName) \(n)"
+            n += 1
+        }
         do {
-            let centers = try AlignmentPins.centers(on: camModel.canvasState.stock, diameter: diameter, inset: inset)
-            let url = try AlignmentPins.writeDrawing(centers: centers, diameter: diameter)
-            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
-            // Parse before importing, so a drawing that can't be read leaves nothing in the project
-            guard DXFImporter().parse(url: url) != nil else {
-                fileError = "The alignment pins could not be created."
-                return
-            }
-            let asset = try projectModel.importAsset(from: url)
-            let object = camModel.loadAndParseFileAt(projectModel.paths.assetsDirectory.appendingPathComponent(asset.name))
-            projectModel.updatePreview(from: camModel.canvasState.objects)
-            if let object {
-                camModel.stepWorkspace.selectedModelID = nil
-                camModel.canvasState.selectObject(object.id)
-            }
+            let object = try AlignmentPins.makeObject(name: name,
+                                                      spec: AlignmentPinsSpec(diameter: diameter, offset: offset),
+                                                      stock: camModel.canvasState.stock)
+            camModel.stepWorkspace.selectedModelID = nil
+            camModel.canvasState.add(object, select: true)
         } catch {
             fileError = error.localizedDescription
         }
@@ -280,6 +277,9 @@ struct CAMView: View {
                 camModel.stepWorkspace.selectedModelID = nil
                 if extend {
                     camModel.canvasState.toggleObjectSelection(id)
+                } else if camModel.canvasState.selectedObjectIDs == [id] {
+                    // Clicking the selected object again deselects it
+                    camModel.canvasState.clearSelection()
                 } else {
                     camModel.canvasState.selectObject(id)
                 }
@@ -317,6 +317,9 @@ struct CAMView: View {
             },
             onCreateAlignmentPins: {
                 showingAlignmentPins = true
+            },
+            onAlignmentPinsChanged: { id, diameter, offset in
+                camModel.canvasState.setAlignmentPins(id, diameter: diameter, offset: offset)
             },
             onDelete: { id in
                 camModel.canvasState.removeObject(id)

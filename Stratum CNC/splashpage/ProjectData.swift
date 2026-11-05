@@ -28,6 +28,9 @@ struct ProjectData: Identifiable, Codable, Hashable {
     /// angle and axis the stock is turned by. Toolpaths point at one by `ToolpathData.setupID`.
     /// `nil` until the project has been saved with them: it then has the top only.
     var setups: [Setup]?
+    /// The alignment pins: parametric objects (diameter and offset), rebuilt from these and the
+    /// stock on load. `nil` when the project has none.
+    var alignmentPins: [AlignmentPinsData]?
 
     init(id: UUID = UUID(),
          name: String? = nil,

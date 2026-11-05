@@ -55,6 +55,13 @@ struct PanelObjectsInspector: View {
     var onAddNew: (() -> Void)?
     /// "Create alignment pins…" in the + menu: opens the dialog.
     var onCreateAlignmentPins: (() -> Void)?
+    /// The alignment pins' Diameter and Offset fields: (object, diameter, offset). Returns a message
+    /// when the pins would not fit the stock; nothing changes then.
+    var onAlignmentPinsChanged: ((UUID, Double, Double) -> String?)?
+
+    @State private var pinsMessage: String?
+    /// Bumped after each edit of the pins' fields, so a field shows what was really applied.
+    @State private var pinsRefresh = 0
     var onDelete: ((UUID) -> Void)?
     /// Right-click "Generate Project Preview": the project card's picture is made from this object alone.
     var onGeneratePreview: ((UUID) -> Void)?
@@ -88,8 +95,13 @@ struct PanelObjectsInspector: View {
                 stepModelPropertiesSection(for: model)
                     .padding(.top, 10)
             } else if selected.count == 1, let object = selected.first {
-                propertiesSection(for: object)
-                    .padding(.top, 10)
+                if let spec = object.alignmentPins {
+                    alignmentPinsSection(for: object, spec: spec)
+                        .padding(.top, 10)
+                } else {
+                    propertiesSection(for: object)
+                        .padding(.top, 10)
+                }
             } else if selected.count > 1, let bounds = selectionBounds {
                 groupPropertiesSection(count: selected.count, bounds: bounds)
                     .padding(.top, 10)
@@ -164,12 +176,19 @@ struct PanelObjectsInspector: View {
                 let flags = NSEvent.modifierFlags
                 onSelectionChanged?(object.id, flags.contains(.shift) || flags.contains(.command))
             } label: {
-                Text(object.name)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .opacity(object.isVisible ? 1 : 0.5)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
+                HStack(spacing: 6) {
+                    if object.isParametric {
+                        Image(systemName: "circle.grid.2x2")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Text(object.name)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .opacity(object.isVisible ? 1 : 0.5)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -280,6 +299,43 @@ struct PanelObjectsInspector: View {
                     .foregroundStyle(.secondary)
             }
             .inspectorField()
+        }
+    }
+
+    /// The alignment pins have no position or size: just the two numbers they are built from.
+    private func alignmentPinsSection(for object: D2_Object, spec: AlignmentPinsSpec) -> some View {
+        func apply(diameter: Double, offset: Double) {
+            pinsMessage = onAlignmentPinsChanged?(object.id, diameter, offset)
+            pinsRefresh += 1
+        }
+        return VStack(alignment: .leading, spacing: 0) {
+            InspectorSection(title: "Alignment pins") {
+                valueRow("Diameter", value: CGFloat(spec.diameter), unit: "mm") {
+                    apply(diameter: Double($0), offset: spec.offset)
+                } trailing: {
+                    EmptyView()
+                }
+                valueRow("Offset", value: CGFloat(spec.offset), unit: "mm") {
+                    apply(diameter: spec.diameter, offset: Double($0))
+                } trailing: {
+                    EmptyView()
+                }
+                Text("Offset is the distance from the stock margin to the centre of each pin. The pins follow the stock when its size changes.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+                if let pinsMessage {
+                    Text(pinsMessage)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .id(pinsRefresh)
+        }
+        .onChange(of: object.id) { _, _ in
+            pinsMessage = nil
         }
     }
 

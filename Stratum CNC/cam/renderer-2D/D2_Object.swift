@@ -17,8 +17,8 @@ final class D2_Object {
     var sourceAssetName: String?
 
     /// Paths normalized so their origin is at (0, 0).
-    let paths: [STBezierPath]
-    let entities: [DXF.Entity]
+    private(set) var paths: [STBezierPath]
+    private(set) var entities: [DXF.Entity]
 
     /// Machinable contours, index-aligned with `paths`: `contours[i]` is the
     /// geometry behind `paths[i]`, in the same local frame. The importers
@@ -26,10 +26,10 @@ final class D2_Object {
     /// into its own path), but the type allows several. This is what a
     /// `PathSelection.pathIndex` resolves to when generating toolpaths — read
     /// it via `machineContours(forPathAt:)`.
-    let contours: [[SC.Contour]]
+    private(set) var contours: [[SC.Contour]]
 
     /// Original imported dimensions.
-    let originalSize: CGSize
+    private(set) var originalSize: CGSize
 
     /// Bottom-left corner in world/CNC coordinates.
     var position: CGPoint
@@ -50,6 +50,14 @@ final class D2_Object {
     /// persisted to `ProjectData`.
     var isVisible: Bool = true
 
+    /// Set for the alignment pins: a parametric object. Its geometry is built from this (and the
+    /// stock) rather than imported, so it has no position or size of its own: the canvas and the
+    /// inspector don't move, scale or rotate it, and `adoptGeometry` rebuilds it in place.
+    var alignmentPins: AlignmentPinsSpec?
+
+    /// The object is built from parameters, not placed by hand.
+    var isParametric: Bool { alignmentPins != nil }
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -69,6 +77,20 @@ final class D2_Object {
         self.originalSize = originalSize
         self.width = width
         self.rotationDegrees = 0
+    }
+
+    /// Replaces this object's shapes and placement with those of `other`, keeping its identity
+    /// (id, name, visibility). Used to rebuild a parametric object when its parameters or the
+    /// stock change. The number and order of paths must stay the same, so toolpaths that point
+    /// at them still do.
+    func adoptGeometry(of other: D2_Object) {
+        paths = other.paths
+        entities = other.entities
+        contours = other.contours
+        originalSize = other.originalSize
+        position = other.position
+        width = other.width
+        rotationDegrees = 0
     }
 
     // MARK: Geometry

@@ -2,9 +2,6 @@
 //  AlignmentPinsSheet.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 05.11.2026.
-//
-//
 //  The dialog behind "Create alignment pins" in the objects panel's + menu.
 //
 
@@ -13,16 +10,16 @@ import SwiftUI
 struct AlignmentPinsSheet: View {
 
     let stock: StockMaterial?
-    /// (diameter, distance from the corner), both in mm.
+    /// (diameter, offset from the margin), both in mm.
     let onCreate: (Double, Double) -> Void
     let onCancel: () -> Void
 
     @State private var diameter: Double = 6
-    @State private var inset: Double = 10
+    @State private var offset: Double = 10
 
     private var problem: String? {
         do {
-            _ = try AlignmentPins.centers(on: stock, diameter: diameter, inset: inset)
+            _ = try AlignmentPins.centers(on: stock, spec: AlignmentPinsSpec(diameter: diameter, offset: offset))
             return nil
         } catch {
             return error.localizedDescription
@@ -34,7 +31,7 @@ struct AlignmentPinsSheet: View {
             Text("Create alignment pins")
                 .font(.headline)
 
-            Text("Four pins, one in each corner of the stock, to line it up again when it is flipped over.")
+            Text("Four pins, one in each corner of the stock, to line it up again when it is flipped over. They follow the stock if its size changes.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -45,13 +42,13 @@ struct AlignmentPinsSheet: View {
                     field($diameter)
                 }
                 GridRow {
-                    Text("Distance from the corner")
-                    field($inset)
+                    Text("Offset from margin")
+                    field($offset)
                 }
             }
             .font(.system(size: 12))
 
-            Text("Measured from each of the two stock edges to the pin's centre.")
+            Text("The distance from each stock edge to the pin's centre. Both can be changed later in the Objects panel.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 
@@ -67,7 +64,7 @@ struct AlignmentPinsSheet: View {
                 Button("Cancel", role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Button("Create") {
-                    onCreate(diameter, inset)
+                    onCreate(diameter, offset)
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(problem != nil)

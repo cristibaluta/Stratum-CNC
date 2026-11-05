@@ -244,6 +244,16 @@ class ProjectModel: ObservableObject {
             }
         }
 
+        // Alignment pins are rebuilt from their parameters and the stock (loaded above)
+        for pins in projectData.alignmentPins ?? [] {
+            let stock = camModel.canvasState.stock
+            guard let spec = AlignmentPins.fitted(pins.spec, on: stock),
+                  let object = try? AlignmentPins.makeObject(id: pins.id, name: pins.name, spec: spec, stock: stock) else {
+                continue
+            }
+            camModel.canvasState.add(object, select: false)
+        }
+
         // 3. Load toolpaths and display in CAM
         let toolpaths: [ToolpathData]
         let toolpathsUrl = paths.toolpathsFile
@@ -348,6 +358,16 @@ class ProjectModel: ObservableObject {
     /// an object was added, removed, moved, resized, or rotated, so the
     /// transform on disk always matches what's currently on screen.
     private func updateAssetTransforms(from objects: [D2_Object]) {
+        // The alignment pins aren't an asset file: their parameters are saved on their own
+        let pins = objects.compactMap { object in
+            object.alignmentPins.map {
+                AlignmentPinsData(id: object.id, name: object.name, diameter: $0.diameter, offset: $0.offset)
+            }
+        }
+        if (projectData.alignmentPins ?? []) != pins {
+            projectData.alignmentPins = pins.isEmpty ? nil : pins
+        }
+
         guard var assets = projectData.assets, !assets.isEmpty else { return }
 
         loadedAssetNames.formUnion(objects.compactMap(\.sourceAssetName))

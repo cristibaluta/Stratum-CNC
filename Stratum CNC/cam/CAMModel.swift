@@ -26,6 +26,8 @@ class CAMModel: ObservableObject {
         didSet {
             revision &+= 1
             canvasState.stock = selectedStockMaterial
+            // The alignment pins follow the stock's size
+            canvasState.refitAlignmentPins()
             // A turned setup is built from the stock's size, so its results are outdated too
             if setups.contains(where: { $0.angle != 0 }) {
                 discardGenerations()
@@ -54,6 +56,12 @@ class CAMModel: ObservableObject {
     @Published private(set) var activeSetupID: UUID {
         didSet {
             if oldValue != activeSetupID {
+                // Changing the face closes the open toolpath, unless it belongs to the new face
+                // (opening a toolpath makes its own face the active one, see `selectedToolpathID`)
+                if let id = selectedToolpathID,
+                   toolpaths.first(where: { $0.id == id })?.setupID != activeSetupID {
+                    selectedToolpathID = nil
+                }
                 updateToolpathPreview()
             }
         }
