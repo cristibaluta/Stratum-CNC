@@ -113,7 +113,7 @@ enum ToolpathGenerator {
             }
             // The footprint is the same when the stock is turned over, but not on its side.
             guard frame.hasTopDownPreview else {
-                throw GenerationError.invalidOption("Facing the whole stock isn't supported on the front and back setups yet.")
+                throw GenerationError.invalidOption("Facing the whole stock isn't supported on the front, back, left and right setups yet.")
             }
             contours = [stock.footprintContour]
         } else {

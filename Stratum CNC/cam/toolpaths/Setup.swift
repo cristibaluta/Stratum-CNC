@@ -2,16 +2,18 @@
 //  Setup.swift
 //  Stratum CNC
 //
-//  A setup is one way the stock is held on the machine. Its orientation is an angle: the
-//  rotation of the stock about the machine's X axis, in degrees. Today the angle is one of
-//  four faces (top, front, bottom, back); a rotary axis later means any angle, without
-//  changing anything stored.
+//  A setup is one way the stock is held on the machine. Its orientation is a rotation of the
+//  stock by an angle, in degrees, about a horizontal machine axis through the stock's centre
+//  (X or Y). Today the angle is one of four quarter turns; a rotary axis later means any angle,
+//  without changing anything stored.
 //
-//      angle   face     up direction in the part's frame
-//      0       top      +Z
-//      90      front    −Y   (the face toward the operator; machine Y+ is the back)
-//      180     bottom   −Z
-//      270     back     +Y
+//      face     axis  angle   up direction in the part's frame
+//      top      -     0       +Z
+//      front    X     90      −Y   (the face toward the operator; machine Y+ is the back)
+//      bottom   X|Y   180     −Z   (flipped over about X: shapes mirror in Y; about Y: in X)
+//      back     X     270     +Y
+//      left     Y     90      −X
+//      right    Y     270     +X
 //
 //  Toolpaths are generated in the setup's own frame (`SetupFrame`): the part is rotated by
 //  −angle about the axis through the stock's centre, and z0 is the stock's surface that is now
@@ -24,17 +26,55 @@ import simd
 
 // MARK: - Face
 
-/// The orientations the app offers today. A setup stores an angle, not a face, so a rotary
-/// axis can add other angles without a migration.
-enum SetupFace: Int, CaseIterable, Identifiable, Sendable {
-    case top = 0
-    case front = 90
-    case bottom = 180
-    case back = 270
+/// The horizontal machine axis a setup turns the stock about.
+enum SetupAxis: String, Codable, CaseIterable, Identifiable, Sendable {
+    case x
+    case y
 
-    var id: Int { rawValue }
+    var id: String { rawValue }
 
-    var angle: Double { Double(rawValue) }
+    var title: String { rawValue.uppercased() }
+}
+
+/// The orientations the app offers today. A setup stores an angle and an axis, not a face, so a
+/// rotary axis can add other angles without a migration.
+enum SetupFace: CaseIterable, Identifiable, Sendable {
+    case top
+    case front
+    case bottom
+    case back
+    case left
+    case right
+
+    var id: Self { self }
+
+    var angle: Double {
+        switch self {
+            case .top:            return 0
+            case .front, .left:   return 90
+            case .bottom:         return 180
+            case .back, .right:   return 270
+        }
+    }
+
+    /// The axis that reaches this face. The bottom can be reached about either: this is its default.
+    var axis: SetupAxis {
+        switch self {
+            case .left, .right: return .y
+            default:            return .x
+        }
+    }
+
+    /// The faces that can be reached about more than one axis: which one decides what mirrors.
+    var hasChoiceOfAxis: Bool { self == .bottom }
+
+    /// The side faces stand the stock on its edge: they need a 3D model to make sense of.
+    var isSide: Bool {
+        switch self {
+            case .front, .back, .left, .right: return true
+            default:                           return false
+        }
+    }
 
     var title: String {
         switch self {
@@ -42,13 +82,17 @@ enum SetupFace: Int, CaseIterable, Identifiable, Sendable {
             case .front:  return "Front"
             case .bottom: return "Bottom"
             case .back:   return "Back"
+            case .left:   return "Left"
+            case .right:  return "Right"
         }
     }
 
-    /// The face a stored angle is (to the nearest degree), or nil for an angle between faces.
-    init?(angle: Double) {
+    /// The face a stored rotation is (to the nearest degree), or nil for an angle between faces.
+    init?(angle: Double, axis: SetupAxis = .x) {
         let normalized = Setup.normalized(angle)
-        guard let face = SetupFace.allCases.first(where: { abs($0.angle - normalized) < 0.5 }) else {
+        guard let face = SetupFace.allCases.first(where: {
+            abs($0.angle - normalized) < 0.5 && ($0.axis == axis || $0.hasChoiceOfAxis || $0 == .top)
+        }) else {
             return nil
         }
         self = face
@@ -57,29 +101,59 @@ enum SetupFace: Int, CaseIterable, Identifiable, Sendable {
 
 // MARK: - Setup
 
+/// A rotation of the stock, to tell whether a setup's results are still valid.
+struct SetupOrientation: Hashable, Sendable {
+    var angle: Double
+    var axis: SetupAxis
+}
+
 struct Setup: Identifiable, Codable, Hashable, Sendable {
 
     var id = UUID()
     var name: String
-    /// Rotation of the stock about the machine's X axis, degrees, in 0..<360.
+    /// Rotation of the stock about `axis`, degrees, in 0..<360.
     var angle: Double
+    /// The machine axis the stock turns about. Older projects only ever turned about X.
+    var axis: SetupAxis
 
-    init(id: UUID = UUID(), name: String, angle: Double) {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, angle, axis
+    }
+
+    init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x) {
         self.id = id
         self.name = name
         self.angle = Self.normalized(angle)
+        self.axis = axis
     }
 
-    init(face: SetupFace, name: String? = nil) {
-        self.init(name: name ?? face.title, angle: face.angle)
+    init(face: SetupFace, axis: SetupAxis? = nil, name: String? = nil) {
+        let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
+        self.init(name: name ?? Self.baseName(for: face, axis: axis), angle: face.angle, axis: axis)
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        angle = Self.normalized(try c.decode(Double.self, forKey: .angle))
+        axis = try c.decodeIfPresent(SetupAxis.self, forKey: .axis) ?? .x
+    }
+
+    var orientation: SetupOrientation { SetupOrientation(angle: angle, axis: axis) }
 
     /// The face this setup looks at, nil for an angle between faces (a rotary index).
-    var face: SetupFace? { SetupFace(angle: angle) }
+    var face: SetupFace? { SetupFace(angle: angle, axis: axis) }
 
-    /// "Top", "Front"… or "45°" for an angle that is not a face.
+    /// "Top", "Front"… ("Bottom (flip Y)" when flipped about Y) or "45°" for an angle that is not a face.
     var orientationTitle: String {
-        face?.title ?? "\(angle.formatted(.number.precision(.fractionLength(0...1))))°"
+        face.map { Self.baseName(for: $0, axis: axis) }
+            ?? "\(angle.formatted(.number.precision(.fractionLength(0...1))))°"
+    }
+
+    /// The default name of a face: its title, with the flip axis when that is not the usual X.
+    static func baseName(for face: SetupFace, axis: SetupAxis) -> String {
+        face.hasChoiceOfAxis && axis != face.axis ? "\(face.title) (flip \(axis.title))" : face.title
     }
 
     static func normalized(_ angle: Double) -> Double {
@@ -88,11 +162,12 @@ struct Setup: Identifiable, Codable, Hashable, Sendable {
     }
 
     /// A name for a new setup that isn't taken yet: "Front", then "Front 2", "Front 3"…
-    static func uniqueName(for face: SetupFace, among taken: Set<String>) -> String {
-        guard taken.contains(face.title) else { return face.title }
+    static func uniqueName(for face: SetupFace, axis: SetupAxis? = nil, among taken: Set<String>) -> String {
+        let base = baseName(for: face, axis: axis ?? face.axis)
+        guard taken.contains(base) else { return base }
         var n = 2
-        while taken.contains("\(face.title) \(n)") { n += 1 }
-        return "\(face.title) \(n)"
+        while taken.contains("\(base) \(n)") { n += 1 }
+        return "\(base) \(n)"
     }
 }
 
@@ -102,23 +177,27 @@ struct Setup: Identifiable, Codable, Hashable, Sendable {
 /// top, Y runs from front to back) to a setup's machine frame (z0 is the stock surface that
 /// faces up in that setup).
 ///
-/// It is a rotation by −angle about the X axis through the stock's centre, followed by a drop
+/// It is a rotation by −angle about the X (or Y) axis through the stock's centre, followed by a drop
 /// of z0 to the surface. Mapping the geometry before the engine runs, instead of editing G-code
 /// afterwards, means climb and conventional cutting come out right by themselves.
 ///
 ///     y' = (y − yc)·cos θ + (z − zc)·sin θ + yc
 ///     z' = −(y − yc)·sin θ + (z − zc)·cos θ − r
 ///
-/// `(yc, zc)` is the axis, `r` the distance from the axis to the surface that faces up.
+/// `(yc, zc)` is the axis, `r` the distance from the axis to the surface that faces up. About the Y
+/// axis the same holds with x and `xc` in place of y and `yc`.
 struct SetupFrame: Sendable, Equatable {
 
     let angle: Double
-    let axisY: Double
+    /// The horizontal axis the stock turns about.
+    let axis: SetupAxis
+    /// Where that axis sits across the stock: its centre in Y for a turn about X, in X for a turn about Y.
+    let pivot: Double
     let axisZ: Double
     /// Distance from the axis to the surface that ends up facing up.
     let surfaceDistance: Double
 
-    static let identity = SetupFrame(angle: 0, axisY: 0, axisZ: 0, surfaceDistance: 0)
+    static let identity = SetupFrame(angle: 0, axis: .x, pivot: 0, axisZ: 0, surfaceDistance: 0)
 
     var isIdentity: Bool { quarterTurns == 0 }
 
@@ -133,7 +212,11 @@ struct SetupFrame: Sendable, Equatable {
 
     /// The frame for a setup on this stock. Throws a message fit for the Generate button when
     /// the angle or the stock can't be handled yet.
-    static func make(angle: Double, stock: StockMaterial?) throws -> SetupFrame {
+    static func make(setup: Setup, stock: StockMaterial?) throws -> SetupFrame {
+        try make(angle: setup.angle, axis: setup.axis, stock: stock)
+    }
+
+    static func make(angle: Double, axis: SetupAxis = .x, stock: StockMaterial?) throws -> SetupFrame {
         let normalized = Setup.normalized(angle)
         guard normalized != 0 else {
             return .identity
@@ -151,11 +234,13 @@ struct SetupFrame: Sendable, Equatable {
         // A cylinder or disk is held flat: it can be flipped over, not stood on its side.
         if turns % 2 == 1, !extents.isBox {
             throw ToolpathGenerator.GenerationError.invalidOption(
-                "The front and back setups need a rectangular stock.")
+                "The front, back, left and right setups need a rectangular stock.")
         }
-        let up = turns % 2 == 0 ? extents.z : extents.y
+        let across = axis == .x ? extents.y : extents.x
+        let up = turns % 2 == 0 ? extents.z : across
         return SetupFrame(angle: normalized,
-                          axisY: extents.centerY,
+                          axis: axis,
+                          pivot: axis == .x ? extents.centerY : extents.centerX,
                           axisZ: -extents.z / 2,
                           surfaceDistance: up / 2)
     }
@@ -180,24 +265,41 @@ struct SetupFrame: Sendable, Equatable {
     var matrix: simd_float4x4 {
         if isIdentity { return matrix_identity_float4x4 }
         let (c, s) = cosSin
-        let ty = axisY - c * axisY - s * axisZ
-        let tz = s * axisY - c * axisZ - surfaceDistance
-        return simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0),
-                                       SIMD4<Float>(0, Float(c), Float(-s), 0),
-                                       SIMD4<Float>(0, Float(s), Float(c), 0),
-                                       SIMD4<Float>(0, Float(ty), Float(tz), 1)))
+        let t = pivot - c * pivot - s * axisZ
+        let tz = s * pivot - c * axisZ - surfaceDistance
+        switch axis {
+            case .x:
+                return simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0),
+                                               SIMD4<Float>(0, Float(c), Float(-s), 0),
+                                               SIMD4<Float>(0, Float(s), Float(c), 0),
+                                               SIMD4<Float>(0, Float(t), Float(tz), 1)))
+            case .y:
+                return simd_float4x4(columns: (SIMD4<Float>(Float(c), 0, Float(-s), 0),
+                                               SIMD4<Float>(0, 1, 0, 0),
+                                               SIMD4<Float>(Float(s), 0, Float(c), 0),
+                                               SIMD4<Float>(Float(t), 0, Float(tz), 1)))
+        }
     }
 
-    /// The toolpath overlay's turn: the part's XY mapped to the setup's (a mirror in Y about the
-    /// stock's centre line for the bottom), Z untouched. The overlay is flat at z0, and in the
-    /// setup's frame z0 is the face that is up, so it must not be dropped with the part.
-    /// Identity for every setup but the bottom (front and back have no top-down overlay).
+    /// The toolpath overlay's turn: the part's XY mapped to the setup's (a mirror about the
+    /// stock's centre line for the bottom: in Y when flipped about X, in X when flipped about Y),
+    /// Z untouched. The overlay is flat at z0, and in the setup's frame z0 is the face that is up,
+    /// so it must not be dropped with the part.
+    /// Identity for every setup but the bottom (the side faces have no top-down overlay).
     var previewMatrix: simd_float4x4 {
         guard quarterTurns == 2 else { return matrix_identity_float4x4 }
-        return simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0),
-                                       SIMD4<Float>(0, -1, 0, 0),
-                                       SIMD4<Float>(0, 0, 1, 0),
-                                       SIMD4<Float>(0, Float(2 * axisY), 0, 1)))
+        switch axis {
+            case .x:
+                return simd_float4x4(columns: (SIMD4<Float>(1, 0, 0, 0),
+                                               SIMD4<Float>(0, -1, 0, 0),
+                                               SIMD4<Float>(0, 0, 1, 0),
+                                               SIMD4<Float>(0, Float(2 * pivot), 0, 1)))
+            case .y:
+                return simd_float4x4(columns: (SIMD4<Float>(-1, 0, 0, 0),
+                                               SIMD4<Float>(0, 1, 0, 0),
+                                               SIMD4<Float>(0, 0, 1, 0),
+                                               SIMD4<Float>(Float(2 * pivot), 0, 0, 1)))
+        }
     }
 
     /// Where this setup's z0 plane is in the *part's* frame: the part's top face for the top setup,
@@ -216,23 +318,33 @@ struct SetupFrame: Sendable, Equatable {
     func map(_ p: SIMD3<Double>) -> SIMD3<Double> {
         if isIdentity { return p }
         let (c, s) = cosSin
-        let ya = p.y - axisY
         let za = p.z - axisZ
-        return SIMD3(p.x,
-                     ya * c + za * s + axisY,
-                     -ya * s + za * c - surfaceDistance)
+        switch axis {
+            case .x:
+                let ya = p.y - pivot
+                return SIMD3(p.x,
+                             ya * c + za * s + pivot,
+                             -ya * s + za * c - surfaceDistance)
+            case .y:
+                let xa = p.x - pivot
+                return SIMD3(xa * c + za * s + pivot,
+                             p.y,
+                             -xa * s + za * c - surfaceDistance)
+        }
     }
 
     /// A toolpath preview (built in the machine frame) in the part's frame, which is what the
     /// 2D canvas draws. Only the top and the bottom have a top-down view of the part: the bottom
-    /// is the same mirror in Y (its own inverse). Nil for front and back, which have none.
+    /// is the same mirror (its own inverse). Nil for the side faces, which have none.
     func previewInPartFrame(_ path: CGPath?) -> CGPath? {
         guard let path else { return nil }
         switch quarterTurns {
             case 0?:
                 return path
             case 2?:
-                var mirror = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: 2 * axisY)
+                var mirror = axis == .x
+                    ? CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: 2 * pivot)
+                    : CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 2 * pivot, ty: 0)
                 return path.copy(using: &mirror)
             default:
                 return nil
@@ -249,10 +361,12 @@ struct SetupFrame: Sendable, Equatable {
 
 /// What `SetupFrame` needs to know about the stock, in the part's frame.
 struct SetupStockExtents {
-    /// Size along Y (front to back) and Z (thickness), mm.
+    /// Size along X (left to right), Y (front to back) and Z (thickness), mm.
+    let x: Double
     let y: Double
     let z: Double
-    /// Where the stock's centre line sits in Y on the canvas.
+    /// Where the stock's centre lines sit in X and Y on the canvas.
+    let centerX: Double
     let centerY: Double
     /// A rectangular block, which can be stood on any of its four long sides.
     let isBox: Bool
@@ -260,18 +374,21 @@ struct SetupStockExtents {
 
 extension StockMaterial {
 
-    /// ASSUMPTION to check: the stock sits with its front edge at Y = 0 and its top at Z = 0
-    /// (the same z0 the toolpaths are cut from), so its centre line is at `y / 2`. If the canvas
-    /// centres the stock on the origin instead, return 0 for `centerY`: it is the only place
-    /// that knows.
+    /// ASSUMPTION to check: the stock sits with its front-left corner at X = 0, Y = 0 and its top at
+    /// Z = 0 (the same z0 the toolpaths are cut from), so its centre lines are at `x / 2` and `y / 2`. If the canvas
+    /// centres the stock on the origin instead, return 0 for `centerX` and `centerY`: it is the only
+    /// place that knows.
     var setupExtents: SetupStockExtents {
         switch geometry {
-            case .rectangular(_, let width, let height):
-                return SetupStockExtents(y: width, z: height, centerY: width / 2, isBox: true)
+            case .rectangular(let length, let width, let height):
+                return SetupStockExtents(x: length, y: width, z: height,
+                                         centerX: length / 2, centerY: width / 2, isBox: true)
             case .cylindrical(let diameter, let length):
-                return SetupStockExtents(y: diameter, z: length, centerY: diameter / 2, isBox: false)
+                return SetupStockExtents(x: diameter, y: diameter, z: length,
+                                         centerX: diameter / 2, centerY: diameter / 2, isBox: false)
             case .disk(let outerDiameter, _, let height):
-                return SetupStockExtents(y: outerDiameter, z: height, centerY: outerDiameter / 2, isBox: false)
+                return SetupStockExtents(x: outerDiameter, y: outerDiameter, z: height,
+                                         centerX: outerDiameter / 2, centerY: outerDiameter / 2, isBox: false)
         }
     }
 }

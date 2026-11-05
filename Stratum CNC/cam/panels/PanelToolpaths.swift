@@ -14,10 +14,13 @@ struct PanelToolpaths: View {
     let selectedID: UUID?
     var hiddenIDs: Set<UUID> = []
 
-    // Faces (setups). With one (or none) the panel is a plain list. With several, a segmented
-    // control named after each face picks which one's toolpaths the list shows.
+    // Faces (setups). A segmented control named after each face, always visible, picks which
+    // one's toolpaths the list shows; a "+" button next to it adds a face.
     var setups: [Setup] = []
     var activeSetupID: UUID?
+    /// The side faces (front, back, left, right) stand the stock on its edge, which only makes sense
+    /// for a 3D model: a project of flat shapes only offers the top and the bottom.
+    var sideFacesAvailable = true
 
     var onSelect: ((UUID) -> Void)?
     var onToggleVisibility: ((UUID) -> Void)?
@@ -29,14 +32,18 @@ struct PanelToolpaths: View {
     /// (toolpath, setup): "Move to" in a row's menu.
     var onMoveToSetup: ((UUID, UUID) -> Void)?
     var onSelectSetup: ((UUID) -> Void)?
-    var onAddSetup: ((SetupFace) -> Void)?
+    /// (face, the axis it is turned about): the axis only matters for the bottom.
+    var onAddSetup: ((SetupFace, SetupAxis) -> Void)?
+    /// (setup, axis): which axis a flipped face turns about, so which way its shapes mirror.
+    var onSetSetupAxis: ((UUID, SetupAxis) -> Void)?
     var onDeleteSetup: ((UUID) -> Void)?
 
     @StateObject private var reorder = ToolpathReorderModel()
     @State private var setupToDelete: Setup?
 
-    private var showsFaces: Bool {
-        setups.count > 1
+    /// The faces the "+" button offers.
+    private var addableFaces: [SetupFace] {
+        SetupFace.allCases.filter { sideFacesAvailable || !$0.isSide }
     }
 
     /// The face the list shows: the active one, or the first when the active id is unknown.
@@ -44,9 +51,9 @@ struct PanelToolpaths: View {
         setups.first { $0.id == activeSetupID } ?? setups.first
     }
 
-    /// What the list shows: the active face's toolpaths, or all of them when there is one face.
+    /// What the list shows: the active face's toolpaths (all of them when there is one face).
     private var visibleToolpaths: [ToolpathData] {
-        guard showsFaces, let activeSetup else {
+        guard let activeSetup else {
             return toolpaths
         }
         return toolpathsOf(activeSetup)
@@ -58,9 +65,7 @@ struct PanelToolpaths: View {
 
             Divider()
 
-            if showsFaces {
-                facePicker
-            }
+            facePicker
 
             if visibleToolpaths.isEmpty {
                 Text("No toolpaths")
@@ -98,19 +103,28 @@ struct PanelToolpaths: View {
             Spacer()
 
             Menu {
-                Menu("Add face") {
-                    ForEach(SetupFace.allCases) { face in
-                        Button(face.title) {
-                            onAddSetup?(face)
-                        }
-                    }
-                }
-                .disabled(onAddSetup == nil)
-
                 Button("Add toolpath") {
                     onAdd?()
                 }
                 .disabled(onAdd == nil)
+
+                // Only a flipped face has a choice: the others are reached about one axis only
+                if let activeSetup, activeSetup.face?.hasChoiceOfAxis == true {
+                    Menu("Flip about") {
+                        ForEach(SetupAxis.allCases) { axis in
+                            Button {
+                                onSetSetupAxis?(activeSetup.id, axis)
+                            } label: {
+                                if activeSetup.axis == axis {
+                                    Label(Self.flipTitle(axis), systemImage: "checkmark")
+                                } else {
+                                    Text(Self.flipTitle(axis))
+                                }
+                            }
+                        }
+                    }
+                    .disabled(onSetSetupAxis == nil)
+                }
 
                 Divider()
 
@@ -125,7 +139,7 @@ struct PanelToolpaths: View {
                     }
                 }
                 // The last face can't be deleted
-                .disabled(!showsFaces || onDeleteSetup == nil)
+                .disabled(setups.count < 2 || onDeleteSetup == nil)
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 12, weight: .medium))
@@ -136,7 +150,7 @@ struct PanelToolpaths: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .foregroundStyle(.secondary)
-            .help("Add a face or a toolpath")
+            .help("Add a toolpath, or change the active face")
         }
     }
 
@@ -151,17 +165,58 @@ struct PanelToolpaths: View {
         }
     }
 
+    /// The faces as a segmented control, always visible, with the "+" that adds one at its right.
     private var facePicker: some View {
-        Picker("Face", selection: Binding(
-            get: { activeSetup?.id ?? UUID() },
-            set: { onSelectSetup?($0) }
-        )) {
-            ForEach(setups) { setup in
-                Text(setup.name).tag(setup.id)
+        HStack(spacing: 6) {
+            Picker("Face", selection: Binding(
+                get: { activeSetup?.id ?? UUID() },
+                set: { onSelectSetup?($0) }
+            )) {
+                ForEach(setups) { setup in
+                    Text(setup.name).tag(setup.id)
+                }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            addFaceMenu
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+    }
+
+    private var addFaceMenu: some View {
+        Menu {
+            ForEach(addableFaces) { face in
+                if face.hasChoiceOfAxis {
+                    // Which axis the stock is flipped about decides which way its shapes mirror
+                    Menu(face.title) {
+                        ForEach(SetupAxis.allCases) { axis in
+                            Button(Self.flipTitle(axis)) {
+                                onAddSetup?(face, axis)
+                            }
+                        }
+                    }
+                } else {
+                    Button(face.title) {
+                        onAddSetup?(face, face.axis)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 22, height: 20)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(onAddSetup == nil)
+        .help("Add a face")
+    }
+
+    /// "Flip about X (mirrors Y)": turning the stock over about an axis mirrors the shapes across it.
+    private static func flipTitle(_ axis: SetupAxis) -> String {
+        "Flip about \(axis.title) (mirrors \(axis == .x ? "Y" : "X"))"
     }
 
     // MARK: - Rows
@@ -241,7 +296,7 @@ struct PanelToolpaths: View {
         }
         .gesture(dragGesture(for: toolpath, at: index, count: count))
         .contextMenu {
-            if showsFaces, toolpath.operation.kind != .restMachining {
+            if setups.count > 1, toolpath.operation.kind != .restMachining {
                 Menu("Move to face") {
                     ForEach(setups.filter { $0.id != toolpath.setupID }) { setup in
                         Button(setup.name) {
@@ -403,7 +458,7 @@ private struct CompactLabelStyle: LabelStyle {
 /// from the angle, so a rotary index lands between the faces without a new asset.
 struct SetupGlyph: View {
 
-    /// Rotation of the stock about X, degrees (see `Setup.angle`).
+    /// Rotation of the stock about X (or Y: seen from the front), degrees (see `Setup.angle`).
     let angle: Double
 
     var body: some View {

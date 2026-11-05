@@ -366,6 +366,8 @@ struct CAMView: View {
             hiddenIDs: camModel.hiddenToolpathIDs,
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
+            // Front, back, left and right need a 3D model: flat shapes only have a top and a bottom
+            sideFacesAvailable: hasSTEP,
             onSelect: { id in
                 withAnimation(.easeOut(duration: 0.15)) {
                     camModel.toggleToolpathSelection(id)
@@ -393,10 +395,13 @@ struct CAMView: View {
             onSelectSetup: { id in
                 camModel.activateSetup(id)
             },
-            onAddSetup: { face in
+            onAddSetup: { face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
-                    _ = camModel.addSetup(face: face)
+                    _ = camModel.addSetup(face: face, axis: axis)
                 }
+            },
+            onSetSetupAxis: { id, axis in
+                camModel.setSetupAxis(id, to: axis)
             },
             onDeleteSetup: { id in
                 withAnimation(.easeOut(duration: 0.15)) {

@@ -99,7 +99,7 @@ enum MakeraGCodeHeaderWriter {
         lines.append(";@MKR|END")
         lines.append("G90 G21")
         if let setup = job.setup {
-            lines.append("; Setup: \(clean(setup.name)) (\(setup.orientationTitle), stock turned \(Int(setup.angle.rounded())) deg about X)")
+            lines.append("; Setup: \(clean(setup.name)) (\(setup.orientationTitle), stock turned \(Int(setup.angle.rounded())) deg about \(setup.axis.title))")
         }
 
         for (index, section) in sections.enumerated() {

@@ -42,8 +42,8 @@ class CAMModel: ObservableObject {
         didSet {
             revision &+= 1
             onSetupsChanged?(setups)
-            // Renaming or reordering changes nothing that is cut; a different angle does
-            if Self.angles(of: oldValue) != Self.angles(of: setups) {
+            // Renaming or reordering changes nothing that is cut; a different orientation does
+            if Self.orientations(of: oldValue) != Self.orientations(of: setups) {
                 discardGenerations()
             }
         }
@@ -451,7 +451,7 @@ class CAMModel: ObservableObject {
     /// The map into the toolpath's setup. Throws a message for the Generate button when this
     /// stock or angle can't be handled (see `SetupFrame.make`).
     func setupFrame(for toolpath: ToolpathData) throws -> SetupFrame {
-        try SetupFrame.make(angle: setup(for: toolpath).angle, stock: selectedStockMaterial)
+        try SetupFrame.make(setup: setup(for: toolpath), stock: selectedStockMaterial)
     }
 
     /// For the places that only need a best guess (the suggested depth): identity when the
@@ -466,7 +466,7 @@ class CAMModel: ObservableObject {
         guard let setup = setups.first(where: { $0.id == activeSetupID }) else {
             return .identity
         }
-        return (try? SetupFrame.make(angle: setup.angle, stock: selectedStockMaterial)) ?? .identity
+        return (try? SetupFrame.make(setup: setup, stock: selectedStockMaterial)) ?? .identity
     }
 
     func activateSetup(_ id: UUID) {
@@ -478,8 +478,10 @@ class CAMModel: ObservableObject {
 
     /// Adds a setup at the end and makes it the active one.
     @discardableResult
-    func addSetup(face: SetupFace) -> UUID {
-        let setup = Setup(face: face, name: Setup.uniqueName(for: face, among: Set(setups.map(\.name))))
+    func addSetup(face: SetupFace, axis: SetupAxis? = nil) -> UUID {
+        let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
+        let setup = Setup(face: face, axis: axis,
+                          name: Setup.uniqueName(for: face, axis: axis, among: Set(setups.map(\.name))))
         setups.append(setup)
         activeSetupID = setup.id
         return setup.id
@@ -496,19 +498,31 @@ class CAMModel: ObservableObject {
 
     /// Turns a setup to another face. Its toolpaths are outdated by it (see `setups`' `didSet`).
     /// A name that was just the old face's ("Front 2" included) follows the face.
-    func setSetupFace(_ id: UUID, to face: SetupFace) {
+    func setSetupFace(_ id: UUID, to face: SetupFace, axis: SetupAxis? = nil) {
+        let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
         guard let index = setups.firstIndex(where: { $0.id == id }),
-              setups[index].angle != face.angle else {
+              setups[index].angle != face.angle || setups[index].axis != axis else {
             return
         }
         let wasDefaultName = setups[index].face.map { old in
-            setups[index].name == old.title || setups[index].name.hasPrefix(old.title + " ")
+            let base = Setup.baseName(for: old, axis: setups[index].axis)
+            return setups[index].name == base || setups[index].name.hasPrefix(base + " ")
         } ?? false
         setups[index].angle = face.angle
+        setups[index].axis = axis
         if wasDefaultName {
             let others = Set(setups.enumerated().filter { $0.offset != index }.map(\.element.name))
-            setups[index].name = Setup.uniqueName(for: face, among: others)
+            setups[index].name = Setup.uniqueName(for: face, axis: axis, among: others)
         }
+    }
+
+    /// Which axis a flipped face turns about, i.e. which way its shapes mirror: about X they mirror
+    /// in Y, about Y in X. Only the bottom has a choice. Its toolpaths are outdated by it.
+    func setSetupAxis(_ id: UUID, to axis: SetupAxis) {
+        guard let face = setups.first(where: { $0.id == id })?.face, face.hasChoiceOfAxis else {
+            return
+        }
+        setSetupFace(id, to: face, axis: axis)
     }
 
     /// Moves a setup to `newIndex` in the machining order; its toolpaths go with it.
@@ -549,8 +563,8 @@ class CAMModel: ObservableObject {
         toolpaths = Self.orderedBySetup(toolpaths, setups: setups)
     }
 
-    private static func angles(of setups: [Setup]) -> [UUID: Double] {
-        Dictionary(setups.map { ($0.id, $0.angle) }, uniquingKeysWith: { first, _ in first })
+    private static func orientations(of setups: [Setup]) -> [UUID: SetupOrientation] {
+        Dictionary(setups.map { ($0.id, $0.orientation) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// Every toolpath in a setup that exists (the first when it has none or its setup is gone), and
@@ -913,7 +927,7 @@ class CAMModel: ObservableObject {
             }
             let combined = CGMutablePath()
             paths.forEach { combined.addPath($0) }
-            let frame = try? SetupFrame.make(angle: setup.angle, stock: selectedStockMaterial)
+            let frame = try? SetupFrame.make(setup: setup, stock: selectedStockMaterial)
             faces.append(.init(setupID: setup.id, face: setup.face, path: combined,
                                z: CGFloat(frame?.z0InPartFrame ?? 0)))
         }

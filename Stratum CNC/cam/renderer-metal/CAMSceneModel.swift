@@ -52,6 +52,8 @@ final class CAMSceneModel: ObservableObject {
                 case .front?:  return SIMD4<Float>(0.25, 0.8, 0.4, 1)
                 case .bottom?: return SIMD4<Float>(1.0, 0.6, 0.15, 1)
                 case .back?:   return SIMD4<Float>(0.75, 0.4, 1.0, 1)
+                case .left?:   return SIMD4<Float>(0.2, 0.8, 0.85, 1)
+                case .right?:  return SIMD4<Float>(1.0, 0.4, 0.6, 1)
                 case nil:      return SIMD4<Float>(0.9, 0.85, 0.2, 1)
             }
         }
