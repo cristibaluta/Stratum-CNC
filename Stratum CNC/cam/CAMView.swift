@@ -35,6 +35,7 @@ struct CAMView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var projectModel: ProjectModel
     @State private var fileError: String?
+    @State private var showingAlignmentPins = false
     /// Bumped by the fit button to frame the whole scene again.
     @State private var fitRequest = 0
 
@@ -171,6 +172,14 @@ struct CAMView: View {
         } message: {
             Text(fileError ?? "")
         }
+        .sheet(isPresented: $showingAlignmentPins) {
+            AlignmentPinsSheet(stock: camModel.canvasState.stock,
+                               onCreate: { diameter, inset in
+                                   showingAlignmentPins = false
+                                   createAlignmentPins(diameter: diameter, inset: inset)
+                               },
+                               onCancel: { showingAlignmentPins = false })
+        }
         .fileImporter(isPresented: $camModel.showingFilePicker,
                       allowedContentTypes: camModel.supportedFiles,
                       allowsMultipleSelection: false) { result in
@@ -199,6 +208,30 @@ struct CAMView: View {
             case .failure(let error):
                 fileError = String(describing: error)
             }
+        }
+    }
+
+    /// Makes the four alignment pins as one object: a generated DXF that is imported like any
+    /// other file, so it is saved with the project and reloads as a single entry in the list.
+    private func createAlignmentPins(diameter: Double, inset: Double) {
+        do {
+            let centers = try AlignmentPins.centers(on: camModel.canvasState.stock, diameter: diameter, inset: inset)
+            let url = try AlignmentPins.writeDrawing(centers: centers, diameter: diameter)
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            // Parse before importing, so a drawing that can't be read leaves nothing in the project
+            guard DXFImporter().parse(url: url) != nil else {
+                fileError = "The alignment pins could not be created."
+                return
+            }
+            let asset = try projectModel.importAsset(from: url)
+            let object = camModel.loadAndParseFileAt(projectModel.paths.assetsDirectory.appendingPathComponent(asset.name))
+            projectModel.updatePreview(from: camModel.canvasState.objects)
+            if let object {
+                camModel.stepWorkspace.selectedModelID = nil
+                camModel.canvasState.selectObject(object.id)
+            }
+        } catch {
+            fileError = error.localizedDescription
         }
     }
 
@@ -281,6 +314,9 @@ struct CAMView: View {
             },
             onAddNew: {
                 camModel.showingFilePicker = true
+            },
+            onCreateAlignmentPins: {
+                showingAlignmentPins = true
             },
             onDelete: { id in
                 camModel.canvasState.removeObject(id)

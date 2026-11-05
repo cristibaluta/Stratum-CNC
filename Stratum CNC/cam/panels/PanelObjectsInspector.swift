@@ -51,7 +51,10 @@ struct PanelObjectsInspector: View {
     var onGroupValueChanged: ((ObjectProperty, CGFloat) -> Void)?
     var onGroupNudge: ((ObjectProperty, CGFloat) -> Void)?
     var onGroupScale: ((Int) -> Void)?
+    /// "Import 2D/3D objects…" in the + menu: opens the file picker.
     var onAddNew: (() -> Void)?
+    /// "Create alignment pins…" in the + menu: opens the dialog.
+    var onCreateAlignmentPins: (() -> Void)?
     var onDelete: ((UUID) -> Void)?
     /// Right-click "Generate Project Preview": the project card's picture is made from this object alone.
     var onGeneratePreview: ((UUID) -> Void)?
@@ -72,10 +75,8 @@ struct PanelObjectsInspector: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            InspectorHeader(title: "Objects", addHelp: "Import an object") {
-                onAddNew?()
-            }
-            .padding(.bottom, 8)
+            header
+                .padding(.bottom, 8)
 
             Divider()
                 .padding(.bottom, 8)
@@ -98,6 +99,41 @@ struct PanelObjectsInspector: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Header
+
+    /// Same look as `InspectorHeader`, but the + opens a menu instead of acting at once.
+    private var header: some View {
+        HStack {
+            Text("Objects")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Menu {
+                Button {
+                    onAddNew?()
+                } label: {
+                    Label("Import 2D/3D Objects…", systemImage: "square.and.arrow.down")
+                }
+                Button {
+                    onCreateAlignmentPins?()
+                } label: {
+                    Label("Create Alignment Pins…", systemImage: "circle.grid.2x2")
+                }
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(3)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .foregroundStyle(.secondary)
+            .help("Add objects")
+        }
     }
 
     // MARK: - Objects
