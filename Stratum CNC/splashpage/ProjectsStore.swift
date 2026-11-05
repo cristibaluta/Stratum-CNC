@@ -534,6 +534,20 @@ final class ProjectsStore: ObservableObject {
         } ?? nil
     }
 
+    /// The stock's name and its card summary (material and size) as one string, for searching
+    /// the projects. Nil when the project has no stock or its file can't be read.
+    func stockSearchText(for project: Project) -> String? {
+        struct StockOnly: Decodable {
+            var stock: StockMaterial?
+        }
+        return withAccess(to: project) { paths in
+            (try? Data(contentsOf: paths.projectMetadata))
+                .flatMap { try? decoder.decode(StockOnly.self, from: $0) }?
+                .stock
+                .map { "\($0.name) \($0.cardSummary)" }
+        } ?? nil
+    }
+
     /// The material of the project's stock, to tint the card's preview. Nil when there is no stock.
     func stockMaterialType(for project: Project) -> StockMaterialType? {
         struct StockOnly: Decodable {

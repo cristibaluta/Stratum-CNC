@@ -120,6 +120,11 @@ struct PanelStockMaterial: View {
                 Menu {
                     ForEach(StockMaterialType.allCases, id: \.self) { material in
                         Button {
+                            // A name that is just the old material's (a new project starts as
+                            // "Aluminum") follows the change. A name picked from the library stays.
+                            if stock.name.caseInsensitiveCompare(stock.material.displayName) == .orderedSame {
+                                stock.name = material.displayName
+                            }
                             stock.material = material
                         } label: {
                             if material == stock.material {

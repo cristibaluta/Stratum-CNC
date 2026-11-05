@@ -24,6 +24,8 @@ struct SplashpageView: View {
     @State private var picker: PickerKind = .projectFolder
     @State private var isPicking = false
     @State private var errorMessage: String?
+    /// Filters the projects grid by project name or stock.
+    @State private var query = ""
 
     /// Width of the left column (Quick Start, Libraries, Machines).
     private let sidebarWidth: CGFloat = 344
@@ -57,6 +59,9 @@ struct SplashpageView: View {
             .padding(32)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    searchField
+                }
                 ToolbarItem(placement: .primaryAction) {
                     AppearanceToggle(isDarkMode: $appModel.isDarkMode)
                 }
@@ -196,7 +201,9 @@ struct SplashpageView: View {
     }
 
     private var projects: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        let visibleProjects = filteredProjects
+
+        return VStack(alignment: .leading, spacing: 3) {
             sectionTitle("Projects")
 
             if projectsStore.projects.isEmpty {
@@ -205,10 +212,16 @@ struct SplashpageView: View {
                     .foregroundStyle(.secondary)
                     .padding(.leading, 4)
                     .padding(.top, 4)
+            } else if visibleProjects.isEmpty {
+                Text("No projects match \"\(query)\".")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+                    .padding(.top, 4)
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(projectsStore.projects) { project in
+                        ForEach(visibleProjects) { project in
                             ProjectCard(project: project,
                                         previewImage: projectsStore.previewImage(for: project),
                                         stockSummary: projectsStore.stockSummary(for: project),
@@ -242,6 +255,50 @@ struct SplashpageView: View {
                 }
                 .padding(.horizontal, -6)
             }
+        }
+    }
+
+    /// Toolbar search: filters the projects by name or stock.
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("Search projects or stock", text: $query)
+                .textFieldStyle(.plain)
+
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .frame(width: 280)
+        .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    /// Case-insensitive, any order: "alu 100" finds an aluminum project with a 100 mm stock.
+    /// Matches the project's name and its stock material and size, as shown on the card.
+    private var filteredProjects: [Project] {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !words.isEmpty else {
+            return projectsStore.projects
+        }
+        return projectsStore.projects.filter { project in
+            let name = project.name.lowercased()
+            if words.allSatisfy({ name.contains($0) }) {
+                return true
+            }
+            // The stock lives in the project's own file, so only read it when the name isn't enough.
+            let haystack = (name + " " + (projectsStore.stockSummary(for: project) ?? "")).lowercased()
+            return words.allSatisfy { haystack.contains($0) }
         }
     }
 
