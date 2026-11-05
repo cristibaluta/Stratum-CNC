@@ -195,7 +195,7 @@ struct CAMView: View {
                     do {
                         let asset = try projectModel.importAsset(from: url)
                         if ProjectModel.isSTEPAsset(asset.name) {
-                            try projectModel.loadSTEPAsset(asset)
+                            try projectModel.loadSTEPAsset(asset, generatePreview: true)
                         } else {
                             camModel.loadAndParseFileAt(projectModel.paths.assetsDirectory.appendingPathComponent(asset.name))
                             projectModel.updatePreview(from: camModel.canvasState.objects)

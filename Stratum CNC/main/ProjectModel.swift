@@ -303,7 +303,9 @@ class ProjectModel: ObservableObject {
 
     /// Source retention/reparse, not a serialized GPU mesh or D2_Object transform.
     /// Access must remain active until the asynchronous reader has finished.
-    func loadSTEPAsset(_ asset: AssetData) throws {
+    /// `generatePreview` is for a fresh import: once the model has loaded, its picture becomes the
+    /// project's card preview. Reopening a project leaves the preview as it is.
+    func loadSTEPAsset(_ asset: AssetData, generatePreview: Bool = false) throws {
         guard Self.isSTEPAsset(asset.name) else { return }
         let savedID = projectData.assets?.first(where: { $0.name == asset.name })?.stepImportID
         let id = savedID ?? asset.stepImportID ?? UUID()
@@ -319,7 +321,13 @@ class ProjectModel: ObservableObject {
             camModel.stepWorkspace.restorePosition(SIMD3<Float>(Float(saved[0]), Float(saved[1]), Float(saved[2])), for: id)
         }
         camModel.loadAndParseFileAt(paths.assetsDirectory.appendingPathComponent(asset.name), stepImportID: id,
-                                   onSTEPFinished: { endAccess() })
+                                   onSTEPFinished: { [weak self] in
+            // Also called when the load failed or was cancelled, then there is no scene
+            if generatePreview, let geometry = self?.camModel.stepWorkspace.documents[id]?.content.geometry {
+                self?.updatePreview(from: geometry)
+            }
+            endAccess()
+        })
     }
 
     func reloadSTEPSource(_ id: UUID) throws {
@@ -343,6 +351,22 @@ class ProjectModel: ObservableObject {
     /// Called right after an import has put the new object on the canvas.
     func updatePreview(from objects: [D2_Object], ignoringVisibility: Bool = false) {
         guard let data = ProjectPreviewRenderer.pngData(for: objects, ignoringVisibility: ignoringVisibility) else { return }
+        writePreview(data)
+    }
+
+    /// Draws an imported STEP model (its edges, isometric) into `preview.png`. Called when the
+    /// model has finished loading. Big models have many edges, so the drawing is off the main thread.
+    func updatePreview(from geometry: STEPDisplayGeometry) {
+        Task { [weak self] in
+            let data = await Task.detached(priority: .utility) {
+                ProjectPreviewRenderer.pngData(forSTEP: geometry)
+            }.value
+            guard let data else { return }
+            self?.writePreview(data)
+        }
+    }
+
+    private func writePreview(_ data: Data) {
         do {
             try withFolderAccess {
                 try data.write(to: paths.preview, options: .atomic)
