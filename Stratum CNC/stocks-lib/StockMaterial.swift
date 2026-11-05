@@ -99,7 +99,12 @@ extension StockMaterial {
     /// set to "Whole stock" cuts instead of the selected shapes.
     var footprintContour: SC.Contour {
         let size = footprintSize
-        let corners = [(0.0, 0.0), (size.width, 0.0), (size.width, size.height), (0.0, size.height)]
+        return Self.rectangleContour(minX: 0, minY: 0, maxX: size.width, maxY: size.height)
+    }
+
+    /// A closed axis-aligned rectangle, in machine coordinates.
+    static func rectangleContour(minX: Double, minY: Double, maxX: Double, maxY: Double) -> SC.Contour {
+        let corners = [(minX, minY), (maxX, minY), (maxX, maxY), (minX, maxY)]
         let chain = corners.indices.compactMap { index -> SC.Contour.Chained? in
             let start = corners[index]
             let end = corners[(index + 1) % corners.count]

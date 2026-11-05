@@ -111,18 +111,11 @@ enum ToolpathGenerator {
             guard let stock = canvasState.stock else {
                 throw GenerationError.invalidOption("There is no stock to face. Choose a material first.")
             }
-            // The footprint is the same when the stock is turned over, but not on its side.
-            guard frame.hasTopDownPreview else {
-                throw GenerationError.invalidOption("Facing the whole stock isn't supported on the front, back, left and right setups yet.")
-            }
-            contours = [stock.footprintContour]
+            // On a face that is up the facing covers that face: the footprint for the top and
+            // the bottom, the stock's side for the front, back, left and right.
+            contours = [frame.wholeFaceContour(of: stock)]
         } else {
-            // 2D shapes are drawn flat on the top face. Until they can be mapped to another
-            // side, they are only cut from the top.
-            guard frame.isIdentity || toolpath.targets.isEmpty else {
-                throw GenerationError.invalidOption(
-                    "2D shapes can only be cut from the Top setup. Pick STEP edges for this side, or move the toolpath to the Top setup.")
-            }
+            // 2D shapes are drawn flat on the canvas; `placeFlat` lays them on this setup's face.
             for target in toolpath.targets {
                 guard let object = canvasState.object(withID: target.objectID) else {
                     throw GenerationError.objectNotFound
@@ -130,7 +123,7 @@ enum ToolpathGenerator {
                 guard object.paths.indices.contains(target.pathIndex) else {
                     throw GenerationError.shapeNotFound
                 }
-                contours += object.machineContours(forPathAt: target.pathIndex)
+                contours += object.machineContours(forPathAt: target.pathIndex).map(frame.placeFlat)
             }
             contours += try stepContours(toolpath)
         }

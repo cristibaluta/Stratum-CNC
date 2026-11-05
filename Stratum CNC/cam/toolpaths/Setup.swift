@@ -23,6 +23,7 @@
 import Foundation
 import CoreGraphics
 import simd
+import StratumCAM
 
 // MARK: - Face
 
@@ -336,6 +337,35 @@ struct SetupFrame: Sendable, Equatable {
                 return path.copy(using: &mirror)
             default:
                 return nil
+        }
+    }
+
+    /// A 2D canvas shape laid on this setup's face (the one that is up), as the engine needs it.
+    /// Shapes are flat, so only X and Y matter; depth comes from the toolpath's Start Z / End Z,
+    /// measured from this face.
+    ///  - top and sides: the shape stays where it is drawn, centred on the stock. The side faces are
+    ///    laid out like the setup's own top-down view, so it sits on the face where it appears there.
+    ///  - bottom: mirrored about the stock's centre line, the same mirror the toolpath preview uses
+    ///    (`previewInPartFrame`), so the cut lands where the shape is seen through the part.
+    func placeFlat(_ contour: SC.Contour) -> SC.Contour {
+        guard quarterTurns == 2 else { return contour }
+        return contour.mirrored(about: axis, at: pivot)
+    }
+
+    /// The rectangle a facing toolpath covers when it faces the whole stock: the stock's footprint
+    /// for the top and the bottom, the face that is up for the front, back, left and right.
+    /// Same rectangle as `StockMaterial.footprintContour` for the first two.
+    func wholeFaceContour(of stock: StockMaterial) -> SC.Contour {
+        guard hasTopDownPreview == false else { return stock.footprintContour }
+        let extents = stock.setupExtents
+        let half = extents.z / 2
+        switch axis {
+            case .x:
+                return StockMaterial.rectangleContour(minX: 0, minY: pivot - half,
+                                                      maxX: extents.x, maxY: pivot + half)
+            case .y:
+                return StockMaterial.rectangleContour(minX: pivot - half, minY: 0,
+                                                      maxX: pivot + half, maxY: extents.y)
         }
     }
 

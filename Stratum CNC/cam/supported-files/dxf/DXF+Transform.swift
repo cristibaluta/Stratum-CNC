@@ -144,6 +144,21 @@ extension SC.Contour {
         }
     }
 
+    /// The mirror image across the line `y = mirrorLine` (`.x` axis: the part is flipped about X)
+    /// or `x = mirrorLine` (`.y` axis). Used to lay a 2D shape on the face that is up when the
+    /// stock is flipped over. A mirror reverses every curve's sense of rotation, so arcs and
+    /// ellipses keep their counter-clockwise form by swapping their ends, and the chain is
+    /// walked the other way round to compensate (`reversed` toggles).
+    func mirrored(about axis: SetupAxis, at mirrorLine: Double) -> SC.Contour {
+        SC.Contour(entities: entities.map { chained in
+                       let (geometry, flipsSense) = chained.geometry.mirrored(about: axis, at: mirrorLine)
+                       return SC.Contour.Chained(geometry: geometry,
+                                                 reversed: flipsSense ? !chained.reversed : chained.reversed)
+                   },
+                   isClosed: isClosed,
+                   islands: islands.map { $0.mirrored(about: axis, at: mirrorLine) })
+    }
+
     // `reversed` (the chaining direction) and `isClosed` are properties of the
     // chain, not of the geometry, so they survive any point transform unchanged.
     private func mapEntities(_ transform: (SC.Geometry) -> SC.Geometry) -> SC.Contour {
@@ -208,6 +223,49 @@ extension SC.Geometry {
         case let .polyline(vertices, closed):
             return .polyline(vertices: vertices.map { SC.Geometry.Vertex(worldPoint($0.point.cg).simd, bulge: $0.bulge) },
                              closed: closed)
+        }
+    }
+}
+
+extension SC.Geometry {
+
+    /// Mirror image, see `SC.Contour.mirrored`. `flipsSense` is true for the curves whose
+    /// start and end were swapped (arcs, ellipses), so the caller reverses their chain direction.
+    func mirrored(about axis: SetupAxis, at mirrorLine: Double) -> (SC.Geometry, flipsSense: Bool) {
+        func point(_ p: SIMD2<Double>) -> SIMD2<Double> {
+            axis == .x ? SIMD2(p.x, 2 * mirrorLine - p.y) : SIMD2(2 * mirrorLine - p.x, p.y)
+        }
+        func vector(_ v: SIMD2<Double>) -> SIMD2<Double> {
+            axis == .x ? SIMD2(v.x, -v.y) : SIMD2(-v.x, v.y)
+        }
+        // Angle of a direction after the mirror: θ → −θ across a horizontal line, 180° − θ across a vertical one.
+        func angle(_ degrees: Double) -> Double {
+            axis == .x ? -degrees : 180 - degrees
+        }
+
+        switch self {
+        case let .line(a, b):
+            return (.line(a: point(a), b: point(b)), false)
+
+        case let .circle(center, radius):
+            return (.circle(center: point(center), radius: radius), false)
+
+        case let .arc(center, radius, startDeg, endDeg):
+            return (.arc(center: point(center), radius: radius,
+                         startDeg: angle(endDeg), endDeg: angle(startDeg)), true)
+
+        case let .ellipse(center, majorAxis, ratio, startParam, endParam):
+            // The minor axis is the major one turned a quarter counter-clockwise, which a mirror
+            // reverses: the parameter runs the other way, whichever line it is mirrored across.
+            return (.ellipse(center: point(center), majorAxis: vector(majorAxis), ratio: ratio,
+                             startParam: -endParam, endParam: -startParam), true)
+
+        case let .point(at):
+            return (.point(at: point(at)), false)
+
+        case let .polyline(vertices, closed):
+            return (.polyline(vertices: vertices.map { SC.Geometry.Vertex(point($0.point), bulge: -$0.bulge) },
+                              closed: closed), false)
         }
     }
 }
