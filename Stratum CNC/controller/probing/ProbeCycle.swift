@@ -2,76 +2,55 @@
 //  ProbeCycle.swift
 //  Stratum CNC
 //
-//  The vocabulary of the 3D probing dialog: what is probed, on what surface,
-//  and which point of it. Pure values, no UI and no machine.
+//  The vocabulary of the 3D probing dialog: Z or XY, which of the four XY
+//  features, and which corner of it. Pure values, no UI and no machine.
 //
 
 import Foundation
 
 /// What the probe is looking for.
 enum ProbeKind: String, CaseIterable, Identifiable, Codable {
-    /// A height: the top of the stock, or the floor of a pocket.
+    /// A height: whatever surface is under the tip (the top of the stock, or
+    /// the floor of a pocket). No options.
     case zSurface
-    /// A position in X and/or Y: a corner, a side or the center. Which one is
-    /// chosen on the drawing (`ProbePoint`).
+    /// A position in X and Y: one of the four `ProbeFeature`s.
     case point
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-            case .zSurface: "Z surface"
-            case .point: "X / Y point"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-            case .zSurface: "arrow.down.to.line"
-            case .point: "scope"
-        }
-    }
-
-    func subtitle(surface: ProbeSurface) -> String {
-        switch self {
-            case .zSurface:
-                return surface == .inside ? "The floor of the pocket sets Z0" : "Top of the stock sets Z0"
-            case .point:
-                return "A corner, a side or the center. You pick it on the drawing"
+            case .zSurface: "Z"
+            case .point: "XY"
         }
     }
 }
 
-/// The footprint being probed, seen from above.
-enum ProbeShape: String, CaseIterable, Identifiable, Codable {
-    case rectangle
-    case circle
+/// The four things the XY probe can find. The probe is never told a size:
+/// it jogs out from where the tip was left until it touches.
+enum ProbeFeature: String, CaseIterable, Identifiable, Codable {
+    case bossCorner
+    case pocketCorner
+    case bossCenter
+    case pocketCenter
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-            case .rectangle: "Rectangle"
-            case .circle: "Circle"
+            case .bossCorner: "Find Boss Corner"
+            case .pocketCorner: "Find Pocket Corner"
+            case .bossCenter: "Find Boss Center"
+            case .pocketCenter: "Find Pocket Center"
         }
     }
-}
 
-/// Which side of the surface the probe works on: the outside of the stock
-/// (touched from outside, moving in), or the inside of a pocket or hole
-/// (touched from inside, moving out).
-enum ProbeSurface: String, CaseIterable, Identifiable, Codable {
-    case outside
-    case inside
+    /// Touched from inside, moving out (a pocket or hole), as opposed to from
+    /// outside, moving in (a boss, or the stock itself).
+    var isInside: Bool { self == .pocketCorner || self == .pocketCenter }
+    var isCenter: Bool { self == .bossCenter || self == .pocketCenter }
 
-    var id: String { rawValue }
-
-    func title(hasHole: Bool) -> String {
-        switch self {
-            case .outside: "Stock (outside)"
-            case .inside: hasHole ? "Hole (inside)" : "Pocket (inside)"
-        }
-    }
+    var thing: String { isInside ? "pocket" : "boss" }
 }
 
 /// The nine points of a rectangle that can be chosen on the drawing: four

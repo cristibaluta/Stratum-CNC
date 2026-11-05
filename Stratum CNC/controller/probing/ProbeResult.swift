@@ -3,8 +3,8 @@
 //  Stratum CNC
 //
 //  Turns the machine positions a probing cycle read into what the person
-//  cares about: where the edges are, the new work origin, the measured size,
-//  and anything that looks wrong. Pure: no machine, no UI.
+//  cares about: where the edges are, the new work origin and the measured
+//  size, and anything that looks wrong (the origin off the bed). Pure: no machine, no UI.
 //
 //  The one rule behind every edge. When the ball touches, the machine stops
 //  with the BALL CENTER one radius `r` short of the surface, on the side the
@@ -35,15 +35,11 @@ struct ProbeResult: Equatable {
     /// only finds one axis leaves the other nil.
     private(set) var originX: Double?
     private(set) var originY: Double?
-    /// Machine Z of the stock's top, if it was touched. Informational: Z0 was
+    /// Machine Z of the surface that was touched, if any. Informational: Z0 was
     /// written during the cycle.
     private(set) var surfaceZ: Double?
     /// Things that look wrong, in plain words.
     private(set) var warnings: [String] = []
-
-    /// How far a measured size may differ from the stock's before it is
-    /// reported (mm).
-    static let sizeTolerance = 1.0
 
     var hasOrigin: Bool { originX != nil || originY != nil }
 
@@ -59,11 +55,12 @@ struct ProbeResult: Equatable {
 
         if let top = contacts[ProbeKey.zTop] {
             surfaceZ = top.z
-            rows.append(Row(label: flow.probesPocket ? "Floor of the pocket (machine Z)" : "Top of the stock (machine Z)",
-                            value: Self.format(top.z)))
+            let label = flow.kind == .zSurface
+                ? "Surface (machine Z)"
+                : (flow.isInside ? "Floor of the pocket (machine Z)" : "Top of the boss (machine Z)")
+            rows.append(Row(label: label, value: Self.format(top.z)))
         }
 
-        let subject = flow.isInside ? (flow.hasHole ? "hole" : "pocket") : "stock"
         let sideWord = flow.isInside ? "wall" : "side"
 
         switch flow.kind {
@@ -71,12 +68,8 @@ struct ProbeResult: Equatable {
                 break
 
             case .point:
-                if flow.effectivePoint.isCenter {
-                    if flow.shape == .rectangle {
-                        rectangleCenter(flow: flow, contacts: contacts, radius: radius, subject: subject)
-                    } else {
-                        circleCenter(flow: flow, contacts: contacts, radius: radius, subject: subject)
-                    }
+                if flow.isCenter {
+                    center(flow: flow, contacts: contacts, radius: radius)
                 } else {
                     for side in flow.sides {
                         if let value = Self.surface(flow, side, contacts, pass: 0, radius: radius) {
@@ -100,28 +93,10 @@ struct ProbeResult: Equatable {
         }
     }
 
-    private mutating func rectangleCenter(flow: ProbeFlow, contacts: ProbeContacts, radius: Double, subject: String) {
-        guard let left = Self.surface(flow, .left, contacts, pass: 0, radius: radius),
-              let right = Self.surface(flow, .right, contacts, pass: 0, radius: radius),
-              let bottom = Self.surface(flow, .bottom, contacts, pass: 0, radius: radius),
-              let top = Self.surface(flow, .top, contacts, pass: 0, radius: radius)
-        else { return }
-
-        originX = (left + right) / 2
-        originY = (bottom + top) / 2
-
-        let width = right - left
-        let height = top - bottom
-        rows.append(Row(label: "Width", value: Self.format(width, unit: "mm")))
-        rows.append(Row(label: "Height", value: Self.format(height, unit: "mm")))
-        rows.append(Row(label: "Center (machine)", value: "X \(Self.format(originX ?? 0))   Y \(Self.format(originY ?? 0))"))
-
-        let expected = flow.featureSize
-        compare(width, with: expected.width, name: "width", subject: subject)
-        compare(height, with: expected.height, name: "height", subject: subject)
-    }
-
-    private mutating func circleCenter(flow: ProbeFlow, contacts: ProbeContacts, radius: Double, subject: String) {
+    /// The middle of two opposite touches is the center of a rectangle and of
+    /// a circle alike (the perpendicular bisector of any chord passes through
+    /// the center), so one routine serves both.
+    private mutating func center(flow: ProbeFlow, contacts: ProbeContacts, radius: Double) {
         // The refined pass, if it ran, otherwise the first.
         for pass in [1, 0] {
             guard let left = Self.surface(flow, .left, contacts, pass: pass, radius: radius),
@@ -130,29 +105,16 @@ struct ProbeResult: Equatable {
                   let top = Self.surface(flow, .top, contacts, pass: pass, radius: radius)
             else { continue }
 
-            // The middle of a chord is the center whatever row the chord is on
-            // (the perpendicular bisector of any chord passes through the
-            // center). The chord is only the full diameter when it passes
-            // through the center, which is what the second pass is for.
-            let diameterX = abs(right - left)
-            let diameterY = abs(top - bottom)
             originX = (left + right) / 2
             originY = (bottom + top) / 2
 
-            rows.append(Row(label: "Diameter (X)", value: Self.format(diameterX, unit: "mm")))
-            rows.append(Row(label: "Diameter (Y)", value: Self.format(diameterY, unit: "mm")))
+            // For a round feature these are the diameter only when the touches
+            // passed through the center, which the second pass makes true.
+            rows.append(Row(label: "Size in X", value: Self.format(abs(right - left), unit: "mm")))
+            rows.append(Row(label: "Size in Y", value: Self.format(abs(top - bottom), unit: "mm")))
             rows.append(Row(label: "Center (machine)", value: "X \(Self.format(originX ?? 0))   Y \(Self.format(originY ?? 0))"))
-
-            let nominal = flow.featureSize.width
-            compare(diameterX, with: nominal, name: "diameter in X", subject: subject)
-            compare(diameterY, with: nominal, name: "diameter in Y", subject: subject)
             return
         }
-    }
-
-    private mutating func compare(_ measured: Double, with expected: Double, name: String, subject: String) {
-        guard abs(measured - expected) > Self.sizeTolerance else { return }
-        warnings.append("The measured \(name) is \(Self.format(measured, unit: "mm")), but the \(subject) is \(Self.format(expected, unit: "mm")). The wrong \(subject == "stock" ? "stock may be selected" : "size may be entered"), or a wrong surface was touched.")
     }
 
     /// The origin has to be on the bed.

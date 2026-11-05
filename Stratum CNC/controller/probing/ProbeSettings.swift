@@ -9,6 +9,38 @@
 
 import Foundation
 
+/// The two 3D probes. They are touched the same way; the difference is what
+/// they can touch.
+enum ProbeHardware: String, CaseIterable, Identifiable, Codable {
+    /// Detects contact through the stock, so the stock has to be metal.
+    case metal
+    /// A ruby ball: works on any stock.
+    case ruby
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+            case .metal: "Metal Probe"
+            case .ruby: "Ruby Probe"
+        }
+    }
+
+    var detail: String {
+        switch self {
+            case .metal: "Metallic stock only"
+            case .ruby: "Any stock"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+            case .metal: "The metal probe only works on metallic stock. For wood, plastic or other materials use the ruby probe."
+            case .ruby: "The ruby probe works on any stock: metal, wood, plastic and composites."
+        }
+    }
+}
+
 struct ProbeSettings: Codable, Equatable {
 
     // MARK: Travel
@@ -35,6 +67,9 @@ struct ProbeSettings: Codable, Equatable {
 
     // MARK: Probe
 
+    /// Which of the two probes is used. Nil until chosen (the ruby is
+    /// assumed, as it works on everything).
+    var hardware: ProbeHardware?
     var ballDiameter = 2.0
     /// Set once the person has confirmed the ball diameter, so the dialog
     /// asks the first time instead of trusting the default.
@@ -61,6 +96,9 @@ struct ProbeSettings: Codable, Equatable {
     // MARK: Derived
 
     var ballRadius: Double { ballDiameter / 2 }
+
+    /// The probe in use.
+    var probe: ProbeHardware { hardware ?? .ruby }
 
     /// "G54" … "G59".
     var workCoordinateSystemName: String { "G\(53 + workCoordinateSystem)" }

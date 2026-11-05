@@ -56,7 +56,7 @@ struct ProbeSettingsView: View {
                     }
                 }
                 Toggle("Set Z as well", isOn: $settings.setsZ)
-                Toggle("Touch circles twice (more accurate)", isOn: $settings.refinesCircle)
+                Toggle("Touch centers twice (more accurate)", isOn: $settings.refinesCircle)
             }
 
             ForEach(settings.problems, id: \.self) { problem in
