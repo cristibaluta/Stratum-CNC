@@ -18,6 +18,8 @@
 //  Toolpaths are generated in the setup's own frame (`SetupFrame`): the part is rotated by
 //  −angle about the axis through the stock's centre, and z0 is the stock's surface that is now
 //  facing up. Every Z field of a toolpath therefore keeps meaning "depth below this setup's z0".
+//  A side face stands the stock on its edge, so its footprint is another size: it is slid back
+//  to the origin, with its corner at X = 0, Y = 0, like the top's.
 //
 
 import Foundation
@@ -167,10 +169,11 @@ struct Setup: Identifiable, Codable, Hashable, Sendable {
 /// faces up in that setup).
 ///
 /// It is a rotation by −angle about the X (or Y) axis through the stock's centre, followed by a drop
-/// of z0 to the surface. Mapping the geometry before the engine runs, instead of editing G-code
+/// of z0 to the surface and, for the side faces, a slide that puts the stock's corner back at the
+/// origin (`originShift`). Mapping the geometry before the engine runs, instead of editing G-code
 /// afterwards, means climb and conventional cutting come out right by themselves.
 ///
-///     y' = (y − yc)·cos θ + (z − zc)·sin θ + yc
+///     y' = (y − yc)·cos θ + (z − zc)·sin θ + yc + shift
 ///     z' = −(y − yc)·sin θ + (z − zc)·cos θ − r
 ///
 /// `(yc, zc)` is the axis, `r` the distance from the axis to the surface that faces up. About the Y
@@ -236,6 +239,17 @@ struct SetupFrame: Sendable, Equatable {
 
     // MARK: Mapping
 
+    /// The slide, along the axis the stock is turned across (Y for a turn about X, X for a turn
+    /// about Y), that puts the stock's corner at 0 again. A quarter turn stands the stock on its
+    /// edge: it then spans the stock's thickness there instead of its width, still centred on the
+    /// pivot, so the front-left corner would no longer be at the origin. The top and the bottom
+    /// keep the footprint they had, so they need no slide.
+    private var originShift: Double {
+        guard let turns = quarterTurns, turns % 2 == 1 else { return 0 }
+        // Half the thickness (the axis is at mid-thickness, `axisZ` below z0) from the pivot
+        return -axisZ - pivot
+    }
+
     /// Exact for the four faces (no 6e-17 noise from `cos(π/2)`).
     private var cosSin: (c: Double, s: Double) {
         switch quarterTurns {
@@ -254,7 +268,7 @@ struct SetupFrame: Sendable, Equatable {
     var matrix: simd_float4x4 {
         if isIdentity { return matrix_identity_float4x4 }
         let (c, s) = cosSin
-        let t = pivot - c * pivot - s * axisZ
+        let t = pivot - c * pivot - s * axisZ + originShift
         let tz = s * pivot - c * axisZ - surfaceDistance
         switch axis {
             case .x:
@@ -312,11 +326,11 @@ struct SetupFrame: Sendable, Equatable {
             case .x:
                 let ya = p.y - pivot
                 return SIMD3(p.x,
-                             ya * c + za * s + pivot,
+                             ya * c + za * s + pivot + originShift,
                              -ya * s + za * c - surfaceDistance)
             case .y:
                 let xa = p.x - pivot
-                return SIMD3(xa * c + za * s + pivot,
+                return SIMD3(xa * c + za * s + pivot + originShift,
                              p.y,
                              -xa * s + za * c - surfaceDistance)
         }
@@ -343,8 +357,9 @@ struct SetupFrame: Sendable, Equatable {
     /// A 2D canvas shape laid on this setup's face (the one that is up), as the engine needs it.
     /// Shapes are flat, so only X and Y matter; depth comes from the toolpath's Start Z / End Z,
     /// measured from this face.
-    ///  - top and sides: the shape stays where it is drawn, centred on the stock. The side faces are
-    ///    laid out like the setup's own top-down view, so it sits on the face where it appears there.
+    ///  - top and sides: the shape stays where it is drawn. The side faces are laid out like the
+    ///    setup's own top-down view, with their corner at the origin, so the shape sits on the
+    ///    face where it appears there.
     ///  - bottom: mirrored about the stock's centre line, the same mirror the toolpath preview uses
     ///    (`previewInPartFrame`), so the cut lands where the shape is seen through the part.
     func placeFlat(_ contour: SC.Contour) -> SC.Contour {
@@ -357,15 +372,15 @@ struct SetupFrame: Sendable, Equatable {
     /// Same rectangle as `StockMaterial.footprintContour` for the first two.
     func wholeFaceContour(of stock: StockMaterial) -> SC.Contour {
         guard hasTopDownPreview == false else { return stock.footprintContour }
+        // The face that is up spans the stock's thickness across the axis, from the origin
         let extents = stock.setupExtents
-        let half = extents.z / 2
         switch axis {
             case .x:
-                return StockMaterial.rectangleContour(minX: 0, minY: pivot - half,
-                                                      maxX: extents.x, maxY: pivot + half)
+                return StockMaterial.rectangleContour(minX: 0, minY: 0,
+                                                      maxX: extents.x, maxY: extents.z)
             case .y:
-                return StockMaterial.rectangleContour(minX: pivot - half, minY: 0,
-                                                      maxX: pivot + half, maxY: extents.y)
+                return StockMaterial.rectangleContour(minX: 0, minY: 0,
+                                                      maxX: extents.z, maxY: extents.y)
         }
     }
 
