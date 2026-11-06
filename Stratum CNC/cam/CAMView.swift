@@ -95,6 +95,10 @@ struct CAMView: View {
 
                         CanvasZoomButton(zoomModel: camModel.canvasZoomModel)
 
+                        if let stepScene = camModel.stepWorkspace.activeScene {
+                            STEPDisplayOptionsButton(scene: stepScene)
+                        }
+
                         Button {
                             SettingsTab.canvas.select()
                             openSettings()

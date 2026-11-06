@@ -541,36 +541,47 @@ extension RenderObject {
     static func ruler(z: Float,
                       insideCorner: SIMD2<Float> = .zero,
                       length: Float = 80,
+                      lengthY: Float? = nil,
                       color: SIMD4<Float> = CanvasPalette.ruler) -> RenderObject {
         RenderObject(role: .ruler,
-                     points: rulerPoints(z: z, insideCorner: insideCorner, length: length),
+                     points: rulerPoints(z: z, insideCorner: insideCorner, length: length, lengthY: lengthY ?? length),
                      color: color,
                      primitive: .lineList)
     }
 
     /// The ruler's line segments (baselines and ticks), shared by the
-    /// standalone `ruler` and the anchor that carries it.
-    private static func rulerPoints(z: Float, insideCorner: SIMD2<Float>, length: Float) -> [SIMD3<Float>] {
+    /// standalone `ruler` and the anchor that carries it. `length` runs along X, `lengthY` along Y.
+    private static func rulerPoints(z: Float, insideCorner: SIMD2<Float>, length: Float, lengthY: Float? = nil) -> [SIMD3<Float>] {
 
         var points: [SIMD3<Float>] = []
         let x0 = insideCorner.x
         let y0 = insideCorner.y
+        let lengthY = lengthY ?? length
 
         // The two baselines the ticks hang off.
         points.append(SIMD3<Float>(x0, y0, z))
         points.append(SIMD3<Float>(x0 + length, y0, z))
         points.append(SIMD3<Float>(x0, y0, z))
-        points.append(SIMD3<Float>(x0, y0 + length, z))
+        points.append(SIMD3<Float>(x0, y0 + lengthY, z))
 
-        for mm in 0...Int(length.rounded(.down)) {
-            let tick: Float = mm % 10 == 0 ? 6 : (mm % 5 == 0 ? 4 : 2)
-            let d = Float(mm)
-
-            // X ruler: along y = insideCorner.y, ticks toward -Y.
+        // 1 mm graduations up to ~250 mm; longer rulers (large stock) use coarser steps so the
+        // ruler stays readable, with the tick sizes scaled to match. Each axis picks its own.
+        func ticks(_ axisLength: Float, _ add: (Float, Float) -> Void) {
+            let step: Float = [1, 5, 10, 50, 100].first { axisLength / $0 <= 250 } ?? 1000
+            let count = Int((axisLength / step).rounded(.down))
+            for index in 0...count {
+                add(Float(index) * step, (index % 10 == 0 ? 6 : (index % 5 == 0 ? 4 : 2)) * step)
+            }
+            // The end of the ruler (the stock's edge) gets a long tick when it falls between marks.
+            if Float(count) * step < axisLength - 1e-3 { add(axisLength, 6 * step) }
+        }
+        // X ruler: along y = insideCorner.y, ticks toward -Y.
+        ticks(length) { d, tick in
             points.append(SIMD3<Float>(x0 + d, y0, z))
             points.append(SIMD3<Float>(x0 + d, y0 - tick, z))
-
-            // Y ruler: along x = insideCorner.x, ticks toward -X.
+        }
+        // Y ruler: along x = insideCorner.x, ticks toward -X.
+        ticks(lengthY) { d, tick in
             points.append(SIMD3<Float>(x0, y0 + d, z))
             points.append(SIMD3<Float>(x0 - tick, y0 + d, z))
         }

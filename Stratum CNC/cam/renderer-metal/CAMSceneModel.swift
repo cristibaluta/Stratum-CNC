@@ -40,8 +40,19 @@ final class CAMSceneModel: ObservableObject {
     /// (`StockMaterialType.surfaceColor`), rather than one fixed tint no
     /// matter what material is picked.
     enum Style {
-        /// Same length `D2_CanvasRenderer` gives its `RulerShapeLayer`.
-        static let rulerLength: Float = 200
+        /// Ruler length when there is no stock; `D2_CanvasRenderer` gives its `RulerShapeLayer` the same.
+        static let defaultRulerLength: Float = 200
+
+        /// The ruler's X and Y lengths: the stock's own width and height, so it ends at the stock's
+        /// edges. Never shorter than 10 mm; 200 mm when there is no stock.
+        static func rulerLengths(for stock: StockMaterial?) -> SIMD2<Float> {
+            guard let stock else { return SIMD2<Float>(repeating: defaultRulerLength) }
+            let size = stock.footprintSize
+            let x = Float(size.width), y = Float(size.height)
+            guard x.isFinite, y.isFinite, x > 0, y > 0 else { return SIMD2<Float>(repeating: defaultRulerLength) }
+            return SIMD2<Float>(max(10, x), max(10, y))
+        }
+
         static let rulerColor = SIMD4<Float>(0.55, 0.55, 0.55, 1)
 
         /// The toolpaths of each face, so they can be told apart in the 3D view. Top keeps the
@@ -74,9 +85,10 @@ final class CAMSceneModel: ObservableObject {
     /// `RenderObject.id` — and so their GPU buffers — instead of being re-uploaded on every read.
     func renderObjects3D(frame: SetupFrame = .identity) -> [RenderObject] {
         let bottomZ = frame.bottomZ ?? canvasState.stock.map { RenderObject.bottomZ(of: $0) } ?? 0
-        if fixtures3DCache?.bottomZ != bottomZ {
-            fixtures3DCache = (bottomZ: bottomZ,
-                               objects: [.ruler(z: bottomZ, length: Style.rulerLength, color: Style.rulerColor)]
+        let rulerLengths = Style.rulerLengths(for: canvasState.stock)
+        if fixtures3DCache?.bottomZ != bottomZ || fixtures3DCache?.rulerLengths != rulerLengths {
+            fixtures3DCache = (bottomZ: bottomZ, rulerLengths: rulerLengths,
+                               objects: [.ruler(z: bottomZ, length: rulerLengths.x, lengthY: rulerLengths.y, color: Style.rulerColor)]
                                         + RenderObject.axes())
         }
         // The 2D scene's toolpath is the active face's only: the 3D view shows every face's,
@@ -91,7 +103,7 @@ final class CAMSceneModel: ObservableObject {
     /// The 2D scene's own toolpath object, which the 3D view leaves out.
     private var planarToolpathID: UUID?
 
-    private var fixtures3DCache: (bottomZ: Float, objects: [RenderObject])?
+    private var fixtures3DCache: (bottomZ: Float, rulerLengths: SIMD2<Float>, objects: [RenderObject])?
 
     /// Mouse handling for this scene: hit-tests against `renderPaths` and
     /// writes selection / moves back into the canvas state. Created on
@@ -276,7 +288,8 @@ final class CAMSceneModel: ObservableObject {
         if let scrubPath {
             objects.append(scrubPath)
         }
-        objects.append(.ruler(z: 0, length: Style.rulerLength, color: Style.rulerColor))
+        let rulerLengths = Style.rulerLengths(for: canvasState.stock)
+        objects.append(.ruler(z: 0, length: rulerLengths.x, lengthY: rulerLengths.y, color: Style.rulerColor))
         if canvasState.isStockVisible, let stock = canvasState.stock {
             objects.append(.stockBox(for: stock, color: stock.material.surfaceColor))
         }

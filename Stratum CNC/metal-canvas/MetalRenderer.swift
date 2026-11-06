@@ -767,8 +767,8 @@ private extension MetalRenderer {
                 pipelineBound = true
             }
 
-            /// Ambient floor for a STEP model's faces: low, so faces turned away from the light read darker.
-            let modelAmbient: Float = 0.2
+            /// Ambient floor for a STEP model's faces: faces turned away from the light stay light enough for the dark edges to read on them.
+            let modelAmbient: Float = 0.5
             // A STEP model's faces are lit by a headlight and pushed a hair back, so the edges
             // that lie exactly on them win the depth test instead of z-fighting with them.
             let isModel = batch.role == .model
