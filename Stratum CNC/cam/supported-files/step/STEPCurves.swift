@@ -610,7 +610,7 @@ final class STEPCurveResolver {
 
     /// ISO 10303-42 build_axes: z = axis (default +Z); x = ref_direction made perpendicular to z
     /// (default: world Z, or world X when z is already ±Z); y = z × x.
-    private func frame(_ id: Int) throws -> STEPFrame {
+    func frame(_ id: Int) throws -> STEPFrame {
         let p = try file.parameters(id, type: "AXIS2_PLACEMENT_3D")
         let origin = try cartesianPoint(p.reference(at: 1))
         let z = try optionalDirection(p.argument(2)) ?? SIMD3<Double>(0, 0, 1)

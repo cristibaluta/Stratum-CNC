@@ -120,6 +120,23 @@ private struct STEPSceneDetails: View {
                 .padding(.leading, 16)
             }
 
+            VStack(alignment: .leading, spacing: 4) {
+                Picker("Hidden edges", selection: $scene.hiddenEdgeMode) {
+                    ForEach(STEPHiddenEdgeMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(!scene.hasSurfaces || !scene.isModelVisible)
+                if !scene.hasSurfaces {
+                    Text("Needs every face of a body to be supported. Edges are drawn solid; see Details.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if scene.content.surfaces.unsurfacedBodies.isEmpty == false {
+                    Text("Bodies with unsupported faces keep solid edges.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
             Divider()
 
             HStack {
@@ -145,9 +162,12 @@ private struct STEPSceneDetails: View {
                         let size = bounds.max - bounds.min
                         Text(String(format: "%g × %g × %g mm", size.x, size.y, size.z))
                     }
-                    Text("Stored edges only — no surface occlusion or silhouettes. Selection does not create machining targets.")
+                    let surfaces = scene.content.surfaces
+                    Text("\(surfaces.tessellatedFaceCount) of \(surfaces.reachableFaceCount) faces · \(surfaces.triangleCount) triangles"
+                         + (surfaces.failedFaceCount > 0 ? " · \(surfaces.failedFaceCount) faces failed" : ""))
+                    Text("Stored edges only: no silhouettes of curved faces, and surfaces only hide edges. Selection does not create machining targets.")
                         .font(.caption).foregroundStyle(.secondary)
-                    let diagnostics = scene.content.model.diagnostics
+                    let diagnostics = scene.content.model.diagnostics + scene.content.surfaces.diagnostics
                     ForEach(Array(diagnostics.prefix(100).enumerated()), id: \.offset) { _, diagnostic in
                         Text((diagnostic.entityID.map { "#\($0): " } ?? "") + diagnostic.message)
                             .font(.caption).foregroundStyle(.secondary).textSelection(.enabled)

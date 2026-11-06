@@ -2,8 +2,9 @@
 
 Reads a `.step` / `.stp` file (ISO 10303-21, B-rep solids and shells) and returns the
 **stored edges as 3D polylines in millimetres**, ready for a line-list renderer and for edge
-picking. It does not tessellate surfaces, heal geometry, read assemblies or produce
-machining contours.
+picking. It also tessellates the faces of each body (planes, cylinders, cones, spheres, tori) so the
+viewer can draw edges behind the part dotted (see "Surfaces" below). It does not heal geometry,
+read assemblies or produce machining contours.
 
 Everything lives in `cam/supported-files/step/` and depends only on Foundation and `simd`
 (no UI, no renderer, no 2D importer types).
@@ -91,6 +92,33 @@ Not supported (the edge is skipped with a diagnostic naming the curve, never dra
 offset curves, parabolas, hyperbolas, `COMPOSITE_CURVE`, B-splines without explicit knots (uniform,
 quasi-uniform, Bézier forms), nested trimmed curves.
 
+## Surfaces and hidden edges
+
+```swift
+let geometry = try STEPEdgeImporter.parseGeometry(data: data, importID: id)  // edges + surfaces
+geometry.edges      // STEPEdgeModel, as above
+geometry.surfaces   // STEPSurfaceModel
+```
+
+`STEPSurfaceModel` holds, per body whose faces were *all* tessellated, a `STEPBodyMesh`: Float positions in mm
+relative to the same display origin as `STEPDisplayGeometry`, analytic per-vertex normals (outward from the material,
+never averaged across a sharp edge), UInt32 indices, and a `faces` table (face entity ID, retained `STEPSurface`
+descriptor, `same_sense`, triangle range). `mesh.face(ofTriangle:)` maps a triangle back to its face.
+
+- Face boundaries are the wireframe's own sampled edge polylines, so faces and edges agree exactly. Interior points
+  of curved faces lie on the true surface at the chord tolerance.
+- Supported: `PLANE` (holes included), `CYLINDRICAL_SURFACE`, `CONICAL_SURFACE`, `SPHERICAL_SURFACE`,
+  `TOROIDAL_SURFACE`, trimmed by their loops, in seam-edge form or as a seamless band between two loops.
+- Not supported yet: B-spline and swept surfaces, faces that reach a sphere pole or cone apex, faces that wrap a torus
+  tube, vertex/poly loops, `ORIENTED_FACE`. Any such face, or a boundary edge that was skipped, drops that body's
+  surface (a partial occluder would hide visible edges). Diagnostics name the face; the body's edges stay solid.
+- Cap: 1,000,000 triangles per import (about 150 bytes each on CPU plus GPU).
+
+Viewer: `STEPDocumentScene.hiddenEdgeMode` (`dotted` default, `hidden`, `solid`) attaches the mesh to the body's line
+object as `RenderObject.occluderFaces` with `hiddenLineStyle`. Picking stays all-edges; the selection highlight is
+drawn over the whole part. Silhouettes of curved faces are not drawn. The depth bias in `MetalRenderer` is
+untuned against real files.
+
 ## Errors versus diagnostics
 
 **The call throws** (`STEPParseError`, whose `description` is the message, or `CancellationError`) for problems with the file as a whole:
@@ -147,6 +175,9 @@ Picking is in view points (so Retina is handled), clips against near/far, ranks 
 | `STEPCurves.swift` | Curve resolution: placements, circles/ellipses, trims, polylines, edge intervals, sampling. |
 | `STEPBSpline.swift` | B-spline validation, evaluation, projection, adaptive sampling. |
 | `STEPDisplayGeometry.swift` | Render-ready points and screen-space hit testing. |
+| `STEPSurfaces.swift` | Retained analytic surface descriptors (point, normal, inverse). |
+| `STEPSlabTriangulator.swift` | Face triangulation in (u, v): slab sweep with holes and surface-placed interior points. |
+| `STEPTessellator.swift` | Face/loop traversal, surface parsing, mesh output types. |
 
 ## Tests
 

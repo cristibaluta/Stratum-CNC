@@ -18,6 +18,9 @@ struct Uniforms {
     /// fixtures) always passes `.zero` here so it stays put while the job
     /// shifts.
     var offset: SIMD2<Float> = .zero
+    /// Multiplies the fragment alpha. Only has a visible effect on a pipeline with blending
+    /// on (`MetalRenderer.blendedPipelineState`); 1 everywhere else.
+    var alpha: Float = 1
 }
 
 class Camera {

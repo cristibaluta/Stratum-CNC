@@ -19,13 +19,15 @@ struct STEPDisplayGeometry: Sendable {
     let origin: SIMD3<Double>
     var bodies: [Body]
 
+    /// Where the part's corner sits in source coordinates: min X, min Y and the top (max Z).
+    /// The surface mesh uses the same origin, so triangles and edges stay registered.
+    static func displayOrigin(bounds: STEPBounds?) -> SIMD3<Double> {
+        guard let bounds else { return .zero }
+        return SIMD3<Double>(bounds.min.x, bounds.min.y, bounds.max.z)
+    }
+
     init(model: STEPEdgeModel) throws {
-        let origin: SIMD3<Double>
-        if let bounds = model.bounds {
-            origin = SIMD3<Double>(bounds.min.x, bounds.min.y, bounds.max.z)
-        } else {
-            origin = .zero
-        }
+        let origin = Self.displayOrigin(bounds: model.bounds)
         guard (0..<3).allSatisfy({ origin[$0].isFinite }) else {
             throw STEPParseError("Invalid STEP display bounds")
         }

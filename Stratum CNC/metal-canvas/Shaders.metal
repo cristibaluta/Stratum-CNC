@@ -16,6 +16,8 @@ struct Uniforms {
     // MetalRenderer.drawBatch - so the stock box, tool marker, and axes
     // never move while the toolpath preview does.
     float2 offset;
+    // Multiplies the fragment alpha (hidden dotted edges are drawn at 0.5).
+    float alpha;
 };
 
 struct VertexInput {
@@ -47,7 +49,7 @@ fragment float4 fragment_main(VertexOutput in [[stage_in]], constant Uniforms& u
             discard_fragment(); // Skip rendering the "gap"
         }
     }
-    return in.color;
+    return float4(in.color.rgb, in.color.a * uniforms.alpha);
 }
 
 // MARK: - Heightmap (2.5D stock preview)

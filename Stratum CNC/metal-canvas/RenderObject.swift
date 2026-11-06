@@ -124,6 +124,19 @@ struct RenderObject: Identifiable {
     /// or both. Unlike `occluderFaces` these are actually drawn — see
     /// `MetalRenderer.drawSolids`. The tool marker is the only user so far.
     var solidTriangles: [SolidVertex] = []
+    /// How the portions of this object's lines that lie behind an occluder are drawn.
+    /// Only meaningful with `occluderFaces`; the default keeps the per-role behaviour.
+    var hiddenLineStyle: HiddenLineStyle = .roleDefault
+}
+
+/// What the renderer's hidden-line pass does with an object's occluded line portions.
+enum HiddenLineStyle {
+    /// Stock lines are dotted, everything else is drawn solid (the original behaviour).
+    case roleDefault
+    /// Dotted, whatever the role.
+    case dotted
+    /// Not drawn at all.
+    case omitted
 }
 
 /// Find-and-replace helpers keyed by `RenderRole`, so callers holding a full

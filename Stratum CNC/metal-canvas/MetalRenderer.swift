@@ -43,6 +43,8 @@ private struct RenderBatch {
     var solidBuffer: MTLBuffer?
     var solidVertexCount: Int = 0
     var solidColor: SIMD4<Float> = .zero
+    /// What pass 2 does with this batch's occluded portions (see `RenderObject.hiddenLineStyle`).
+    var hiddenLineStyle: HiddenLineStyle = .roleDefault
 }
 
 /// GPU-backed draw call for the heightmap surface — separate from
@@ -110,6 +112,9 @@ class MetalRenderer: NSObject {
     private var device: MTLDevice!
     private var commandQueue: MTLCommandQueue!
     private var pipelineState: MTLRenderPipelineState!
+    /// `pipelineState` with source-alpha blending, used only for hidden dotted edges so no other
+    /// batch's color alpha changes meaning.
+    private var blendedPipelineState: MTLRenderPipelineState!
     /// Same shaders as `pipelineState`, but with color writes disabled.
     /// Used for the occluder-face pre-pass — it needs to affect the depth
     /// buffer only, never what's actually on screen.
@@ -144,6 +149,10 @@ class MetalRenderer: NSObject {
     /// dashed itself. Lines that already have their own `isDashed` pattern
     /// keep that pattern when hidden.
     private let hiddenLineDashLength: Float = 1.0
+    /// Dot and gap length (mm) of a STEP model's hidden edges: fine, tightly spaced dots.
+    private let hiddenDotLength: Float = 0.25
+    /// Opacity of those dots.
+    private let hiddenDotAlpha: Float = 0.5
 
     /// Depth bias applied only while drawing occluder faces (pass 0), so an
     /// edge sitting exactly on its own solid's surface reliably wins the
@@ -361,7 +370,8 @@ class MetalRenderer: NSObject {
                            occluderVertexCount: object.occluderFaces.count,
                            solidBuffer: solidBuffer,
                            solidVertexCount: solidBuffer == nil ? 0 : object.solidTriangles.count,
-                           solidColor: object.color)
+                           solidColor: object.color,
+                           hiddenLineStyle: object.hiddenLineStyle)
     }
 
     /// Expands a `RenderObject`'s points into GPU vertices, accumulating
@@ -414,6 +424,16 @@ class MetalRenderer: NSObject {
         pipelineDescriptor.rasterSampleCount = metalView.sampleCount
 
         pipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+
+        let blended = pipelineDescriptor.colorAttachments[0]!
+        blended.isBlendingEnabled = true
+        blended.rgbBlendOperation = .add
+        blended.alphaBlendOperation = .add
+        blended.sourceRGBBlendFactor = .sourceAlpha
+        blended.sourceAlphaBlendFactor = .sourceAlpha
+        blended.destinationRGBBlendFactor = .oneMinusSourceAlpha
+        blended.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+        blendedPipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
 
         // Depth-only variant for the occluder-face pre-pass: same shaders,
         // same vertex layout, but no color writes — it exists purely to
@@ -674,7 +694,8 @@ private extension MetalRenderer {
     /// Binds one batch's uniforms/buffer and issues its draw call. Shared by
     /// both the visible and hidden passes in `draw(in:)` — they differ only
     /// in which depth state is bound and what dash length they pass in.
-    func drawBatch(_ batch: RenderBatch, mvp: matrix_float4x4, dashLength: Float, encoder: MTLRenderCommandEncoder) {
+    func drawBatch(_ batch: RenderBatch, mvp: matrix_float4x4, dashLength: Float, alpha: Float = 1,
+                   encoder: MTLRenderCommandEncoder) {
         // Solid-only objects (the tool) have no line buffer; `drawSolids`
         // handles those.
         guard let vertexBuffer = batch.vertexBuffer else {
@@ -686,7 +707,8 @@ private extension MetalRenderer {
         // track the same shift as the toolpath it's following. The stock
         // box, axes, and the workbed/anchor fixtures are drawn at their true
         // position regardless — see `drawOffset(for:)`.
-        var uniforms = Uniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role), dashLength: dashLength, offset: drawOffset(for: batch.role))
+        var uniforms = Uniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role), dashLength: dashLength,
+                               offset: drawOffset(for: batch.role), alpha: alpha)
 
         // Bind uniforms to Vertex Shader (buffer index 1)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
@@ -879,10 +901,23 @@ private extension MetalRenderer {
             encoder.setDepthStencilState(depthStateHidden)
             for batch in renderBatches where batch.role != .modelSelection {
                 let dash: Float
-                if batch.role == .stock {
-                    dash = batch.isDashed ? batch.dashLength : hiddenLineDashLength
-                } else {
-                    dash = batch.isDashed ? batch.dashLength : 0.0
+                switch batch.hiddenLineStyle {
+                    case .omitted:
+                        // A model whose hidden edges are switched off: nothing behind a face.
+                        continue
+                    case .dotted:
+                        // Fine, half-transparent dots: needs the blending pipeline.
+                        encoder.setRenderPipelineState(blendedPipelineState)
+                        drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : hiddenDotLength,
+                                  alpha: hiddenDotAlpha, encoder: encoder)
+                        encoder.setRenderPipelineState(pipelineState)
+                        continue
+                    case .roleDefault:
+                        if batch.role == .stock {
+                            dash = batch.isDashed ? batch.dashLength : hiddenLineDashLength
+                        } else {
+                            dash = batch.isDashed ? batch.dashLength : 0.0
+                        }
                 }
                 drawBatch(batch, mvp: mvp, dashLength: dash, encoder: encoder)
             }

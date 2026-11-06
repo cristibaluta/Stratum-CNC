@@ -68,7 +68,19 @@ Index without building the full parameter tree; lazily parse/cache reached entit
 - Add COMPOSITE_CURVE when fixtures justify it; initially skip offsets/parabolas/hyperbolas with diagnostics.
 - Validate against independent CAD exports. General STEP/B-spline compatibility needs corpus-driven estimates.
 
-## Step 5 — Surface tessellation and dotted hidden edges (later)
+## Step 4b — Fix freeform shapes not showing or selecting (bug)
+
+Symptom: only lines and circles reliably appear; freeform/"random" shapes are missing or unselectable. Likely cause is skipped edges (and, for hidden edges, unsupported surfaces), so start from real files and the Details diagnostics.
+
+- Collect failing files and the per-edge diagnostics; group by reason before fixing anything.
+- B-spline curves without explicit knots: UNIFORM_KNOTS, QUASI_UNIFORM_KNOTS and BEZIER_CURVE forms (including complex records): generate the knot vector from degree and control-point count, then reuse the existing de Boor evaluation.
+- COMPOSITE_CURVE (ordered segments with transitions), nested TRIMMED_CURVE, and SURFACE_CURVE/SEAM_CURVE/INTERSECTION_CURVE wrapping those cases.
+- Vertices that miss their curve by more than the 1e-4 relative tolerance: report the actual distance, and make the tolerance proportional to model size or configurable instead of skipping silently.
+- Show skipped edges in the viewer (distinct color or count in the panel) so a missing shape is never silent; never draw a guessed chord.
+- Surfaces for freeform faces: B_SPLINE_SURFACE_WITH_KNOTS (incl. rational), SURFACE_OF_REVOLUTION and SURFACE_OF_LINEAR_EXTRUSION, trimmed by their loops, so these bodies get dotted hidden edges instead of losing them (shares work with step 5).
+- Tests: generated fixtures per curve form plus at least two real CAD exports with splines; assert skippedEdgeCount == 0 for them.
+
+## Step 5(done) — Surface tessellation and dotted hidden edges (later)
 
 Goal: edges hidden behind the part are drawn dotted, visible edges solid, in the shared 3D canvas.
 

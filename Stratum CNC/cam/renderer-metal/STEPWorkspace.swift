@@ -11,12 +11,18 @@ struct STEPSourceReference: Identifiable, Sendable {
 struct STEPViewerContent: Sendable {
     let model: STEPEdgeModel
     let geometry: STEPDisplayGeometry
+    /// Triangles that hide edges behind the part. Empty when a body's faces could not all be
+    /// tessellated (see `diagnostics`); that body's edges are then drawn solid, as before.
+    var surfaces = STEPSurfaceModel()
 
     static func load(url: URL, importID: UUID) async throws -> STEPViewerContent {
         let worker = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
-            let model = try STEPEdgeImporter.parse(data: Data(contentsOf: url, options: .mappedIfSafe), importID: importID)
-            return try STEPViewerContent(model: model, geometry: STEPDisplayGeometry(model: model))
+            let imported = try STEPEdgeImporter.parseGeometry(data: Data(contentsOf: url, options: .mappedIfSafe),
+                                                              importID: importID)
+            return try STEPViewerContent(model: imported.edges,
+                                         geometry: STEPDisplayGeometry(model: imported.edges),
+                                         surfaces: imported.surfaces)
         }
         return try await withTaskCancellationHandler {
             let result = try await worker.value
@@ -24,6 +30,22 @@ struct STEPViewerContent: Sendable {
             return result
         } onCancel: {
             worker.cancel()
+        }
+    }
+}
+
+/// How edges behind a face are drawn. Needs the body's surface (`STEPViewerContent.surfaces`);
+/// without one every edge is drawn solid.
+enum STEPHiddenEdgeMode: String, CaseIterable, Identifiable, Sendable {
+    case dotted, hidden, solid
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+            case .dotted: return "Dotted"
+            case .hidden: return "Hidden"
+            case .solid: return "Solid"
         }
     }
 }
@@ -58,18 +80,34 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     @Published private(set) var selectionZRange: ClosedRange<Float>?
     @Published var fitRequest = 0
 
+    /// Edges behind a face: dotted (the default when the part has surfaces), not drawn, or drawn
+    /// solid like a plain wireframe. Only the base objects are rebuilt, never the selection.
+    /// Picking stays all-edges in every mode, and the selection highlight is drawn over the whole
+    /// part, hidden edges included, so a selected rear edge can always be seen.
+    @Published var hiddenEdgeMode: STEPHiddenEdgeMode = .solid {
+        didSet {
+            guard hiddenEdgeMode != oldValue else { return }
+            baseObjects = Self.makeBaseObjects(content, isDark: isDarkAppearance, offset: offset, mode: hiddenEdgeMode)
+        }
+    }
+
+    /// At least one body has a surface, so the hidden-edge mode has an effect.
+    var hasSurfaces: Bool { !content.surfaces.bodies.isEmpty }
+
     init(content: STEPViewerContent, offset: SIMD3<Float> = .zero) {
         id = content.model.importID
         self.content = content
         self.offset = offset
-        baseObjects = Self.makeBaseObjects(content, isDark: true, offset: offset)
+        let mode: STEPHiddenEdgeMode = content.surfaces.bodies.isEmpty ? .solid : .dotted
+        hiddenEdgeMode = mode
+        baseObjects = Self.makeBaseObjects(content, isDark: true, offset: offset, mode: mode)
     }
 
     /// Moves the model: its edges and the selection overlay are rebuilt translated.
     func setOffset(_ newOffset: SIMD3<Float>) {
         guard newOffset != offset else { return }
         offset = newOffset
-        baseObjects = Self.makeBaseObjects(content, isDark: isDarkAppearance, offset: newOffset)
+        baseObjects = Self.makeBaseObjects(content, isDark: isDarkAppearance, offset: newOffset, mode: hiddenEdgeMode)
         rebuildHighlight()
     }
 
@@ -84,11 +122,19 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         isDark ? CanvasPalette.model : SIMD4<Float>(0.12, 0.22, 0.38, 1)
     }
 
+    /// One line object per body. A body with a surface also carries its triangles as depth-only
+    /// occluders, moved with the same offset as its edges, so the renderer can tell which edges
+    /// lie behind a face. Bodies without a complete surface keep today's solid wireframe.
     private static func makeBaseObjects(_ content: STEPViewerContent, isDark: Bool,
-                                        offset: SIMD3<Float>) -> [RenderObject] {
-        content.geometry.bodies.map {
-            let points = offset == .zero ? $0.points : $0.points.map { $0 + offset }
-            return RenderObject(role: .model, points: points, color: modelColor(isDark: isDark), primitive: .lineList)
+                                        offset: SIMD3<Float>, mode: STEPHiddenEdgeMode) -> [RenderObject] {
+        content.geometry.bodies.map { body in
+            let points = offset == .zero ? body.points : body.points.map { $0 + offset }
+            var object = RenderObject(role: .model, points: points, color: modelColor(isDark: isDark), primitive: .lineList)
+            if mode != .solid, let mesh = content.surfaces.mesh(for: body.id) {
+                object.occluderFaces = mesh.occluderTriangles(offset: offset)
+                object.hiddenLineStyle = mode == .dotted ? .dotted : .omitted
+            }
+            return object
         }
     }
 
@@ -98,7 +144,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     func setAppearance(isDark: Bool) {
         guard isDark != isDarkAppearance else { return }
         isDarkAppearance = isDark
-        baseObjects = Self.makeBaseObjects(content, isDark: isDark, offset: offset)
+        baseObjects = Self.makeBaseObjects(content, isDark: isDark, offset: offset, mode: hiddenEdgeMode)
     }
 
     var visibleObjects: [RenderObject] {
