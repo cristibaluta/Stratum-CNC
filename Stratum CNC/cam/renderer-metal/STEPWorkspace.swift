@@ -50,11 +50,35 @@ enum STEPHiddenEdgeMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// What the part is drawn as. Shaded modes need the body's surface (`STEPViewerContent.surfaces`);
+/// a body without one keeps its wireframe in every mode.
+enum STEPDisplayMode: String, CaseIterable, Identifiable, Sendable {
+    /// Edges only; hidden edges follow `STEPHiddenEdgeMode`.
+    case wireframe
+    /// Lit faces, no edges (and so nothing to pick until face picking exists).
+    case shaded
+    /// Lit faces with the edges on top; hidden edges follow `STEPHiddenEdgeMode`.
+    case shadedEdges
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+            case .wireframe: return "Wireframe"
+            case .shaded: return "Shaded"
+            case .shadedEdges: return "Shaded + edges"
+        }
+    }
+}
+
 @MainActor
 final class STEPDocumentScene: ObservableObject, Identifiable {
     let id: UUID
     let content: STEPViewerContent
     @Published private(set) var baseObjects: [RenderObject]
+    /// One lit-triangle object per body with a surface, in the same body order as `baseObjects`
+    /// (`nil` where the body has none or the mode draws no faces).
+    @Published private(set) var solidObjects: [RenderObject?]
     @Published private(set) var selectedEdges: Set<STEPEdgeID> = []
     @Published private(set) var hiddenBodies: Set<STEPBodyID> = []
     /// Where the model sits on the canvas, in mm. The model's own corner (min X,
@@ -80,35 +104,86 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     @Published private(set) var selectionZRange: ClosedRange<Float>?
     @Published var fitRequest = 0
 
+    /// Models with more triangles than this stay wireframe: lit faces need a CPU and a GPU copy
+    /// of every triangle, unindexed, about 100 bytes each.
+    static let defaultShadedTriangleCap = 500_000
+    private static let displayModeKey = "STEPDisplayMode"
+    private let shadedTriangleCap: Int
+    private let defaults: UserDefaults?
+
     /// Edges behind a face: dotted (the default when the part has surfaces), not drawn, or drawn
     /// solid like a plain wireframe. Only the base objects are rebuilt, never the selection.
-    /// Picking stays all-edges in every mode, and the selection highlight is drawn over the whole
-    /// part, hidden edges included, so a selected rear edge can always be seen.
+    /// Picking stays all-edges in every mode that shows edges, and the selection highlight is drawn
+    /// over the whole part, hidden edges included, so a selected rear edge can always be seen.
     @Published var hiddenEdgeMode: STEPHiddenEdgeMode = .solid {
+        didSet { if hiddenEdgeMode != oldValue { rebuildObjects() } }
+    }
+
+    /// Wireframe, shaded, or shaded with edges. Remembered across sessions. Setting a shaded mode
+    /// on a model that cannot be shaded (`canShade`) is ignored.
+    @Published var displayMode: STEPDisplayMode = .wireframe {
         didSet {
-            guard hiddenEdgeMode != oldValue else { return }
-            baseObjects = Self.makeBaseObjects(content, isDark: isDarkAppearance, offset: offset, mode: hiddenEdgeMode)
+            guard displayMode != oldValue else { return }
+            if displayMode != .wireframe, !canShade {
+                displayMode = .wireframe
+                return
+            }
+            defaults?.set(displayMode.rawValue, forKey: Self.displayModeKey)
+            // Edges are not drawn, so a plain selection has nothing to show. A toolpath being edited keeps its edges.
+            if displayMode == .shaded, !isPicking { setSelection([], notify: true) }
+            rebuildObjects()
         }
     }
 
     /// At least one body has a surface, so the hidden-edge mode has an effect.
     var hasSurfaces: Bool { !content.surfaces.bodies.isEmpty }
 
-    init(content: STEPViewerContent, offset: SIMD3<Float> = .zero) {
+    /// Shaded modes are available: surfaces exist and the triangle count is within the cap.
+    var canShade: Bool { hasSurfaces && content.surfaces.triangleCount <= shadedTriangleCap }
+
+    /// Why shaded modes are unavailable, for the panel; `nil` when they are available.
+    var shadedUnavailableReason: String? {
+        if !hasSurfaces { return "Needs every face of a body to be supported; see Details." }
+        if content.surfaces.triangleCount > shadedTriangleCap {
+            return "Too many triangles to shade (\(content.surfaces.triangleCount) of \(shadedTriangleCap)); showing wireframe."
+        }
+        return nil
+    }
+
+    init(content: STEPViewerContent, offset: SIMD3<Float> = .zero,
+         shadedTriangleCap: Int = STEPDocumentScene.defaultShadedTriangleCap,
+         defaults: UserDefaults? = .standard) {
         id = content.model.importID
         self.content = content
         self.offset = offset
-        let mode: STEPHiddenEdgeMode = content.surfaces.bodies.isEmpty ? .solid : .dotted
-        hiddenEdgeMode = mode
-        baseObjects = Self.makeBaseObjects(content, isDark: true, offset: offset, mode: mode)
+        self.shadedTriangleCap = shadedTriangleCap
+        self.defaults = defaults
+        let hidden: STEPHiddenEdgeMode = content.surfaces.bodies.isEmpty ? .solid : .dotted
+        var mode: STEPDisplayMode = .wireframe
+        if !content.surfaces.bodies.isEmpty, content.surfaces.triangleCount <= shadedTriangleCap,
+           let stored = defaults?.string(forKey: Self.displayModeKey), let restored = STEPDisplayMode(rawValue: stored) {
+            mode = restored
+        }
+        hiddenEdgeMode = hidden
+        displayMode = mode
+        let objects = Self.makeObjects(content, isDark: true, offset: offset, displayMode: mode, hiddenMode: hidden)
+        baseObjects = objects.lines
+        solidObjects = objects.solids
     }
 
-    /// Moves the model: its edges and the selection overlay are rebuilt translated.
+    /// Moves the model: its edges, faces and the selection overlay are rebuilt translated.
     func setOffset(_ newOffset: SIMD3<Float>) {
         guard newOffset != offset else { return }
         offset = newOffset
-        baseObjects = Self.makeBaseObjects(content, isDark: isDarkAppearance, offset: newOffset, mode: hiddenEdgeMode)
+        rebuildObjects()
         rebuildHighlight()
+    }
+
+    private func rebuildObjects() {
+        let objects = Self.makeObjects(content, isDark: isDarkAppearance, offset: offset,
+                                       displayMode: displayMode, hiddenMode: hiddenEdgeMode)
+        baseObjects = objects.lines
+        solidObjects = objects.solids
     }
 
     private static func translation(_ t: SIMD3<Float>) -> simd_float4x4 {
@@ -122,20 +197,58 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         isDark ? CanvasPalette.model : SIMD4<Float>(0.12, 0.22, 0.38, 1)
     }
 
-    /// One line object per body. A body with a surface also carries its triangles as depth-only
-    /// occluders, moved with the same offset as its edges, so the renderer can tell which edges
-    /// lie behind a face. Bodies without a complete surface keep today's solid wireframe.
-    private static func makeBaseObjects(_ content: STEPViewerContent, isDark: Bool,
-                                        offset: SIMD3<Float>, mode: STEPHiddenEdgeMode) -> [RenderObject] {
-        content.geometry.bodies.map { body in
+    /// Edges drawn over lit faces: near black reads on the mid-grey faces in both themes.
+    private static let edgeOnFacesColor = SIMD4<Float>(0.05, 0.07, 0.10, 1)
+
+    /// Neutral face material that works on a light and on a dark canvas.
+    private static func materialColor(isDark: Bool) -> SIMD4<Float> {
+        isDark ? SIMD4<Float>(0.56, 0.61, 0.69, 1) : SIMD4<Float>(0.70, 0.74, 0.80, 1)
+    }
+
+    /// One line object per body, and for shaded modes one lit-triangle object per body that has a
+    /// surface. Wireframe: the surface rides along as depth-only occluders so hidden edges can be
+    /// dotted. Shaded: the faces themselves provide the depth, the lines are kept (for the camera fit
+    /// and picking data) but not drawn. A body without a surface always keeps its drawn wireframe.
+    private static func makeObjects(_ content: STEPViewerContent, isDark: Bool, offset: SIMD3<Float>,
+                                    displayMode: STEPDisplayMode, hiddenMode: STEPHiddenEdgeMode)
+        -> (lines: [RenderObject], solids: [RenderObject?]) {
+        var lines: [RenderObject] = []
+        var solids: [RenderObject?] = []
+        for body in content.geometry.bodies {
             let points = offset == .zero ? body.points : body.points.map { $0 + offset }
-            var object = RenderObject(role: .model, points: points, color: modelColor(isDark: isDark), primitive: .lineList)
-            if mode != .solid, let mesh = content.surfaces.mesh(for: body.id) {
-                object.occluderFaces = mesh.occluderTriangles(offset: offset)
-                object.hiddenLineStyle = mode == .dotted ? .dotted : .omitted
+            let mesh = content.surfaces.mesh(for: body.id)
+            let shaded = displayMode != .wireframe && mesh != nil
+            let color = shaded ? edgeOnFacesColor : modelColor(isDark: isDark)
+            var line = RenderObject(role: .model, points: points, color: color, primitive: .lineList)
+            var solid: RenderObject?
+            if let mesh {
+                let style: HiddenLineStyle = hiddenMode == .solid ? .roleDefault : (hiddenMode == .dotted ? .dotted : .omitted)
+                switch displayMode {
+                    case .wireframe:
+                        if hiddenMode != .solid {
+                            line.occluderFaces = mesh.occluderTriangles(offset: offset)
+                            line.hiddenLineStyle = style
+                        }
+                    case .shadedEdges:
+                        line.hiddenLineStyle = style
+                    case .shaded:
+                        line.visibleVertexCount = 0
+                }
+                if displayMode != .wireframe {
+                    var triangles: [SolidVertex] = []
+                    triangles.reserveCapacity(mesh.indices.count)
+                    for index in mesh.indices {
+                        triangles.append(SolidVertex(position: mesh.positions[Int(index)] + offset,
+                                                     normal: mesh.normals[Int(index)]))
+                    }
+                    solid = RenderObject(role: .model, points: [], color: materialColor(isDark: isDark),
+                                         primitive: .lineList, solidTriangles: triangles)
+                }
             }
-            return object
+            lines.append(line)
+            solids.append(solid)
         }
+        return (lines, solids)
     }
 
     private var isDarkAppearance = true
@@ -144,14 +257,17 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     func setAppearance(isDark: Bool) {
         guard isDark != isDarkAppearance else { return }
         isDarkAppearance = isDark
-        baseObjects = Self.makeBaseObjects(content, isDark: isDark, offset: offset, mode: hiddenEdgeMode)
+        rebuildObjects()
     }
 
     var visibleObjects: [RenderObject] {
         guard isModelVisible else { return [] }
-        return zip(content.geometry.bodies, baseObjects).compactMap { body, object in
-            hiddenBodies.contains(body.id) ? nil : object
-        } + selectionObjects
+        var objects: [RenderObject] = []
+        for (index, body) in content.geometry.bodies.enumerated() where !hiddenBodies.contains(body.id) {
+            if let solid = solidObjects[index] { objects.append(solid) }
+            objects.append(baseObjects[index])
+        }
+        return objects + selectionObjects
     }
 
     func setBodyVisible(_ id: STEPBodyID, _ visible: Bool) {
@@ -165,7 +281,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     func edge(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> STEPEdgeID? {
         // The geometry is stored at the origin; the matrix the canvas hands over
         // sees it moved, so move it back into place first.
-        isModelVisible
+        // Faces cannot be picked yet, and edges that are not drawn must not be either.
+        isModelVisible && displayMode != .shaded
             ? content.geometry.hitTest(at: point, viewport: viewport, matrix: matrix * Self.translation(offset),
                                        hiddenBodies: hiddenBodies)
             : nil

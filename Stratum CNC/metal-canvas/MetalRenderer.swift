@@ -698,7 +698,7 @@ private extension MetalRenderer {
                    encoder: MTLRenderCommandEncoder) {
         // Solid-only objects (the tool) have no line buffer; `drawSolids`
         // handles those.
-        guard let vertexBuffer = batch.vertexBuffer else {
+        guard let vertexBuffer = batch.vertexBuffer, batch.drawVertexCount > 0 else {
             return
         }
         // The toolpath draws and the tool marker move with `xyOffset` — the
@@ -767,10 +767,16 @@ private extension MetalRenderer {
                 pipelineBound = true
             }
 
+            /// Ambient floor for a STEP model's faces: low, so faces turned away from the light read darker.
+            let modelAmbient: Float = 0.2
+            // A STEP model's faces are lit by a headlight and pushed a hair back, so the edges
+            // that lie exactly on them win the depth test instead of z-fighting with them.
+            let isModel = batch.role == .model
+            encoder.setDepthBias(isModel ? occluderDepthBias : 0, slopeScale: isModel ? occluderDepthBiasSlope : 0, clamp: 0)
             var uniforms = HeightmapUniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role),
-                                             lightDirection: heightmapLightDirection,
+                                             lightDirection: isModel ? headlight(for: batch.role) : heightmapLightDirection,
                                              baseColor: batch.solidColor,
-                                             ambient: heightmapAmbient,
+                                             ambient: isModel ? modelAmbient : heightmapAmbient,
                                              topZ: 1,
                                              bottomZ: 0,
                                              depthDarkening: 0,
@@ -780,6 +786,34 @@ private extension MetalRenderer {
             encoder.setVertexBuffer(solidBuffer, offset: 0, index: 0)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: batch.solidVertexCount)
         }
+        if pipelineBound { encoder.setDepthBias(0, slopeScale: 0, clamp: 0) }
+    }
+
+
+    /// Direction toward the light, in the space the batch's normals are in. It follows the camera
+    /// (a headlight, set well off the view axis, up and to the left, so faces square to the view still show form), so
+    /// the lit side stays toward the viewer while orbiting. The part's own rotation is undone,
+    /// because normals are stored in part space.
+    func headlight(for role: RenderRole?) -> SIMD3<Float> {
+        let back: SIMD3<Float> = camera.back
+        let up: SIMD3<Float> = camera.up
+        let right: SIMD3<Float> = camera.right
+        var direction: SIMD3<Float> = back * Float(0.6)
+        direction += up * Float(0.6)
+        direction -= right * Float(0.5)
+        let world: SIMD3<Float> = simd_normalize(direction)
+
+        let m: simd_float4x4 = transform(for: role)
+        let column0 = SIMD3<Float>(m.columns.0.x, m.columns.0.y, m.columns.0.z)
+        let column1 = SIMD3<Float>(m.columns.1.x, m.columns.1.y, m.columns.1.z)
+        let column2 = SIMD3<Float>(m.columns.2.x, m.columns.2.y, m.columns.2.z)
+        let rotation = simd_float3x3(columns: (column0, column1, column2))
+        let local: SIMD3<Float> = rotation.inverse * world
+        let magnitude: Float = simd_length(local)
+        if magnitude.isFinite && magnitude > 1e-6 {
+            return local / magnitude
+        }
+        return world
     }
 
     /// Same binding dance as `drawBatch`, for occluder-face geometry: always

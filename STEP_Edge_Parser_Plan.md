@@ -80,7 +80,7 @@ Symptom: only lines and circles reliably appear; freeform/"random" shapes are mi
 - Surfaces for freeform faces: B_SPLINE_SURFACE_WITH_KNOTS (incl. rational), SURFACE_OF_REVOLUTION and SURFACE_OF_LINEAR_EXTRUSION, trimmed by their loops, so these bodies get dotted hidden edges instead of losing them (shares work with step 5).
 - Tests: generated fixtures per curve form plus at least two real CAD exports with splines; assert skippedEdgeCount == 0 for them.
 
-## Step 5(done) — Surface tessellation and dotted hidden edges (later)
+## Step 5 [done, unverified on GPU] — Surface tessellation and dotted hidden edges
 
 Goal: edges hidden behind the part are drawn dotted, visible edges solid, in the shared 3D canvas.
 
@@ -96,7 +96,7 @@ The renderer side already exists and needs no new pipeline: `RenderObject.occlud
 - Not included: shading, silhouette edges of curved faces (view-dependent), face picking, machining use of the surfaces.
 - Tests: generated box (back edges dotted from an isometric camera, front solid), box with a through hole and with a blind pocket, cylinder with seam, fillet, B-spline face, multi-body, unsupported-face fallback, z-fighting along edges, large-file memory.
 
-## Step 6 — Solid shaded faces and light (later)
+## Step 6 [done, unverified on GPU] — Solid shaded faces and light
 
 Goal: draw the part as lit solid faces, including holes and pockets, with edges on top. Depends on step 5.
 

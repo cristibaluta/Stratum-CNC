@@ -119,6 +119,22 @@ object as `RenderObject.occluderFaces` with `hiddenLineStyle`. Picking stays all
 drawn over the whole part. Silhouettes of curved faces are not drawn. The depth bias in `MetalRenderer` is
 untuned against real files.
 
+### Shaded display
+
+`STEPDocumentScene.displayMode` is `wireframe` (default), `shaded` or `shadedEdges`, remembered in `UserDefaults`
+(`STEPDisplayMode`). Shaded modes draw each body's mesh through the renderer's existing lit-triangle path
+(`RenderObject.solidTriangles`), one object per body in a neutral material that suits both themes.
+
+- Light: a headlight that follows the camera (up and left of the view direction), undone for the part's rotation
+  because normals live in part space; ambient floor 0.35; no depth darkening. Faces are two-sided and unculled, so
+  a flipped face shows as an ambient-only patch instead of vanishing.
+- Edges over faces: the faces are drawn with the same depth bias as occluders so edges on them do not z-fight.
+  Hidden edges follow `hiddenEdgeMode`; the faces provide the depth, so no separate occluders are attached.
+- `shaded` draws no edges and so disables edge picking until face picking (step 7). `shadedEdges` keeps all-edges picking.
+- Above 500,000 triangles, or when a body has no complete surface, shading is unavailable and the panel says why;
+  a body without a surface always keeps its wireframe.
+- Selected / hovered / hidden-body face colors are not done yet (they belong with face picking).
+
 ## Errors versus diagnostics
 
 **The call throws** (`STEPParseError`, whose `description` is the message, or `CancellationError`) for problems with the file as a whole:

@@ -536,7 +536,7 @@ struct STEPSurfaceTests {
         let content = try STEPViewerContent(model: imported.edges,
                                             geometry: STEPDisplayGeometry(model: imported.edges),
                                             surfaces: imported.surfaces)
-        let scene = STEPDocumentScene(content: content)
+        let scene = STEPDocumentScene(content: content, defaults: nil)
         #expect(scene.hasSurfaces && scene.hiddenEdgeMode == .dotted)
         var object = try #require(scene.baseObjects.first)
         #expect(object.occluderFaces.count == 36)
@@ -574,7 +574,7 @@ struct STEPSurfaceTests {
         let content = try STEPViewerContent(model: imported.edges,
                                             geometry: STEPDisplayGeometry(model: imported.edges),
                                             surfaces: imported.surfaces)
-        let scene = STEPDocumentScene(content: content)
+        let scene = STEPDocumentScene(content: content, defaults: nil)
         #expect(!scene.hasSurfaces && scene.hiddenEdgeMode == .solid)
         scene.hiddenEdgeMode = .dotted
         let object = try #require(scene.baseObjects.first)
@@ -582,6 +582,99 @@ struct STEPSurfaceTests {
 
         // A viewer content built the old way (no surfaces) behaves the same.
         let legacy = try STEPViewerContent(model: imported.edges, geometry: STEPDisplayGeometry(model: imported.edges))
-        #expect(STEPDocumentScene(content: legacy).baseObjects.first?.occluderFaces.isEmpty == true)
+        #expect(STEPDocumentScene(content: legacy, defaults: nil).baseObjects.first?.occluderFaces.isEmpty == true)
+    }
+
+    // MARK: Shaded display (step 6)
+
+    private func boxContent(unsupportedFace: Int? = nil) throws -> STEPViewerContent {
+        let b = SolidBuilder()
+        let imported = try geometry(b, items: [b.box(min: .zero, size: SIMD3(10, 10, 1), unsupportedFace: unsupportedFace)])
+        return try STEPViewerContent(model: imported.edges, geometry: STEPDisplayGeometry(model: imported.edges),
+                                     surfaces: imported.surfaces)
+    }
+
+    @Test @MainActor func wireframeBuildsNoLitFaces() throws {
+        let scene = STEPDocumentScene(content: try boxContent(), defaults: nil)
+        #expect(scene.displayMode == .wireframe && scene.canShade && scene.shadedUnavailableReason == nil)
+        #expect(scene.solidObjects.count == 1 && scene.solidObjects[0] == nil)
+    }
+
+    @Test @MainActor func shadedFacesCarryOutwardNormalsAndHideTheEdges() throws {
+        let scene = STEPDocumentScene(content: try boxContent(), defaults: nil)
+        scene.select(scene.content.model.edges[0].id, extend: false)
+        #expect(scene.selectedEdges.count == 1)
+
+        scene.displayMode = .shaded
+        let solid = try #require(scene.solidObjects[0])
+        #expect(solid.role == .model && solid.points.isEmpty)
+        #expect(solid.solidTriangles.count == 36)
+        let center = SIMD3<Float>(5, 5, -0.5)
+        for vertex in solid.solidTriangles {
+            #expect(abs(simd_length(vertex.normal) - 1) < 1e-5)
+            #expect(simd_dot(vertex.normal, vertex.position - center) > 0, "normal points into the part")
+        }
+        let lines = try #require(scene.baseObjects.first)
+        #expect(lines.visibleVertexCount == 0 && !lines.points.isEmpty, "edges kept for fitting, not drawn")
+        #expect(lines.occluderFaces.isEmpty, "the faces themselves provide the depth")
+        #expect(scene.selectedEdges.isEmpty, "edges are not drawn, so a plain selection is dropped")
+        // The faces are drawn first, then the edges.
+        let drawn = scene.visibleObjects
+        #expect(drawn.first?.solidTriangles.count == 36)
+        // Nothing to pick while only faces are drawn.
+        #expect(scene.edge(at: CGPoint(x: 100, y: 50), viewport: CGSize(width: 200, height: 100),
+                           matrix: matrix_identity_float4x4) == nil)
+    }
+
+    @Test @MainActor func shadedWithEdgesKeepsEdgesOnTopAndHidesRearOnesBehindFaces() throws {
+        let scene = STEPDocumentScene(content: try boxContent(), defaults: nil)
+        scene.displayMode = .shadedEdges
+        #expect(scene.solidObjects[0]?.solidTriangles.count == 36)
+        var lines = try #require(scene.baseObjects.first)
+        #expect(lines.visibleVertexCount == nil && lines.occluderFaces.isEmpty)
+        #expect(lines.hiddenLineStyle == .dotted)
+        #expect(lines.color.x < 0.2, "dark edges read on the lit faces")
+        scene.hiddenEdgeMode = .hidden
+        lines = try #require(scene.baseObjects.first)
+        #expect(lines.hiddenLineStyle == .omitted)
+
+        // Faces and edges move together.
+        scene.setOffset(SIMD3(7, 8, -2))
+        let edgeMin = scene.baseObjects[0].points.reduce(SIMD3<Float>(repeating: .infinity)) { simd_min($0, $1) }
+        let faceMin = try #require(scene.solidObjects[0]).solidTriangles.reduce(SIMD3<Float>(repeating: .infinity)) {
+            simd_min($0, $1.position)
+        }
+        #expect(edgeMin == faceMin)
+
+        scene.displayMode = .wireframe
+        #expect(scene.solidObjects[0] == nil && scene.baseObjects[0].occluderFaces.isEmpty == true)
+    }
+
+    @Test @MainActor func shadedIsRefusedWithoutSurfacesOrAboveTheTriangleCap() throws {
+        let broken = STEPDocumentScene(content: try boxContent(unsupportedFace: 0), defaults: nil)
+        broken.displayMode = .shaded
+        #expect(broken.displayMode == .wireframe && !broken.canShade)
+        #expect(broken.shadedUnavailableReason?.contains("every face") == true)
+
+        let large = STEPDocumentScene(content: try boxContent(), shadedTriangleCap: 5, defaults: nil)
+        large.displayMode = .shadedEdges
+        #expect(large.displayMode == .wireframe)
+        #expect(large.shadedUnavailableReason?.contains("Too many triangles") == true)
+        // Dotted hidden edges still work: only shading has the cap.
+        #expect(large.baseObjects[0].occluderFaces.count == 36)
+    }
+
+    @Test @MainActor func displayModeIsRememberedAcrossScenes() throws {
+        let suite = "STEPSurfaceTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let content = try boxContent()
+        let first = STEPDocumentScene(content: content, defaults: defaults)
+        #expect(first.displayMode == .wireframe)
+        first.displayMode = .shadedEdges
+        #expect(STEPDocumentScene(content: content, defaults: defaults).displayMode == .shadedEdges)
+        // A model that cannot be shaded ignores the stored mode.
+        let broken = try boxContent(unsupportedFace: 2)
+        #expect(STEPDocumentScene(content: broken, defaults: defaults).displayMode == .wireframe)
     }
 }
