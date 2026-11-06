@@ -11,6 +11,7 @@ import Combine
 import UniformTypeIdentifiers
 import AppKit
 import StratumCAM
+import SwiftSTEP
 
 @MainActor
 class CAMModel: ObservableObject {
@@ -700,7 +701,7 @@ class CAMModel: ObservableObject {
 
     /// The edges of one model were clicked while a toolpath is open: they are written into
     /// the toolpath live, like picked shapes. The edges of other models stay as they were.
-    private func applyPickedSTEPEdges(importID: UUID, edges: Set<STEPEdgeID>) {
+    private func applyPickedSTEPEdges(importID: UUID, edges: Set<STEP.EdgeID>) {
         guard let id = pickingToolpathID,
               let index = toolpaths.firstIndex(where: { $0.id == id }) else {
             return

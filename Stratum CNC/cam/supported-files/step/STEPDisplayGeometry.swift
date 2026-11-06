@@ -1,5 +1,6 @@
 import Foundation
 import simd
+import SwiftSTEP
 
 /// Render-ready geometry, built off the main actor. Source coordinates remain
 /// untouched. The model is placed like a workpiece on the canvas: the bottom-left
@@ -8,11 +9,11 @@ import simd
 /// The shared origin also avoids Float precision loss far from (0,0,0).
 struct STEPDisplayGeometry: Sendable {
     struct EdgeRange: Sendable {
-        let id: STEPEdgeID
+        let id: STEP.EdgeID
         let vertices: Range<Int>
     }
     struct Body: Sendable {
-        let id: STEPBodyID
+        let id: STEP.BodyID
         let points: [SIMD3<Float>] // disconnected start/end pairs
         let edges: [EdgeRange]
     }
@@ -21,15 +22,14 @@ struct STEPDisplayGeometry: Sendable {
 
     /// Where the part's corner sits in source coordinates: min X, min Y and the top (max Z).
     /// The surface mesh uses the same origin, so triangles and edges stay registered.
-    static func displayOrigin(bounds: STEPBounds?) -> SIMD3<Double> {
-        guard let bounds else { return .zero }
-        return SIMD3<Double>(bounds.min.x, bounds.min.y, bounds.max.z)
+    static func displayOrigin(bounds: STEP.Bounds?) -> SIMD3<Double> {
+        bounds?.workpieceOrigin ?? .zero
     }
 
-    init(model: STEPEdgeModel) throws {
+    init(model: STEP.EdgeModel) throws {
         let origin = Self.displayOrigin(bounds: model.bounds)
         guard (0..<3).allSatisfy({ origin[$0].isFinite }) else {
-            throw STEPParseError("Invalid STEP display bounds")
+            throw STEP.ParseError("Invalid STEP display bounds")
         }
         let grouped = Dictionary(grouping: model.edges, by: { $0.id.bodyID })
         var bodies: [Body] = []
@@ -44,7 +44,7 @@ struct STEPDisplayGeometry: Sendable {
                 func displayPoint(_ source: SIMD3<Double>) throws -> SIMD3<Float> {
                     let local = source - origin
                     guard (0..<3).allSatisfy({ local[$0].isFinite && abs(local[$0]) <= 10_000_000 }) else {
-                        throw STEPParseError("STEP extent exceeds the supported display range (20 km)")
+                        throw STEP.ParseError("STEP extent exceeds the supported display range (20 km)")
                     }
                     return SIMD3<Float>(local)
                 }
@@ -67,9 +67,9 @@ struct STEPDisplayGeometry: Sendable {
     /// Uses exactly the Float points handed to Metal. Coordinates and tolerance
     /// are AppKit view points, not drawable pixels, so Retina does not alter picking.
     func hitTest(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
-                 hiddenBodies: Set<STEPBodyID> = [], tolerance: CGFloat = 6) -> STEPEdgeID? {
+                 hiddenBodies: Set<STEP.BodyID> = [], tolerance: CGFloat = 6) -> STEP.EdgeID? {
         guard viewport.width > 0, viewport.height > 0, tolerance >= 0 else { return nil }
-        var best: (id: STEPEdgeID, distance: Float, depth: Float)?
+        var best: (id: STEP.EdgeID, distance: Float, depth: Float)?
         let cursor = SIMD2<Float>(Float(point.x), Float(point.y))
         let limit = Float(tolerance * tolerance)
         for body in bodies where !hiddenBodies.contains(body.id) {

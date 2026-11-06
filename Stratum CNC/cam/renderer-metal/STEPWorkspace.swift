@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import simd
+import SwiftSTEP
 
 struct STEPSourceReference: Identifiable, Sendable {
     let id: UUID
@@ -9,16 +10,16 @@ struct STEPSourceReference: Identifiable, Sendable {
 }
 
 struct STEPViewerContent: Sendable {
-    let model: STEPEdgeModel
+    let model: STEP.EdgeModel
     let geometry: STEPDisplayGeometry
     /// Triangles that hide edges behind the part. Empty when a body's faces could not all be
     /// tessellated (see `diagnostics`); that body's edges are then drawn solid, as before.
-    var surfaces = STEPSurfaceModel()
+    var surfaces = STEP.SurfaceModel()
 
     static func load(url: URL, importID: UUID) async throws -> STEPViewerContent {
         let worker = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
-            let imported = try STEPEdgeImporter.parseGeometry(data: Data(contentsOf: url, options: .mappedIfSafe),
+            let imported = try STEP.readGeometry(data: Data(contentsOf: url, options: .mappedIfSafe),
                                                               importID: importID)
             return try STEPViewerContent(model: imported.edges,
                                          geometry: STEPDisplayGeometry(model: imported.edges),
@@ -79,8 +80,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// One lit-triangle object per body with a surface, in the same body order as `baseObjects`
     /// (`nil` where the body has none or the mode draws no faces).
     @Published private(set) var solidObjects: [RenderObject?]
-    @Published private(set) var selectedEdges: Set<STEPEdgeID> = []
-    @Published private(set) var hiddenBodies: Set<STEPBodyID> = []
+    @Published private(set) var selectedEdges: Set<STEP.EdgeID> = []
+    @Published private(set) var hiddenBodies: Set<STEP.BodyID> = []
     /// Where the model sits on the canvas, in mm. The model's own corner (min X,
     /// min Y) and top (max Z) are at 0, so this is the position of that corner
     /// and of the top surface. Changed through `STEPWorkspace.setPosition`.
@@ -92,7 +93,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// A toolpath is open: clicks add and remove edges from it (see `STEPWorkspace.beginPicking`).
     private(set) var isPicking = false
     /// Called with the whole selection after every change made by the user while picking.
-    var onSelectionChanged: ((Set<STEPEdgeID>) -> Void)?
+    var onSelectionChanged: ((Set<STEP.EdgeID>) -> Void)?
     /// Bounding box of the selected edges in canvas mm, to anchor the "Add toolpath" tooltip.
     @Published private(set) var selectionBox: (min: SIMD3<Float>, max: SIMD3<Float>)?
     @Published private(set) var selectionObjects: [RenderObject] = []
@@ -270,7 +271,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         return objects + selectionObjects
     }
 
-    func setBodyVisible(_ id: STEPBodyID, _ visible: Bool) {
+    func setBodyVisible(_ id: STEP.BodyID, _ visible: Bool) {
         if visible { hiddenBodies.remove(id) } else {
             hiddenBodies.insert(id)
             setSelection(selectedEdges.filter { $0.bodyID != id }, notify: true)
@@ -278,7 +279,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     }
 
     /// The edge under `point`, if any.
-    func edge(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> STEPEdgeID? {
+    func edge(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> STEP.EdgeID? {
         // The geometry is stored at the origin; the matrix the canvas hands over
         // sees it moved, so move it back into place first.
         // Faces cannot be picked yet, and edges that are not drawn must not be either.
@@ -288,7 +289,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             : nil
     }
 
-    func select(_ id: STEPEdgeID?, extend: Bool) {
+    func select(_ id: STEP.EdgeID?, extend: Bool) {
         guard let id, isModelVisible, !hiddenBodies.contains(id.bodyID),
               content.geometry.bodies.contains(where: { $0.edges.contains(where: { $0.id == id }) }) else {
             // Like the 2D canvas: an empty click keeps the toolpath's shapes while picking
@@ -308,7 +309,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         setSelection([], notify: true)
     }
 
-    private func setSelection(_ edges: Set<STEPEdgeID>, notify: Bool) {
+    private func setSelection(_ edges: Set<STEP.EdgeID>, notify: Bool) {
         selectedEdges = edges
         rebuildHighlight()
         if notify { onSelectionChanged?(edges) }
@@ -316,7 +317,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
     /// A toolpath was opened: show its edges as the selection, and from now on every click
     /// toggles an edge of that toolpath.
-    func beginPicking(selection: Set<STEPEdgeID>) {
+    func beginPicking(selection: Set<STEP.EdgeID>) {
         isPicking = true
         setSelection(selection, notify: false)
     }
@@ -400,7 +401,7 @@ final class STEPWorkspace: ObservableObject {
     /// A model moved: toolpaths cut from its edges are outdated.
     var onModelMoved: (() -> Void)?
     /// The open toolpath's edges and where edits go; set while a toolpath is open.
-    private var picking: (targets: [STEPEdgeTarget], onChange: (UUID, Set<STEPEdgeID>) -> Void)?
+    private var picking: (targets: [STEPEdgeTarget], onChange: (UUID, Set<STEP.EdgeID>) -> Void)?
     /// Called after the user moved a model, so the project can save it.
     var onOffsetChanged: (@MainActor (UUID, SIMD3<Float>) -> Void)?
     private var tasks: [UUID: Task<Void, Never>] = [:]
@@ -435,7 +436,7 @@ final class STEPWorkspace: ObservableObject {
     /// A toolpath was opened: its edges become the selection of their models, and clicking an
     /// edge adds it to or removes it from the toolpath (`onChange` gets the model and its
     /// whole selection). Models that finish loading later join in.
-    func beginPicking(targets: [STEPEdgeTarget], onChange: @escaping (UUID, Set<STEPEdgeID>) -> Void) {
+    func beginPicking(targets: [STEPEdgeTarget], onChange: @escaping (UUID, Set<STEP.EdgeID>) -> Void) {
         endPicking()
         picking = (targets, onChange)
         for scene in documents.values { attachPicking(to: scene) }

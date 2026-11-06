@@ -10,6 +10,7 @@
 		560F75753052662B0017EE04 /* iOverlay in Frameworks */ = {isa = PBXBuildFile; productRef = 560F75743052662B0017EE04 /* iOverlay */; };
 		560F78F4305336B90017EE04 /* StratumCAM in Frameworks */ = {isa = PBXBuildFile; productRef = 560F78F3305336B90017EE04 /* StratumCAM */; };
 		5679E83F303C292E00B08A35 /* PocketSVG in Frameworks */ = {isa = PBXBuildFile; productRef = 5679E83E303C292E00B08A35 /* PocketSVG */; };
+		5691E592309DDFA50028FFE5 /* SwiftSTEP in Frameworks */ = {isa = PBXBuildFile; productRef = 5691E591309DDFA50028FFE5 /* SwiftSTEP */; };
 		56BEE6EE30624B2000097010 /* Zip in Frameworks */ = {isa = PBXBuildFile; productRef = 56BEE6ED30624B2000097010 /* Zip */; };
 		6D0235C9304D268A004AE6F8 /* SwiftDXF in Frameworks */ = {isa = PBXBuildFile; productRef = 6D0235C8304D268A004AE6F8 /* SwiftDXF */; };
 		6D244743308959F000A01698 /* StratumLink in Frameworks */ = {isa = PBXBuildFile; productRef = 6D244742308959F000A01698 /* StratumLink */; };
@@ -28,6 +29,7 @@
 /* Begin PBXFileReference section */
 		560F76AA3052C5A40017EE04 /* Stratum CNC Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Stratum CNC Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		560F76B63053164E0017EE04 /* StratumCAM */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = StratumCAM; path = ../StratumCAM; sourceTree = SOURCE_ROOT; };
+		5691E590309DDF690028FFE5 /* SwiftSTEP */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SwiftSTEP; path = ../SwiftSTEP; sourceTree = SOURCE_ROOT; };
 		56CEA04D30356265008167CA /* Stratum CNC.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Stratum CNC.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6D244741308958F300A01698 /* StratumLink */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = StratumLink; path = ../StratumLink; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -36,18 +38,9 @@
 		5691E0A030985AD10028FFE5 /* Exceptions for "Stratum CNC" folder in "Stratum CNC" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"cam/supported-files/step/INFO.md",
-				"cam/supported-files/step/STEPCurveTests.swift",
 				cam/toolpaths/INFO.md,
 			);
 			target = 56CEA04C30356265008167CA /* Stratum CNC */;
-		};
-		5691E0A130985AD10028FFE5 /* Exceptions for "Stratum CNC" folder in "Stratum CNC Tests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"cam/supported-files/step/STEPCurveTests.swift",
-			);
-			target = 560F76A93052C5A40017EE04 /* Stratum CNC Tests */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -61,7 +54,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				5691E0A030985AD10028FFE5 /* Exceptions for "Stratum CNC" folder in "Stratum CNC" target */,
-				5691E0A130985AD10028FFE5 /* Exceptions for "Stratum CNC" folder in "Stratum CNC Tests" target */,
 			);
 			path = "Stratum CNC";
 			sourceTree = "<group>";
@@ -82,6 +74,7 @@
 			files = (
 				560F78F4305336B90017EE04 /* StratumCAM in Frameworks */,
 				6D0235C9304D268A004AE6F8 /* SwiftDXF in Frameworks */,
+				5691E592309DDFA50028FFE5 /* SwiftSTEP in Frameworks */,
 				56BEE6EE30624B2000097010 /* Zip in Frameworks */,
 				560F75753052662B0017EE04 /* iOverlay in Frameworks */,
 				5679E83F303C292E00B08A35 /* PocketSVG in Frameworks */,
@@ -102,6 +95,7 @@
 		56CEA04430356265008167CA = {
 			isa = PBXGroup;
 			children = (
+				5691E590309DDF690028FFE5 /* SwiftSTEP */,
 				6D244741308958F300A01698 /* StratumLink */,
 				560F76B63053164E0017EE04 /* StratumCAM */,
 				56CEA04F30356265008167CA /* Stratum CNC */,
@@ -169,6 +163,7 @@
 				560F78F3305336B90017EE04 /* StratumCAM */,
 				56BEE6ED30624B2000097010 /* Zip */,
 				6D244742308959F000A01698 /* StratumLink */,
+				5691E591309DDFA50028FFE5 /* SwiftSTEP */,
 			);
 			productName = "MakeraStudio Lite";
 			productReference = 56CEA04D30356265008167CA /* Stratum CNC.app */;
@@ -623,6 +618,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 5679E83D303C292E00B08A35 /* XCRemoteSwiftPackageReference "PocketSVG" */;
 			productName = PocketSVG;
+		};
+		5691E591309DDFA50028FFE5 /* SwiftSTEP */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftSTEP;
 		};
 		56BEE6ED30624B2000097010 /* Zip */ = {
 			isa = XCSwiftPackageProductDependency;

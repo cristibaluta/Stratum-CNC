@@ -9,8 +9,9 @@
 import Foundation
 import simd
 import StratumCAM
+import SwiftSTEP
 
-/// A STEP edge a toolpath cuts. Same identity as the viewer's `STEPEdgeID`, in a form
+/// A STEP edge a toolpath cuts. Same identity as the viewer's `STEP.EdgeID`, in a form
 /// that is saved with the toolpath. Stable as long as the source file is unchanged.
 struct STEPEdgeTarget: Codable, Hashable, Sendable {
     let importID: UUID
@@ -18,16 +19,16 @@ struct STEPEdgeTarget: Codable, Hashable, Sendable {
     let bodyEntityID: Int
     let edgeEntityID: Int
 
-    init(_ id: STEPEdgeID) {
+    init(_ id: STEP.EdgeID) {
         importID = id.importID
         representationID = id.bodyID.representationID
         bodyEntityID = id.bodyID.entityID
         edgeEntityID = id.entityID
     }
 
-    var edgeID: STEPEdgeID {
-        STEPEdgeID(importID: importID,
-                   bodyID: STEPBodyID(representationID: representationID, entityID: bodyEntityID),
+    var edgeID: STEP.EdgeID {
+        STEP.EdgeID(importID: importID,
+                    bodyID: STEP.BodyID(representationID: representationID, entityID: bodyEntityID),
                    entityID: edgeEntityID)
     }
 }
@@ -107,8 +108,8 @@ enum STEPContourBuilder {
 extension STEPDocumentScene {
 
     /// The sampled points of each wanted edge in canvas mm (the model's position applied).
-    func edgePoints(for ids: Set<STEPEdgeID>) -> [STEPEdgeID: [SIMD3<Float>]] {
-        var result: [STEPEdgeID: [SIMD3<Float>]] = [:]
+    func edgePoints(for ids: Set<STEP.EdgeID>) -> [STEP.EdgeID: [SIMD3<Float>]] {
+        var result: [STEP.EdgeID: [SIMD3<Float>]] = [:]
         for body in content.geometry.bodies {
             for edge in body.edges where ids.contains(edge.id) {
                 let raw = body.points[edge.vertices]

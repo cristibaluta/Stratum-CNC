@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftSTEP
 
 /// Floating panel over the CAM canvas while it is in 3D (STEP) mode. It used to
 /// be a full-screen view of its own; the canvas is now the shared one, and this
