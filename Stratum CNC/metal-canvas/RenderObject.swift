@@ -124,6 +124,11 @@ struct RenderObject: Identifiable {
     /// the GPU is concerned: an edge is only ever hidden by *another edge*
     /// landing on the same pixel, never by the surface it's actually behind.
     var occluderFaces: [SIMD3<Float>] = []
+    /// What `occluderFaces` hide. `.scene` (the default): any edge behind them, whoever's it is.
+    /// `.ownEdges`: only this object's own `points`. The stock uses it, so that a model sitting
+    /// inside the stock box is not hidden by the stock's faces, while the stock's own far edges
+    /// are still drawn dotted.
+    var occluderScope: OccluderScope = .scene
     /// Visible, lit, filled triangles (3 vertices per triangle) drawn in
     /// `color`. Independent of `points`: an object can carry lines, a solid,
     /// or both. Unlike `occluderFaces` these are actually drawn — see
@@ -132,6 +137,14 @@ struct RenderObject: Identifiable {
     /// How the portions of this object's lines that lie behind an occluder are drawn.
     /// Only meaningful with `occluderFaces`; the default keeps the per-role behaviour.
     var hiddenLineStyle: HiddenLineStyle = .roleDefault
+}
+
+/// Which edges an object's `occluderFaces` can hide.
+enum OccluderScope {
+    /// Every edge in the scene that lies behind them.
+    case scene
+    /// Only the object's own edges.
+    case ownEdges
 }
 
 /// What the renderer's hidden-line pass does with an object's occluded line portions.
@@ -237,7 +250,8 @@ extension RenderObject {
             c100, c110, c111,  c100, c111, c101,
         ]
 
-        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
+        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList,
+                            occluderFaces: occluderFaces, occluderScope: .ownEdges)
     }
 
     static func stockBox(for stock: StockMaterial, color: SIMD4<Float> = CanvasPalette.stock) -> RenderObject {
@@ -311,7 +325,8 @@ extension RenderObject {
             occluderFaces.append(t1)
         }
 
-        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
+        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList,
+                            occluderFaces: occluderFaces, occluderScope: .ownEdges)
     }
 
     /// Wireframe disk/washer (outer stock with a bored-out center, e.g. a
@@ -389,7 +404,8 @@ extension RenderObject {
             }
         }
 
-        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList, occluderFaces: occluderFaces)
+        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList,
+                            occluderFaces: occluderFaces, occluderScope: .ownEdges)
     }
 
     // MARK: Machine fixtures (static, flat)

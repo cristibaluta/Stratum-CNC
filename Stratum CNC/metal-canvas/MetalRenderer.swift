@@ -47,6 +47,8 @@ private struct RenderBatch {
     var hiddenLineStyle: HiddenLineStyle = .roleDefault
     /// Screen-space width in points; 0 = hairline (see `RenderObject.lineWidth`).
     var lineWidth: Float = 0
+    /// Which edges this batch's occluder faces hide (see `RenderObject.occluderScope`).
+    var occluderScope: OccluderScope = .scene
 }
 
 /// GPU-backed draw call for the heightmap surface — separate from
@@ -381,7 +383,8 @@ class MetalRenderer: NSObject {
                            solidVertexCount: solidBuffer == nil ? 0 : object.solidTriangles.count,
                            solidColor: object.color,
                            hiddenLineStyle: object.hiddenLineStyle,
-                           lineWidth: object.lineWidth)
+                           lineWidth: object.lineWidth,
+                           occluderScope: object.occluderScope)
     }
 
     /// Expands a `RenderObject`'s points into GPU vertices, accumulating
@@ -937,6 +940,28 @@ private extension MetalRenderer {
         // occluded edge.
         drawSolids(mvp: mvp, encoder: encoder)
 
+        // Edges are drawn in two groups, because an object's occluder faces may hide only its
+        // own edges (`OccluderScope.ownEdges`, the stock). The scene's group goes first and its
+        // edges are done; then the stock, whose faces land in the depth buffer only after the
+        // scene's edges were drawn, so they can no longer hide them.
+        let lineBatches = renderBatches.filter { $0.role != .modelSelection }
+        drawEdgePasses(lineBatches.filter { $0.occluderScope == .scene }, mvp: mvp, encoder: encoder)
+        drawEdgePasses(lineBatches.filter { $0.occluderScope == .ownEdges }, mvp: mvp, encoder: encoder)
+
+        // STEP uses all-edges selection: highlight even overlapping/rear edges.
+        // No depth writes, and no coplanar tie with the base line's .less test.
+        encoder.setDepthStencilState(depthStateOverlay)
+        for batch in renderBatches where batch.role == .modelSelection {
+            drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0, encoder: encoder)
+        }
+    }
+
+    /// The three passes of the hidden-line render for `batches`: occluder faces (depth only),
+    /// visible edges, then the hidden edges in the style each batch asks for. A later call sees
+    /// the depth the earlier ones left in the buffer.
+    private func drawEdgePasses(_ batches: [RenderBatch], mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+        guard !batches.isEmpty else { return }
+
         // Pass 0 — occluder faces. Depth-only, color writes off, drawn
         // before any edges so their surfaces are already in the depth
         // buffer when the edge passes run. A small depth bias pushes these
@@ -946,7 +971,7 @@ private extension MetalRenderer {
         encoder.setRenderPipelineState(depthOnlyPipelineState)
         encoder.setDepthStencilState(depthStateVisible)
         encoder.setDepthBias(occluderDepthBias, slopeScale: occluderDepthBiasSlope, clamp: 0)
-        for batch in renderBatches {
+        for batch in batches {
             guard let occluderBuffer = batch.occluderBuffer, batch.occluderVertexCount > 0 else {
                 continue
             }
@@ -962,7 +987,7 @@ private extension MetalRenderer {
         // Pass 1 — visible geometry. Normal depth test, writes depth, drawn
         // however each object specifies (solid, or its own dash pattern).
         encoder.setDepthStencilState(depthStateVisible)
-        for batch in renderBatches where batch.role != .modelSelection {
+        for batch in batches {
             drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0.0, encoder: encoder)
         }
 
@@ -974,7 +999,7 @@ private extension MetalRenderer {
         // behind the stock.
         if showHiddenLines {
             encoder.setDepthStencilState(depthStateHidden)
-            for batch in renderBatches where batch.role != .modelSelection {
+            for batch in batches {
                 let dash: Float
                 switch batch.hiddenLineStyle {
                     case .omitted:
@@ -996,12 +1021,6 @@ private extension MetalRenderer {
                 }
                 drawBatch(batch, mvp: mvp, dashLength: dash, encoder: encoder)
             }
-        }
-        // STEP uses all-edges selection: highlight even overlapping/rear edges.
-        // No depth writes, and no coplanar tie with the base line's .less test.
-        encoder.setDepthStencilState(depthStateOverlay)
-        for batch in renderBatches where batch.role == .modelSelection {
-            drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0, encoder: encoder)
         }
     }
 
