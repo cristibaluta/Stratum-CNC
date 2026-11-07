@@ -45,6 +45,8 @@ private struct RenderBatch {
     var solidColor: SIMD4<Float> = .zero
     /// What pass 2 does with this batch's occluded portions (see `RenderObject.hiddenLineStyle`).
     var hiddenLineStyle: HiddenLineStyle = .roleDefault
+    /// Screen-space width in points; 0 = hairline (see `RenderObject.lineWidth`).
+    var lineWidth: Float = 0
 }
 
 /// GPU-backed draw call for the heightmap surface — separate from
@@ -115,6 +117,13 @@ class MetalRenderer: NSObject {
     /// `pipelineState` with source-alpha blending, used only for hidden dotted edges so no other
     /// batch's color alpha changes meaning.
     private var blendedPipelineState: MTLRenderPipelineState!
+    /// Draws a `.lineList` buffer as screen-space quads, for lines wider than one pixel
+    /// (`RenderObject.lineWidth`). Reads the vertex buffer directly, so it has no vertex descriptor.
+    private var thickLinePipelineState: MTLRenderPipelineState?
+    /// Drawable size in pixels, and drawable pixels per point. Refreshed every frame in `draw(in:)`
+    /// for the thick-line shader, which sizes its quads in pixels.
+    private var viewportPixels: SIMD2<Float> = .zero
+    private var pixelScale: Float = 1
     /// Same shaders as `pipelineState`, but with color writes disabled.
     /// Used for the occluder-face pre-pass — it needs to affect the depth
     /// buffer only, never what's actually on screen.
@@ -371,7 +380,8 @@ class MetalRenderer: NSObject {
                            solidBuffer: solidBuffer,
                            solidVertexCount: solidBuffer == nil ? 0 : object.solidTriangles.count,
                            solidColor: object.color,
-                           hiddenLineStyle: object.hiddenLineStyle)
+                           hiddenLineStyle: object.hiddenLineStyle,
+                           lineWidth: object.lineWidth)
     }
 
     /// Expands a `RenderObject`'s points into GPU vertices, accumulating
@@ -449,6 +459,17 @@ class MetalRenderer: NSObject {
         depthOnlyDescriptor.rasterSampleCount = metalView.sampleCount
 
         depthOnlyPipelineState = try? device.makeRenderPipelineState(descriptor: depthOnlyDescriptor)
+
+        // Thick lines: same fragment shader (dashing included), own vertex shader.
+        if let thickVertexFunction = library.makeFunction(name: "vertex_thick") {
+            let thickDescriptor = MTLRenderPipelineDescriptor()
+            thickDescriptor.vertexFunction = thickVertexFunction
+            thickDescriptor.fragmentFunction = fragmentFunction
+            thickDescriptor.colorAttachments[0].pixelFormat = metalView.colorPixelFormat
+            thickDescriptor.depthAttachmentPixelFormat = metalView.depthStencilPixelFormat
+            thickDescriptor.rasterSampleCount = metalView.sampleCount
+            thickLinePipelineState = try? device.makeRenderPipelineState(descriptor: thickDescriptor)
+        }
     }
 
     /// Pipeline for the heightmap surface: color writes on (unlike
@@ -710,6 +731,24 @@ private extension MetalRenderer {
         var uniforms = Uniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role), dashLength: dashLength,
                                offset: drawOffset(for: batch.role), alpha: alpha)
 
+        // Wide lines: one quad (6 vertices) per segment instead of a 1px hardware line. Here
+        // `dashLength` is in points on screen, not model units. Only for line lists, where
+        // every pair of vertices is one segment.
+        if batch.lineWidth > 0, batch.primitiveType == .line, let thickLinePipelineState {
+            uniforms.viewport = viewportPixels
+            uniforms.lineWidth = batch.lineWidth * pixelScale
+            uniforms.dashLength = dashLength * pixelScale
+            encoder.setRenderPipelineState(thickLinePipelineState)
+            // The quads' winding depends on the view; none of them may be culled.
+            encoder.setCullMode(.none)
+            encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+            encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+            encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
+            encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: batch.drawVertexCount / 2 * 6)
+            encoder.setRenderPipelineState(pipelineState)
+            return
+        }
+
         // Bind uniforms to Vertex Shader (buffer index 1)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
 
@@ -849,6 +888,8 @@ extension MetalRenderer: MTKViewDelegate {
 
         guard view.drawableSize.width > 0, view.drawableSize.height > 0 else { return }
         camera.aspectRatio = Float(view.drawableSize.width / view.drawableSize.height)
+        viewportPixels = SIMD2<Float>(Float(view.drawableSize.width), Float(view.drawableSize.height))
+        pixelScale = view.bounds.width > 0 ? Float(view.drawableSize.width / view.bounds.width) : 1
         attemptInitialFit(viewSize: view.drawableSize)
 
         guard let descriptor = view.currentRenderPassDescriptor,

@@ -21,6 +21,10 @@ struct Uniforms {
     /// Multiplies the fragment alpha. Only has a visible effect on a pipeline with blending
     /// on (`MetalRenderer.blendedPipelineState`); 1 everywhere else.
     var alpha: Float = 1
+    /// Drawable size in pixels. Only read by the thick-line shader (`vertex_thick`).
+    var viewport: SIMD2<Float> = .zero
+    /// Line width in drawable pixels. Only read by `vertex_thick`; 0 everywhere else.
+    var lineWidth: Float = 0
 }
 
 class Camera {

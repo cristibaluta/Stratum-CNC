@@ -1,5 +1,5 @@
 //
-//  VertexOut.swift
+//  Shaders.metal
 //  Stratum CNC
 //
 //  Created by Cristian Baluta on 20.08.2026.
@@ -18,6 +18,9 @@ struct Uniforms {
     float2 offset;
     // Multiplies the fragment alpha (hidden dotted edges are drawn at 0.5).
     float alpha;
+    // Drawable size in pixels and line width in pixels. Only `vertex_thick` reads these.
+    float2 viewport;
+    float lineWidth;
 };
 
 struct VertexInput {
@@ -50,6 +53,66 @@ fragment float4 fragment_main(VertexOutput in [[stage_in]], constant Uniforms& u
         }
     }
     return float4(in.color.rgb, in.color.a * uniforms.alpha);
+}
+
+// MARK: - Thick lines
+//
+// Metal draws lines one pixel wide, so a wider line is built from a quad per segment. Draws a
+// `.lineList` buffer as triangles: 6 vertices per segment, read straight from the same
+// `RenderVertex` buffer the hairline path uses (no vertex descriptor). The quad is widened in
+// screen space, so the width stays constant in pixels at any zoom, and each end is pushed out
+// by half a width (square cap) so segments of a tessellated curve join without gaps.
+// `dist` leaves here in screen pixels, so `fragment_main`'s dashing gives dots that keep their
+// size on screen.
+
+struct RawVertex {
+    float3 position;
+    float4 color;
+    float  dist;
+};
+
+vertex VertexOutput vertex_thick(uint vid [[vertex_id]],
+                                 const device RawVertex* vertices [[buffer(0)]],
+                                 constant Uniforms& uniforms [[buffer(1)]]) {
+    uint segment = vid / 6;
+    uint corner = vid % 6;
+    // Two triangles per segment: (a-, a+, b-) and (b-, a+, b+).
+    bool atEnd = (corner == 2 || corner == 3 || corner == 5);
+    float side = (corner == 1 || corner == 4 || corner == 5) ? 1.0 : -1.0;
+
+    RawVertex a = vertices[segment * 2];
+    RawVertex b = vertices[segment * 2 + 1];
+
+    float4 clipA = uniforms.modelViewProjectionMatrix * float4(a.position + float3(uniforms.offset, 0.0), 1.0);
+    float4 clipB = uniforms.modelViewProjectionMatrix * float4(b.position + float3(uniforms.offset, 0.0), 1.0);
+
+    float2 halfViewport = uniforms.viewport * 0.5;
+    float2 screenA = clipA.xy / clipA.w * halfViewport;
+    float2 screenB = clipB.xy / clipB.w * halfViewport;
+
+    float2 delta = screenB - screenA;
+    float screenLength = length(delta);
+    float2 direction = screenLength > 1e-4 ? delta / screenLength : float2(1.0, 0.0);
+    float2 normal = float2(-direction.y, direction.x);
+
+    float halfWidth = uniforms.lineWidth * 0.5;
+    float along = atEnd ? halfWidth : -halfWidth;
+    float2 pixelOffset = normal * side * halfWidth + direction * along;
+
+    float4 clip = atEnd ? clipB : clipA;
+    clip.xy += pixelOffset / halfViewport * clip.w;
+
+    // Path distance in model units -> pixels, using this segment's own scale. The projection is
+    // orthographic, so that scale is the same all along an edge and the pattern runs on
+    // unbroken across its segments.
+    float worldLength = length(b.position - a.position);
+    float pixelsPerUnit = worldLength > 1e-6 ? screenLength / worldLength : 0.0;
+
+    VertexOutput out;
+    out.position = clip;
+    out.color = atEnd ? b.color : a.color;
+    out.dist = (atEnd ? b.dist : a.dist) * pixelsPerUnit + along;
+    return out;
 }
 
 // MARK: - Heightmap (2.5D stock preview)

@@ -101,6 +101,11 @@ struct RenderObject: Identifiable {
     var primitive: RenderPrimitive = .lineStrip
     var isDashed: Bool = false
     var dashLength: Float = 5.0
+    /// Screen-space line width in points. 0 (the default) draws the usual 1px hairline.
+    /// Above 0 the lines are drawn as camera-facing quads (Metal has no wide lines), which
+    /// is only supported for `.lineList` objects. In that mode `dashLength` is in *points on
+    /// screen* rather than model units, so the dots keep their size at any zoom.
+    var lineWidth: Float = 0
     /// Caps how many of `points` the renderer should actually draw, without
     /// touching `points` itself. `nil` draws everything.
     ///

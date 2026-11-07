@@ -331,6 +331,10 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     private static let projectionColor = SIMD4<Float>(0.15, 0.45, 1.0, 1)
     /// Dash and gap length (mm) of the projection lines: a fine dotted line.
     private static let projectionDash: Float = 0.5
+    /// The selected edges: a thick dotted line. Width and dot size are screen points, so they stay
+    /// the same at any zoom (see `RenderObject.lineWidth`).
+    private static let selectionLineWidth: Float = 3
+    private static let selectionDash: Float = 4
 
     private func rebuildHighlight() {
         var points: [SIMD3<Float>] = []
@@ -378,7 +382,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         }
         if !points.isEmpty {
             objects.append(RenderObject(role: .modelSelection, points: points,
-                                        color: CanvasPalette.modelSelection, primitive: .lineList))
+                                        color: CanvasPalette.modelSelection, primitive: .lineList,
+                                        isDashed: true, dashLength: Self.selectionDash,
+                                        lineWidth: Self.selectionLineWidth))
         }
         selectionObjects = objects
         selectionZRange = points.isEmpty ? nil : zMin...zMax
