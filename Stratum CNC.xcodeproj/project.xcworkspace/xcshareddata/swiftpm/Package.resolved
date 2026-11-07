@@ -37,51 +37,6 @@
       }
     },
     {
-      "identity" : "nodal",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tomasf/Nodal.git",
-      "state" : {
-        "revision" : "0ec74822bcf604f2e20d445e1e62e5e87abf8a3f",
-        "version" : "1.0.2"
-      }
-    },
-    {
-      "identity" : "occtswift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SecondMouseAU/OCCTSwift.git",
-      "state" : {
-        "revision" : "0c9f9274e4ff2a4fd422291a45b3560161dbbe64",
-        "version" : "3.0.0"
-      }
-    },
-    {
-      "identity" : "occtswiftio",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SecondMouseAU/OCCTSwiftIO.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "362fd5d37d3d04d2474e16f6732589474e25c3c8"
-      }
-    },
-    {
-      "identity" : "occtswifttools",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SecondMouseAU/OCCTSwiftTools.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "0bb8512ea8561b8905013ec8dace4ba46691fb15"
-      }
-    },
-    {
-      "identity" : "occtswiftviewport",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SecondMouseAU/OCCTSwiftViewport.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "63263448df9b54447bb9bcbbd62aad809493ccef"
-      }
-    },
-    {
       "identity" : "pocketsvg",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pocketsvg/PocketSVG.git",
@@ -97,51 +52,6 @@
       "state" : {
         "revision" : "8419e9aade961cc973bd642e0312e5cd173a87ae",
         "version" : "0.2.1"
-      }
-    },
-    {
-      "identity" : "swiftgltf",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/schwa/SwiftGLTF.git",
-      "state" : {
-        "revision" : "e17b478ca157733543a7cf9da370d34dbabc9236",
-        "version" : "1.0.2"
-      }
-    },
-    {
-      "identity" : "swiftjww",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SecondMouseAU/SwiftJWW.git",
-      "state" : {
-        "revision" : "f41e6be050545f43184a6708b03cb1e9e7be9e63",
-        "version" : "1.2.2"
-      }
-    },
-    {
-      "identity" : "swiftpmx",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SecondMouseAU/SwiftPMX.git",
-      "state" : {
-        "revision" : "c19be503b765c0fd385be5d04fda5699f858fad3",
-        "version" : "1.1.1"
-      }
-    },
-    {
-      "identity" : "swiftx",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SecondMouseAU/SwiftX.git",
-      "state" : {
-        "revision" : "34660dd6ecd1573a2c2419d6b0dea26b4ca1e617",
-        "version" : "1.0.1"
-      }
-    },
-    {
-      "identity" : "threemf",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tomasf/ThreeMF.git",
-      "state" : {
-        "revision" : "15765bd9e3859e2884385a79e6d2e34686b42fb1",
-        "version" : "0.2.5"
       }
     },
     {

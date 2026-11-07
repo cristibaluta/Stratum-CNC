@@ -256,7 +256,9 @@ private struct STEPAddToolpathTooltipLayer: View {
         GeometryReader { proxy in
             let count = scene.selectedEdges.count
             if count > 0, let anchor = anchor(in: proxy.size) {
-                AddToolpathTooltip(shapeCount: count, noun: "edge", onAdd: onAdd)
+                AddToolpathTooltip(shapeCount: count, noun: "edge", onAdd: onAdd,
+                                   onSelectLinked: scene.canSelectLinkedInPlane
+                                       ? { scene.selectLinkedEdgesInPlane() } : nil)
                     .fixedSize()
                     .frame(width: 0, height: 0, alignment: .bottom)
                     .position(anchor)
@@ -361,6 +363,9 @@ private struct AddToolpathTooltip: View {
     let shapeCount: Int
     var noun = "shape"
     let onAdd: () -> Void
+    /// When set, a secondary button next to "Add toolpath" (STEP edges: select the connected
+    /// edges in the same plane).
+    var onSelectLinked: (() -> Void)? = nil
 
     private static let arrowSize = CGSize(width: 16, height: 8)
 
@@ -369,6 +374,14 @@ private struct AddToolpathTooltip: View {
             Text(shapeCount == 1 ? "1 \(noun) selected" : "\(shapeCount) \(noun)s selected")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+            if let onSelectLinked {
+                Button(action: onSelectLinked) {
+                    Label("Select linked in plane", systemImage: "square.dashed")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Also select every edge connected to the selection that lies in the same plane")
+            }
             Button(action: onAdd) {
                 Label("Add toolpath", systemImage: "plus")
             }

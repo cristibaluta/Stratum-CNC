@@ -309,8 +309,26 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         setSelection([], notify: true)
     }
 
+    /// The plane every selected edge lies in, if there is one (see `STEPDisplayGeometry.plane`).
+    /// Kept up to date by `setSelection` so views can read it every frame without recomputing.
+    private(set) var selectionPlane: STEPDisplayGeometry.Plane?
+
+    /// "Select linked in plane" has something to work from.
+    var canSelectLinkedInPlane: Bool { selectionPlane != nil }
+
+    /// Adds every edge connected to the selection that lies in the same plane, e.g. the whole
+    /// outline of a face, or of a pocket floor, from one clicked edge.
+    func selectLinkedEdgesInPlane() {
+        guard isModelVisible, let plane = selectionPlane else { return }
+        let linked = content.geometry.linkedEdges(startingFrom: selectedEdges, in: plane,
+                                                  hiddenBodies: hiddenBodies)
+        guard linked != selectedEdges else { return }
+        setSelection(linked, notify: true)
+    }
+
     private func setSelection(_ edges: Set<STEP.EdgeID>, notify: Bool) {
         selectedEdges = edges
+        selectionPlane = edges.isEmpty ? nil : content.geometry.plane(containing: edges)
         rebuildHighlight()
         if notify { onSelectionChanged?(edges) }
     }

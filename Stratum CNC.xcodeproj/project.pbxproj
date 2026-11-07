@@ -199,10 +199,6 @@
 			mainGroup = 56CEA04430356265008167CA;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				56CEA0903035EC36008167CA /* XCRemoteSwiftPackageReference "OCCTSwift" */,
-				5679E7B230389CC800B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftIO" */,
-				5679E7B730389D8B00B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftViewport" */,
-				5679E7BA30389DE400B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftTools" */,
 				5679E83D303C292E00B08A35 /* XCRemoteSwiftPackageReference "PocketSVG" */,
 				6D0235C7304D268A004AE6F8 /* XCRemoteSwiftPackageReference "SwiftDXF" */,
 				560F75733052662B0017EE04 /* XCRemoteSwiftPackageReference "iOverlay" */,
@@ -546,30 +542,6 @@
 				minimumVersion = 1.22.0;
 			};
 		};
-		5679E7B230389CC800B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftIO" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/SecondMouseAU/OCCTSwiftIO.git";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-		5679E7B730389D8B00B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftViewport" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/SecondMouseAU/OCCTSwiftViewport.git";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-		5679E7BA30389DE400B08A35 /* XCRemoteSwiftPackageReference "OCCTSwiftTools" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/SecondMouseAU/OCCTSwiftTools.git";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 		5679E83D303C292E00B08A35 /* XCRemoteSwiftPackageReference "PocketSVG" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pocketsvg/PocketSVG.git";
@@ -584,14 +556,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.1.2;
-			};
-		};
-		56CEA0903035EC36008167CA /* XCRemoteSwiftPackageReference "OCCTSwift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/SecondMouseAU/OCCTSwift.git";
-			requirement = {
-				kind = exactVersion;
-				version = 3.0.0;
 			};
 		};
 		6D0235C7304D268A004AE6F8 /* XCRemoteSwiftPackageReference "SwiftDXF" */ = {
