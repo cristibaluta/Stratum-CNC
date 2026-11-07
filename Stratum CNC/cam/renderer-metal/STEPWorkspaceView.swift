@@ -191,39 +191,7 @@ struct STEPDisplayOptionsButton: View {
         .buttonStyle(.bordered)
         .help("Display options")
         .popover(isPresented: $isPresented, arrowEdge: .top) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Display").font(.headline)
-                Picker("Display", selection: $scene.displayMode) {
-                    ForEach(STEPDisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .disabled(!scene.canShade || !scene.isModelVisible)
-                if let reason = scene.shadedUnavailableReason {
-                    Text(reason).font(.caption).foregroundStyle(.secondary)
-                } else if scene.displayMode == .shaded {
-                    Text("Edges are hidden, so there is nothing to select yet. Use Shaded + edges to pick.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-
-                Text("Hidden edges").font(.subheadline)
-                Picker("Hidden edges", selection: $scene.hiddenEdgeMode) {
-                    ForEach(STEPHiddenEdgeMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .disabled(!scene.hasSurfaces || !scene.isModelVisible || scene.displayMode == .shaded)
-                if scene.hasSurfaces, scene.content.surfaces.unsurfacedBodies.isEmpty == false {
-                    Text("Bodies with unsupported faces keep solid edges.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .padding(12)
-            .frame(width: 300)
+            STEPDisplayOptionsView(scene: scene)
         }
     }
 }
