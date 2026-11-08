@@ -355,7 +355,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         let matrix = matrix * Self.translation(offset)
         let placement = content.placement
 
-        var best: (body: STEP.BodyID, positions: [SIMD3<Float>], indices: [Int], triangle: Int, depth: Float)?
+        var best: (body: STEP.BodyID, positions: [SIMD3<Float>], indices: [Int], triangle: Int, depth: Float,
+                   outward: SIMD3<Float>?)?
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
             guard let mesh = content.surfaces.mesh(for: body.id) else { continue }
             let positions = mesh.positions.map { placement.isIdentity ? $0 : placement.point($0) }
@@ -363,11 +364,17 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             guard let hit = STEPFacePicker.pickTriangle(positions: positions, indices: indices, at: point,
                                                         viewport: viewport, matrix: matrix),
                   hit.depth < (best?.depth ?? .infinity) else { continue }
-            best = (body.id, positions, indices, hit.triangle, hit.depth)
+            // The way the face looks out of the solid, from the mesh's own shading normals.
+            // Used to tell bosses (walls rising off the face) from holes (walls dropping into it).
+            var normal = SIMD3<Float>.zero
+            for corner in 0..<3 { normal += placement.direction(mesh.normals[Int(indices[3 * hit.triangle + corner])]) }
+            let outward: SIMD3<Float>? = simd_length(normal) > 1e-6 ? simd_normalize(normal) : nil
+            best = (body.id, positions, indices, hit.triangle, hit.depth, outward)
         }
         guard let best,
               let region = STEPFacePicker.flatRegion(positions: best.positions, indices: best.indices,
-                                                     triangle: best.triangle) else { return nil }
+                                                     triangle: best.triangle,
+                                                     outward: best.outward) else { return nil }
         let edges = content.geometry.edges(onBoundaryOf: region, in: best.body)
         return edges.isEmpty ? nil : edges
     }

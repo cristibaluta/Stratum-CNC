@@ -6,6 +6,7 @@
 //  from the surface mesh: the triangle under the cursor, the flat patch of connected coplanar
 //  triangles around it, and the outline of that patch (its outer loop and the loops of any
 //  holes or islands). The STEP edges that run along that outline are the face's edges.
+//  The outer contour and bosses (islands whose walls rise off the face) are kept; holes are not.
 //
 //  Flat faces only. A hole or a round wall is picked through its circle or its edges.
 //
@@ -86,7 +87,12 @@ enum STEPFacePicker {
     /// The flat face `triangle` is part of: every triangle in its plane that can be reached from
     /// it through shared edges, and the segments that have a triangle of the patch on one side only.
     /// `nil` if that triangle has no area.
-    static func flatRegion(positions: [SIMD3<Float>], indices: [Int], triangle: Int) -> Region? {
+    ///
+    /// With `outward` (the direction the face looks out of the solid), the outline is the outer
+    /// contour plus the bosses (islands whose walls rise away from the face). Holes, whose walls
+    /// drop into the material, are left out.
+    static func flatRegion(positions: [SIMD3<Float>], indices: [Int], triangle: Int,
+                           outward: SIMD3<Float>? = nil) -> Region? {
         func corners(_ t: Int) -> (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>) {
             (positions[indices[3 * t]], positions[indices[3 * t + 1]], positions[indices[3 * t + 2]])
         }
@@ -94,7 +100,9 @@ enum STEPFacePicker {
         let cross = simd_cross(b - a, c - a)
         let area = simd_length(cross)
         guard area > 1e-9 else { return nil }
-        let plane = STEPDisplayGeometry.Plane(origin: a, normal: cross / area)
+        var normal = cross / area
+        if let outward, simd_dot(normal, outward) < 0 { normal = -normal }
+        let plane = STEPDisplayGeometry.Plane(origin: a, normal: normal)
 
         // Triangles in the same plane (either way up) that have an area.
         var edgeToTriangles: [EdgeKey: [Int]] = [:]
@@ -130,11 +138,77 @@ enum STEPFacePicker {
         }
 
         // Its outline: the segments only one triangle of the patch has.
-        var boundary: [(SIMD3<Float>, SIMD3<Float>)] = []
+        var outline: [OutlineSegment] = []
         for (edge, triangles) in edgeToTriangles where triangles.count == 1 && inRegion.contains(triangles[0]) {
-            if let segment = segments[edge] { boundary.append(segment) }
+            if let segment = segments[edge] { outline.append(OutlineSegment(edge: edge, segment: segment)) }
         }
-        return boundary.isEmpty ? nil : Region(plane: plane, boundary: boundary)
+        if outward != nil {
+            outline = withoutHoles(outline, plane: plane, region: inRegion, positions: positions, indices: indices)
+        }
+        return outline.isEmpty ? nil : Region(plane: plane, boundary: outline.map(\.segment))
+    }
+
+    private struct OutlineSegment {
+        let edge: EdgeKey
+        let segment: (SIMD3<Float>, SIMD3<Float>)
+    }
+
+    /// `outline` without the loops that are holes. The segments are joined into loops through
+    /// their shared vertices; the loop with the widest extent is the face's outer contour and is
+    /// always kept. Any other loop is a hole when the mesh beside it, outside the face, lies on
+    /// the inward side of `plane`, and a boss when it lies on the outward side. Only loops
+    /// confirmed as holes are dropped; when that can't be told the loop is kept.
+    private static func withoutHoles(_ outline: [OutlineSegment], plane: STEPDisplayGeometry.Plane,
+                                     region: Set<Int>, positions: [SIMD3<Float>],
+                                     indices: [Int]) -> [OutlineSegment] {
+        // Loops: union-find over the segments' vertices.
+        var parent: [Key: Key] = [:]
+        func find(_ k: Key) -> Key {
+            var root = k
+            while let p = parent[root], p != root { root = p }
+            var node = k
+            while let p = parent[node], p != root { parent[node] = root; node = p }
+            return root
+        }
+        for item in outline {
+            for k in [item.edge.a, item.edge.b] where parent[k] == nil { parent[k] = k }
+            let ra = find(item.edge.a), rb = find(item.edge.b)
+            if ra != rb { parent[ra] = rb }
+        }
+
+        var loopOf: [EdgeKey: Key] = [:]
+        var extent: [Key: (low: SIMD3<Float>, high: SIMD3<Float>)] = [:]
+        for item in outline {
+            let loop = find(item.edge.a)
+            loopOf[item.edge] = loop
+            var box = extent[loop] ?? (SIMD3<Float>(repeating: .infinity), SIMD3<Float>(repeating: -.infinity))
+            box.low = simd_min(box.low, simd_min(item.segment.0, item.segment.1))
+            box.high = simd_max(box.high, simd_max(item.segment.0, item.segment.1))
+            extent[loop] = box
+        }
+        guard extent.count > 1,
+              let outer = extent.max(by: { simd_length($0.value.high - $0.value.low) < simd_length($1.value.high - $1.value.low) })?.key
+        else { return outline }
+
+        // Which side of the face does the mesh beside each loop go to?
+        var votes: [Key: (up: Int, down: Int)] = [:]
+        for t in 0..<(indices.count / 3) where !region.contains(t) {
+            let corner = [positions[indices[3 * t]], positions[indices[3 * t + 1]], positions[indices[3 * t + 2]]]
+            for i in 0..<3 {
+                let ku = key(corner[i]), kv = key(corner[(i + 1) % 3])
+                guard ku != kv else { continue }
+                guard let loop = loopOf[EdgeKey(a: min(ku, kv), b: max(ku, kv))], loop != outer else { continue }
+                let height = simd_dot(plane.normal, corner[(i + 2) % 3] - plane.origin)
+                if height > planeTolerance {
+                    votes[loop, default: (up: 0, down: 0)].up += 1
+                } else if height < -planeTolerance {
+                    votes[loop, default: (up: 0, down: 0)].down += 1
+                }
+            }
+        }
+
+        let holes = Set(votes.filter { $0.value.down > $0.value.up }.keys)
+        return outline.filter { !holes.contains(loopOf[$0.edge] ?? outer) }
     }
 }
 
