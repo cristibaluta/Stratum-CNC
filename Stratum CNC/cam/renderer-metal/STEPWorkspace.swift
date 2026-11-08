@@ -340,11 +340,49 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     func edge(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> STEP.EdgeID? {
         // The geometry is stored at the origin; the matrix the canvas hands over
         // sees it moved, so move it back into place first.
-        // Faces cannot be picked yet, and edges that are not drawn must not be either.
+        // Edges that are not drawn must not be picked either.
         isModelVisible && displayMode != .shaded
             ? content.geometry.hitTest(at: point, viewport: viewport, matrix: matrix * Self.translation(offset),
                                        hiddenBodies: hiddenBodies)
             : nil
+    }
+
+    /// The edges around the flat face under `point`, if there is one: the nearest triangle of the
+    /// shaded model there, the flat patch around it, and the edges along that patch's outline
+    /// (see `STEPFacePicker`). Only while the faces are drawn with their edges.
+    func faceEdges(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> Set<STEP.EdgeID>? {
+        guard isModelVisible, displayMode == .shadedEdges else { return nil }
+        let matrix = matrix * Self.translation(offset)
+        let placement = content.placement
+
+        var best: (body: STEP.BodyID, positions: [SIMD3<Float>], indices: [Int], triangle: Int, depth: Float)?
+        for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
+            guard let mesh = content.surfaces.mesh(for: body.id) else { continue }
+            let positions = mesh.positions.map { placement.isIdentity ? $0 : placement.point($0) }
+            let indices = mesh.indices.map { Int($0) }
+            guard let hit = STEPFacePicker.pickTriangle(positions: positions, indices: indices, at: point,
+                                                        viewport: viewport, matrix: matrix),
+                  hit.depth < (best?.depth ?? .infinity) else { continue }
+            best = (body.id, positions, indices, hit.triangle, hit.depth)
+        }
+        guard let best,
+              let region = STEPFacePicker.flatRegion(positions: best.positions, indices: best.indices,
+                                                     triangle: best.triangle) else { return nil }
+        let edges = content.geometry.edges(onBoundaryOf: region, in: best.body)
+        return edges.isEmpty ? nil : edges
+    }
+
+    /// A click on a face: its edges become the selection. Extending (Shift or Cmd, or the picks
+    /// of an open toolpath) adds them, or takes them out again when they were all selected.
+    func selectFace(_ edges: Set<STEP.EdgeID>, extend: Bool) {
+        guard isModelVisible else { return }
+        var selection = selectedEdges
+        if extend || isPicking {
+            if edges.isSubset(of: selection) { selection.subtract(edges) } else { selection.formUnion(edges) }
+        } else {
+            selection = edges
+        }
+        setSelection(selection, notify: true)
     }
 
     func select(_ id: STEP.EdgeID?, extend: Bool) {

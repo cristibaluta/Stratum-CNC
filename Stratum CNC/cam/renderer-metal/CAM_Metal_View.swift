@@ -162,7 +162,8 @@ struct CAM_Metal_View: View {
     }
 
     /// Resolves a click on the canvas: a flat shape wins (it lies on the stock's top face, in
-    /// front of the model's edges), then a STEP edge, then empty space. Shapes and edges are never
+    /// front of the model's edges), then a STEP edge, then a flat face of the shaded model (its
+    /// edges), then empty space. Shapes and edges are never
     /// selected together, except as the picks of an open toolpath.
     static func route(_ click: CanvasClick, shapes: CAMCanvasInteraction, step: STEPDocumentScene?,
                       onEmptyClick: () -> Void = {}) {
@@ -176,6 +177,11 @@ struct CAM_Metal_View: View {
         }
         if let step, let edge = step.edge(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
             step.select(edge, extend: extend)
+            if !picking { shapes.clearSelection() }
+            return
+        }
+        if let step, let edges = step.faceEdges(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
+            step.selectFace(edges, extend: extend)
             if !picking { shapes.clearSelection() }
             return
         }
