@@ -159,7 +159,8 @@ extension STEPWorkspace {
 
     /// End Z for a toolpath cutting these edges: the distance from z0 down to the edges,
     /// the shortest one when they are at different heights. An edge's height is the mean Z
-    /// of its points; edges at or above z0 have no depth to cut and are ignored.
+    /// of its points; edges at or above z0 have no depth to cut and are ignored. The circle
+    /// at the top of a hole counts as the circle at its bottom, so a hole is cut to its depth.
     /// `nil` when none of them is below z0.
     /// - Parameter frame: the setup the toolpath is cut in: depth is measured from that setup's z0.
     func suggestedEndZ(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity) -> Double? {
@@ -167,7 +168,9 @@ extension STEPWorkspace {
         for importID in importIDs(in: targets) {
             guard let scene = documents[importID] else { continue }
             let ids = Set(targets.filter { $0.importID == importID }.map(\.edgeID))
-            for points in scene.edgePoints(for: ids).values where !points.isEmpty {
+            let bottoms = scene.content.geometry.holeBottoms(of: ids)
+            let cut = Set(ids.map { bottoms[$0] ?? $0 })
+            for points in scene.edgePoints(for: cut).values where !points.isEmpty {
                 let meanZ = points.reduce(0.0) { sum, point in
                     sum + frame.map(SIMD3<Double>(Double(point.x), Double(point.y), Double(point.z))).z
                 } / Double(points.count)

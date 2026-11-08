@@ -414,6 +414,23 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// "Select linked in plane" has something to work from.
     var canSelectLinkedInPlane: Bool { selectionPlane != nil }
 
+    /// "Select similar" has something to work from: the selection is circles lying flat, the
+    /// rims of holes.
+    var canSelectSimilarHoles: Bool {
+        !selectionMeasures.isEmpty && selectionMeasures.allSatisfy {
+            $0.kind == .circle && abs($0.normal?.z ?? 0) > 0.9999
+        }
+    }
+
+    /// Adds the holes like the selected ones: the same diameter and depth. A hole's top circle
+    /// finds the other holes' top circles, so each hole is selected once.
+    func selectSimilarHoles() {
+        guard isModelVisible, canSelectSimilarHoles else { return }
+        let similar = content.geometry.similarHoles(to: selectedEdges, hiddenBodies: hiddenBodies)
+        guard !similar.isEmpty else { return }
+        setSelection(selectedEdges.union(similar), notify: true)
+    }
+
     /// Adds every edge connected to the selection that lies in the same plane, e.g. the whole
     /// outline of a face, or of a pocket floor, from one clicked edge.
     func selectLinkedEdgesInPlane() {

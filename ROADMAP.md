@@ -8,6 +8,8 @@ Features not in the app yet. Each builds on something that already exists.
   - Done: flat faces. In Shaded + edges, a click on a flat face selects its outline (outer loop and holes/islands).
   - Still to do: round faces (a click inside a hole or on a cylinder wall), and features such as pockets and bosses.
 - **Hole detection.** Find all the circles of the same diameter and depth, then offer drilling, peck drilling, or helical milling of the group. This pairs well with the new circle and arc measurements.
+  - Done: "Select similar" on a selected hole circle (same diameter and depth, one circle per hole), and End Z suggested from the hole's depth. Drilling and peck drilling already exist as operations.
+  - Still to do: helical milling as an operation, offering the operation from the selection (e.g. a "Drill holes" shortcut), circles split into two arcs, holes along other axes.
 - **Automatic machinable regions.** Detect pockets and the stock exterior from the model, which fits the probing goal of telling stock exterior from pocket interior.
 
 ## Checking before cutting

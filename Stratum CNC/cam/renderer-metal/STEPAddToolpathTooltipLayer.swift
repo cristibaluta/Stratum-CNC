@@ -22,7 +22,7 @@ struct STEPAddToolpathTooltipLayer: View {
     private static let gap: CGFloat = 6
     private static let minAnchorY: CGFloat = 56
     /// Half the callout's width or more, so it is never cut off at the sides of the canvas.
-    private static let horizontalMargin: CGFloat = 170
+    private static let horizontalMargin: CGFloat = 220
 
     var body: some View {
         let _ = frameTick
@@ -30,8 +30,10 @@ struct STEPAddToolpathTooltipLayer: View {
             if !scene.selectedEdges.isEmpty, let anchor = anchor(in: proxy.size) {
                 STEPSelectionCallout(summary: Self.summary(for: scene),
                                      canSelectLinked: scene.canSelectLinkedInPlane,
+                                     canSelectSimilar: scene.canSelectSimilarHoles,
                                      canAdd: canAdd,
                                      onSelectLinked: { scene.selectLinkedEdgesInPlane() },
+                                     onSelectSimilar: { scene.selectSimilarHoles() },
                                      onAdd: onAdd)
                     .fixedSize()
                     .frame(width: 0, height: 0, alignment: .bottom)
@@ -102,8 +104,10 @@ private struct STEPSelectionCallout: View {
 
     let summary: String
     let canSelectLinked: Bool
+    let canSelectSimilar: Bool
     let canAdd: Bool
     let onSelectLinked: () -> Void
+    let onSelectSimilar: () -> Void
     let onAdd: () -> Void
 
     private static let arrowSize = CGSize(width: 16, height: 8)
@@ -119,6 +123,14 @@ private struct STEPSelectionCallout: View {
                 .help(canSelectLinked
                       ? "Also select every edge connected to the selection that lies in the same plane"
                       : "Needs edges that lie in one plane: select a curve, or two edges that are not in line")
+                Button(action: onSelectSimilar) {
+                    Label("Select similar", systemImage: "circle.grid.2x2")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canSelectSimilar)
+                .help(canSelectSimilar
+                      ? "Also select the holes with the same diameter and depth as the selected ones"
+                      : "Select a hole's circle to find the holes like it")
                 Button(action: onAdd) {
                     Label("Add toolpath", systemImage: "plus")
                 }
@@ -148,41 +160,6 @@ private struct STEPSelectionCallout: View {
             CalloutShape(arrowSize: Self.arrowSize)
                 .stroke(.separator)
         }
-    }
-}
-
-/// A rounded rectangle with a downward arrow centered on its bottom edge, as one
-/// outline so the fill and the stroke have no seam where the arrow joins.
-private struct CalloutShape: Shape {
-
-    var cornerRadius: CGFloat = 10
-    let arrowSize: CGSize
-
-    func path(in rect: CGRect) -> Path {
-        let r = cornerRadius
-        let bottom = rect.maxY - arrowSize.height
-        let midX = rect.midX
-
-        var p = Path()
-        p.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
-        p.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY),
-                 tangent2End: CGPoint(x: rect.maxX, y: rect.minY + r), radius: r)
-        p.addLine(to: CGPoint(x: rect.maxX, y: bottom - r))
-        p.addArc(tangent1End: CGPoint(x: rect.maxX, y: bottom),
-                 tangent2End: CGPoint(x: rect.maxX - r, y: bottom), radius: r)
-        // The arrow
-        p.addLine(to: CGPoint(x: midX + arrowSize.width / 2, y: bottom))
-        p.addLine(to: CGPoint(x: midX, y: rect.maxY))
-        p.addLine(to: CGPoint(x: midX - arrowSize.width / 2, y: bottom))
-        p.addLine(to: CGPoint(x: rect.minX + r, y: bottom))
-        p.addArc(tangent1End: CGPoint(x: rect.minX, y: bottom),
-                 tangent2End: CGPoint(x: rect.minX, y: bottom - r), radius: r)
-        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
-        p.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY),
-                 tangent2End: CGPoint(x: rect.minX + r, y: rect.minY), radius: r)
-        p.closeSubpath()
-        return p
     }
 }
 
@@ -247,7 +224,7 @@ struct AddToolpathTooltipLayer: View {
     }
 }
 
-private struct AddToolpathTooltip: View {
+struct AddToolpathTooltip: View {
 
     let shapeCount: Int
     var noun = "shape"
@@ -278,5 +255,40 @@ private struct AddToolpathTooltip: View {
             CalloutShape(arrowSize: Self.arrowSize)
                 .stroke(.separator)
         }
+    }
+}
+
+/// A rounded rectangle with a downward arrow centered on its bottom edge, as one
+/// outline so the fill and the stroke have no seam where the arrow joins.
+private struct CalloutShape: Shape {
+
+    var cornerRadius: CGFloat = 10
+    let arrowSize: CGSize
+
+    func path(in rect: CGRect) -> Path {
+        let r = cornerRadius
+        let bottom = rect.maxY - arrowSize.height
+        let midX = rect.midX
+
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
+        p.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY),
+                 tangent2End: CGPoint(x: rect.maxX, y: rect.minY + r), radius: r)
+        p.addLine(to: CGPoint(x: rect.maxX, y: bottom - r))
+        p.addArc(tangent1End: CGPoint(x: rect.maxX, y: bottom),
+                 tangent2End: CGPoint(x: rect.maxX - r, y: bottom), radius: r)
+        // The arrow
+        p.addLine(to: CGPoint(x: midX + arrowSize.width / 2, y: bottom))
+        p.addLine(to: CGPoint(x: midX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: midX - arrowSize.width / 2, y: bottom))
+        p.addLine(to: CGPoint(x: rect.minX + r, y: bottom))
+        p.addArc(tangent1End: CGPoint(x: rect.minX, y: bottom),
+                 tangent2End: CGPoint(x: rect.minX, y: bottom - r), radius: r)
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        p.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY),
+                 tangent2End: CGPoint(x: rect.minX + r, y: rect.minY), radius: r)
+        p.closeSubpath()
+        return p
     }
 }

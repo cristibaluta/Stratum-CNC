@@ -1,11 +1,3 @@
-//
-//  EdgeMeasure.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 08.11.2026.
-//
-
-
 import Foundation
 import simd
 import SwiftSTEP
@@ -22,6 +14,9 @@ extension STEPDisplayGeometry {
         var length: Float
         /// Radius of an arc or a circle, mm.
         var radius: Float?
+        /// Centre and unit normal of the plane of an arc or a circle.
+        var center: SIMD3<Float>?
+        var normal: SIMD3<Float>?
     }
 
     /// How far (mm) the points may stray from a line or a circle and still count as on it.
@@ -32,14 +27,19 @@ extension STEPDisplayGeometry {
         var result: [EdgeMeasure] = []
         for body in bodies {
             for edge in body.edges where ids.contains(edge.id) {
-                var polyline = [body.points[edge.vertices.lowerBound]]
-                for index in stride(from: edge.vertices.lowerBound, to: edge.vertices.upperBound, by: 2) {
-                    polyline.append(body.points[index + 1])
-                }
-                result.append(Self.measure(polyline: polyline))
+                result.append(Self.measure(polyline: Self.polyline(of: edge, in: body)))
             }
         }
         return result
+    }
+
+    /// The vertices of `edge` in order: the start, then the end of every segment.
+    static func polyline(of edge: EdgeRange, in body: Body) -> [SIMD3<Float>] {
+        var polyline = [body.points[edge.vertices.lowerBound]]
+        for index in stride(from: edge.vertices.lowerBound, to: edge.vertices.upperBound, by: 2) {
+            polyline.append(body.points[index + 1])
+        }
+        return polyline
     }
 
     static func measure(polyline p: [SIMD3<Float>]) -> EdgeMeasure {
@@ -74,7 +74,8 @@ extension STEPDisplayGeometry {
                    let point = SIMD3<Double>($0)
                    return abs(simd_length(point - center) - radius) <= slack && abs(simd_dot(unit, point - c)) <= slack
                }) {
-                return EdgeMeasure(kind: closed ? .circle : .arc, length: length, radius: Float(radius))
+                return EdgeMeasure(kind: closed ? .circle : .arc, length: length, radius: Float(radius),
+                                   center: SIMD3<Float>(center), normal: SIMD3<Float>(unit))
             }
         }
         return EdgeMeasure(kind: .curve, length: length, radius: nil)
