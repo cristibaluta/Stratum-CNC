@@ -26,6 +26,8 @@ struct STEPModelItem: Identifiable {
     let position: SIMD3<Float>?
     /// Width (X), depth (Y) and height (Z) of the model, in mm.
     let size: SIMD3<Float>?
+    /// Which face of the model faces up. `nil` while it is loading or failed to load.
+    var orientation: SetupFace? = nil
 }
 
 enum STEPModelAxis {
@@ -73,6 +75,7 @@ struct PanelObjectsInspector: View {
     var onToggleStepModelVisibility: ((UUID) -> Void)?
     var onStepModelValueChanged: ((UUID, STEPModelAxis, CGFloat) -> Void)?
     var onStepModelNudge: ((UUID, STEPModelAxis, CGFloat) -> Void)?
+    var onStepModelOrientationChanged: ((UUID, SetupFace) -> Void)?
     var onDeleteStepModel: ((UUID) -> Void)?
 
     /// Narrow, left-aligned label column: leaves the width to the fields.
@@ -255,6 +258,13 @@ struct PanelObjectsInspector: View {
     private func stepModelPropertiesSection(for model: STEPModelItem) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if let position = model.position {
+                if let orientation = model.orientation {
+                    InspectorSection(title: "Face up") {
+                        STEPFaceUpPicker(selection: orientation) { face in
+                            onStepModelOrientationChanged?(model.id, face)
+                        }
+                    }
+                }
                 InspectorSection(title: "Position") {
                     stepAxisRow("X", model.id, .x, position.x)
                     stepAxisRow("Y", model.id, .y, position.y)

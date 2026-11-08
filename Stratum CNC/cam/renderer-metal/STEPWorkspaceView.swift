@@ -142,8 +142,7 @@ private struct STEPSceneDetails: View {
             DisclosureGroup("Details") {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("\(scene.content.model.edges.count) edges shown · \(scene.content.model.skippedEdgeCount) skipped")
-                    if let bounds = scene.content.model.bounds {
-                        let size = bounds.max - bounds.min
+                    if let size = scene.content.size {
                         Text(String(format: "%g × %g × %g mm", size.x, size.y, size.z))
                     }
                     let surfaces = scene.content.surfaces

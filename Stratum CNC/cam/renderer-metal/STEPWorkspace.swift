@@ -11,10 +11,51 @@ struct STEPSourceReference: Identifiable, Sendable {
 
 struct STEPViewerContent: Sendable {
     let model: STEP.EdgeModel
-    let geometry: STEPDisplayGeometry
+    /// The geometry as read from the file, before an orientation is applied.
+    let importedGeometry: STEPDisplayGeometry
+    /// The geometry as it sits on the canvas: `importedGeometry` turned so that `orientation` faces up.
+    private(set) var geometry: STEPDisplayGeometry
     /// Triangles that hide edges behind the part. Empty when a body's faces could not all be
     /// tessellated (see `diagnostics`); that body's edges are then drawn solid, as before.
+    /// They stay in the file's frame: `placement` takes them to where `geometry` is.
     var surfaces = STEP.SurfaceModel()
+    /// Which face of the model faces up.
+    private(set) var orientation: SetupFace = .top
+    private(set) var placement = STEPPlacement.identity
+
+    init(model: STEP.EdgeModel, geometry: STEPDisplayGeometry, surfaces: STEP.SurfaceModel = STEP.SurfaceModel()) {
+        self.model = model
+        self.importedGeometry = geometry
+        self.geometry = geometry
+        self.surfaces = surfaces
+    }
+
+    /// The same model with `face` up. Always starts from the imported geometry, so turning
+    /// back to `.top` is exact.
+    func oriented(_ face: SetupFace) -> STEPViewerContent {
+        var content = self
+        if face == .top {
+            content.geometry = importedGeometry
+            content.placement = .identity
+        } else {
+            let placed = importedGeometry.placed(rotation: face.modelRotation)
+            content.geometry = placed.geometry
+            content.placement = placed.placement
+        }
+        content.orientation = face
+        return content
+    }
+
+    /// Width (X), depth (Y) and height (Z) of the model as it sits, in mm.
+    var size: SIMD3<Float>? {
+        guard let bounds = model.bounds else { return nil }
+        let imported = SIMD3<Float>(Float(bounds.max.x - bounds.min.x),
+                                    Float(bounds.max.y - bounds.min.y),
+                                    Float(bounds.max.z - bounds.min.z))
+        // Quarter turns only permute the sides
+        let r = orientation.modelRotation
+        return simd_float3x3(columns: (abs(r.columns.0), abs(r.columns.1), abs(r.columns.2))) * imported
+    }
 
     static func load(url: URL, importID: UUID) async throws -> STEPViewerContent {
         let worker = Task.detached(priority: .userInitiated) {
@@ -75,7 +116,7 @@ enum STEPDisplayMode: String, CaseIterable, Identifiable, Sendable {
 @MainActor
 final class STEPDocumentScene: ObservableObject, Identifiable {
     let id: UUID
-    let content: STEPViewerContent
+    @Published private(set) var content: STEPViewerContent
     @Published private(set) var baseObjects: [RenderObject]
     /// One lit-triangle object per body with a surface, in the same body order as `baseObjects`
     /// (`nil` where the body has none or the mode draws no faces).
@@ -151,10 +192,11 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         return nil
     }
 
-    init(content: STEPViewerContent, offset: SIMD3<Float> = .zero,
+    init(content: STEPViewerContent, offset: SIMD3<Float> = .zero, orientation: SetupFace = .top,
          shadedTriangleCap: Int = STEPDocumentScene.defaultShadedTriangleCap,
          defaults: UserDefaults? = .standard) {
         id = content.model.importID
+        let content = content.oriented(orientation)
         self.content = content
         self.offset = offset
         self.shadedTriangleCap = shadedTriangleCap
@@ -178,6 +220,19 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         offset = newOffset
         rebuildObjects()
         rebuildHighlight()
+    }
+
+    /// The face of the model that faces up.
+    var orientation: SetupFace { content.orientation }
+
+    /// Turns the model so `face` faces up. The edges are the same ones, so the selection stays; what
+    /// depends on where they are (plane, highlight, faces) is rebuilt, and the camera frames the part again.
+    func setOrientation(_ face: SetupFace) {
+        guard face != content.orientation else { return }
+        content = content.oriented(face)
+        setSelection(selectedEdges, notify: false)
+        rebuildObjects()
+        fitRequest &+= 1
     }
 
     private func rebuildObjects() {
@@ -227,7 +282,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                 switch displayMode {
                     case .wireframe:
                         if hiddenMode != .solid {
-                            line.occluderFaces = mesh.occluderTriangles(offset: offset)
+                            line.occluderFaces = content.placement.isIdentity
+                                ? mesh.occluderTriangles(offset: offset)
+                                : mesh.occluderTriangles(offset: .zero).map { content.placement.point($0) + offset }
                             line.hiddenLineStyle = style
                         }
                     case .shadedEdges:
@@ -239,8 +296,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                     var triangles: [SolidVertex] = []
                     triangles.reserveCapacity(mesh.indices.count)
                     for index in mesh.indices {
-                        triangles.append(SolidVertex(position: mesh.positions[Int(index)] + offset,
-                                                     normal: mesh.normals[Int(index)]))
+                        let placement = content.placement
+                        triangles.append(SolidVertex(position: placement.point(mesh.positions[Int(index)]) + offset,
+                                                     normal: placement.direction(mesh.normals[Int(index)])))
                     }
                     solid = RenderObject(role: .model, points: [], color: materialColor(isDark: isDark),
                                          primitive: .lineList, solidTriangles: triangles)
@@ -424,6 +482,10 @@ final class STEPWorkspace: ObservableObject {
     @Published var selectedModelID: UUID?
     /// Where each source sits, kept here (not in the scene) so a reload keeps it.
     private var offsets: [UUID: SIMD3<Float>] = [:]
+    /// Which face of each model faces up. Kept here, like `offsets`, so a reload keeps it.
+    private var orientations: [UUID: SetupFace] = [:]
+    /// Called after the user turned a model, so the project can save it.
+    var onOrientationChanged: (@MainActor (UUID, SetupFace) -> Void)?
     /// A model moved: toolpaths cut from its edges are outdated.
     var onModelMoved: (() -> Void)?
     /// The open toolpath's edges and where edits go; set while a toolpath is open.
@@ -442,6 +504,24 @@ final class STEPWorkspace: ObservableObject {
     }
 
     func position(of id: UUID) -> SIMD3<Float> { offsets[id] ?? .zero }
+
+    func orientation(of id: UUID) -> SetupFace { orientations[id] ?? .top }
+
+    /// Puts a saved orientation back before the source loads. Not a user edit.
+    func restoreOrientation(_ face: SetupFace, for id: UUID) {
+        orientations[id] = face
+        documents[id]?.setOrientation(face)
+    }
+
+    /// The user picked which face of the model faces up. Toolpaths cut from its edges are outdated.
+    func setOrientation(_ face: SetupFace, for id: UUID) {
+        guard face != orientation(of: id) else { return }
+        orientations[id] = face
+        documents[id]?.setOrientation(face)
+        objectWillChange.send()
+        onModelMoved?()
+        onOrientationChanged?(id, face)
+    }
 
     /// Puts a saved position back before the source loads. Not a user edit.
     func restorePosition(_ position: SIMD3<Float>, for id: UUID) {
@@ -497,7 +577,8 @@ final class STEPWorkspace: ObservableObject {
                 let content = try await loader(source.url, source.id)
                 try Task.checkCancellation()
                 guard let self, self.tokens[source.id] == token else { return }
-                let scene = STEPDocumentScene(content: content, offset: self.offsets[source.id] ?? .zero)
+                let scene = STEPDocumentScene(content: content, offset: self.offsets[source.id] ?? .zero,
+                                              orientation: self.orientations[source.id] ?? .top)
                 self.documents[source.id] = scene
                 self.attachPicking(to: scene)
                 self.finish(source.id)
@@ -537,6 +618,7 @@ final class STEPWorkspace: ObservableObject {
         errors.removeValue(forKey: id)
         sources.removeAll { $0.id == id }
         offsets.removeValue(forKey: id)
+        orientations.removeValue(forKey: id)
         if selectedModelID == id { selectedModelID = nil }
         if activeID == id { activeID = sources.last?.id }
     }
@@ -550,6 +632,7 @@ final class STEPWorkspace: ObservableObject {
         errors.removeAll()
         sources.removeAll()
         offsets.removeAll()
+        orientations.removeAll()
         picking = nil
         selectedModelID = nil
         activeID = nil

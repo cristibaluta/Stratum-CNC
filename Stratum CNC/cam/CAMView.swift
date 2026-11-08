@@ -371,6 +371,9 @@ struct CAMView: View {
                 }
                 moveSTEPModel(id, axis: axis, to: value + Float(amount))
             },
+            onStepModelOrientationChanged: { id, face in
+                camModel.stepWorkspace.setOrientation(face, for: id)
+            },
             onDeleteStepModel: { id in
                 do { try projectModel.removeSTEPSource(id) }
                 catch { fileError = String(describing: error) }
@@ -382,16 +385,12 @@ struct CAMView: View {
         let workspace = camModel.stepWorkspace
         return workspace.sources.map { source in
             let scene = workspace.documents[source.id]
-            let size = scene?.content.model.bounds.map { bounds in
-                SIMD3<Float>(Float(bounds.max.x - bounds.min.x),
-                             Float(bounds.max.y - bounds.min.y),
-                             Float(bounds.max.z - bounds.min.z))
-            }
             return STEPModelItem(id: source.id,
                                  name: source.name,
                                  isVisible: scene?.isModelVisible ?? true,
                                  position: scene == nil ? nil : workspace.position(of: source.id),
-                                 size: size)
+                                 size: scene?.content.size,
+                                 orientation: scene?.orientation)
         }
     }
 

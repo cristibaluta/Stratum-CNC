@@ -89,11 +89,10 @@ struct CAM_Metal_View: View {
     /// or `nil` when it isn't the one drawn, isn't selected or is hidden.
     private var stepFootprint: (origin: SIMD2<Float>, size: SIMD2<Float>)? {
         guard let stepScene, selectedStepModelID == stepScene.id, stepScene.isModelVisible,
-              let bounds = stepScene.content.model.bounds else {
+              let size = stepScene.content.size else {
             return nil
         }
-        return (SIMD2<Float>(stepScene.offset.x, stepScene.offset.y),
-                SIMD2<Float>(Float(bounds.max.x - bounds.min.x), Float(bounds.max.y - bounds.min.y)))
+        return (SIMD2<Float>(stepScene.offset.x, stepScene.offset.y), SIMD2<Float>(size.x, size.y))
     }
 
     private func syncStepModelHandle() {
