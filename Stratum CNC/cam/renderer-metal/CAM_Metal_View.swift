@@ -303,8 +303,8 @@ private struct STEPAddToolpathTooltipLayer: View {
         return CGPoint(x: x, y: y)
     }
 
-    /// How far the selection is from z0, and the size of each selected edge: length of a line,
-    /// radius of an arc, diameter of a circle. A long selection lists the first few.
+    /// How far the selection is from z0, and its size: for one edge the length of a line, the
+    /// radius of an arc or the diameter of a circle; for several, their total length.
     private static func details(for scene: STEPDocumentScene) -> [TooltipDetail] {
         var rows: [TooltipDetail] = []
         if let z = scene.selectionZRange {
@@ -319,11 +319,12 @@ private struct STEPAddToolpathTooltipLayer: View {
             }
         }
         let measures = scene.selectionMeasures
-        for measure in measures.prefix(4) {
+        if measures.count == 1, let measure = measures.first {
             rows.append(TooltipDetail(label: measure.label, value: measure.valueText))
-        }
-        if measures.count > 4 {
-            rows.append(TooltipDetail(label: "+\(measures.count - 4) more edges", value: ""))
+        } else if measures.count > 1 {
+            // Several edges: one number, the length of all of them together (an arc counts by its length)
+            let total = measures.reduce(Float(0)) { $0 + $1.length }
+            rows.append(TooltipDetail(label: "Total length", value: String(format: "%.3f mm", total)))
         }
         return rows
     }
