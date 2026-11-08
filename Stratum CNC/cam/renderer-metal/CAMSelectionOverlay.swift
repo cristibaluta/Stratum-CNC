@@ -20,10 +20,10 @@ import CoreGraphics
 
 enum CAMSelectionOverlay {
 
-    /// Dash length in world mm (Metal dashes are on/off runs of this length).
-    /// `D2_ObjectNode` uses a [6, 4] pattern in object-local units; a fixed
-    /// world length is close enough for now — visual parity is step 5.
-    static let dashLength: Float = 3
+    /// Dash length in points on screen (Metal dashes are on/off runs of this length), so the box
+    /// looks the same at any zoom. `D2_ObjectNode` uses a [6, 4] pattern; close enough for now —
+    /// visual parity is step 5.
+    static let dashLength: Float = 6
 
     // Same numbers as `CenterShapeLayer`, in the object's local units, so
     // the handle scales with the object exactly as it does today.

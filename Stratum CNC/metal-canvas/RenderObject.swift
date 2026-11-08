@@ -100,11 +100,11 @@ struct RenderObject: Identifiable {
     var color: SIMD4<Float>
     var primitive: RenderPrimitive = .lineStrip
     var isDashed: Bool = false
+    /// Length of a dash and of a gap, in points on screen: the pattern keeps its size at any zoom.
     var dashLength: Float = 5.0
     /// Screen-space line width in points. 0 (the default) draws the usual 1px hairline.
     /// Above 0 the lines are drawn as camera-facing quads (Metal has no wide lines), which
-    /// is only supported for `.lineList` objects. In that mode `dashLength` is in *points on
-    /// screen* rather than model units, so the dots keep their size at any zoom.
+    /// is only supported for `.lineList` objects.
     var lineWidth: Float = 0
     /// Caps how many of `points` the renderer should actually draw, without
     /// touching `points` itself. `nil` draws everything.
@@ -630,9 +630,8 @@ extension RenderObject {
     /// coordinates; `MetalRenderer` shifts it by `xyOffset` like the
     /// toolpath itself (see `drawOffset(for:)`).
     ///
-    /// The dash length scales with the job so the pattern stays readable on
-    /// both a 20 mm part and a 300 mm one (the dash is in world millimeters,
-    /// not pixels).
+    /// The dash is a fixed size on screen, so the pattern stays readable on
+    /// both a 20 mm part and a 300 mm one, and at any zoom.
     static func boundingBox(min: SIMD2<Float>,
                             max: SIMD2<Float>,
                             z: Float = 0,
@@ -644,9 +643,8 @@ extension RenderObject {
             SIMD2<Float>(min.x, max.y)
         ]
         var object = flatOutline(corners, z: z, role: .boundingBox, color: color)
-        let longestSide = Swift.max(max.x - min.x, max.y - min.y)
         object.isDashed = true
-        object.dashLength = Swift.min(Swift.max(longestSide / 80, 0.5), 4)
+        object.dashLength = 5
         return object
     }
 

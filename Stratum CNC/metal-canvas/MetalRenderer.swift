@@ -126,6 +126,9 @@ class MetalRenderer: NSObject {
     /// for the thick-line shader, which sizes its quads in pixels.
     private var viewportPixels: SIMD2<Float> = .zero
     private var pixelScale: Float = 1
+    /// Drawable pixels per model unit (mm) at the current zoom. The projection is orthographic, so
+    /// it is the same everywhere in the scene. Turns a dash given in points into model units.
+    private var pixelsPerUnit: Float = 1
     /// Same shaders as `pipelineState`, but with color writes disabled.
     /// Used for the occluder-face pre-pass — it needs to affect the depth
     /// buffer only, never what's actually on screen.
@@ -156,12 +159,12 @@ class MetalRenderer: NSObject {
     /// Turn the second pass on/off. When off, occluded geometry simply
     /// isn't drawn (the old behavior).
     var showHiddenLines: Bool = true
-    /// Dash length used for hidden portions of a line that isn't already
+    /// Dash length (points on screen) used for hidden portions of a line that isn't already
     /// dashed itself. Lines that already have their own `isDashed` pattern
     /// keep that pattern when hidden.
-    private let hiddenLineDashLength: Float = 1.0
-    /// Dot and gap length (mm) of a STEP model's hidden edges: fine, tightly spaced dots.
-    private let hiddenDotLength: Float = 0.25
+    private let hiddenLineDashLength: Float = 3
+    /// Dot and gap length (points on screen) of a STEP model's hidden edges: fine, tightly spaced dots.
+    private let hiddenDotLength: Float = 1
     /// Opacity of those dots.
     private let hiddenDotAlpha: Float = 0.5
 
@@ -752,6 +755,12 @@ private extension MetalRenderer {
             return
         }
 
+        // Dashes are given in points on screen, the shader measures them along the line in model
+        // units: convert with the current zoom, so a dash looks the same at any zoom.
+        if dashLength > 0, pixelsPerUnit > 0 {
+            uniforms.dashLength = dashLength * pixelScale / pixelsPerUnit
+        }
+
         // Bind uniforms to Vertex Shader (buffer index 1)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
 
@@ -893,6 +902,8 @@ extension MetalRenderer: MTKViewDelegate {
         camera.aspectRatio = Float(view.drawableSize.width / view.drawableSize.height)
         viewportPixels = SIMD2<Float>(Float(view.drawableSize.width), Float(view.drawableSize.height))
         pixelScale = view.bounds.width > 0 ? Float(view.drawableSize.width / view.bounds.width) : 1
+        let halfHeight = camera.distance * tan(camera.fov * 0.5)
+        pixelsPerUnit = halfHeight > 0 ? Float(view.drawableSize.height) / (2 * halfHeight) : 1
         attemptInitialFit(viewSize: view.drawableSize)
 
         guard let descriptor = view.currentRenderPassDescriptor,
