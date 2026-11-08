@@ -312,6 +312,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// The plane every selected edge lies in, if there is one (see `STEPDisplayGeometry.plane`).
     /// Kept up to date by `setSelection` so views can read it every frame without recomputing.
     private(set) var selectionPlane: STEPDisplayGeometry.Plane?
+    /// Kind and size of each selected edge, for the selection details.
+    private(set) var selectionMeasures: [STEPDisplayGeometry.EdgeMeasure] = []
 
     /// "Select linked in plane" has something to work from.
     var canSelectLinkedInPlane: Bool { selectionPlane != nil }
@@ -329,6 +331,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     private func setSelection(_ edges: Set<STEP.EdgeID>, notify: Bool) {
         selectedEdges = edges
         selectionPlane = edges.isEmpty ? nil : content.geometry.plane(containing: edges)
+        selectionMeasures = edges.isEmpty ? [] : content.geometry.measures(of: edges)
         rebuildHighlight()
         if notify { onSelectionChanged?(edges) }
     }
@@ -347,10 +350,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     }
 
     private static let projectionColor = SIMD4<Float>(0.15, 0.45, 1.0, 1)
-    /// Dash and gap length (mm) of the projection lines: a fine dotted line.
-    private static let projectionDash: Float = 0.5
-    /// The selected edges: a thick dotted line. Width and dot size are screen points, so they stay
-    /// the same at any zoom (see `RenderObject.lineWidth`).
+    /// The selected edges and their projection onto z0: a thick dotted line. Width and dot size are
+    /// screen points, so they stay the same at any zoom (see `RenderObject.lineWidth`).
     private static let selectionLineWidth: Float = 3
     private static let selectionDash: Float = 4
 
@@ -395,7 +396,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             for line in [projected, drops] where !line.isEmpty {
                 objects.append(RenderObject(role: .modelSelection, points: line,
                                             color: Self.projectionColor, primitive: .lineList,
-                                            isDashed: true, dashLength: Self.projectionDash))
+                                            isDashed: true, dashLength: Self.selectionDash,
+                                            lineWidth: Self.selectionLineWidth))
             }
         }
         if !points.isEmpty {

@@ -246,19 +246,27 @@ private struct STEPAddToolpathTooltipLayer: View {
     let onAdd: () -> Void
 
     @State private var frameTick = 0
+    /// Whether the details (distance to z0, size of the edges) are open. Remembered.
+    @AppStorage("STEPSelectionDetailsExpanded") private var detailsExpanded = true
 
     private static let gap: CGFloat = 6
     private static let minAnchorY: CGFloat = 56
     private static let horizontalMargin: CGFloat = 110
+    private static let detailRowHeight: CGFloat = 18
 
     var body: some View {
         let _ = frameTick
         GeometryReader { proxy in
             let count = scene.selectedEdges.count
-            if count > 0, let anchor = anchor(in: proxy.size) {
+            let details = Self.details(for: scene)
+            // The callout grows upward, so an open one needs more room above its anchor.
+            let minY = Self.minAnchorY + (details.isEmpty ? 0
+                : 24 + (detailsExpanded ? CGFloat(details.count) * Self.detailRowHeight + 8 : 0))
+            if count > 0, let anchor = anchor(in: proxy.size, minY: minY) {
                 AddToolpathTooltip(shapeCount: count, noun: "edge", onAdd: onAdd,
                                    onSelectLinked: scene.canSelectLinkedInPlane
-                                       ? { scene.selectLinkedEdgesInPlane() } : nil)
+                                       ? { scene.selectLinkedEdgesInPlane() } : nil,
+                                   details: details, detailsExpanded: $detailsExpanded)
                     .fixedSize()
                     .frame(width: 0, height: 0, alignment: .bottom)
                     .position(anchor)
@@ -271,7 +279,7 @@ private struct STEPAddToolpathTooltipLayer: View {
     }
 
     /// The highest point of the selection's bounding box on screen, centered horizontally on it.
-    private func anchor(in size: CGSize) -> CGPoint? {
+    private func anchor(in size: CGSize, minY: CGFloat) -> CGPoint? {
         guard let box = scene.selectionBox, size.width > 0, size.height > 0 else {
             return nil
         }
@@ -292,9 +300,59 @@ private struct STEPAddToolpathTooltipLayer: View {
         }
         let margin = min(Self.horizontalMargin, size.width / 2)
         let x = min(max((left + right) / 2 * size.width, margin), size.width - margin)
-        let y = max(top * size.height - Self.gap, Self.minAnchorY)
+        let y = max(top * size.height - Self.gap, minY)
         return CGPoint(x: x, y: y)
     }
+
+    /// How far the selection is from z0, and the size of each selected edge: length of a line,
+    /// radius of an arc, diameter of a circle. A long selection lists the first few.
+    private static func details(for scene: STEPDocumentScene) -> [TooltipDetail] {
+        var rows: [TooltipDetail] = []
+        if let z = scene.selectionZRange {
+            func mm(_ value: Float) -> String { String(format: "%.3f", value) }
+            if z.upperBound - z.lowerBound < 1e-3 {
+                let value = z.lowerBound
+                rows.append(TooltipDetail(label: "Distance to z0",
+                                          value: abs(value) < 1e-3 ? "0 mm (on z0)"
+                                              : "\(mm(abs(value))) mm \(value < 0 ? "below" : "above")"))
+            } else {
+                rows.append(TooltipDetail(label: "Z from z0", value: "\(mm(z.lowerBound)) … \(mm(z.upperBound)) mm"))
+            }
+        }
+        let measures = scene.selectionMeasures
+        for measure in measures.prefix(4) {
+            rows.append(TooltipDetail(label: measure.label, value: measure.valueText))
+        }
+        if measures.count > 4 {
+            rows.append(TooltipDetail(label: "+\(measures.count - 4) more edges", value: ""))
+        }
+        return rows
+    }
+}
+
+private extension STEPDisplayGeometry.EdgeMeasure {
+    var label: String {
+        switch kind {
+            case .line: return "Line length"
+            case .arc: return "Arc radius"
+            case .circle: return "Circle diameter"
+            case .curve: return "Curve length"
+        }
+    }
+
+    var valueText: String {
+        switch kind {
+            case .line, .curve: return String(format: "%.3f mm", length)
+            case .arc: return String(format: "%.3f mm", radius ?? 0)
+            case .circle: return String(format: "%.3f mm", (radius ?? 0) * 2)
+        }
+    }
+}
+
+/// A line of the callout's details: what it is and its value.
+private struct TooltipDetail: Hashable {
+    let label: String
+    let value: String
 }
 
 /// Covers the canvas and keeps an "Add toolpath" tooltip on top of the selected
@@ -366,27 +424,19 @@ private struct AddToolpathTooltip: View {
     /// When set, a secondary button next to "Add toolpath" (STEP edges: select the connected
     /// edges in the same plane).
     var onSelectLinked: (() -> Void)? = nil
+    /// Lines shown under the buttons, folded away with the chevron. Empty: none, and no chevron.
+    fileprivate var details: [TooltipDetail] = []
+    fileprivate var detailsExpanded: Binding<Bool>? = nil
 
     private static let arrowSize = CGSize(width: 16, height: 8)
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(shapeCount == 1 ? "1 \(noun) selected" : "\(shapeCount) \(noun)s selected")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            if let onSelectLinked {
-                Button(action: onSelectLinked) {
-                    Label("Select linked in plane", systemImage: "square.dashed")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Also select every edge connected to the selection that lies in the same plane")
+        VStack(alignment: .leading, spacing: 8) {
+            actions
+            if !details.isEmpty, let expanded = detailsExpanded {
+                Divider()
+                detailsSection(expanded: expanded)
             }
-            Button(action: onAdd) {
-                Label("Add toolpath", systemImage: "plus")
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
         }
         .padding(.horizontal, 14)
         .padding(.top, 8)
@@ -399,6 +449,56 @@ private struct AddToolpathTooltip: View {
         .overlay {
             CalloutShape(arrowSize: Self.arrowSize)
                 .stroke(.separator)
+        }
+    }
+
+    private func detailsSection(expanded: Binding<Bool>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { expanded.wrappedValue.toggle() }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: expanded.wrappedValue ? "chevron.down" : "chevron.right")
+                        .font(.caption2.weight(.semibold))
+                        .frame(width: 10)
+                    Text("Details").font(.caption)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if expanded.wrappedValue {
+                ForEach(Array(details.enumerated()), id: \.offset) { _, detail in
+                    HStack(spacing: 16) {
+                        Text(detail.label).foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        Text(detail.value).monospacedDigit()
+                    }
+                    .font(.caption)
+                }
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 12) {
+            Text(shapeCount == 1 ? "1 \(noun) selected" : "\(shapeCount) \(noun)s selected")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            if let onSelectLinked {
+                Button(action: onSelectLinked) {
+                    Label("Select linked", systemImage: "square.dashed")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Also select every edge connected to the selection that lies in the same plane")
+            }
+            Button(action: onAdd) {
+                Label("Add toolpath", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
         }
     }
 }
