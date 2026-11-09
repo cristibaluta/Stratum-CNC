@@ -32,6 +32,8 @@ struct CanvasLayersList: View {
     /// The layers that have a gear, and the content of the popover behind it.
     private let settingsLayers: Set<CanvasLayer>
     private let settings: (CanvasLayer) -> AnyView
+    /// Extra rows under the layers, after a divider (a canvas option rather than an object).
+    private let footer: AnyView?
 
     @State private var isExpanded = true
     @State private var settingsLayer: CanvasLayer?
@@ -42,7 +44,8 @@ struct CanvasLayersList: View {
          unavailableReason: @escaping (CanvasLayer) -> String? = { _ in nil },
          tint: @escaping (CanvasLayer) -> Color? = { $0.tint },
          settingsLayers: Set<CanvasLayer> = [],
-         settings: @escaping (CanvasLayer) -> AnyView = { _ in AnyView(EmptyView()) }) {
+         settings: @escaping (CanvasLayer) -> AnyView = { _ in AnyView(EmptyView()) },
+         footer: AnyView? = nil) {
         self.layers = layers
         self.isVisible = isVisible
         self.setVisible = setVisible
@@ -50,6 +53,7 @@ struct CanvasLayersList: View {
         self.tint = tint
         self.settingsLayers = settingsLayers
         self.settings = settings
+        self.footer = footer
     }
 
     var body: some View {
@@ -79,6 +83,10 @@ struct CanvasLayersList: View {
                         Divider()
                     }
                     row(for: layer)
+                }
+                if let footer {
+                    Divider()
+                    footer
                 }
             }
         }

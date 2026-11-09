@@ -727,12 +727,36 @@ final class STEPWorkspace: ObservableObject {
                 self.documents[source.id] = scene
                 self.attachPicking(to: scene)
                 self.finish(source.id)
+                Self.logImport(of: source, content: content)
             } catch {
                 guard let self, self.tokens[source.id] == token else { return }
                 self.errors[source.id] = error is CancellationError ? "Import cancelled" : String(describing: error)
                 self.finish(source.id)
+                #if DEBUG
+                print("[STEP] \(source.name): \(self.errors[source.id] ?? "failed")")
+                #endif
             }
         }
+    }
+
+    /// The import numbers and diagnostics that used to sit in the STEP panel's "Details":
+    /// only useful when something looks wrong, so they go to the debugger console.
+    private static func logImport(of source: STEPSourceReference, content: STEPViewerContent) {
+        #if DEBUG
+        var lines = ["[STEP] \(source.name)"]
+        lines.append("  \(content.model.edges.count) edges shown · \(content.model.skippedEdgeCount) skipped")
+        if let size = content.size {
+            lines.append(String(format: "  %g × %g × %g mm", size.x, size.y, size.z))
+        }
+        let surfaces = content.surfaces
+        lines.append("  \(surfaces.tessellatedFaceCount) of \(surfaces.reachableFaceCount) faces · \(surfaces.triangleCount) triangles"
+                     + (surfaces.failedFaceCount > 0 ? " · \(surfaces.failedFaceCount) faces failed" : ""))
+        let diagnostics = content.model.diagnostics + surfaces.diagnostics
+        for diagnostic in diagnostics {
+            lines.append("  " + (diagnostic.entityID.map { "#\($0): " } ?? "") + diagnostic.message)
+        }
+        print(lines.joined(separator: "\n"))
+        #endif
     }
 
     private func finish(_ id: UUID) {

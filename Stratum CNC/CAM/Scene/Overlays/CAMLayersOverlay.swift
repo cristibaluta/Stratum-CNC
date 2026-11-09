@@ -9,7 +9,7 @@
 //
 //  Where the screen already has a switch for something, the checkmark is that
 //  switch, so the list and the panels can't disagree:
-//    Model  -> `STEPDocumentScene.isModelVisible` (the STEP panel)
+//    Model  -> `STEPDocumentScene.isModelVisible`
 //    Stock  -> the screen's stock visibility (the material panel, saved with the project)
 //  The rest (shapes, toolpaths, anchor, axes) are `D2_CanvasState.hiddenLayers`;
 //  `CAMSceneModel` leaves them out of the scene.
@@ -40,7 +40,8 @@ struct CAMLayersOverlay: View {
         CanvasLayersList(layers: layers(hasModel: stepScene != nil),
                          isVisible: { isVisible($0, stepScene: stepScene) },
                          setVisible: { setVisible($0, $1, stepScene: stepScene) },
-                         tint: { tint(for: $0) })
+                         tint: { tint(for: $0) },
+                         footer: stepScene.map { AnyView(ProjectionToggle(scene: $0)) })
     }
 
     /// Only the layers the canvas has content for, in the order they sit in the scene.
@@ -97,6 +98,28 @@ struct CAMLayersOverlay: View {
             default:
                 return layer.tint
         }
+    }
+}
+
+/// "Z0 projections" checkbox, styled like the layer rows above it. Only there while there is
+/// a STEP model; it is the scene's own `showsProjection` (the blue projection of the edges).
+private struct ProjectionToggle: View {
+
+    @ObservedObject var scene: STEPDocumentScene
+
+    var body: some View {
+        Button {
+            scene.showsProjection.toggle()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: scene.showsProjection ? "checkmark.square.fill" : "square")
+                Text("Z0 projections")
+                    .font(.caption)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Project the model's edges onto z0")
     }
 }
 

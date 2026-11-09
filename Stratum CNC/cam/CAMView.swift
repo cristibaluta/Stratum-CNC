@@ -23,8 +23,7 @@ import SwiftUI
     - CAM_Metal_View                           <- canvas (Metal), always the free 3D camera; shapes sit flat at z0
         - CAMSceneModel (D2_CanvasState -> [RenderObject] via D2_RenderObjectBuilder)
         - MetalCanvasView
-    - CAMLayersOverlay                         <- objects list over the canvas (shapes, model, stock, toolpaths, anchor, axes): show / hide
-    - STEPInfoPanel                            <- floating over the canvas while there is a STEP model (layers, selection, details)
+    - CAMLayersOverlay                         <- objects list over the canvas, bottom-left (shapes, model, stock, toolpaths, anchor, axes): show / hide, plus Z0 projections
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
     - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
     - ToolpathListView                         <- left, under the objects panel: select / show-hide / delete toolpaths
@@ -129,15 +128,6 @@ struct CAMView: View {
                     }
                     .frame(minWidth: 200, maxWidth: 260)
                     .padding(16)
-                    // The canvas's objects list: only what this project's canvas has. Sits at
-                    // the canvas's top-left, next to the panels.
-                    VStack {
-                        CAMLayersOverlay(canvasState: camModel.canvasState,
-                                         workspace: camModel.stepWorkspace,
-                                         isStockVisible: stockVisibleBinding)
-                        Spacer()
-                    }
-                    .padding(.top, 16)
                     Spacer()
 //                    VStack {
 //                        CanvasZoomToolbar(viewModel: camModel)
@@ -169,30 +159,18 @@ struct CAMView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
                 }
 
-                // The STEP info floats over the canvas, bottom-left, under the
-                // other panels. Collapsible, so it can get out of the way.
-                if hasSTEP {
-                    VStack {
+                // The canvas's objects list (and the Z0 projections option): only what this
+                // project's canvas has. Floats at the canvas's bottom-left.
+                VStack {
+                    Spacer()
+                    HStack {
+                        CAMLayersOverlay(canvasState: camModel.canvasState,
+                                         workspace: camModel.stepWorkspace,
+                                         isStockVisible: stockVisibleBinding)
                         Spacer()
-                        HStack {
-                            STEPInfoPanel(workspace: camModel.stepWorkspace,
-                                          onImport: { camModel.showingFilePicker = true },
-                                          onReload: { id in
-                                              do { try projectModel.reloadSTEPSource(id) }
-                                              catch { fileError = String(describing: error) }
-                                          },
-                                          onRemove: { id in
-                                              do { try projectModel.removeSTEPSource(id) }
-                                              catch { fileError = String(describing: error) }
-                                          })
-                                .frame(width: 260)
-                                .frame(maxHeight: 340)
-                                .panelShadow()
-                            Spacer()
-                        }
                     }
-                    .padding(16)
                 }
+                .padding(16)
             }
         }
         .onAppear {
