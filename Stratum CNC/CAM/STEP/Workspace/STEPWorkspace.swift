@@ -557,7 +557,20 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// The vertical lines from the selected edges down to their projection.
     private static let dropLineWidth: Float = 1
 
+    /// Height of the active setup's z0 in the part's frame (`SetupFrame.z0InPartFrame`): 0 for the
+    /// top, the stock's thickness below it for the bottom. The edges are drawn in the part's frame
+    /// and turned with it, so the projection must be flattened onto this plane, not onto the
+    /// part's own top, which is the face pointing down once the stock is flipped.
+    private(set) var projectionZ: Float = 0
+
+    func setProjectionZ(_ z: Float) {
+        guard z != projectionZ else { return }
+        projectionZ = z
+        rebuildHighlight()
+    }
+
     private func rebuildHighlight() {
+        let z0 = projectionZ
         var points: [SIMD3<Float>] = []
         var projected: [SIMD3<Float>] = []   // the edges flattened onto z0
         var drops: [SIMD3<Float>] = []       // pairs: edge endpoint, same x/y at z0
@@ -579,13 +592,13 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                 }
 
                 // An edge that already lies on z0 is its own projection.
-                guard max(abs(edgeMin), abs(edgeMax)) > 1e-4 else { continue }
-                projected.append(contentsOf: edgePoints.map { SIMD3<Float>($0.x, $0.y, 0) })
+                guard max(abs(edgeMin - z0), abs(edgeMax - z0)) > 1e-4 else { continue }
+                projected.append(contentsOf: edgePoints.map { SIMD3<Float>($0.x, $0.y, z0) })
                 if let first = edgePoints.first, let last = edgePoints.last {
                     for end in (first == last ? [first] : [first, last])
-                    where abs(end.z) > 1e-4 && dropped.insert(end).inserted {
+                    where abs(end.z - z0) > 1e-4 && dropped.insert(end).inserted {
                         drops.append(end)
-                        drops.append(SIMD3<Float>(end.x, end.y, 0))
+                        drops.append(SIMD3<Float>(end.x, end.y, z0))
                     }
                 }
             }

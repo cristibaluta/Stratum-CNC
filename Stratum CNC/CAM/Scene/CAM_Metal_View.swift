@@ -137,6 +137,7 @@ struct CAM_Metal_View: View {
                          sceneObjects: scene.renderObjects3D(frame: partFrame) + stepModelOverlay,
                          partTransform: partFrame.matrix,
                          previewTransform: partFrame.previewMatrix,
+                         projectionZ: Float(partFrame.z0InPartFrame),
                          clearColor: scene.backgroundColor, isDark: colorScheme == .dark,
                          zoomModel: zoomModel,
                          addToolpathShapeCount: addToolpathShapeCount,
@@ -210,6 +211,8 @@ private struct STEP3DCanvas: View {
     let sceneObjects: [RenderObject]
     let partTransform: simd_float4x4
     let previewTransform: simd_float4x4
+    /// Part-frame height of the active setup's z0 (`SetupFrame.z0InPartFrame`)
+    let projectionZ: Float
     let clearColor: SIMD4<Float>
     let isDark: Bool
     let zoomModel: CanvasZoomModel
@@ -236,6 +239,8 @@ private struct STEP3DCanvas: View {
             .id(ObjectIdentifier(scene))
             .onAppear { scene.setAppearance(isDark: isDark) }
             .onChange(of: isDark) { _, dark in scene.setAppearance(isDark: dark) }
+            // The projection lands on the setup's z0, which is the part's underside when flipped
+            .onChange(of: projectionZ, initial: true) { _, z in scene.setProjectionZ(z) }
             .overlay {
                 AddToolpathTooltipLayer(scene: shapes,
                                         zoomModel: zoomModel,
