@@ -28,7 +28,8 @@ struct CAM_Metal_View: View {
     /// How many shapes an "Add toolpath" tooltip would use; 0 hides the tooltip.
     /// The owner decides when it is allowed (e.g. not while a toolpath is open).
     let addToolpathShapeCount: Int
-    /// The selected STEP edges can become a toolpath (false while a toolpath is open).
+    /// The selected STEP edges can become a toolpath (false while a toolpath is open, which
+    /// also hides their callout).
     let canAddToolpathFromEdges: Bool
     /// Bumped by the owner to frame the whole scene again.
     let fitRequest: Int
@@ -254,8 +255,11 @@ private struct STEP3DCanvas: View {
                                         onAdd: onAddToolpath)
             }
             .overlay {
-                STEPAddToolpathTooltipLayer(scene: scene, zoomModel: zoomModel,
-                                            canAdd: canAddToolpath, onChoose: onAddStepToolpath)
+                // No callout while a toolpath is open (its details panel is showing)
+                if canAddToolpath {
+                    STEPAddToolpathTooltipLayer(scene: scene, zoomModel: zoomModel,
+                                                canAdd: canAddToolpath, onChoose: onAddStepToolpath)
+                }
             }
     }
 }
