@@ -417,6 +417,13 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     private(set) var selectionPlane: STEPDisplayGeometry.Plane?
     /// Kind and size of each selected edge, for the selection details.
     private(set) var selectionMeasures: [STEPDisplayGeometry.EdgeMeasure] = []
+    /// What the selected edges form (holes, a closed outline, a line, an open path).
+    private(set) var selectionFeature: STEPSelectionFeature?
+
+    /// The operations "Add toolpath" offers for the selection, most likely first.
+    var availableOperations: [OperationKind] {
+        selectionFeature.map(OperationKind.operations(for:)) ?? []
+    }
 
     /// "Select linked in plane" has something to work from.
     var canSelectLinkedInPlane: Bool { selectionPlane != nil }
@@ -452,6 +459,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         selectedEdges = edges
         selectionPlane = edges.isEmpty ? nil : content.geometry.plane(containing: edges)
         selectionMeasures = edges.isEmpty ? [] : content.geometry.measures(of: edges)
+        selectionFeature = content.geometry.feature(of: edges, measures: selectionMeasures, plane: selectionPlane)
         rebuildHighlight()
         if notify { onSelectionChanged?(edges) }
     }

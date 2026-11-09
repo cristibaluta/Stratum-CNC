@@ -6,16 +6,19 @@
 //
 
 import SwiftUI
+import SwiftSTEP
 
 /// The callout over the selected STEP edges: "Select linked" and "Add toolpath" on top, always
 /// there (disabled when they do not apply), and under them one line with what is selected.
-/// It follows the selection's top as the camera orbits, pans and zooms.
+/// "Add toolpath" first lists the operations that fit the selection; the toolpath is only created
+/// once one is chosen. It follows the selection's top as the camera orbits, pans and zooms.
 struct STEPAddToolpathTooltipLayer: View {
 
     @ObservedObject var scene: STEPDocumentScene
     let zoomModel: CanvasZoomModel
     let canAdd: Bool
-    let onAdd: () -> Void
+    /// An operation was chosen from the list: create the toolpath with it.
+    let onChoose: (OperationKind) -> Void
 
     @State private var frameTick = 0
 
@@ -32,9 +35,11 @@ struct STEPAddToolpathTooltipLayer: View {
                                      canSelectLinked: scene.canSelectLinkedInPlane,
                                      canSelectSimilar: scene.canSelectSimilarHoles,
                                      canAdd: canAdd,
+                                     operations: scene.availableOperations,
+                                     selection: scene.selectedEdges,
                                      onSelectLinked: { scene.selectLinkedEdgesInPlane() },
                                      onSelectSimilar: { scene.selectSimilarHoles() },
-                                     onAdd: onAdd)
+                                     onChoose: onChoose)
                     .fixedSize()
                     .frame(width: 0, height: 0, alignment: .bottom)
                     .position(anchor)
@@ -106,39 +111,26 @@ private struct STEPSelectionCallout: View {
     let canSelectLinked: Bool
     let canSelectSimilar: Bool
     let canAdd: Bool
+    /// The operations that fit the selection.
+    let operations: [OperationKind]
+    /// The selected edges: choosing is dropped when they change.
+    let selection: Set<STEP.EdgeID>
     let onSelectLinked: () -> Void
     let onSelectSimilar: () -> Void
-    let onAdd: () -> Void
+    let onChoose: (OperationKind) -> Void
+
+    /// "Add toolpath" was pressed: the list of operations replaces the buttons.
+    @State private var isChoosing = false
 
     private static let arrowSize = CGSize(width: 16, height: 8)
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Button(action: onSelectLinked) {
-                    Label("Select linked", systemImage: "square.dashed")
-                }
-                .buttonStyle(.bordered)
-                .disabled(!canSelectLinked)
-                .help(canSelectLinked
-                      ? "Also select every edge connected to the selection that lies in the same plane"
-                      : "Needs edges that lie in one plane: select a curve, or two edges that are not in line")
-                Button(action: onSelectSimilar) {
-                    Label("Select similar", systemImage: "circle.grid.2x2")
-                }
-                .buttonStyle(.bordered)
-                .disabled(!canSelectSimilar)
-                .help(canSelectSimilar
-                      ? "Also select the holes with the same diameter and depth as the selected ones"
-                      : "Select a hole's circle to find the holes like it")
-                Button(action: onAdd) {
-                    Label("Add toolpath", systemImage: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canAdd)
+            if isChoosing {
+                operationList
+            } else {
+                actions
             }
-            .controlSize(.small)
-            .fixedSize()
 
             Text(summary)
                 .font(.callout)
@@ -159,6 +151,64 @@ private struct STEPSelectionCallout: View {
         .overlay {
             CalloutShape(arrowSize: Self.arrowSize)
                 .stroke(.separator)
+        }
+        .onChange(of: selection) { _, _ in isChoosing = false }
+    }
+
+    /// What can be done with the selection: the operations that fit it, one per row.
+    private var operationList: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Choose an operation")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(operations) { kind in
+                Button {
+                    isChoosing = false
+                    onChoose(kind)
+                } label: {
+                    Label(kind.title, systemImage: kind.symbol)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .help(kind.summary)
+            }
+            Button("Cancel") { isChoosing = false }
+                .buttonStyle(.borderless)
+                .keyboardShortcut(.cancelAction)
+                .frame(maxWidth: .infinity)
+        }
+        .controlSize(.small)
+        .frame(minWidth: 190)
+        .fixedSize()
+    }
+
+    private var actions: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Button(action: onSelectLinked) {
+                    Label("Select linked", systemImage: "square.dashed")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canSelectLinked)
+                .help(canSelectLinked
+                      ? "Also select every edge connected to the selection that lies in the same plane"
+                      : "Needs edges that lie in one plane: select a curve, or two edges that are not in line")
+                Button(action: onSelectSimilar) {
+                    Label("Select similar", systemImage: "circle.grid.2x2")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canSelectSimilar)
+                .help(canSelectSimilar
+                      ? "Also select the holes with the same diameter and depth as the selected ones"
+                      : "Select a hole's circle to find the holes like it")
+                Button { isChoosing = true } label: {
+                    Label("Add toolpath", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!canAdd || operations.isEmpty)
+            }
+            .controlSize(.small)
+            .fixedSize()
         }
     }
 }

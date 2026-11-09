@@ -252,7 +252,10 @@ class CAMModel: ObservableObject {
     /// - Parameter stepTargets: the STEP edges it starts with; its End Z is then the depth of those edges.
     /// - Parameter setupID: the setup it is cut in; the active one by default. Settings are copied from
     ///   the last toolpath of that setup, or from the last one of any setup when it has none yet.
-    func addToolpath(targets: [PathSelection] = [], stepTargets: [STEPEdgeTarget] = [], setupID: UUID? = nil) {
+    /// - Parameter operation: the operation it is created with, when the user has already chosen it
+    ///   (the canvas tooltip's list); otherwise the one of the toolpath it is copied from.
+    func addToolpath(targets: [PathSelection] = [], stepTargets: [STEPEdgeTarget] = [], setupID: UUID? = nil,
+                     operation: OperationKind? = nil) {
         let setupID = setupID.flatMap { id in setups.contains { $0.id == id } ? id : nil } ?? activeSetupID
         var toolpath = toolpaths.last(where: { $0.setupID == setupID }) ?? toolpaths.last ?? Self.defaultToolpath()
         toolpath.id = UUID()
@@ -262,6 +265,11 @@ class CAMModel: ObservableObject {
         if toolpath.operation.kind == .restMachining {
             toolpath.operation.kind = .pocket
             toolpath.operation.restSourceID = nil
+        }
+        // The chosen operation; untouched fields take its defaults, like picking it in the panel.
+        if let operation {
+            toolpath.operation.kind = operation
+            toolpath.applyDefaults(for: operation)
         }
         // A fresh copy gets its own auto name for its operation.
         toolpath.name = toolpath.operation.kind.nextName(among: Set(toolpaths.map(\.name)))
@@ -336,17 +344,18 @@ class CAMModel: ObservableObject {
 
     /// "Add toolpath" from the canvas tooltip: a new toolpath that cuts the selected shapes
     /// (or, in the 3D canvas, the selected STEP edges).
-    func addToolpathFromSelection() {
+    /// - Parameter operation: the operation picked in the tooltip's list, if it offered one.
+    func addToolpathFromSelection(operation: OperationKind? = nil) {
         let edges = stepEdgesForNewToolpath
         if !edges.isEmpty {
-            addToolpath(stepTargets: edges)
+            addToolpath(stepTargets: edges, operation: operation)
             return
         }
         let targets = shapesForNewToolpath
         guard !targets.isEmpty else {
             return
         }
-        addToolpath(targets: targets)
+        addToolpath(targets: targets, operation: operation)
     }
 
     /// Clicking a toolpath in the list opens it in the settings panel;

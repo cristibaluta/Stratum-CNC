@@ -33,6 +33,8 @@ struct CAM_Metal_View: View {
     /// Bumped by the owner to frame the whole scene again.
     let fitRequest: Int
     let onAddToolpath: () -> Void
+    /// An operation was picked in the STEP edges' "Add toolpath" list.
+    let onAddStepToolpath: (OperationKind) -> Void
     /// The STEP model selected in the objects list, if it is the one on the canvas. It gets a box
     /// and a handle like a selected shape, and dragging the handle moves it.
     let selectedStepModelID: UUID?
@@ -53,7 +55,8 @@ struct CAM_Metal_View: View {
          selectedStepModelID: UUID? = nil,
          onMoveStepModel: @escaping (UUID, CGFloat, CGFloat) -> Void = { _, _, _ in },
          onDeselectStepModel: @escaping () -> Void = {},
-         onAddToolpath: @escaping () -> Void = {}) {
+         onAddToolpath: @escaping () -> Void = {},
+         onAddStepToolpath: @escaping (OperationKind) -> Void = { _ in }) {
         _scene = StateObject(wrappedValue: CAMSceneModel(canvasState: canvasState))
         self.zoomModel = zoomModel
         self.stepScene = stepScene
@@ -66,6 +69,7 @@ struct CAM_Metal_View: View {
         self.onMoveStepModel = onMoveStepModel
         self.onDeselectStepModel = onDeselectStepModel
         self.onAddToolpath = onAddToolpath
+        self.onAddStepToolpath = onAddStepToolpath
     }
 
     var body: some View {
@@ -137,6 +141,7 @@ struct CAM_Metal_View: View {
                          canAddToolpath: canAddToolpathFromEdges,
                          fitRequest: fitRequest,
                          onAddToolpath: onAddToolpath,
+                         onAddStepToolpath: onAddStepToolpath,
                          onEmptyClick: onDeselectStepModel)
         } else {
             MetalCanvasView(objects: .constant(scene.renderObjects3D(frame: partFrame)),
@@ -210,6 +215,7 @@ private struct STEP3DCanvas: View {
     let canAddToolpath: Bool
     let fitRequest: Int
     let onAddToolpath: () -> Void
+    let onAddStepToolpath: (OperationKind) -> Void
     let onEmptyClick: () -> Void
 
     var body: some View {
@@ -236,7 +242,7 @@ private struct STEP3DCanvas: View {
             }
             .overlay {
                 STEPAddToolpathTooltipLayer(scene: scene, zoomModel: zoomModel,
-                                            canAdd: canAddToolpath, onAdd: onAddToolpath)
+                                            canAdd: canAddToolpath, onChoose: onAddStepToolpath)
             }
     }
 }

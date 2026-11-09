@@ -78,6 +78,11 @@ struct CAMView: View {
                                    withAnimation(.easeOut(duration: 0.15)) {
                                        camModel.addToolpathFromSelection()
                                    }
+                               },
+                               onAddStepToolpath: { operation in
+                                   withAnimation(.easeOut(duration: 0.15)) {
+                                       camModel.addToolpathFromSelection(operation: operation)
+                                   }
                                })
                     .id(ObjectIdentifier(camModel.canvasState))
 
