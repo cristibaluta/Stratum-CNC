@@ -144,7 +144,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// Bounding box of the selected edges in canvas mm, to anchor the "Add toolpath" tooltip.
     @Published private(set) var selectionBox: (min: SIMD3<Float>, max: SIMD3<Float>)?
     @Published private(set) var selectionObjects: [RenderObject] = []
-    /// Draw the selected edges flattened onto the z0 plane (blue, dotted), with
+    /// Draw the selected edges flattened onto the z0 plane (orange, dotted), with
     /// vertical drop lines from their endpoints.
     @Published var showsProjection = true { didSet { rebuildHighlight() } }
     /// Lowest and highest Z of the selected edges, in display coordinates
@@ -264,7 +264,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
     /// Neutral face material that works on a light and on a dark canvas.
     private static func materialColor(isDark: Bool) -> SIMD4<Float> {
-        isDark ? SIMD4<Float>(0.56, 0.61, 0.69, 1) : SIMD4<Float>(0.70, 0.74, 0.80, 1)
+        isDark ? SIMD4<Float>(0.80, 0.83, 0.88, 1) : SIMD4<Float>(0.86, 0.88, 0.92, 1)
     }
 
     /// One line object per body, and for shaded modes one lit-triangle object per body that has a
@@ -496,11 +496,16 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         setSelection([], notify: false)
     }
 
-    private static let projectionColor = SIMD4<Float>(0.15, 0.45, 1.0, 1)
-    /// The selected edges and their projection onto z0: a thick dotted line. Width and dot size are
-    /// screen points, so they stay the same at any zoom (see `RenderObject.lineWidth`).
+    /// The selected edges: solid blue.
+    private static let selectionColor = SIMD4<Float>(0.15, 0.45, 1.0, 1)
+    /// Their projection onto z0: dotted orange.
+    private static let projectionColor = CanvasPalette.modelSelection
+    /// Widths and dot size are screen points, so they stay the same at any zoom
+    /// (see `RenderObject.lineWidth`).
     private static let selectionLineWidth: Float = 3
     private static let selectionDash: Float = 4
+    /// The vertical lines from the selected edges down to their projection.
+    private static let dropLineWidth: Float = 1
 
     private func rebuildHighlight() {
         var points: [SIMD3<Float>] = []
@@ -537,20 +542,20 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         }
 
         // New small overlay buffers, never new identities for the base objects.
-        // The projection goes first so the orange selection stays on top of it.
+        // The projection goes first so the blue selection stays on top of it.
         var objects: [RenderObject] = []
         if showsProjection {
-            for line in [projected, drops] where !line.isEmpty {
+            // The flattened edges, thick; the drop lines from the selection down to them, thin.
+            for (line, width) in [(projected, Self.selectionLineWidth), (drops, Self.dropLineWidth)] where !line.isEmpty {
                 objects.append(RenderObject(role: .modelSelection, points: line,
                                             color: Self.projectionColor, primitive: .lineList,
                                             isDashed: true, dashLength: Self.selectionDash,
-                                            lineWidth: Self.selectionLineWidth))
+                                            lineWidth: width))
             }
         }
         if !points.isEmpty {
             objects.append(RenderObject(role: .modelSelection, points: points,
-                                        color: CanvasPalette.modelSelection, primitive: .lineList,
-                                        isDashed: true, dashLength: Self.selectionDash,
+                                        color: Self.selectionColor, primitive: .lineList,
                                         lineWidth: Self.selectionLineWidth))
         }
         selectionObjects = objects
