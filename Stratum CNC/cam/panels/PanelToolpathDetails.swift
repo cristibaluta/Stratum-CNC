@@ -432,11 +432,6 @@ struct PanelToolpathDetails: View {
                 ForEach(generation.warningMessages, id: \.self) { message in
                     InspectorNote(text: message, isWarning: true, isIndented: false)
                 }
-                // The canvas draws one pass per toolpath; say so, so the other passes aren't
-                // mistaken for missing.
-                if generation.errorMessage == nil, generation.maxPassesPerToolpath > 1 {
-                    InspectorNote(text: model.multiPassNote(for: generation), isIndented: false)
-                }
                 // The corners this pocket's tool couldn't reach: offer to clean them with a smaller tool
                 if toolpath.operation.kind == .pocket, generation.errorMessage == nil, !generation.restCorners.isEmpty {
                     restAreasRows(cornerCount: generation.restCorners.count)

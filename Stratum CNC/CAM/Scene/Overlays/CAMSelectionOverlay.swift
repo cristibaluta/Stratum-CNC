@@ -142,13 +142,13 @@ enum CAMToolpathScrubOverlay {
     }
 
     /// The cutter seen from above: a ring of the tool's diameter and a cross
-    /// through its center. Role `.tool`, so the fast path swaps it in place.
-    static func marker(at position: SIMD2<Float>, diameter: Double) -> RenderObject {
+    /// through its center, at the tool tip's height. Role `.tool`, so the fast path swaps it in place.
+    static func marker(at position: SIMD3<Float>, diameter: Double) -> RenderObject {
         // A hair-thin tool would vanish at any zoom
         let radius = max(Float(max(diameter, 0) / 2), 0.25)
 
         func point(_ dx: Float, _ dy: Float) -> SIMD3<Float> {
-            SIMD3<Float>(position.x + dx, position.y + dy, 0)
+            SIMD3<Float>(position.x + dx, position.y + dy, position.z)
         }
 
         var points: [SIMD3<Float>] = []

@@ -12,10 +12,11 @@ import StratumCAM
 
 /// Which passes of each generated toolpath a canvas preview draws.
 ///
-/// A toolpath is a stack of passes, one per stepdown. Seen from above they are
-/// (nearly) the same line, so the 2D canvas gains nothing from drawing them all;
-/// a 3D view needs every one of them to show the depth. Only the preview
-/// follows this: the G-code is always posted from the full engine output.
+/// A toolpath is a stack of passes, one per stepdown. Both canvases draw every
+/// one of them, so what changes from layer to layer (holding tabs, ramps and
+/// entries, a thread's radial passes) shows. Passes that land on exactly the same
+/// XY line are drawn once in the overlay (see `ToolpathPathBuilder.path`).
+/// Only the preview follows this: the G-code is always posted from the full engine output.
 enum ToolpathPassSelection: Sendable {
     /// Every pass.
     case all
@@ -46,8 +47,9 @@ struct ToolpathPreviewOptions: Sendable {
 
     var passes: ToolpathPassSelection
 
-    /// CAM's top-down canvas: one pass per toolpath.
-    static let canvas2D = ToolpathPreviewOptions(passes: .last)
+    /// CAM's top-down canvas: every pass (z layer) of each toolpath. The scrub slider walks
+    /// them in machining order, first pass first, and ends with all of them drawn.
+    static let canvas2D = ToolpathPreviewOptions(passes: .all)
     /// For the 3D scene: every pass, so the depth shows.
     static let canvas3D = ToolpathPreviewOptions(passes: .all)
 }
@@ -312,14 +314,15 @@ enum ToolpathPathBuilder {
 struct ToolpathScrubData: Sendable {
 
     /// Cutting moves as disconnected pairs (start, end, start, end…), in world
-    /// mm at z = 0, in machining order. Rapids and pure Z moves add nothing.
+    /// mm with their real Z (so every pass sits at its own depth), in machining
+    /// order. Rapids add nothing.
     let points: [SIMD3<Float>]
     /// `vertexCounts[n]` = how many of `points` are drawn after `n` steps.
     /// `vertexCounts[0]` is 0, so it holds `stepCount + 1` entries.
     let vertexCounts: [Int]
-    /// `toolPositions[n]` = where the tool is (XY) after `n` steps; index 0 is
+    /// `toolPositions[n]` = where the tool is after `n` steps; index 0 is
     /// where the first move starts. Same length as `vertexCounts`.
-    let toolPositions: [SIMD2<Float>]
+    let toolPositions: [SIMD3<Float>]
 
     var stepCount: Int {
         vertexCounts.count - 1
@@ -329,7 +332,7 @@ struct ToolpathScrubData: Sendable {
         vertexCounts[min(max(step, 0), stepCount)]
     }
 
-    func toolPosition(afterStep step: Int) -> SIMD2<Float> {
+    func toolPosition(afterStep step: Int) -> SIMD3<Float> {
         toolPositions[min(max(step, 0), stepCount)]
     }
 }
@@ -344,10 +347,10 @@ extension ToolpathPathBuilder {
 
         var points: [SIMD3<Float>] = []
         var vertexCounts: [Int] = [0]
-        var toolPositions: [SIMD2<Float>] = []
+        var toolPositions: [SIMD3<Float>] = []
 
-        func simd(_ point: CGPoint) -> SIMD3<Float> {
-            SIMD3<Float>(Float(point.x), Float(point.y), 0)
+        func simd(_ point: CGPoint, _ z: Double) -> SIMD3<Float> {
+            SIMD3<Float>(Float(point.x), Float(point.y), Float(z))
         }
 
         for output in outputs {
@@ -355,15 +358,18 @@ extension ToolpathPathBuilder {
                 // Like the preview path: a pass starts wherever its first waypoint is,
                 // no move is drawn from the end of the previous pass.
                 var current: CGPoint?
+                var currentZ = 0.0
 
                 for waypoint in pass.waypoints {
                     let target = CGPoint(x: waypoint.position.x, y: waypoint.position.y)
-                    guard target.x.isFinite, target.y.isFinite else {
+                    let targetZ = Double(waypoint.position.z)
+                    guard target.x.isFinite, target.y.isFinite, targetZ.isFinite else {
                         continue
                     }
                     let from = current ?? target
+                    let fromZ = current == nil ? targetZ : currentZ
                     if toolPositions.isEmpty {
-                        toolPositions.append(SIMD2<Float>(Float(from.x), Float(from.y)))
+                        toolPositions.append(simd(from, fromZ))
                     }
 
                     switch waypoint.motion {
@@ -371,21 +377,25 @@ extension ToolpathPathBuilder {
                         break
 
                     case .linear:
-                        if hypot(target.x - from.x, target.y - from.y) > 1e-9 {
-                            points.append(simd(from))
-                            points.append(simd(target))
+                        // A plunge or a ramp has no (or little) XY extent but does cut
+                        if hypot(target.x - from.x, target.y - from.y) > 1e-9 || abs(targetZ - fromZ) > 1e-9 {
+                            points.append(simd(from, fromZ))
+                            points.append(simd(target, targetZ))
                         }
 
                     case .arcCW(let center):
-                        appendArc(from: from, to: target, center: center, isCCW: false, into: &points)
+                        appendArc(from: from, fromZ: fromZ, to: target, toZ: targetZ,
+                                  center: center, isCCW: false, into: &points)
 
                     case .arcCCW(let center):
-                        appendArc(from: from, to: target, center: center, isCCW: true, into: &points)
+                        appendArc(from: from, fromZ: fromZ, to: target, toZ: targetZ,
+                                  center: center, isCCW: true, into: &points)
                     }
 
                     current = target
+                    currentZ = targetZ
                     vertexCounts.append(points.count)
-                    toolPositions.append(SIMD2<Float>(Float(target.x), Float(target.y)))
+                    toolPositions.append(simd(target, targetZ))
                 }
             }
         }
@@ -399,18 +409,20 @@ extension ToolpathPathBuilder {
     /// An arc as short chords, appended as line pairs. Same maths as `Pen.arc`
     /// (sweep in the direction of travel, a zero sweep is a full circle), kept
     /// separate so the preview path builder stays untouched.
-    private static func appendArc(from: CGPoint, to: CGPoint, center: CGPoint, isCCW: Bool,
+    /// Z runs linearly from `fromZ` to `toZ` along the arc (a helix, if they differ).
+    private static func appendArc(from: CGPoint, fromZ: Double, to: CGPoint, toZ: Double,
+                                  center: CGPoint, isCCW: Bool,
                                   into points: inout [SIMD3<Float>]) {
 
-        func simd(_ point: CGPoint) -> SIMD3<Float> {
-            SIMD3<Float>(Float(point.x), Float(point.y), 0)
+        func simd(_ point: CGPoint, _ z: Double) -> SIMD3<Float> {
+            SIMD3<Float>(Float(point.x), Float(point.y), Float(z))
         }
 
         let radius = hypot(from.x - center.x, from.y - center.y)
         guard radius > 1e-9 else {
-            if hypot(to.x - from.x, to.y - from.y) > 1e-9 {
-                points.append(simd(from))
-                points.append(simd(to))
+            if hypot(to.x - from.x, to.y - from.y) > 1e-9 || abs(toZ - fromZ) > 1e-9 {
+                points.append(simd(from, fromZ))
+                points.append(simd(to, toZ))
             }
             return
         }
@@ -430,17 +442,22 @@ extension ToolpathPathBuilder {
         let steps = max(1, Int((sweep / step).rounded(.up)))
 
         var previous = from
+        var previousZ = fromZ
         for i in 1...steps {
             let next: CGPoint
+            let nextZ: Double
             if i == steps {
                 next = to
+                nextZ = toZ
             } else {
                 let angle = startAngle + direction * sweep * Double(i) / Double(steps)
                 next = CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
+                nextZ = fromZ + (toZ - fromZ) * Double(i) / Double(steps)
             }
-            points.append(simd(previous))
-            points.append(simd(next))
+            points.append(simd(previous, previousZ))
+            points.append(simd(next, nextZ))
             previous = next
+            previousZ = nextZ
         }
     }
 }

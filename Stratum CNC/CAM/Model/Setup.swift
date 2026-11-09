@@ -354,6 +354,26 @@ struct SetupFrame: Sendable, Equatable {
         }
     }
 
+    /// Cutting lines built in this setup's frame (with real Z), in the part's frame relative to the
+    /// setup's z0: the same XY mirror as `previewInPartFrame`, and for the bottom Z flipped too (deeper
+    /// in the setup is higher in the part). The 3D view adds `z0InPartFrame`. Nil for the side faces.
+    func previewLines(_ points: [SIMD3<Float>]) -> [SIMD3<Float>]? {
+        switch quarterTurns {
+            case 0?:
+                return points
+            case 2?:
+                let twicePivot = Float(2 * pivot)
+                switch axis {
+                    case .x:
+                        return points.map { SIMD3<Float>($0.x, twicePivot - $0.y, -$0.z) }
+                    case .y:
+                        return points.map { SIMD3<Float>(twicePivot - $0.x, $0.y, -$0.z) }
+                }
+            default:
+                return nil
+        }
+    }
+
     /// A 2D canvas shape laid on this setup's face (the one that is up), as the engine needs it.
     /// Shapes are flat, so only X and Y matter; depth comes from the toolpath's Start Z / End Z,
     /// measured from this face.

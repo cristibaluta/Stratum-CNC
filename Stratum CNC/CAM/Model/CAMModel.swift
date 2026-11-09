@@ -145,8 +145,9 @@ class CAMModel: ObservableObject {
     }
 
     /// How generated toolpaths are drawn and previewed on this canvas: which passes
-    /// of each one. CAM's top-down canvas keeps one; a 3D scene would set
-    /// `.canvas3D` to keep them all. Read when a generation starts, so a change
+    /// of each one. Both canvas presets keep every pass (z layer); the all-toolpaths
+    /// overlay skips passes that repeat an XY line, the scrub slider walks them all,
+    /// first pass first. Read when a generation starts, so a change
     /// applies from the next Generate, not to results already on screen.
     var previewOptions: ToolpathPreviewOptions = .canvas2D
 
@@ -812,15 +813,19 @@ class CAMModel: ObservableObject {
                     // (and the scrub slider, which has no mapping yet, is off for turned setups).
                     let frame = job.frame
                     let previewPath = frame.previewInPartFrame(ToolpathPathBuilder.path(for: outputs, options: previewOptions))
-                    let scrub = frame.isIdentity ? ToolpathPathBuilder.scrubData(for: outputs, options: previewOptions) : nil
+                    let flat = ToolpathPathBuilder.scrubData(for: outputs, options: previewOptions)
+                    let scrub = frame.isIdentity ? flat : nil
+                    let previewLines = flat.flatMap { frame.previewLines($0.points) }
                     let restPath = frame.previewInPartFrame(ToolpathPathBuilder.restPath(for: outputs.flatMap(\.restCorners)))
                     PerfLog.log("gen", "background work finished; preview path + scrub data took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
                     return ComputedGeneration(outcome: .success(outputs),
                                               previewPath: previewPath,
                                               scrub: scrub,
+                                              previewLines: previewLines,
                                               restPath: restPath)
                 } catch {
-                    return ComputedGeneration(outcome: .failure(error), previewPath: nil, scrub: nil, restPath: nil)
+                    return ComputedGeneration(outcome: .failure(error), previewPath: nil, scrub: nil,
+                                              previewLines: nil, restPath: nil)
                 }
             }.value
 
@@ -848,6 +853,7 @@ class CAMModel: ObservableObject {
                                              outcome: computed.outcome,
                                              previewPath: computed.previewPath,
                                              scrub: computed.scrub,
+                                             previewLines: computed.previewLines,
                                              restPath: computed.restPath,
                                              sourceSnapshot: linkedSource)
         // The pocket may have been edited while this was running
@@ -953,17 +959,21 @@ class CAMModel: ObservableObject {
         }
         var faces: [D2_CanvasState.FaceToolpaths] = []
         for setup in setups {
-            let paths = toolpaths
+            let results = toolpaths
                 .filter { !hiddenToolpathIDs.contains($0.id) && self.setup(for: $0).id == setup.id }
-                .compactMap { generations[$0.id]?.previewPath }
+                .compactMap { generations[$0.id] }
+            let paths = results.compactMap(\.previewPath)
             guard !paths.isEmpty else {
                 continue
             }
+            // The 3D view draws the lines with their Z, so every pass shows at its own depth
+            let lines = results.compactMap(\.previewLines).flatMap { $0 }
             let combined = CGMutablePath()
             paths.forEach { combined.addPath($0) }
             let frame = try? SetupFrame.make(setup: setup, stock: selectedStockMaterial)
             faces.append(.init(setupID: setup.id, face: setup.face, path: combined,
-                               z: CGFloat(frame?.z0InPartFrame ?? 0)))
+                               z: CGFloat(frame?.z0InPartFrame ?? 0),
+                               lines: lines, linesKey: results.map(\.id)))
         }
         canvasState.setFaceToolpaths(faces)
     }
@@ -1131,5 +1141,6 @@ private struct ComputedGeneration: @unchecked Sendable {
     let outcome: Result<[SC.OutputToolpath], Error>
     let previewPath: CGPath?
     let scrub: ToolpathScrubData?
+    let previewLines: [SIMD3<Float>]?
     let restPath: CGPath?
 }

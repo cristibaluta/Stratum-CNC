@@ -84,9 +84,14 @@ final class D2_CanvasState: ObservableObject, Equatable {
         var path: CGPath
         /// Height of the face's z0 in the part's frame (see `SetupFrame.z0InPartFrame`)
         var z: CGFloat
+        /// The same toolpaths as 3D line pairs with their real Z, relative to `z`; empty when there are none
+        var lines: [SIMD3<Float>] = []
+        /// Which generations `lines` come from, to compare without walking the points
+        var linesKey: [UUID] = []
 
         static func == (a: FaceToolpaths, b: FaceToolpaths) -> Bool {
             a.setupID == b.setupID && a.face == b.face && a.path === b.path && a.z == b.z
+                && a.linesKey == b.linesKey
         }
     }
 
@@ -151,7 +156,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
             data.vertexCount(afterStep: step)
         }
 
-        var toolPosition: SIMD2<Float> {
+        var toolPosition: SIMD3<Float> {
             data.toolPosition(afterStep: step)
         }
     }

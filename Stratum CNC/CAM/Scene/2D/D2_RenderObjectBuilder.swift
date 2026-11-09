@@ -148,6 +148,16 @@ enum D2_RenderObjectBuilder {
         return lineListObject(from: simdSubpaths, color: color)
     }
 
+    /// A face's toolpath lines (pairs, with their real Z relative to the face's z0) as one object,
+    /// lifted by `z`, the height of that z0. Every pass is drawn at its own depth.
+    static func toolpathRenderObject(lines: [SIMD3<Float>], z: Float, color: SIMD4<Float>) -> RenderObject? {
+        guard !lines.isEmpty else {
+            return nil
+        }
+        let points = z == 0 ? lines : lines.map { SIMD3<Float>($0.x, $0.y, $0.z + z) }
+        return RenderObject(points: points, color: color, primitive: .lineList)
+    }
+
     /// `state.restRegionsPath` as one `RenderObject`: each corner filled (lit triangles) with a
     /// lighter outline on top, or nil when there is none. Each subpath is one corner as built by
     /// `ToolpathPathBuilder.restPath`: first the wall point, second the sharp corner, then the other

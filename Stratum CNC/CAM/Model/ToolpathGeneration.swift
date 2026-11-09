@@ -28,6 +28,11 @@ struct ToolpathGeneration {
     /// built together with `previewPath`. Nil on failure, or when nothing is cut.
     var scrub: ToolpathScrubData? = nil
 
+    /// The same cutting moves as 3D line pairs with their real Z (relative to the setup's z0, in the
+    /// part's frame, see `SetupFrame.previewLines`), for the 3D view, where every pass sits at its
+    /// own depth. Nil on failure, or for a setup with no top-down view.
+    var previewLines: [SIMD3<Float>]? = nil
+
     /// The corners a pocket's tool couldn't reach, as outlines for the canvas (see
     /// `ToolpathPathBuilder.restPath`). Built together with `previewPath`. Nil when there are none.
     var restPath: CGPath? = nil
@@ -52,7 +57,7 @@ struct ToolpathGeneration {
     }
 
     /// The most passes any one toolpath of the result has (stepdowns, or a thread's radial
-    /// passes). The canvas preview draws just one of them (see `ToolpathPreviewOptions.canvas2D`).
+    /// passes). The canvas preview draws all of them (see `ToolpathPreviewOptions.canvas2D`).
     var maxPassesPerToolpath: Int {
         guard case .success(let outputs) = outcome else { return 0 }
         return outputs.map { $0.passes.count }.max() ?? 0

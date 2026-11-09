@@ -298,10 +298,6 @@ final class ToolpathDetailsModel: ObservableObject {
         return "\(toolpaths) toolpath\(toolpaths == 1 ? "" : "s") · \(passes) pass\(passes == 1 ? "" : "es")"
     }
 
-    func multiPassNote(for generation: ToolpathGeneration) -> String {
-        "The preview shows only the last pass. The G-code cuts all \(generation.maxPassesPerToolpath) passes."
-    }
-
     // MARK: Shapes
 
     func shapesTitle(for toolpath: ToolpathData) -> String {

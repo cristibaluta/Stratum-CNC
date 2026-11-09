@@ -317,9 +317,12 @@ final class CAMSceneModel: ObservableObject {
         }
 
         planarToolpathID = toolpath?.id
-        faceToolpathObjects = (showsToolpaths ? canvasState.faceToolpaths : []).compactMap { group in
-            D2_RenderObjectBuilder.toolpathRenderObject(path: group.path, z: Float(group.z),
-                                                        color: Style.toolpathColor(for: group.face))
+        faceToolpathObjects = (showsToolpaths ? canvasState.faceToolpaths : []).compactMap { group -> RenderObject? in
+            let color = Style.toolpathColor(for: group.face)
+            if let object = D2_RenderObjectBuilder.toolpathRenderObject(lines: group.lines, z: Float(group.z), color: color) {
+                return object
+            }
+            return D2_RenderObjectBuilder.toolpathRenderObject(path: group.path, z: Float(group.z), color: color)
         }
 
         // Hidden shapes can't be clicked, and the "Add toolpath" tooltip has nothing to point at
