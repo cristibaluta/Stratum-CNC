@@ -848,14 +848,30 @@ private struct CanvasSection: View {
                 CanvasCoordinateLabels(scene: scene)
             }
             .overlay(alignment: .topLeading) {
-                CanvasLayersList(scene: scene) {
-                    PanelStockMaterial(stock: $camModel.selectedStockMaterial,
-                                       isStockVisible: isStockVisible,
-                                       isCompact: true,
-                                       onOpenStocksLib: nil)
-                        .frame(width: 300)
-                        .padding(12)
-                }
+                CanvasLayersList(layers: CanvasLayer.controllerLayers,
+                                 isVisible: { scene.isVisible($0) },
+                                 setVisible: { scene.setVisible($0, $1) },
+                                 unavailableReason: { scene.unavailableReason(for: $0) },
+                                 settingsLayers: [.stock, .boundingBox, .anchor],
+                                 settings: { layer in
+                                     switch layer {
+                                         case .stock:
+                                             return AnyView(
+                                                 PanelStockMaterial(stock: $camModel.selectedStockMaterial,
+                                                                    isStockVisible: isStockVisible,
+                                                                    isCompact: true,
+                                                                    onOpenStocksLib: nil)
+                                                     .frame(width: 300)
+                                                     .padding(12)
+                                             )
+                                         case .boundingBox:
+                                             return AnyView(JobAreaSettingsView(scene: scene))
+                                         case .anchor:
+                                             return AnyView(AnchorSettingsView(scene: scene))
+                                         default:
+                                             return AnyView(EmptyView())
+                                     }
+                                 })
                 .padding(8)
             }
             .overlay(alignment: .topTrailing) {

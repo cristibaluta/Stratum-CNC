@@ -1,0 +1,117 @@
+//
+//  CAMLayersOverlay.swift
+//  Stratum CNC
+//
+//  The objects list of the controller's canvas (`CanvasLayersList`), for the CAM
+//  screen. It lists only what the CAM canvas has right now: the shapes, the STEP
+//  model, the stock, the generated toolpaths, and the anchor and axes that are
+//  always there. A project with no STEP model has no Model row, and so on.
+//
+//  Where the screen already has a switch for something, the checkmark is that
+//  switch, so the list and the panels can't disagree:
+//    Model  -> `STEPDocumentScene.isModelVisible` (the STEP panel)
+//    Stock  -> the screen's stock visibility (the material panel, saved with the project)
+//  The rest (shapes, toolpaths, anchor, axes) are `D2_CanvasState.hiddenLayers`;
+//  `CAMSceneModel` leaves them out of the scene.
+//
+
+import SwiftUI
+
+struct CAMLayersOverlay: View {
+
+    @ObservedObject var canvasState: D2_CanvasState
+    /// Observed so the Model row appears and goes with the STEP model.
+    @ObservedObject var workspace: STEPWorkspace
+    /// The screen's single funnel for stock visibility (`CAMView.stockVisibleBinding`).
+    let isStockVisible: Binding<Bool>
+
+    var body: some View {
+        if let stepScene = workspace.activeScene {
+            // `isModelVisible` is the scene's own, so the row has to watch the scene
+            ObservedSTEPScene(scene: stepScene) { scene in
+                list(stepScene: scene)
+            }
+        } else {
+            list(stepScene: nil)
+        }
+    }
+
+    private func list(stepScene: STEPDocumentScene?) -> some View {
+        CanvasLayersList(layers: layers(hasModel: stepScene != nil),
+                         isVisible: { isVisible($0, stepScene: stepScene) },
+                         setVisible: { setVisible($0, $1, stepScene: stepScene) },
+                         tint: { tint(for: $0) })
+    }
+
+    /// Only the layers the canvas has content for, in the order they sit in the scene.
+    private func layers(hasModel: Bool) -> [CanvasLayer] {
+        var layers: [CanvasLayer] = []
+        if !canvasState.objects.isEmpty {
+            layers.append(.shapes)
+        }
+        if hasModel {
+            layers.append(.model)
+        }
+        if canvasState.stock != nil {
+            layers.append(.stock)
+        }
+        if canvasState.toolpathsPath != nil || !canvasState.faceToolpaths.isEmpty {
+            layers.append(.toolpaths)
+        }
+        layers.append(.anchor)
+        layers.append(.axes)
+        return layers
+    }
+
+    private func isVisible(_ layer: CanvasLayer, stepScene: STEPDocumentScene?) -> Bool {
+        switch layer {
+            case .model: return stepScene?.isModelVisible ?? false
+            case .stock: return canvasState.isStockVisible
+            default:     return !canvasState.hiddenLayers.contains(layer)
+        }
+    }
+
+    private func setVisible(_ layer: CanvasLayer, _ visible: Bool, stepScene: STEPDocumentScene?) {
+        switch layer {
+            case .model:
+                stepScene?.isModelVisible = visible
+            case .stock:
+                isStockVisible.wrappedValue = visible
+            default:
+                if visible {
+                    canvasState.hiddenLayers.remove(layer)
+                } else {
+                    canvasState.hiddenLayers.insert(layer)
+                }
+        }
+    }
+
+    /// The canvas draws the stock in its material's color and the ruler gray, not in the
+    /// controller's palette.
+    private func tint(for layer: CanvasLayer) -> Color? {
+        switch layer {
+            case .stock:
+                return canvasState.stock.map { Color(canvasColor: $0.material.surfaceColor) }
+            case .anchor:
+                return Color(canvasColor: CAMSceneModel.Style.rulerColor)
+            default:
+                return layer.tint
+        }
+    }
+}
+
+/// Re-renders its content when the scene changes (`@ObservedObject` can't hold an optional).
+private struct ObservedSTEPScene<Content: View>: View {
+
+    @ObservedObject var scene: STEPDocumentScene
+    let content: (STEPDocumentScene) -> Content
+
+    init(scene: STEPDocumentScene, @ViewBuilder content: @escaping (STEPDocumentScene) -> Content) {
+        self.scene = scene
+        self.content = content
+    }
+
+    var body: some View {
+        content(scene)
+    }
+}

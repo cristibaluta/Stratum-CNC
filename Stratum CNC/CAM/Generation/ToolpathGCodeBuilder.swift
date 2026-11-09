@@ -72,7 +72,8 @@ enum ToolpathGCodeBuilder {
     /// carried on from one into the next would cut in the wrong frame. Pass the `setup` to post.
     /// Without one, a project with several setups is refused (every toolpath is reported), never
     /// merged; a project with a single setup posts as before.
-    static func plan(toolpaths allToolpaths: [ToolpathData], generations: [UUID: ToolpathGeneration],
+    static func plan(toolpaths allToolpaths: [ToolpathData],
+                     generations: [UUID: ToolpathGeneration],
                      setup: Setup? = nil) -> Plan {
 
         if setup == nil, Set(allToolpaths.compactMap(\.setupID)).count > 1 {

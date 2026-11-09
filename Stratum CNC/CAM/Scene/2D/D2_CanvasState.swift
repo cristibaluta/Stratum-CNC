@@ -33,6 +33,12 @@ final class D2_CanvasState: ObservableObject, Equatable {
 
     /// Whether the stock should be drawn.
     @Published var isStockVisible: Bool = true
+
+    /// Canvas layers the person switched off in the canvas's objects list (`CAMLayersOverlay`):
+    /// shapes, toolpaths, the anchor's ruler and the axes. The model (`STEPDocumentScene.isModelVisible`)
+    /// and the stock (`isStockVisible`) keep their own switches, so the panels and the list agree.
+    /// `CAMSceneModel` leaves the hidden layers out of what it builds.
+    @Published var hiddenLayers: Set<CanvasLayer> = []
     @Published var stock: StockMaterial?
 
     /// All generated toolpaths as one top-down path in world coordinates, or nil when there's nothing to show.
@@ -592,6 +598,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
         lhs.isPickingPaths == rhs.isPickingPaths &&
         lhs.pickedPaths.count == rhs.pickedPaths.count &&
         lhs.isStockVisible == rhs.isStockVisible &&
+        lhs.hiddenLayers == rhs.hiddenLayers &&
         lhs.zoomScale == rhs.zoomScale
     }
 

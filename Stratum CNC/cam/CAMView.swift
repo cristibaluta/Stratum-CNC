@@ -23,6 +23,7 @@ import SwiftUI
     - CAM_Metal_View                           <- canvas (Metal), always the free 3D camera; shapes sit flat at z0
         - CAMSceneModel (D2_CanvasState -> [RenderObject] via D2_RenderObjectBuilder)
         - MetalCanvasView
+    - CAMLayersOverlay                         <- objects list over the canvas (shapes, model, stock, toolpaths, anchor, axes): show / hide
     - STEPInfoPanel                            <- floating over the canvas while there is a STEP model (layers, selection, details)
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
     - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
@@ -128,6 +129,15 @@ struct CAMView: View {
                     }
                     .frame(minWidth: 200, maxWidth: 260)
                     .padding(16)
+                    // The canvas's objects list: only what this project's canvas has. Sits at
+                    // the canvas's top-left, next to the panels.
+                    VStack {
+                        CAMLayersOverlay(canvasState: camModel.canvasState,
+                                         workspace: camModel.stepWorkspace,
+                                         isStockVisible: stockVisibleBinding)
+                        Spacer()
+                    }
+                    .padding(.top, 16)
                     Spacer()
 //                    VStack {
 //                        CanvasZoomToolbar(viewModel: camModel)

@@ -93,9 +93,22 @@ final class CAMSceneModel: ObservableObject {
         }
         // The 2D scene's toolpath is the active face's only: the 3D view shows every face's,
         // each in its own color and on its own face (`faceToolpathObjects`).
-        return renderObjects.filter { $0.role != .ruler && $0.id != planarToolpathID }
+        let objects = renderObjects.filter { $0.role != .ruler && $0.id != planarToolpathID }
             + faceToolpathObjects
             + (fixtures3DCache?.objects ?? [])
+
+        // The anchor (its ruler) and the axes are tagged by role, so the objects list can switch
+        // them off here; the shapes and toolpaths are left out when the scene is built (`rebuild`).
+        let hidden = canvasState.hiddenLayers
+        guard !hidden.isEmpty else {
+            return objects
+        }
+        return objects.filter { object in
+            guard let role = object.role else {
+                return true
+            }
+            return !hidden.contains { $0.roles.contains(role) }
+        }
     }
 
     /// Every face's toolpaths for the 3D view, built with the scene (see `rebuild`).
@@ -165,7 +178,8 @@ final class CAMSceneModel: ObservableObject {
     /// cutter. Mutates the existing objects by role instead of rebuilding the
     /// scene, so a drag doesn't re-flatten every shape on the canvas.
     private func applyScrubStep() {
-        guard let scrub = canvasState.toolpathScrub else {
+        guard let scrub = canvasState.toolpathScrub,
+              !canvasState.hiddenLayers.contains(.toolpaths) else {
             return
         }
         // One assignment, so the canvas is told once per tick rather than twice
@@ -208,6 +222,12 @@ final class CAMSceneModel: ObservableObject {
     func rebuild() {
         let t0 = PerfLog.now()
 
+        // What the person switched off in the objects list is not built at all, so it is neither
+        // drawn nor hit-tested (`CAMLayersOverlay`)
+        let hiddenLayers = canvasState.hiddenLayers
+        let showsShapes = !hiddenLayers.contains(.shapes)
+        let showsToolpaths = !hiddenLayers.contains(.toolpaths)
+
         // Dynamic system colors resolve against the *current drawing
         // appearance*, so build under the one the view is actually in.
         var paths: [D2_RenderPath] = []
@@ -217,8 +237,10 @@ final class CAMSceneModel: ObservableObject {
         var overlay: [RenderObject] = []
         appearance.performAsCurrentDrawingAppearance {
             paths = D2_RenderObjectBuilder.renderPaths(for: canvasState)
-            toolpath = D2_RenderObjectBuilder.toolpathRenderObject(for: canvasState)
-            restRegions = D2_RenderObjectBuilder.restRegionsRenderObject(for: canvasState)
+            if showsToolpaths {
+                toolpath = D2_RenderObjectBuilder.toolpathRenderObject(for: canvasState)
+                restRegions = D2_RenderObjectBuilder.restRegionsRenderObject(for: canvasState)
+            }
             // Flat 2D content is tagged (see `.faceOverlay`) so the 3D canvas projects it onto the
             // face that is up instead of carrying it along with the stock
             restRegions?.role = .faceOverlay
@@ -230,14 +252,14 @@ final class CAMSceneModel: ObservableObject {
             let boxColor = Self.rgba(NSColor.systemRed)
             let handleColor = Self.rgba(NSColor.systemOrange)
             for object in canvasState.objects
-                where canvasState.selectedObjectIDs.contains(object.id) && object.isVisible {
+                where showsShapes && canvasState.selectedObjectIDs.contains(object.id) && object.isVisible {
                 overlay.append(contentsOf: CAMSelectionOverlay.renderObjects(for: object,
                                                                              boxColor: boxColor,
                                                                              handleColor: handleColor))
             }
 
             // The open contour toolpath's holding tabs, drawn along the shapes it cuts
-            if let tabs = canvasState.holdingTabs {
+            if showsToolpaths, let tabs = canvasState.holdingTabs {
                 overlay.append(contentsOf: CAMHoldingTabsOverlay.renderObjects(for: tabs,
                                                                                paths: paths,
                                                                                color: Self.rgba(NSColor.systemPurple)))
@@ -247,7 +269,7 @@ final class CAMSceneModel: ObservableObject {
         // The toolpath being scrubbed, if any: its cut-so-far line and the cutter marker.
         var scrubPath: RenderObject?
         var scrubMarker: RenderObject?
-        if let scrub = canvasState.toolpathScrub {
+        if showsToolpaths, let scrub = canvasState.toolpathScrub {
             var object: RenderObject
             if let cached = scrubPathCache, cached.id == scrub.id {
                 object = cached.object
@@ -276,7 +298,7 @@ final class CAMSceneModel: ObservableObject {
         var objects: [RenderObject] = scrubMarker.map { [$0] } ?? []
         objects.append(contentsOf: overlay.map(flat))
         objects.reserveCapacity(objects.count + paths.count + 4)
-        for path in paths where !path.renderObject.points.isEmpty {
+        for path in paths where showsShapes && !path.renderObject.points.isEmpty {
             objects.append(flat(path.renderObject))
         }
         if let toolpath {
@@ -295,15 +317,17 @@ final class CAMSceneModel: ObservableObject {
         }
 
         planarToolpathID = toolpath?.id
-        faceToolpathObjects = canvasState.faceToolpaths.compactMap { group in
+        faceToolpathObjects = (showsToolpaths ? canvasState.faceToolpaths : []).compactMap { group in
             D2_RenderObjectBuilder.toolpathRenderObject(path: group.path, z: Float(group.z),
                                                         color: Style.toolpathColor(for: group.face))
         }
 
+        // Hidden shapes can't be clicked, and the "Add toolpath" tooltip has nothing to point at
+        let hitPaths = showsShapes ? paths : []
         var selectionBounds: CGRect?
         if !canvasState.isPickingPaths, !canvasState.selectedPaths.isEmpty {
             let selected = Set(canvasState.selectedPaths)
-            for path in paths where selected.contains(PathSelection(objectID: path.objectID, pathIndex: path.pathIndex)) {
+            for path in hitPaths where selected.contains(PathSelection(objectID: path.objectID, pathIndex: path.pathIndex)) {
                 selectionBounds = selectionBounds.map { $0.union(path.worldBounds) } ?? path.worldBounds
             }
         }
@@ -311,7 +335,7 @@ final class CAMSceneModel: ObservableObject {
             selectionWorldBounds = selectionBounds
         }
 
-        renderPaths = paths
+        renderPaths = hitPaths
         renderObjects = objects
         backgroundColor = background
 
