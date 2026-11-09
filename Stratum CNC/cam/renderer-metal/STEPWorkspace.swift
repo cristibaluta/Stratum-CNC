@@ -145,8 +145,14 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     @Published private(set) var selectionBox: (min: SIMD3<Float>, max: SIMD3<Float>)?
     @Published private(set) var selectionObjects: [RenderObject] = []
     /// Draw the selected edges flattened onto the z0 plane (orange, dotted), with
-    /// vertical drop lines from their endpoints.
-    @Published var showsProjection = true { didSet { rebuildHighlight() } }
+    /// vertical drop lines from their endpoints. Remembered across sessions (on by default).
+    @Published var showsProjection = true {
+        didSet {
+            guard showsProjection != oldValue else { return }
+            defaults?.set(showsProjection, forKey: Self.showsProjectionKey)
+            rebuildHighlight()
+        }
+    }
     /// Lowest and highest Z of the selected edges, in display coordinates
     /// (the model's top is z0). `nil` when nothing is selected.
     @Published private(set) var selectionZRange: ClosedRange<Float>?
@@ -156,19 +162,26 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// of every triangle, unindexed, about 100 bytes each.
     static let defaultShadedTriangleCap = 500_000
     private static let displayModeKey = "STEPDisplayMode"
+    private static let hiddenEdgeModeKey = "STEPHiddenEdgeMode"
+    private static let showsProjectionKey = "STEPShowsProjection"
     private let shadedTriangleCap: Int
     private let defaults: UserDefaults?
 
     /// Edges behind a face: dotted (the default when the part has surfaces), not drawn, or drawn
-    /// solid like a plain wireframe. Only the base objects are rebuilt, never the selection.
+    /// solid like a plain wireframe. Remembered across sessions, for models that have surfaces.
+    /// Only the base objects are rebuilt, never the selection.
     /// Picking stays all-edges in every mode that shows edges, and the selection highlight is drawn
     /// over the whole part, hidden edges included, so a selected rear edge can always be seen.
     @Published var hiddenEdgeMode: STEPHiddenEdgeMode = .solid {
-        didSet { if hiddenEdgeMode != oldValue { rebuildObjects() } }
+        didSet {
+            guard hiddenEdgeMode != oldValue else { return }
+            defaults?.set(hiddenEdgeMode.rawValue, forKey: Self.hiddenEdgeModeKey)
+            rebuildObjects()
+        }
     }
 
-    /// Wireframe, shaded, or shaded with edges. Remembered across sessions. Setting a shaded mode
-    /// on a model that cannot be shaded (`canShade`) is ignored.
+    /// Wireframe, shaded, or shaded with edges. Remembered across sessions; shaded with edges is the
+    /// default. Setting a shaded mode on a model that cannot be shaded (`canShade`) is ignored.
     @Published var displayMode: STEPDisplayMode = .wireframe {
         didSet {
             guard displayMode != oldValue else { return }
@@ -207,11 +220,19 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         self.offset = offset
         self.shadedTriangleCap = shadedTriangleCap
         self.defaults = defaults
-        let hidden: STEPHiddenEdgeMode = content.surfaces.bodies.isEmpty ? .solid : .dotted
+        // The saved display options; without any, shaded + edges with dotted hidden edges. A model
+        // with no surfaces has nothing to shade or hide edges behind: wireframe, solid edges.
+        let hasSurfaces = !content.surfaces.bodies.isEmpty
+        var hidden: STEPHiddenEdgeMode = .solid
         var mode: STEPDisplayMode = .wireframe
-        if !content.surfaces.bodies.isEmpty, content.surfaces.triangleCount <= shadedTriangleCap,
-           let stored = defaults?.string(forKey: Self.displayModeKey), let restored = STEPDisplayMode(rawValue: stored) {
-            mode = restored
+        if hasSurfaces {
+            hidden = defaults?.string(forKey: Self.hiddenEdgeModeKey).flatMap(STEPHiddenEdgeMode.init(rawValue:)) ?? .dotted
+            if content.surfaces.triangleCount <= shadedTriangleCap {
+                mode = defaults?.string(forKey: Self.displayModeKey).flatMap(STEPDisplayMode.init(rawValue:)) ?? .shadedEdges
+            }
+        }
+        if let stored = defaults?.object(forKey: Self.showsProjectionKey) as? Bool {
+            showsProjection = stored
         }
         hiddenEdgeMode = hidden
         displayMode = mode
@@ -260,12 +281,11 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     }
 
     /// Edges drawn over lit faces: near black reads on the mid-grey faces in both themes.
-    private static let edgeOnFacesColor = SIMD4<Float>(0.05, 0.07, 0.10, 1)
+    private static let edgeOnFacesColor = SIMD4<Float>(0.063, 0.063, 0.07, 1)
 
-    /// Neutral face material that works on a light and on a dark canvas.
-    private static func materialColor(isDark: Bool) -> SIMD4<Float> {
-        isDark ? SIMD4<Float>(0.80, 0.83, 0.88, 1) : SIMD4<Float>(0.86, 0.88, 0.92, 1)
-    }
+    /// Neutral grey faces, the same on a light and on a dark canvas. Lit face-on (headlight, ambient
+    /// 0.65, see `MetalRenderer.drawSolids`) they come out at about 0.565, the grey of a CAD viewer.
+    private static let faceColor = SIMD4<Float>(0.66, 0.66, 0.66, 1)
 
     /// One line object per body, and for shaded modes one lit-triangle object per body that has a
     /// surface. Wireframe: the surface rides along as depth-only occluders so hidden edges can be
@@ -306,7 +326,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                         triangles.append(SolidVertex(position: placement.point(mesh.positions[Int(index)]) + offset,
                                                      normal: placement.direction(mesh.normals[Int(index)])))
                     }
-                    solid = RenderObject(role: .model, points: [], color: materialColor(isDark: isDark),
+                    solid = RenderObject(role: .model, points: [], color: faceColor,
                                          primitive: .lineList, solidTriangles: triangles)
                 }
             }
@@ -542,8 +562,14 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         }
 
         // New small overlay buffers, never new identities for the base objects.
-        // The projection goes first so the blue selection stays on top of it.
+        // The projection goes last, over the selection: seen from the top the selected edges lie
+        // exactly under it, and its dots leave the blue showing in the gaps.
         var objects: [RenderObject] = []
+        if !points.isEmpty {
+            objects.append(RenderObject(role: .modelSelection, points: points,
+                                        color: Self.selectionColor, primitive: .lineList,
+                                        lineWidth: Self.selectionLineWidth))
+        }
         if showsProjection {
             // The flattened edges, thick; the drop lines from the selection down to them, thin.
             for (line, width) in [(projected, Self.selectionLineWidth), (drops, Self.dropLineWidth)] where !line.isEmpty {
@@ -552,11 +578,6 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                                             isDashed: true, dashLength: Self.selectionDash,
                                             lineWidth: width))
             }
-        }
-        if !points.isEmpty {
-            objects.append(RenderObject(role: .modelSelection, points: points,
-                                        color: Self.selectionColor, primitive: .lineList,
-                                        lineWidth: Self.selectionLineWidth))
         }
         selectionObjects = objects
         selectionZRange = points.isEmpty ? nil : zMin...zMax
