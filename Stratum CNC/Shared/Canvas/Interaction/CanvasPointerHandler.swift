@@ -39,6 +39,11 @@ struct CanvasClick {
     /// The exact matrix the part is rendered with (camera and part transform).
     let matrix: simd_float4x4
     let modifierFlags: NSEvent.ModifierFlags
+    /// 1 for a single click, 2 for the second click of a double click (`NSEvent.clickCount`).
+    let clickCount: Int
+
+    /// The second (or later) click of a quick series on the same spot.
+    var isDoubleClick: Bool { clickCount >= 2 }
 
     /// Shift or Cmd extends / toggles the selection instead of replacing it.
     var extendsSelection: Bool {

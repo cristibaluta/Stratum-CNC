@@ -522,6 +522,22 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         setSelection(linked, notify: true)
     }
 
+    /// Double click on an edge: the shortcut for the tooltip's buttons. Holes (selected circles
+    /// lying flat) get "Select similar", anything else "Select linked". The first click of the
+    /// double click has normally selected `id` already; it is only added here when it is not
+    /// selected (an open toolpath's clicks toggle, so the first one may have taken it out).
+    func expandSelection(from id: STEP.EdgeID) {
+        guard isModelVisible, !hiddenBodies.contains(id.bodyID) else { return }
+        if !selectedEdges.contains(id) {
+            setSelection(isPicking ? selectedEdges.union([id]) : [id], notify: true)
+        }
+        if canSelectSimilarHoles {
+            selectSimilarHoles()
+        } else {
+            selectLinkedEdgesInPlane()
+        }
+    }
+
     private func setSelection(_ edges: Set<STEP.EdgeID>, notify: Bool) {
         selectedEdges = edges
         selectionPlane = edges.isEmpty ? nil : content.geometry.plane(containing: edges)

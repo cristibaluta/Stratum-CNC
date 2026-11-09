@@ -478,7 +478,8 @@ struct MetalCanvasView: NSViewRepresentable {
                                       viewPoint: point,
                                       viewSize: view.bounds.size,
                                       matrix: camera.updateMatrix() * (renderer?.partTransform ?? matrix_identity_float4x4),
-                                      modifierFlags: event.modifierFlags))
+                                      modifierFlags: event.modifierFlags,
+                                      clickCount: event.clickCount))
             view.draw()
         }
 

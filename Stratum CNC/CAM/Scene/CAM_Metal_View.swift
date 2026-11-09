@@ -173,6 +173,7 @@ struct CAM_Metal_View: View {
     /// front of the model's edges), then a STEP edge, then a flat face of the shaded model (its
     /// edges), then empty space. Shapes and edges are never
     /// selected together, except as the picks of an open toolpath.
+    /// A double click on a STEP edge also expands the selection (see `expandSelection(from:)`).
     static func route(_ click: CanvasClick, shapes: CAMCanvasInteraction, step: STEPDocumentScene?,
                       onEmptyClick: () -> Void = {}) {
         let extend = click.extendsSelection
@@ -184,7 +185,12 @@ struct CAM_Metal_View: View {
             return
         }
         if let step, let edge = step.edge(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
-            step.select(edge, extend: extend)
+            if click.isDoubleClick, !extend {
+                // Shortcut for the tooltip's "Select similar" / "Select linked"
+                step.expandSelection(from: edge)
+            } else {
+                step.select(edge, extend: extend)
+            }
             if !picking { shapes.clearSelection() }
             return
         }
