@@ -277,27 +277,37 @@ struct PanelToolpathDetails: View {
         let passes = model.passesNote(for: toolpath, stepdown: stepdown)
 
         HStack(spacing: 6) {
-            InspectorCompactNumberField(tag: "Start", value: $toolpath.startZ,
+            InspectorCompactNumberField(tag: "Start",
+                                        value: $toolpath.startZ,
                                         help: "Start Z (mm): the height where cutting starts. 0 is the top of the stock.")
             if toolpath.operation.kind == .counterbore {
-                InspectorCompactNumberField(tag: "End", value: model.counterboreEndDepth($toolpath), prefix: "−",
+                InspectorCompactNumberField(tag: "End",
+                                            value: model.counterboreEndDepth($toolpath),
+                                            prefix: "−",
                                             help: "End Z (mm): how deep the counterbore goes below the top of the stock.")
             } else if requirements.usesEndZ {
-                InspectorCompactNumberField(tag: "End", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), prefix: "−",
+                InspectorCompactNumberField(tag: "End",
+                                            value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath),
+                                            prefix: "−",
                                             help: "End Z (mm): \(model.endZHelp)")
             }
             if isSlot {
-                InspectorCompactNumberField(tag: "Step", value: model.slotDepthPerPass($toolpath),
+                InspectorCompactNumberField(tag: "Step",
+                                            value: model.slotDepthPerPass($toolpath),
                                             help: "Depth per pass (mm). \(passes?.text ?? "")")
             } else if requirements.usesStepdown {
-                InspectorCompactNumberField(tag: "Step", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), decimalKey: "Stepdown",
+                InspectorCompactNumberField(tag: "Step",
+                                            value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath),
+                                            decimalKey: "Stepdown",
                                             help: "Stepdown (mm): how deep the tool cuts in each pass. \(passes?.text ?? "")")
             }
             if toolpath.operation.kind == .drilling, toolpath.operation.drillUsesPecking {
-                InspectorCompactNumberField(tag: "Peck", value: model.drillPeckDepth($toolpath),
+                InspectorCompactNumberField(tag: "Peck",
+                                            value: model.drillPeckDepth($toolpath),
                                             help: "Peck depth (mm): how deep the drill goes before retracting.")
             }
-            InspectorCompactNumberField(tag: "Safe", value: $toolpath.safeZ,
+            InspectorCompactNumberField(tag: "Safe",
+                                        value: $toolpath.safeZ,
                                         help: "Safe Z (mm): the height the tool starts and ends at, and travels at between distant cuts.")
             if let passes, passes.isWarning {
                 InspectorWarningButton(message: passes.text)
@@ -313,9 +323,11 @@ struct PanelToolpathDetails: View {
             if OperationOptionsView.hasEntry(for: toolpath) {
                 OperationOptionsView(toolpath: $toolpath, part: .entryCompact)
             }
-            InspectorCompactNumberField(tag: "Feed", value: $toolpath.plungeRate,
+            InspectorCompactNumberField(tag: "Feed",
+                                        value: $toolpath.plungeRate,
                                         help: "Entry feed (mm/min). \(model.plungeFeedHelp(for: toolpath))")
-            InspectorCompactNumberField(tag: "Entry Z", value: $toolpath.entryZ,
+            InspectorCompactNumberField(tag: "Entry Z",
+                                        value: $toolpath.entryZ,
                                         help: "Entry Z (mm): height above the stock where the entry starts. The tool rapids down to here, then feeds in.")
         }
     }

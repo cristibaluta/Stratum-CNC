@@ -147,12 +147,18 @@ enum OrientationCube {
 
         // Dark outline = the full face; the fill sits slightly inside and
         // above it, leaving a thin border where two faces meet.
-        appendQuad(face.point(-1, -1, lift: 0), face.point(1, -1, lift: 0),
-                   face.point(1, 1, lift: 0), face.point(-1, 1, lift: 0),
-                   color: outline, into: &vertices)
-        appendQuad(face.point(-0.88, -0.88, lift: 0.01), face.point(0.88, -0.88, lift: 0.01),
-                   face.point(0.88, 0.88, lift: 0.01), face.point(-0.88, 0.88, lift: 0.01),
-                   color: SIMD4<Float>(fill, 1), into: &vertices)
+        appendQuad(face.point(-1, -1, lift: 0),
+                   face.point(1, -1, lift: 0),
+                   face.point(1, 1, lift: 0),
+                   face.point(-1, 1, lift: 0),
+                   color: outline,
+                   into: &vertices)
+        appendQuad(face.point(-0.88, -0.88, lift: 0.01),
+                   face.point(0.88, -0.88, lift: 0.01),
+                   face.point(0.88, 0.88, lift: 0.01),
+                   face.point(-0.88, 0.88, lift: 0.01),
+                   color: SIMD4<Float>(fill, 1),
+                   into: &vertices)
 
         // Label. Negative faces get a minus sign to the left of the letter,
         // with the letter shifted right to keep the pair centered.
@@ -189,8 +195,10 @@ enum OrientationCube {
                    color: color, into: &vertices)
     }
 
-    private static func appendQuad(_ p0: SIMD3<Float>, _ p1: SIMD3<Float>,
-                                   _ p2: SIMD3<Float>, _ p3: SIMD3<Float>,
+    private static func appendQuad(_ p0: SIMD3<Float>,
+                                   _ p1: SIMD3<Float>,
+                                   _ p2: SIMD3<Float>,
+                                   _ p3: SIMD3<Float>,
                                    color: SIMD4<Float>,
                                    into vertices: inout [RenderVertex]) {
         for p in [p0, p1, p2, p0, p2, p3] {

@@ -5,14 +5,6 @@
 //  Created by Cristian Baluta on 18.09.2026.
 //
 
-
-//
-//  ScrollWheelCapture.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 18.09.2026.
-//
-
 import SwiftUI
 import AppKit
 
@@ -25,7 +17,9 @@ import AppKit
 /// Meant to sit as an `.overlay` on top of a control you don't want to
 /// replace — e.g. scroll-to-scrub over the g-code slider in
 /// `ControllerView`, without breaking the slider's own thumb-drag.
+
 struct ScrollWheelCapture: NSViewRepresentable {
+
     let onScroll: (NSEvent) -> Void
 
     private final class CaptureView: NSView {

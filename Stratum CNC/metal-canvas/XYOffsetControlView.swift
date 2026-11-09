@@ -98,8 +98,3 @@ struct JobAreaSettingsView: View {
         .padding(12)
     }
 }
-
-#Preview {
-    XYOffsetControlView(corner: .constant(SIMD2<Float>(1.5, -0.75)), gcodeCorner: SIMD2<Float>(-10, -10))
-        .padding()
-}

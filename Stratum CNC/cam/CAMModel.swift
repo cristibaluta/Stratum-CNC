@@ -281,6 +281,21 @@ class CAMModel: ObservableObject {
             toolpath.endZ = endZ
             toolpath.editedFields.insert(.endZ)
         }
+        // A chamfer picked through its two rails: its size and side are measured off the face.
+        if toolpath.operation.kind == .chamfer, !stepTargets.isEmpty,
+           let chamfer = stepWorkspace.chamferSuggestion(for: stepTargets, frame: frameOrIdentity(for: toolpath)) {
+            toolpath.operation.chamferWidth = chamfer.width
+            if let side = chamfer.side { toolpath.operation.chamferSide = side }
+            // The V-bit's angle gives a depth for the width. When the face is not at that angle
+            // (or the bit has no angle) the measured depth is set, so the cut follows the face.
+            let fromTool = toolpath.toolTipAngle.map { chamfer.width / tan($0 / 2 * .pi / 180) }
+            if let fromTool, abs(fromTool - chamfer.depth) <= 0.05 * chamfer.depth {
+                toolpath.operation.chamferUsesDepth = false
+            } else {
+                toolpath.operation.chamferUsesDepth = true
+                toolpath.operation.chamferDepth = chamfer.depth
+            }
+        }
         // At the end of its setup's run, not of the whole list
         toolpaths = Self.orderedBySetup(toolpaths + [toolpath], setups: setups)
         // Opening it starts picking, seeded with `targets` (see `beginPicking`),
@@ -769,7 +784,8 @@ class CAMModel: ObservableObject {
             job = try ToolpathGenerator.prepare(for: toolpath, source: linkedSource, canvasState: canvasState,
                                                 frame: frame,
                                                 stepContours: { [workspace = stepWorkspace] in
-                                                    try workspace.contours(for: $0.stepTargets, frame: frame)
+                                                    try workspace.contours(for: $0.stepTargets, frame: frame,
+                                                                           sharpEdgeOfChamfer: $0.operation.kind == .chamfer)
                                                 })
         } catch {
             // Bad input (no shapes, invalid depth…): report it right away.

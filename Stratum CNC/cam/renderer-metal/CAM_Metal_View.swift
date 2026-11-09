@@ -57,7 +57,9 @@ struct CAM_Metal_View: View {
          onDeselectStepModel: @escaping () -> Void = {},
          onAddToolpath: @escaping () -> Void = {},
          onAddStepToolpath: @escaping (OperationKind) -> Void = { _ in }) {
+
         _scene = StateObject(wrappedValue: CAMSceneModel(canvasState: canvasState))
+
         self.zoomModel = zoomModel
         self.stepScene = stepScene
         self.startsTopDown = startsTopDown

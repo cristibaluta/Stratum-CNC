@@ -2,14 +2,6 @@
 //  ToolFootprint.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 18.09.2026.
-//
-
-
-//
-//  ToolFootprint.swift
-//  Stratum CNC
-//
 //  M0 of the heightmap roadmap: pure tool-shape math, deliberately kept
 //  free of grid indexing or toolpath traversal so it can be reasoned about
 //  (and tested) as "given this tool and this offset, what Z does it leave

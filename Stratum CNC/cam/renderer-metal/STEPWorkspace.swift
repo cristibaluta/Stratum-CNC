@@ -378,12 +378,15 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// shaded model there, the flat patch around it, and the edges along that patch's outline
     /// (see `STEPFacePicker`). Only while the faces are drawn with their edges.
     func faceEdges(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> Set<STEP.EdgeID>? {
-        guard isModelVisible, displayMode == .shadedEdges else { return nil }
+        guard isModelVisible, displayMode == .shadedEdges else {
+            PerfLog.log("pick", "face: ignored, model visible \(isModelVisible), display mode \(displayMode.rawValue)")
+            return nil
+        }
         let matrix = matrix * Self.translation(offset)
         let placement = content.placement
 
         var best: (body: STEP.BodyID, positions: [SIMD3<Float>], indices: [Int], triangle: Int, depth: Float,
-                   outward: SIMD3<Float>?)?
+                   outward: SIMD3<Float>?, normals: [SIMD3<Float>])?
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
             guard let mesh = content.surfaces.mesh(for: body.id) else { continue }
             let positions = mesh.positions.map { placement.isIdentity ? $0 : placement.point($0) }
@@ -396,13 +399,37 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             var normal = SIMD3<Float>.zero
             for corner in 0..<3 { normal += placement.direction(mesh.normals[Int(indices[3 * hit.triangle + corner])]) }
             let outward: SIMD3<Float>? = simd_length(normal) > 1e-6 ? simd_normalize(normal) : nil
-            best = (body.id, positions, indices, hit.triangle, hit.depth, outward)
+            best = (body.id, positions, indices, hit.triangle, hit.depth, outward,
+                    mesh.normals.map { placement.direction($0) })
         }
-        guard let best,
-              let region = STEPFacePicker.flatRegion(positions: best.positions, indices: best.indices,
+        guard let best else {
+            PerfLog.log("pick", "face: no triangle under the cursor")
+            return nil
+        }
+        PerfLog.log("pick", "face: triangle \(best.triangle) of body \(best.body), outward \(best.outward.map { String(format: "(%.2f, %.2f, %.2f)", $0.x, $0.y, $0.z) } ?? "unknown")")
+        // A chamfer is picked through its two rails: its face is not flat when it goes round a hole.
+        if let rails = STEPChamferPicker.rails(positions: best.positions, indices: best.indices,
+                                               normals: best.normals, triangle: best.triangle) {
+            var edges = Set<STEP.EdgeID>()
+            // Partly covered edges count too: a round chamfer split by a seam is walked as halves.
+            for rail in rails {
+                edges.formUnion(content.geometry.edges(onBoundaryOf: rail, in: best.body, coverage: 0.35))
+            }
+            PerfLog.log("pick", "chamfer: \(rails.count) rail(s), \(edges.count) STEP edge(s) matched"
+                        + " (boundary segments \(rails.map { $0.boundary.count }))")
+            if !edges.isEmpty {
+                chamferEdges.formUnion(edges)
+                return edges
+            }
+        }
+        guard let region = STEPFacePicker.flatRegion(positions: best.positions, indices: best.indices,
                                                      triangle: best.triangle,
-                                                     outward: best.outward) else { return nil }
+                                                     outward: best.outward) else {
+            PerfLog.log("pick", "face: not a flat face (no coplanar patch around the triangle)")
+            return nil
+        }
         let edges = content.geometry.edges(onBoundaryOf: region, in: best.body)
+        PerfLog.log("pick", "face: flat, \(region.boundary.count) outline segment(s), \(edges.count) STEP edge(s) matched")
         return edges.isEmpty ? nil : edges
     }
 
@@ -446,6 +473,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     private(set) var selectionMeasures: [STEPDisplayGeometry.EdgeMeasure] = []
     /// What the selected edges form (holes, a closed outline, a line, an open path).
     private(set) var selectionFeature: STEPSelectionFeature?
+    /// The rails of every chamfer picked so far. A selection made only of these is a chamfer.
+    private var chamferEdges = Set<STEP.EdgeID>()
 
     /// The operations "Add toolpath" offers for the selection, most likely first.
     var availableOperations: [OperationKind] {
@@ -498,6 +527,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         selectionPlane = edges.isEmpty ? nil : content.geometry.plane(containing: edges)
         selectionMeasures = edges.isEmpty ? [] : content.geometry.measures(of: edges)
         selectionFeature = content.geometry.feature(of: edges, measures: selectionMeasures, plane: selectionPlane)
+        if !edges.isEmpty, edges.isSubset(of: chamferEdges) { selectionFeature = .chamfer }
         updateCanSelectLinked()
         rebuildHighlight()
         if notify { onSelectionChanged?(edges) }

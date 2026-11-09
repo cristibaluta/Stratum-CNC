@@ -5,12 +5,6 @@
 //  Created by Cristian Baluta on 21.09.2026.
 //
 
-
-//
-//  CanvasInteractionMode.swift
-//  Stratum CNC
-//
-
 /// Which input scheme `MetalCanvasView` drives its camera with. Orthogonal
 /// to `CanvasRenderMode` (which draw path the renderer takes) — this is
 /// about what the mouse/trackpad/scroll wheel *do*, not what gets drawn.

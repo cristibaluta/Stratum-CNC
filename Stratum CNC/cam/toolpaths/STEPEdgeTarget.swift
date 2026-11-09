@@ -139,7 +139,20 @@ extension STEPWorkspace {
     /// is gone (the source was removed, or replaced by a different file).
     /// - Parameter frame: the setup the toolpath is cut in. The edges are mapped into it first,
     ///   so the contours are what the machine sees when the stock is turned that way.
-    func contours(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity) throws -> [SC.Contour] {
+    /// - Parameter sharpEdgeOfChamfer: the edges are a chamfer's two rails (at two heights): the
+    ///   engine chamfers a sharp edge, which seen from above is where the chamfer meets its wall,
+    ///   the lower rail. With edges at one height (a sharp edge picked as it is) nothing changes.
+    func contours(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity,
+                  sharpEdgeOfChamfer: Bool = false) throws -> [SC.Contour] {
+        var polylines = try polylines(for: targets, frame: frame)
+        if sharpEdgeOfChamfer, let rails = Self.chamferRails(of: polylines) {
+            polylines = rails.lower
+        }
+        return STEPContourBuilder.contours(from: polylines)
+    }
+
+    /// The sampled edges as polylines in the toolpath's frame.
+    private func polylines(for targets: [STEPEdgeTarget], frame: SetupFrame) throws -> [[SIMD3<Double>]] {
         var polylines: [[SIMD3<Double>]] = []
         for importID in importIDs(in: targets) {
             guard let scene = documents[importID] else {
@@ -154,7 +167,81 @@ extension STEPWorkspace {
                 polylines.append(edge.map { frame.map(SIMD3<Double>(Double($0.x), Double($0.y), Double($0.z))) })
             }
         }
-        return STEPContourBuilder.contours(from: polylines)
+        return polylines
+    }
+
+    /// Edges at two heights split into the upper and the lower: a chamfer's rails. `nil` when
+    /// they are all at one height (within 0.02 mm).
+    private static func chamferRails(of polylines: [[SIMD3<Double>]])
+        -> (upper: [[SIMD3<Double>]], lower: [[SIMD3<Double>]])? {
+        let heights = polylines.map { $0.isEmpty ? 0 : $0.reduce(0.0) { $0 + $1.z } / Double($0.count) }
+        guard let low = heights.min(), let high = heights.max(), high - low > 0.02 else { return nil }
+        let middle = (low + high) / 2
+        var upper: [[SIMD3<Double>]] = [], lower: [[SIMD3<Double>]] = []
+        for (polyline, height) in zip(polylines, heights) where !polyline.isEmpty {
+            if height < middle { lower.append(polyline) } else { upper.append(polyline) }
+        }
+        return (upper, lower)
+    }
+
+    /// What picking a chamfer through its rails says about the chamfer, to start the toolpath's
+    /// settings from: the width (how far the face runs sideways), the depth (how far it drops),
+    /// and, when the sharp edge is a closed outline, which side of it the chamfer is on:
+    /// `.inside` when the upper rail is inside the lower one (the edge of a part or a boss),
+    /// `.outside` when it is outside (the rim of a hole). `nil` when the edges are not two rails.
+    func chamferSuggestion(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity)
+        -> (width: Double, depth: Double, side: SC.CutSide?)? {
+        guard let all = try? polylines(for: targets, frame: frame),
+              let rails = Self.chamferRails(of: all), !rails.upper.isEmpty, !rails.lower.isEmpty else { return nil }
+
+        func flat(_ p: SIMD3<Double>) -> SIMD2<Double> { SIMD2<Double>(p.x, p.y) }
+        func height(_ polylines: [[SIMD3<Double>]]) -> Double {
+            let points = polylines.flatMap { $0 }
+            return points.reduce(0.0) { $0 + $1.z } / Double(max(points.count, 1))
+        }
+        let depth = height(rails.upper) - height(rails.lower)
+
+        // Segments of the lower rail, seen from above.
+        var segments: [(SIMD2<Double>, SIMD2<Double>)] = []
+        for polyline in rails.lower {
+            for index in 0..<max(polyline.count - 1, 0) { segments.append((flat(polyline[index]), flat(polyline[index + 1]))) }
+        }
+        guard !segments.isEmpty else { return nil }
+
+        func distance(_ p: SIMD2<Double>, _ a: SIMD2<Double>, _ b: SIMD2<Double>) -> Double {
+            let ab = b - a
+            let length = simd_length_squared(ab)
+            let t = length > 1e-12 ? min(1, max(0, simd_dot(p - a, ab) / length)) : 0
+            return simd_distance(p, a + ab * t)
+        }
+        // The upper rail's starting points, each against the lower rail.
+        let samples = rails.upper.compactMap { $0.first }.map(flat)
+        let widths = samples.map { p in segments.map { distance(p, $0.0, $0.1) }.min() ?? 0 }.sorted()
+        guard let width = widths.isEmpty ? nil : widths[widths.count / 2], width > 0.001 else { return nil }
+
+        // Inside or outside needs a closed lower rail: every point where edges meet is shared by two.
+        var degree: [SIMD2<Int>: Int] = [:]
+        func cell(_ p: SIMD2<Double>) -> SIMD2<Int> {
+            SIMD2<Int>(Int((p.x / 0.01).rounded()), Int((p.y / 0.01).rounded()))
+        }
+        for polyline in rails.lower {
+            guard let first = polyline.first, let last = polyline.last else { continue }
+            let (a, b) = (cell(flat(first)), cell(flat(last)))
+            if a != b {
+                degree[a, default: 0] += 1
+                degree[b, default: 0] += 1
+            }
+        }
+        var side: SC.CutSide?
+        if !degree.values.contains(where: { $0 % 2 != 0 }), let point = samples.first {
+            // Crossings of a ray to the right: odd means inside.
+            var inside = false
+            for (a, b) in segments where (a.y > point.y) != (b.y > point.y) {
+                if point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x { inside.toggle() }
+            }
+            side = inside ? .inside : .outside
+        }
+        return ((width * 1000).rounded() / 1000, (depth * 1000).rounded() / 1000, side)
     }
 
     /// End Z for a toolpath cutting these edges: the distance from z0 down to the edges,

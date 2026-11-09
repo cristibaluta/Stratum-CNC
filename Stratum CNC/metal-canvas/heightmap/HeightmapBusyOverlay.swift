@@ -5,14 +5,6 @@
 //  Created by Cristian Baluta on 20.09.2026.
 //
 
-
-//
-//  HeightmapBusyOverlay.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 20.09.2026.
-//
-
 import SwiftUI
 
 /// A spinner centered over the canvas while a heightmap carve is running on
@@ -63,12 +55,4 @@ struct HeightmapBusyOverlay: View {
             }
         }
     }
-}
-
-#Preview {
-    ZStack {
-        Color.gray.opacity(0.3)
-        HeightmapBusyOverlay(isBusy: true, delay: .zero)
-    }
-    .frame(width: 300, height: 200)
 }

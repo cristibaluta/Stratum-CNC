@@ -333,8 +333,11 @@ extension RenderObject {
     /// ring blank) — outer + inner rings top and bottom, struts on the
     /// outer wall only (a strut across the hole would read as a spoke that
     /// isn't actually part of the stock).
-    private static func stockDisk(outerDiameter: Float, innerDiameter: Float, depth: Float,
-                                  segments: Int = 48, strutCount: Int = 4,
+    private static func stockDisk(outerDiameter: Float,
+                                  innerDiameter: Float,
+                                  depth: Float,
+                                  segments: Int = 48,
+                                  strutCount: Int = 4,
                                   color: SIMD4<Float>) -> RenderObject {
 
         let outerRadius = max(0, outerDiameter) / 2
@@ -352,60 +355,93 @@ extension RenderObject {
 
         var points: [SIMD3<Float>] = []
         for i in 0..<segments {
-            points.append(ring(i, radius: outerRadius, z: topZ)); points.append(ring(i + 1, radius: outerRadius, z: topZ))
+            points.append(ring(i, radius: outerRadius, z: topZ))
+            points.append(ring(i + 1, radius: outerRadius, z: topZ))
         }
         for i in 0..<segments {
-            points.append(ring(i, radius: outerRadius, z: bottomZ)); points.append(ring(i + 1, radius: outerRadius, z: bottomZ))
+            points.append(ring(i, radius: outerRadius, z: bottomZ))
+            points.append(ring(i + 1, radius: outerRadius, z: bottomZ))
         }
         if hasHole {
             for i in 0..<segments {
-                points.append(ring(i, radius: innerRadius, z: topZ)); points.append(ring(i + 1, radius: innerRadius, z: topZ))
+                points.append(ring(i, radius: innerRadius, z: topZ))
+                points.append(ring(i + 1, radius: innerRadius, z: topZ))
             }
             for i in 0..<segments {
-                points.append(ring(i, radius: innerRadius, z: bottomZ)); points.append(ring(i + 1, radius: innerRadius, z: bottomZ))
+                points.append(ring(i, radius: innerRadius, z: bottomZ))
+                points.append(ring(i + 1, radius: innerRadius, z: bottomZ))
             }
         }
         let clampedStruts = max(0, strutCount)
         for s in 0..<clampedStruts {
             let i = (s * segments) / max(1, clampedStruts)
-            points.append(ring(i, radius: outerRadius, z: topZ)); points.append(ring(i, radius: outerRadius, z: bottomZ))
+            points.append(ring(i, radius: outerRadius, z: topZ))
+            points.append(ring(i, radius: outerRadius, z: bottomZ))
         }
 
         let topCenter = SIMD3<Float>(centerXY.x, centerXY.y, topZ)
         let bottomCenter = SIMD3<Float>(centerXY.x, centerXY.y, bottomZ)
         var occluderFaces: [SIMD3<Float>] = []
         for i in 0..<segments {
-            let to0 = ring(i, radius: outerRadius, z: topZ), to1 = ring(i + 1, radius: outerRadius, z: topZ)
-            let bo0 = ring(i, radius: outerRadius, z: bottomZ), bo1 = ring(i + 1, radius: outerRadius, z: bottomZ)
+            let to0 = ring(i, radius: outerRadius, z: topZ)
+            let to1 = ring(i + 1, radius: outerRadius, z: topZ)
+            let bo0 = ring(i, radius: outerRadius, z: bottomZ)
+            let bo1 = ring(i + 1, radius: outerRadius, z: bottomZ)
 
             // Outer wall: one quad per segment.
-            occluderFaces.append(to0); occluderFaces.append(bo0); occluderFaces.append(bo1)
-            occluderFaces.append(to0); occluderFaces.append(bo1); occluderFaces.append(to1)
+            occluderFaces.append(to0)
+            occluderFaces.append(bo0)
+            occluderFaces.append(bo1)
+            occluderFaces.append(to0)
+            occluderFaces.append(bo1)
+            occluderFaces.append(to1)
 
             if hasHole {
-                let ti0 = ring(i, radius: innerRadius, z: topZ), ti1 = ring(i + 1, radius: innerRadius, z: topZ)
-                let bi0 = ring(i, radius: innerRadius, z: bottomZ), bi1 = ring(i + 1, radius: innerRadius, z: bottomZ)
+                let ti0 = ring(i, radius: innerRadius, z: topZ)
+                let ti1 = ring(i + 1, radius: innerRadius, z: topZ)
+                let bi0 = ring(i, radius: innerRadius, z: bottomZ)
+                let bi1 = ring(i + 1, radius: innerRadius, z: bottomZ)
 
                 // Inner (bore) wall — wound the opposite way from the outer
                 // wall since it's the inside surface of the hole.
-                occluderFaces.append(ti0); occluderFaces.append(bi1); occluderFaces.append(bi0)
-                occluderFaces.append(ti0); occluderFaces.append(ti1); occluderFaces.append(bi1)
+                occluderFaces.append(ti0)
+                occluderFaces.append(bi1)
+                occluderFaces.append(bi0)
+                occluderFaces.append(ti0)
+                occluderFaces.append(ti1)
+                occluderFaces.append(bi1)
 
                 // Top/bottom annulus between the inner and outer ring.
-                occluderFaces.append(to0); occluderFaces.append(to1); occluderFaces.append(ti1)
-                occluderFaces.append(to0); occluderFaces.append(ti1); occluderFaces.append(ti0)
+                occluderFaces.append(to0)
+                occluderFaces.append(to1)
+                occluderFaces.append(ti1)
+                occluderFaces.append(to0)
+                occluderFaces.append(ti1)
+                occluderFaces.append(ti0)
 
-                occluderFaces.append(bo0); occluderFaces.append(bi0); occluderFaces.append(bi1)
-                occluderFaces.append(bo0); occluderFaces.append(bi1); occluderFaces.append(bo1)
+                occluderFaces.append(bo0)
+                occluderFaces.append(bi0)
+                occluderFaces.append(bi1)
+                occluderFaces.append(bo0)
+                occluderFaces.append(bi1)
+                occluderFaces.append(bo1)
             } else {
                 // No hole: falls back to a solid fan-triangulated disk cap.
-                occluderFaces.append(topCenter); occluderFaces.append(to0); occluderFaces.append(to1)
-                occluderFaces.append(bottomCenter); occluderFaces.append(bo1); occluderFaces.append(bo0)
+                occluderFaces.append(topCenter)
+                occluderFaces.append(to0)
+                occluderFaces.append(to1)
+                occluderFaces.append(bottomCenter)
+                occluderFaces.append(bo1)
+                occluderFaces.append(bo0)
             }
         }
 
-        return RenderObject(role: .stock, points: points, color: color, primitive: .lineList,
-                            occluderFaces: occluderFaces, occluderScope: .ownEdges)
+        return RenderObject(role: .stock,
+                            points: points,
+                            color: color,
+                            primitive: .lineList,
+                            occluderFaces: occluderFaces,
+                            occluderScope: .ownEdges)
     }
 
     // MARK: Machine fixtures (static, flat)
@@ -431,7 +467,9 @@ extension RenderObject {
                          bedOrigin: SIMD2<Float> = SIMD2<Float>(-15, -15),
                          bedSize: SIMD2<Float> = SIMD2<Float>(200, 200)) -> [RenderObject] {
         var result: [RenderObject] = []
-        if roles.contains(.workbed) { result.append(workbed(z: z, origin: bedOrigin, width: bedSize.x, height: bedSize.y)) }
+        if roles.contains(.workbed) {
+            result.append(workbed(z: z, origin: bedOrigin, width: bedSize.x, height: bedSize.y))
+        }
         // The ruler is part of the anchor: one object when both are wanted.
         // A ruler alone (the 2D view's `[.ruler]`) is still its own object.
         if roles.contains(.anchor) {
@@ -879,12 +917,23 @@ extension RenderObject {
     static func axes(length: Float = 7.5, thickness: Float = 0.09) -> [RenderObject] {
         let headLength = min(length * 0.15, 8)
         let headRadius = thickness * 3
-        let x = axisArrow(direction: SIMD3<Float>(1, 0, 0), length: length, thickness: thickness,
-                          color: SIMD4<Float>(1.0, 0.15, 0.15, 1.0), headLength: headLength, headRadius: headRadius)
-        let y = axisArrow(direction: SIMD3<Float>(0, 1, 0), length: length, thickness: thickness,
-                          color: SIMD4<Float>(0.15, 1.0, 0.15, 1.0), headLength: headLength, headRadius: headRadius)
-        let z = axisArrow(direction: SIMD3<Float>(0, 0, 1), length: length, thickness: thickness,
-                          color: SIMD4<Float>(0.15, 0.45, 1.0, 1.0), headLength: headLength, headRadius: headRadius)
+        let x = axisArrow(direction: SIMD3<Float>(1, 0, 0), length: length,
+                          thickness: thickness,
+                          color: SIMD4<Float>(1.0, 0.15, 0.15, 1.0),
+                          headLength: headLength,
+                          headRadius: headRadius)
+        let y = axisArrow(direction: SIMD3<Float>(0, 1, 0),
+                          length: length,
+                          thickness: thickness,
+                          color: SIMD4<Float>(0.15, 1.0, 0.15, 1.0),
+                          headLength: headLength,
+                          headRadius: headRadius)
+        let z = axisArrow(direction: SIMD3<Float>(0, 0, 1),
+                          length: length,
+                          thickness: thickness,
+                          color: SIMD4<Float>(0.15, 0.45, 1.0, 1.0),
+                          headLength: headLength,
+                          headRadius: headRadius)
         return [x, y, z]
     }
 

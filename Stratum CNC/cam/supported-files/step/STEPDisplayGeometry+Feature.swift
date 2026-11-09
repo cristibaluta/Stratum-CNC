@@ -1,12 +1,4 @@
 //
-//  STEPSelectionFeature.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 08.11.2026.
-//
-
-
-//
 //  STEPDisplayGeometry+Feature.swift
 //  Stratum CNC
 //
@@ -29,6 +21,9 @@ enum STEPSelectionFeature: Equatable, Sendable {
     case line
     /// Anything else: open chains of edges, arcs, curves.
     case openPath
+    /// The two rails of a chamfer face (picked through the face). The toolpath cuts the sharp
+    /// edge the chamfer replaced, not these.
+    case chamfer
 }
 
 extension STEPDisplayGeometry {
@@ -92,6 +87,8 @@ extension OperationKind {
                 return [.contour, .slotting, .engrave, .chamfer]
             case .openPath:
                 return [.contour, .engrave, .chamfer]
+            case .chamfer:
+                return [.chamfer, .contour]
         }
     }
 }

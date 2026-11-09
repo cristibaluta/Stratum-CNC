@@ -83,7 +83,8 @@ struct STEPAddToolpathTooltipLayer: View {
             return projected
         }
         let feature = corners(of: box)
-        guard let left = feature.map(\.x).min(), let right = feature.map(\.x).max() else {
+        guard let left = feature.map(\.x).min(),
+              let right = feature.map(\.x).max() else {
             return nil
         }
         // The model's top; the feature's own top when the model has no bounds.
@@ -91,6 +92,7 @@ struct STEPAddToolpathTooltipLayer: View {
         let margin = min(Self.horizontalMargin, size.width / 2)
         let x = min(max((left + right) / 2 * size.width, margin), size.width - margin)
         let y = max(top * size.height - Self.gap, calloutHeight + Self.topPadding)
+
         return CGPoint(x: x, y: y)
     }
 
@@ -99,7 +101,9 @@ struct STEPAddToolpathTooltipLayer: View {
     /// of an arc, L length (of a line, or of all the edges together when there are several, an
     /// arc then counting by its length).
     static func summary(for scene: STEPDocumentScene) -> String {
-        func mm(_ value: Float) -> String { String(format: "%.3f", value) }
+        func mm(_ value: Float) -> String {
+            String(format: "%.3f", value)
+        }
         let count = scene.selectedEdges.count
         var parts = [count == 1 ? "1 edge" : "\(count) edges"]
         if let z = scene.selectionZRange {
@@ -116,9 +120,11 @@ struct STEPAddToolpathTooltipLayer: View {
             }
         } else if measures.count > 1 {
             // Circles of one size, or arcs of one radius: that size says more than the total length.
-            if let first = measures.first, let radius = first.radius,
-               first.kind == .circle || first.kind == .arc,
-               measures.allSatisfy({ $0.kind == first.kind && abs(($0.radius ?? -1) - radius) <= 0.001 }) {
+            if let first = measures.first,
+                let radius = first.radius,
+                first.kind == .circle ||
+                first.kind == .arc,
+                measures.allSatisfy({ $0.kind == first.kind && abs(($0.radius ?? -1) - radius) <= 0.001 }) {
                 parts.append(first.kind == .circle ? "Ø \(mm(radius * 2))" : "R \(mm(radius))")
             } else {
                 parts.append("L \(mm(measures.reduce(Float(0)) { $0 + $1.length }))")
@@ -130,7 +136,9 @@ struct STEPAddToolpathTooltipLayer: View {
 
 private struct CalloutHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }
 
 /// The callout of the selected STEP edges: the two actions, then one line of numbers.
@@ -365,21 +373,26 @@ private struct CalloutShape: Shape {
         p.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
         p.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
         p.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY),
-                 tangent2End: CGPoint(x: rect.maxX, y: rect.minY + r), radius: r)
+                 tangent2End: CGPoint(x: rect.maxX, y: rect.minY + r),
+                 radius: r)
         p.addLine(to: CGPoint(x: rect.maxX, y: bottom - r))
         p.addArc(tangent1End: CGPoint(x: rect.maxX, y: bottom),
-                 tangent2End: CGPoint(x: rect.maxX - r, y: bottom), radius: r)
+                 tangent2End: CGPoint(x: rect.maxX - r, y: bottom),
+                 radius: r)
         // The arrow
         p.addLine(to: CGPoint(x: midX + arrowSize.width / 2, y: bottom))
         p.addLine(to: CGPoint(x: midX, y: rect.maxY))
         p.addLine(to: CGPoint(x: midX - arrowSize.width / 2, y: bottom))
         p.addLine(to: CGPoint(x: rect.minX + r, y: bottom))
         p.addArc(tangent1End: CGPoint(x: rect.minX, y: bottom),
-                 tangent2End: CGPoint(x: rect.minX, y: bottom - r), radius: r)
+                 tangent2End: CGPoint(x: rect.minX, y: bottom - r),
+                 radius: r)
         p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
         p.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY),
-                 tangent2End: CGPoint(x: rect.minX + r, y: rect.minY), radius: r)
+                 tangent2End: CGPoint(x: rect.minX + r, y: rect.minY),
+                 radius: r)
         p.closeSubpath()
+
         return p
     }
 }
