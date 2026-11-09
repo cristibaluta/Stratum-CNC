@@ -135,6 +135,12 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     private(set) var isPicking = false
     /// Called with the whole selection after every change made by the user while picking.
     var onSelectionChanged: ((Set<STEP.EdgeID>) -> Void)?
+    /// Bounding box of the whole model in canvas mm, as it sits (its min X/Y corner and its top
+    /// are at `offset`, see there). The tooltip is held above its top. `nil` without bounds.
+    var modelBox: (min: SIMD3<Float>, max: SIMD3<Float>)? {
+        guard let size = content.size else { return nil }
+        return (offset + SIMD3<Float>(0, 0, -size.z), offset + SIMD3<Float>(size.x, size.y, 0))
+    }
     /// Bounding box of the selected edges in canvas mm, to anchor the "Add toolpath" tooltip.
     @Published private(set) var selectionBox: (min: SIMD3<Float>, max: SIMD3<Float>)?
     @Published private(set) var selectionObjects: [RenderObject] = []

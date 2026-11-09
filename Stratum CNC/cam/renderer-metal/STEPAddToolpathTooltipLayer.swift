@@ -11,7 +11,8 @@ import SwiftSTEP
 /// The callout over the selected STEP edges: "Select linked" and "Add toolpath" on top, always
 /// there (disabled when they do not apply), and under them one line with what is selected.
 /// "Add toolpath" first lists the operations that fit the selection; the toolpath is only created
-/// once one is chosen. It follows the selection's top as the camera orbits, pans and zooms.
+/// once one is chosen. It sits above the selected feature, at the top of the model, and follows
+/// as the camera orbits, pans and zooms.
 struct STEPAddToolpathTooltipLayer: View {
 
     @ObservedObject var scene: STEPDocumentScene
@@ -51,26 +52,32 @@ struct STEPAddToolpathTooltipLayer: View {
         }
     }
 
-    /// The highest point of the selection's bounding box on screen, centered horizontally on it.
+    /// Where the arrow points: horizontally the centre of the selected feature, vertically the top
+    /// of the whole model (its highest corner on screen), so the callout stays at one height while
+    /// features are picked. Held `minAnchorY` from the top edge, so it never leaves the screen.
     private func anchor(in size: CGSize) -> CGPoint? {
         guard let box = scene.selectionBox, size.width > 0, size.height > 0 else {
             return nil
         }
-        var projected: [CGPoint] = []
-        for x in [box.min.x, box.max.x] {
-            for y in [box.min.y, box.max.y] {
-                for z in [box.min.z, box.max.z] {
-                    if let point = zoomModel.normalizedViewPoint(forWorld: SIMD3<Float>(x, y, z)) {
-                        projected.append(point)
+        func corners(of box: (min: SIMD3<Float>, max: SIMD3<Float>)) -> [CGPoint] {
+            var projected: [CGPoint] = []
+            for x in [box.min.x, box.max.x] {
+                for y in [box.min.y, box.max.y] {
+                    for z in [box.min.z, box.max.z] {
+                        if let point = zoomModel.normalizedViewPoint(forWorld: SIMD3<Float>(x, y, z)) {
+                            projected.append(point)
+                        }
                     }
                 }
             }
+            return projected
         }
-        guard let top = projected.map(\.y).min(),
-              let left = projected.map(\.x).min(),
-              let right = projected.map(\.x).max() else {
+        let feature = corners(of: box)
+        guard let left = feature.map(\.x).min(), let right = feature.map(\.x).max() else {
             return nil
         }
+        // The model's top; the feature's own top when the model has no bounds.
+        let top = corners(of: scene.modelBox ?? box).map(\.y).min() ?? feature.map(\.y).min() ?? 0
         let margin = min(Self.horizontalMargin, size.width / 2)
         let x = min(max((left + right) / 2 * size.width, margin), size.width - margin)
         let y = max(top * size.height - Self.gap, Self.minAnchorY)
