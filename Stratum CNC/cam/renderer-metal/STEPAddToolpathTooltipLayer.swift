@@ -22,9 +22,12 @@ struct STEPAddToolpathTooltipLayer: View {
     let onChoose: (OperationKind) -> Void
 
     @State private var frameTick = 0
+    /// The callout's own height (its arrow included), so it can be kept below the top edge.
+    @State private var calloutHeight: CGFloat = 0
 
     private static let gap: CGFloat = 6
-    private static let minAnchorY: CGFloat = 56
+    /// Space kept between the top of the screen and the top of the callout.
+    private static let topPadding: CGFloat = 12
     /// Half the callout's width or more, so it is never cut off at the sides of the canvas.
     private static let horizontalMargin: CGFloat = 220
 
@@ -42,11 +45,17 @@ struct STEPAddToolpathTooltipLayer: View {
                                      onSelectSimilar: { scene.selectSimilarHoles() },
                                      onChoose: onChoose)
                     .fixedSize()
+                    .background {
+                        GeometryReader { callout in
+                            Color.clear.preference(key: CalloutHeightKey.self, value: callout.size.height)
+                        }
+                    }
                     .frame(width: 0, height: 0, alignment: .bottom)
                     .position(anchor)
                     .transition(.opacity)
             }
         }
+        .onPreferenceChange(CalloutHeightKey.self) { calloutHeight = $0 }
         .onReceive(zoomModel.frameRendered.receive(on: DispatchQueue.main)) { _ in
             frameTick &+= 1
         }
@@ -54,7 +63,8 @@ struct STEPAddToolpathTooltipLayer: View {
 
     /// Where the arrow points: horizontally the centre of the selected feature, vertically the top
     /// of the whole model (its highest corner on screen), so the callout stays at one height while
-    /// features are picked. Held `minAnchorY` from the top edge, so it never leaves the screen.
+    /// features are picked. Held `topPadding` below the top edge (the whole callout, not just its
+    /// arrow), so it never leaves the screen.
     private func anchor(in size: CGSize) -> CGPoint? {
         guard let box = scene.selectionBox, size.width > 0, size.height > 0 else {
             return nil
@@ -80,7 +90,7 @@ struct STEPAddToolpathTooltipLayer: View {
         let top = corners(of: scene.modelBox ?? box).map(\.y).min() ?? feature.map(\.y).min() ?? 0
         let margin = min(Self.horizontalMargin, size.width / 2)
         let x = min(max((left + right) / 2 * size.width, margin), size.width - margin)
-        let y = max(top * size.height - Self.gap, Self.minAnchorY)
+        let y = max(top * size.height - Self.gap, calloutHeight + Self.topPadding)
         return CGPoint(x: x, y: y)
     }
 
@@ -105,10 +115,22 @@ struct STEPAddToolpathTooltipLayer: View {
                 case .circle:       parts.append("Ø \(mm((measure.radius ?? 0) * 2))")
             }
         } else if measures.count > 1 {
-            parts.append("L \(mm(measures.reduce(Float(0)) { $0 + $1.length }))")
+            // Circles of one size, or arcs of one radius: that size says more than the total length.
+            if let first = measures.first, let radius = first.radius,
+               first.kind == .circle || first.kind == .arc,
+               measures.allSatisfy({ $0.kind == first.kind && abs(($0.radius ?? -1) - radius) <= 0.001 }) {
+                parts.append(first.kind == .circle ? "Ø \(mm(radius * 2))" : "R \(mm(radius))")
+            } else {
+                parts.append("L \(mm(measures.reduce(Float(0)) { $0 + $1.length }))")
+            }
         }
         return parts.joined(separator: "  ·  ") + " mm"
     }
+}
+
+private struct CalloutHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// The callout of the selected STEP edges: the two actions, then one line of numbers.
@@ -179,6 +201,18 @@ private struct STEPSelectionCallout: View {
                 .buttonStyle(.bordered)
                 .help(kind.summary)
             }
+            // Any other operation: the toolpath opens with the first one, to change in its details.
+            if let first = operations.first {
+                Button {
+                    isChoosing = false
+                    onChoose(first)
+                } label: {
+                    Label("Other", systemImage: "ellipsis")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .help("Create the toolpath and choose its operation in the details")
+            }
             Button("Cancel") { isChoosing = false }
                 .buttonStyle(.borderless)
                 .keyboardShortcut(.cancelAction)
@@ -199,7 +233,7 @@ private struct STEPSelectionCallout: View {
                 .disabled(!canSelectLinked)
                 .help(canSelectLinked
                       ? "Also select every edge connected to the selection that lies in the same plane"
-                      : "Needs edges that lie in one plane: select a curve, or two edges that are not in line")
+                      : "Nothing to add: no other edge in the selection's plane is connected to it")
                 Button(action: onSelectSimilar) {
                     Label("Select similar", systemImage: "circle.grid.2x2")
                 }
@@ -209,7 +243,7 @@ private struct STEPSelectionCallout: View {
                       ? "Also select the holes with the same diameter and depth as the selected ones"
                       : "Select a hole's circle to find the holes like it")
                 Button { isChoosing = true } label: {
-                    Label("Add toolpath", systemImage: "plus")
+                    Label("Add toolpath…", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canAdd || operations.isEmpty)

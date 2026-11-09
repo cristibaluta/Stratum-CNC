@@ -340,6 +340,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             hiddenBodies.insert(id)
             setSelection(selectedEdges.filter { $0.bodyID != id }, notify: true)
         }
+        updateCanSelectLinked()
     }
 
     /// The edge under `point`, if any.
@@ -431,8 +432,19 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         selectionFeature.map(OperationKind.operations(for:)) ?? []
     }
 
-    /// "Select linked in plane" has something to work from.
-    var canSelectLinkedInPlane: Bool { selectionPlane != nil }
+    /// "Select linked in plane" would add something: the selection lies in one plane and edges
+    /// in that plane are connected to it that are not selected yet. Kept up to date by
+    /// `setSelection` (and when a body is shown or hidden), so views can read it every frame.
+    private(set) var canSelectLinkedInPlane = false
+
+    private func updateCanSelectLinked() {
+        guard let plane = selectionPlane, !selectedEdges.isEmpty else {
+            canSelectLinkedInPlane = false
+            return
+        }
+        canSelectLinkedInPlane = content.geometry.linkedEdges(startingFrom: selectedEdges, in: plane,
+                                                              hiddenBodies: hiddenBodies) != selectedEdges
+    }
 
     /// "Select similar" has something to work from: the selection is circles lying flat, the
     /// rims of holes.
@@ -466,6 +478,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         selectionPlane = edges.isEmpty ? nil : content.geometry.plane(containing: edges)
         selectionMeasures = edges.isEmpty ? [] : content.geometry.measures(of: edges)
         selectionFeature = content.geometry.feature(of: edges, measures: selectionMeasures, plane: selectionPlane)
+        updateCanSelectLinked()
         rebuildHighlight()
         if notify { onSelectionChanged?(edges) }
     }
