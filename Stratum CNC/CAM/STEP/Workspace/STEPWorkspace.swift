@@ -365,13 +365,42 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
     /// The edge under `point`, if any.
     func edge(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> STEP.EdgeID? {
+        // Edges that are not drawn must not be picked either.
+        guard isModelVisible, displayMode != .shaded else { return nil }
         // The geometry is stored at the origin; the matrix the canvas hands over
         // sees it moved, so move it back into place first.
-        // Edges that are not drawn must not be picked either.
-        isModelVisible && displayMode != .shaded
-            ? content.geometry.hitTest(at: point, viewport: viewport, matrix: matrix * Self.translation(offset),
-                                       hiddenBodies: hiddenBodies)
-            : nil
+        let matrix = matrix * Self.translation(offset)
+        // With hidden edges not drawn, the edges behind a face are not pickable.
+        let isVisible = hiddenEdgeMode == .hidden ? visibilityTest(viewport: viewport, matrix: matrix) : nil
+        return content.geometry.hitTest(at: point, viewport: viewport, matrix: matrix,
+                                        hiddenBodies: hiddenBodies, isVisible: isVisible)
+    }
+
+    /// Tells whether a point of an edge (view points x, y and depth) is in front of the faces,
+    /// i.e. drawn rather than hidden behind them. Edges lie on the faces, so a small depth
+    /// tolerance (mm) keeps them from hiding behind their own surface. `nil` when no body has
+    /// faces: its edges are then all drawn.
+    private func visibilityTest(viewport: CGSize, matrix: simd_float4x4) -> ((SIMD3<Float>) -> Bool)? {
+        let placement = content.placement
+        var screen: [SIMD3<Float>] = []
+        var indices: [Int] = []
+        for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
+            guard let mesh = content.surfaces.mesh(for: body.id) else { continue }
+            let base = screen.count
+            screen += STEPFacePicker.project(positions: mesh.positions.map { placement.point($0) },
+                                             matrix: matrix, viewport: viewport)
+            indices += mesh.indices.map { base + Int($0) }
+        }
+        guard !indices.isEmpty else { return nil }
+        // The projection is orthographic: depth changes by this much per mm along the view.
+        let perMM = simd_length(SIMD3<Float>(matrix.columns.0.z, matrix.columns.1.z, matrix.columns.2.z))
+        let tolerance = 0.1 * perMM
+        return { [screen, indices] point in
+            guard let hit = STEPFacePicker.pickTriangle(screen: screen, indices: indices,
+                                                        at: CGPoint(x: CGFloat(point.x), y: CGFloat(point.y)),
+                                                        slack: 1e-4) else { return true }
+            return point.z <= hit.depth + tolerance
+        }
     }
 
     /// The edges around the flat face under `point`, if there is one: the nearest triangle of the

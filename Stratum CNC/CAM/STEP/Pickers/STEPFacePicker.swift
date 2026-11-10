@@ -52,14 +52,16 @@ enum STEPFacePicker {
                              at point: CGPoint,
                              viewport: CGSize,
                              matrix: simd_float4x4) -> (triangle: Int, depth: Float)? {
-
         guard viewport.width > 0, viewport.height > 0 else {
             return nil
         }
-        let cursor = SIMD2<Float>(Float(point.x), Float(point.y))
-        let half = SIMD2<Float>(Float(viewport.width), Float(viewport.height)) / 2
+        let screen = project(positions: positions, matrix: matrix, viewport: viewport)
+        return pickTriangle(screen: screen, indices: indices, at: point)
+    }
 
-        // Every vertex on screen once; NaN where it can't be.
+    /// Every vertex on screen (AppKit view points, depth 0...1); NaN where it can't be.
+    static func project(positions: [SIMD3<Float>], matrix: simd_float4x4, viewport: CGSize) -> [SIMD3<Float>] {
+        let half = SIMD2<Float>(Float(viewport.width), Float(viewport.height)) / 2
         var screen = [SIMD3<Float>](repeating: SIMD3<Float>(repeating: .nan), count: positions.count)
         for i in positions.indices {
             let clip = matrix * SIMD4<Float>(positions[i], 1)
@@ -68,6 +70,17 @@ enum STEPFacePicker {
             }
             screen[i] = SIMD3<Float>((clip.x / clip.w + 1) * half.x, (clip.y / clip.w + 1) * half.y, clip.z / clip.w)
         }
+        return screen
+    }
+
+    /// `pickTriangle` on vertices that are already on screen (see `project`), so several points
+    /// can be tested against the same mesh. `slack` widens each triangle a little (in barycentric
+    /// units) for a point that lies exactly on a shared edge.
+    static func pickTriangle(screen: [SIMD3<Float>],
+                             indices: [Int],
+                             at point: CGPoint,
+                             slack: Float = 0) -> (triangle: Int, depth: Float)? {
+        let cursor = SIMD2<Float>(Float(point.x), Float(point.y))
 
         var best: (triangle: Int, depth: Float)?
         for t in 0..<(indices.count / 3) {
@@ -91,7 +104,7 @@ enum STEPFacePicker {
             let u = (v2.x * v1.y - v1.x * v2.y) / d
             let v = (v0.x * v2.y - v2.x * v0.y) / d
             let w = 1 - u - v
-            guard u >= 0, v >= 0, w >= 0 else {
+            guard u >= -slack, v >= -slack, w >= -slack else {
                 continue
             }
 

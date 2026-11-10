@@ -66,8 +66,11 @@ struct STEPDisplayGeometry: Sendable {
 
     /// Uses exactly the Float points handed to Metal. Coordinates and tolerance
     /// are AppKit view points, not drawable pixels, so Retina does not alter picking.
+    /// `isVisible` is asked about the point of an edge nearest the cursor (view points x, y and
+    /// depth 0...1); an edge it rejects cannot be picked, the next best one is tried.
     func hitTest(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
-                 hiddenBodies: Set<STEP.BodyID> = [], tolerance: CGFloat = 6) -> STEP.EdgeID? {
+                 hiddenBodies: Set<STEP.BodyID> = [], tolerance: CGFloat = 6,
+                 isVisible: ((SIMD3<Float>) -> Bool)? = nil) -> STEP.EdgeID? {
         guard viewport.width > 0, viewport.height > 0, tolerance >= 0 else { return nil }
         var best: (id: STEP.EdgeID, distance: Float, depth: Float)?
         let cursor = SIMD2<Float>(Float(point.x), Float(point.y))
@@ -86,6 +89,10 @@ struct STEPDisplayGeometry: Sendable {
                     if let previous = best,
                        distance > previous.distance + 1e-4 || (abs(distance - previous.distance) <= 1e-4 && depth >= previous.depth) {
                         continue
+                    }
+                    if let isVisible {
+                        let nearest = SIMD3<Float>(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, depth)
+                        guard isVisible(nearest) else { continue }
                     }
                     best = (edge.id, distance, depth)
                 }
