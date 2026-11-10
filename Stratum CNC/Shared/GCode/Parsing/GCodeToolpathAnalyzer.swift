@@ -53,7 +53,7 @@ struct GCodeToolpathAnalyzer {
 
         for line in lines {
             let text = stripComments(line.text)
-            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            guard !text.isBlank else { continue }
 
             let codes = extractCodes(from: text)
 

@@ -263,7 +263,7 @@ struct HoldingTabSettings: Codable, Hashable, Identifiable {
         var tab = HoldingTabSettings(SC.HoldingTab(positionRatio: 0.5))
         let positions = ([0.0] + tabs.map(\.positionRatio).sorted() + [1.0])
         var best = (gap: 0.0, middle: 0.5)
-        for (a, b) in zip(positions, positions.dropFirst()) where b - a > best.gap {
+        for (a, b) in positions.adjacentPairs() where b - a > best.gap {
             best = (b - a, (a + b) / 2)
         }
         tab.positionRatio = best.middle

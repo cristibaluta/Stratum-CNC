@@ -226,7 +226,7 @@ private struct Sparkline: View {
         let inset: CGFloat = 1.5
 
         return shown.enumerated().map { index, value in
-            let fraction = min(max((value - range.lowerBound) / span, 0), 1)
+            let fraction = ((value - range.lowerBound) / span).clampedToUnit
             return CGPoint(x: size.width - CGFloat(shown.count - 1 - index) * step,
                            y: inset + (1 - CGFloat(fraction)) * (size.height - 2 * inset))
         }

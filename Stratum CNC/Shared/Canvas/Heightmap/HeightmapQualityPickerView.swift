@@ -51,7 +51,7 @@ struct HeightmapQualityPickerView: View {
             case 0.4: quality = "Low"
             default: quality = "Fastest"
         }
-        return "\(quality) (\(String(format: "%.1f", step))mm)"
+        return "\(quality) (\(step.fixed(1))mm)"
     }
 }
 

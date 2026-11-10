@@ -522,7 +522,7 @@ class CAMModel: ObservableObject {
     }
 
     func renameSetup(_ id: UUID, to name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = name.trimmed
         guard !trimmed.isEmpty, let index = setups.firstIndex(where: { $0.id == id }),
               setups[index].name != trimmed else {
             return

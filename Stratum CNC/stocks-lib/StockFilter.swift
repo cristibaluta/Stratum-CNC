@@ -26,7 +26,7 @@ struct StockFilter: Equatable {
     }
 
     var hasQuery: Bool {
-        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !query.isBlank
     }
 
     /// True when anything at all narrows the list. Drives the empty state.

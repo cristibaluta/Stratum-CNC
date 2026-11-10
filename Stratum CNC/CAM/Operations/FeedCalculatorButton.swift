@@ -162,7 +162,7 @@ private struct FeedCalculatorView: View {
             }
 
             if feed > 0 {
-                InspectorNote(text: "Current feed: \(Int(currentFeed.rounded())) mm/min", isIndented: false)
+                InspectorNote(text: "Current feed: \(currentFeed.roundedInt) mm/min", isIndented: false)
             }
         }
         .padding(14)
@@ -194,7 +194,7 @@ private struct FeedCalculatorView: View {
                 HStack(spacing: 10) {
                     stat("Chip", "\(ChipLoadAnalysis.format(analysis.chipThickness)) mm")
                     stat("Removal", "\(Self.format(analysis.removalRate)) cm³/min")
-                    stat("Speed", "\(Int(analysis.surfaceSpeed.rounded())) m/min")
+                    stat("Speed", "\(analysis.surfaceSpeed.roundedInt) m/min")
                 }
             }
 

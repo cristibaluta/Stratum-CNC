@@ -77,7 +77,7 @@ struct ResumePointResolver {
 
     init(lines: [String], toolpaths: [GCodeToolpath]) {
         lineCount = lines.count
-        toolpathStarts = Array(Set(toolpaths.map(\.startLine))).sorted()
+        toolpathStarts = toolpaths.map(\.startLine).sortedUnique()
 
         var scanner = GCodeModalScanner()
         var beforeLine: [(line: Int, z: Double?)] = []
@@ -137,7 +137,7 @@ struct ResumePointResolver {
         guard lineCount > 0 else {
             return ResumePoint(requestedLine: requestedLine, line: requestedLine, reason: .none)
         }
-        let requested = min(max(1, requestedLine), lineCount)
+        let requested = requestedLine.clampedToLine(in: lineCount)
 
         let retracted = Self.lastLine(atOrBefore: requested, in: retractedLines)
         let toolpath = Self.lastLine(atOrBefore: requested, in: toolpathStarts)
@@ -165,7 +165,7 @@ struct ResumePointResolver {
             return ResumePoint(requestedLine: requestedLine, line: requestedLine,
                                reason: .backedUp(millimeters: millimeters))
         }
-        let requested = min(max(1, requestedLine), lineCount)
+        let requested = requestedLine.clampedToLine(in: lineCount)
         let passStart = resolve(requestedLine: requested).line
         let target = cutLengthBefore[requested] - max(0, millimeters)
 

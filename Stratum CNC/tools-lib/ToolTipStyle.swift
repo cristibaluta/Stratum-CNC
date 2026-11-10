@@ -109,7 +109,7 @@ struct ToolDiagramView: View {
         var fluteBottomY = tipBaseY
         if case .conical(let angleDegrees) = tipStyle {
             let halfAngle = max(min(angleDegrees, 179), 1) / 2
-            let tipDrop = fluteBodyHalf / CGFloat(tan(halfAngle * .pi / 180))
+            let tipDrop = fluteBodyHalf / CGFloat(tan(halfAngle.inRadians))
             fluteBottomY = max(tipBaseY - tipDrop, fluteTopY + 6)
         }
 
@@ -156,7 +156,7 @@ struct ToolDiagramView: View {
                 )
             case .conical(let angleDegrees):
                 let halfAngle = max(min(angleDegrees, 179), 1) / 2
-                let tipDrop = fluteBodyHalf / CGFloat(tan(halfAngle * .pi / 180))
+                let tipDrop = fluteBodyHalf / CGFloat(tan(halfAngle.inRadians))
                 // Carve the cone out of the tail end of the existing flute length,
                 // instead of extending past it — apex lands on tipBaseY.
                 let coneBaseY = max(tipBaseY - tipDrop, fluteTopY + 6)

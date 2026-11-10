@@ -55,7 +55,7 @@ struct StockMaterial: Identifiable, Codable, Hashable {
 
     /// The link as a URL, if it is a valid http(s) address.
     var linkURL: URL? {
-        guard let link = link?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let link = link?.trimmed,
               !link.isEmpty,
               let url = URL(string: link),
               let scheme = url.scheme?.lowercased(),

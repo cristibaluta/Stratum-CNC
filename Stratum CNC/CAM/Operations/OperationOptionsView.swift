@@ -621,7 +621,7 @@ struct OperationOptionsView: View {
         if toolpath.stockToLeaveExceedsDepth {
             return String(format: "The stock to leave must be less than the depth (%.2f mm): the floor is left too.", abs(toolpath.endZ))
         }
-        let amount = String(format: "%.2f", stock)
+        let amount = stock.fixed(2)
         let place = kind == .pocket ? "the walls and the floor" : "the wall"
         if toolpath.operation.finishingPass {
             return "Roughing leaves \(amount) mm on \(place); the finishing pass cuts it to size."

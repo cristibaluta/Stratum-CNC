@@ -167,7 +167,7 @@ private final class Core: @unchecked Sendable {
         let info = ProcessInfo.processInfo
         let ramGB = Double(info.physicalMemory) / 1_073_741_824
         write(category: "session",
-              message: "=== started · pid \(getpid()) · \(info.operatingSystemVersionString) · \(info.processorCount) cores · \(String(format: "%.0f", ramGB)) GB RAM · lowPower=\(info.isLowPowerModeEnabled) ===")
+              message: "=== started · pid \(getpid()) · \(info.operatingSystemVersionString) · \(info.processorCount) cores · \(ramGB.fixed(0)) GB RAM · lowPower=\(info.isLowPowerModeEnabled) ===")
         write(category: "session", message: "log file: \(fileURL.path)")
         print("[PerfLog] writing to \(fileURL.path)")
 
@@ -258,7 +258,7 @@ private final class Core: @unchecked Sendable {
         beatQuietTicks = 0
         beatLastLoggedMem = mem
 
-        var text = "cpu=\(String(format: "%.0f", cpuPercent))% thermal=\(ProcessMetrics.thermalName())"
+        var text = "cpu=\(cpuPercent.fixed(0))% thermal=\(ProcessMetrics.thermalName())"
         if !activity.isEmpty {
             text += " | " + activity.joined(separator: " · ")
         }

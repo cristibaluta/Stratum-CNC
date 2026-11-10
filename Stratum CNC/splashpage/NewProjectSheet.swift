@@ -22,7 +22,7 @@ struct NewProjectSheet: View {
     let onCreate: (String, URL?) throws -> Void
 
     private var trimmedName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines)
+        name.trimmed
     }
 
     private var canCreate: Bool {

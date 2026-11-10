@@ -226,13 +226,13 @@ final class JogController {
     private func jogLine(x: Double, y: Double, z: Double, a: Double, feed: Double?) -> String? {
         var parts: [String] = []
         for (letter, value) in [("X", x), ("Y", y), ("Z", z), ("A", a)] where abs(value) >= 0.0005 {
-            parts.append(letter + String(format: "%.3f", value))
+            parts.append(letter + value.fixed(3))
         }
         guard !parts.isEmpty else {
             return nil
         }
         if let feed {
-            parts.append("F" + String(format: "%.0f", feed))
+            parts.append("F" + feed.fixed(0))
         }
         return "$J " + parts.joined(separator: " ")
     }

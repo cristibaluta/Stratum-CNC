@@ -25,7 +25,7 @@ struct CanvasZoomButton: View {
                 Image(systemName: "ruler")
                 Text("100%")
                 if !zoomModel.isTrueToLife {
-                    Text("(\(Int(zoomModel.percent.rounded()))%)")
+                    Text("(\(zoomModel.percent.roundedInt)%)")
                         .foregroundStyle(.secondary)
                 }
             }

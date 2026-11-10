@@ -433,7 +433,7 @@ struct BitChangeSheet: View {
             sourceNote = "No saved job progress: choose the line the job stopped at."
         }
 
-        line = min(max(1, line), max(1, lines.count))
+        line = line.clampedToLine(in: lines.count)
         flow = BitChangeFlow(sourceLine: line)
         lineText = "\(line)"
 

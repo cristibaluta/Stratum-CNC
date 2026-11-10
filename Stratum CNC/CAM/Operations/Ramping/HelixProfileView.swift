@@ -226,7 +226,7 @@ struct HelixProfileView: View {
         )
 
         // Calculated number of turns needed to reach the stepdown.
-        let turnsText = String(format: "%.1f", layout.turnsNeeded)
+        let turnsText = layout.turnsNeeded.fixed(1)
         let label = "\(turnsText) turn\(turnsText == "1.0" ? "" : "s") to reach stepdown"
         let text = Text(label)
             .font(.caption.monospacedDigit())

@@ -174,7 +174,7 @@ struct BitChangeFlow: Equatable {
         case .backUp(let millimeters):
             return resolver.backedUp(from: sourceLine, millimeters: millimeters)
         case .exactLine:
-            let line = min(max(1, sourceLine), max(1, resolver.lineCount))
+            let line = sourceLine.clampedToLine(in: resolver.lineCount)
             return ResumePoint(requestedLine: line, line: line, reason: .chosen)
         }
     }

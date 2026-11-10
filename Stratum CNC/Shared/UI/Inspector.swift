@@ -371,7 +371,7 @@ struct InspectorValueTextField: View {
     /// The digits after the "0." for a value in 0..<1 ("" for 0, "3" for 0.3, "05" for 0.05).
     private static func digits(of value: Double) -> String {
         guard value > 0, value < 1 else { return "" }
-        let hundredths = min(Int((value * 100).rounded()), 99)
+        let hundredths = min(value.roundedInt(scale: 100), 99)
         guard hundredths > 0 else { return "" }
         var text = String(format: "%02d", hundredths)
         if text.hasSuffix("0") {

@@ -191,7 +191,7 @@ struct ProbeResult: Equatable {
     // MARK: Format
 
     static func format(_ value: Double, unit: String? = nil) -> String {
-        let text = String(format: "%.3f", value)
+        let text = value.fixed(3)
         return unit.map { "\(text) \($0)" } ?? text
     }
 }

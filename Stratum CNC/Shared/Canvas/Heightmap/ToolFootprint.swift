@@ -55,7 +55,7 @@ enum ToolFootprint {
                 guard let includedAngle = tool.tipAngle, includedAngle > 0, includedAngle < 180 else {
                     return tipZ
                 }
-                let halfAngleRadians = (includedAngle / 2) * .pi / 180
+                let halfAngleRadians = (includedAngle / 2).inRadians
                 let rise = Double(d) / tan(halfAngleRadians)
                 return tipZ + Float(rise)
         }

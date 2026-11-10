@@ -36,10 +36,7 @@ struct Macro: Identifiable, Sendable {
 enum GCodeNumber {
     /// Up to 3 decimals, trailing zeros trimmed: `2.000` -> `2`, `-0.500` -> `-0.5`.
     static func string(_ value: Double) -> String {
-        var text = String(format: "%.3f", value)
-        while text.hasSuffix("0") { text.removeLast() }
-        if text.hasSuffix(".") { text.removeLast() }
-        return (text == "-0" || text.isEmpty) ? "0" : text
+        value.trimmedString()
     }
 }
 

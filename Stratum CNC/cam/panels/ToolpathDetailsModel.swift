@@ -278,7 +278,7 @@ final class ToolpathDetailsModel: ObservableObject {
                 guard let self else {
                     return
                 }
-                let step = Int(newValue.rounded())
+                let step = newValue.roundedInt
                 guard step != (self.scrubStep ?? total) else {
                     return
                 }

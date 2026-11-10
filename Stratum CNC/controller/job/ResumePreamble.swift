@@ -138,7 +138,7 @@ enum ResumeFileBuilder {
                       resumeLine: Int,
                       options: ResumeOptions = ResumeOptions()) -> ResumeFile? {
         guard !lines.isEmpty else { return nil }
-        let line = min(max(1, resumeLine), lines.count)
+        let line = resumeLine.clampedToLine(in: lines.count)
 
         let (state, maxZ) = GCodeModalState.scan(lines: lines, beforeLine: line)
         let preamble = ResumePreambleBuilder.build(state: state, maxZ: maxZ,

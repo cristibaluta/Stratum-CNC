@@ -23,7 +23,7 @@ enum STEPContourBuilder {
         var remaining: [[SIMD2<Double>]] = polylines.compactMap { polyline in
             var points: [SIMD2<Double>] = []
             for point in polyline {
-                let flat = SIMD2<Double>(point.x, point.y)
+                let flat = point.xy
                 if let last = points.last, simd_distance(last, flat) < 1e-9 { continue }
                 points.append(flat)
             }

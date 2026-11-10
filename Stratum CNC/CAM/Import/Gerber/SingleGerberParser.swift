@@ -151,7 +151,7 @@ final class SingleGerberParser {
         }
 
         return commands
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { $0.trimmed }
             .filter { !$0.isEmpty }
     }
 
@@ -159,7 +159,7 @@ final class SingleGerberParser {
 
     private func parseCommand(_ command: String) {
 
-        let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let command = command.trimmed
         if command.isEmpty {
             return
         }
@@ -372,7 +372,7 @@ final class SingleGerberParser {
 
         let cleaned = command
             .replacingOccurrences(of: "*", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmed
 
         guard cleaned.contains("D") else {
             return
@@ -686,7 +686,7 @@ final class SingleGerberParser {
         for step in 0...segmentCount {
             let t = Double(step) / Double(segmentCount)
             let angle = clockwise ? geo.startAngle - sweep * t : geo.startAngle + sweep * t
-            let radians = angle * .pi / 180
+            let radians = angle.inRadians
             points.append(
                 DXF.Point(
                     geo.center.x + geo.radius * cos(radians),
@@ -769,7 +769,7 @@ final class SingleGerberParser {
         }
 
         let radius = cornerRadius * unitScale
-        let rotationRadians = rotationDegrees * .pi / 180
+        let rotationRadians = rotationDegrees.inRadians
 
         let absoluteCorners: [DXF.Point] = corners.map { corner in
             let sx = corner.x * unitScale

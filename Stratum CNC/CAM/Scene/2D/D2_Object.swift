@@ -112,7 +112,7 @@ final class D2_Object {
     }
 
     var rotatedBounds: CGRect {
-        let angle = rotationDegrees * .pi / 180
+        let angle = rotationDegrees.inRadians
         let cosAngle = abs(cos(angle))
         let sinAngle = abs(sin(angle))
         let rotatedWidth = width * cosAngle + height * sinAngle
@@ -192,7 +192,7 @@ final class D2_Object {
     func worldPoint(fromLocal local: CGPoint) -> CGPoint {
         let half = CGPoint(x: originalSize.width / 2, y: originalSize.height / 2)
         let centered = CGPoint(x: (local.x - half.x) * scale, y: (local.y - half.y) * scale)
-        let angle = rotationDegrees * .pi / 180
+        let angle = rotationDegrees.inRadians
         let rotated = CGPoint(x: centered.x * cos(angle) - centered.y * sin(angle),
                               y: centered.x * sin(angle) + centered.y * cos(angle))
         return CGPoint(x: center.x + rotated.x, y: center.y + rotated.y)
@@ -203,7 +203,7 @@ final class D2_Object {
     /// `worldPoint`, but never translated.
     func worldVector(fromLocal local: CGPoint) -> CGPoint {
         let scaled = CGPoint(x: local.x * scale, y: local.y * scale)
-        let angle = rotationDegrees * .pi / 180
+        let angle = rotationDegrees.inRadians
         return CGPoint(x: scaled.x * cos(angle) - scaled.y * sin(angle),
                        y: scaled.x * sin(angle) + scaled.y * cos(angle))
     }

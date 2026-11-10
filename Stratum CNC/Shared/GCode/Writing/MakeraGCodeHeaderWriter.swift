@@ -89,7 +89,7 @@ enum MakeraGCodeHeaderWriter {
         }
 
         let seconds = sections.reduce(0.0) { $0 + estimateSeconds(of: $1.gcode) }
-        lines.append(record("TIME", [("seconds", String(Int(seconds.rounded())))]))
+        lines.append(record("TIME", [("seconds", String(seconds.roundedInt))]))
 
         for (index, section) in sections.enumerated() {
             lines.append(record("TOOLPATH", [("number", String(index + 1)),
@@ -99,7 +99,7 @@ enum MakeraGCodeHeaderWriter {
         lines.append(";@MKR|END")
         lines.append("G90 G21")
         if let setup = job.setup {
-            lines.append("; Setup: \(clean(setup.name)) (\(setup.orientationTitle), stock turned \(Int(setup.angle.rounded())) deg about \(setup.axis.title))")
+            lines.append("; Setup: \(clean(setup.name)) (\(setup.orientationTitle), stock turned \(setup.angle.roundedInt) deg about \(setup.axis.title))")
         }
 
         for (index, section) in sections.enumerated() {
@@ -187,7 +187,7 @@ enum MakeraGCodeHeaderWriter {
 
     /// `3.175`, `12`, `0.1` — no trailing zeros, no exponent.
     private static func format(_ value: Double) -> String {
-        var text = String(format: "%.4f", value)
+        var text = value.fixed(4)
         while text.hasSuffix("0") {
             text.removeLast()
         }

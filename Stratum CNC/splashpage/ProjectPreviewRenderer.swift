@@ -77,7 +77,7 @@ enum ProjectPreviewRenderer {
                 let a = project(body.points[index])
                 let b = project(body.points[index + 1])
                 index += 2
-                guard a.x.isFinite, a.y.isFinite, b.x.isFinite, b.y.isFinite else {
+                guard a.isFinite, b.isFinite else {
                     continue
                 }
                 path.move(to: a)

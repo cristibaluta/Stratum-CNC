@@ -150,7 +150,7 @@ struct TerminalView: View {
                 Text("Send")
             }
             .keyboardShortcut(.return, modifiers: [])
-            .disabled(!connection.isConnected || model.mdiInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(!connection.isConnected || model.mdiInput.isBlank)
 
             Button {
                 model.isShowingCommandPalette = true

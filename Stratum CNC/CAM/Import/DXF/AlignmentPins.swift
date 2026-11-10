@@ -57,7 +57,7 @@ enum AlignmentPins {
                     return "Pins that size don't fit this stock. Reduce the diameter."
                 }
                 func format(_ value: Double) -> String {
-                    ((value * 1000).rounded() / 1000)
+                    value.rounded(toPlaces: 3)
                         .formatted(.number.precision(.fractionLength(0...3)).grouping(.never)
                             .locale(Locale(identifier: "en_US")))
                 }

@@ -100,19 +100,19 @@ final class CopperGerberParser {
             }
         }
 
-        if !current.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !current.isBlank {
             commands.append(current)
         }
 
         return commands
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { $0.trimmed }
             .filter { !$0.isEmpty }
     }
 
     // MARK: - Commands
 
     private func parseCommand(_ command: String) {
-        let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let command = command.trimmed
         guard !command.isEmpty else { return }
 
         if command.contains("MOMM") {
@@ -171,7 +171,7 @@ final class CopperGerberParser {
     private func standaloneApertureSelection(_ command: String) -> Int? {
         let cleaned = command
             .replacingOccurrences(of: "*", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmed
 
         guard cleaned.first == "D",
               cleaned.count >= 3,
@@ -247,7 +247,7 @@ final class CopperGerberParser {
     private func parseCoordinateCommand(_ command: String) {
         let cleaned = command
             .replacingOccurrences(of: "*", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmed
 
         let parsed = parseCoordinateFields(cleaned)
         guard let dCode = parsed.dCode else { return }

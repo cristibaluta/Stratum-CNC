@@ -167,7 +167,7 @@ enum CAMHoldingTabsOverlay {
     }
 
     private static func lerp(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
-        CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+        a.lerp(to: b, t: t)
     }
 
     /// A vector of the given length at a right angle to the segment.

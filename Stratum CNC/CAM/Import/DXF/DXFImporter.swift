@@ -99,8 +99,8 @@ extension DXF.Entity {
                 }
 
                 let startPoint = CGPoint(
-                    x: center.x + radius * cos(startDeg * .pi / 180),
-                    y: center.y + radius * sin(startDeg * .pi / 180)
+                    x: center.x + radius * cos(startDeg.inRadians),
+                    y: center.y + radius * sin(startDeg.inRadians)
                 )
                 path.move(to: startPoint)
                 path.appendArc(withCenter: center.cgPoint, radius: radius, startAngle: start, endAngle: end, clockwise: false)
@@ -340,10 +340,10 @@ extension DXF.Entity {
             var end = CGFloat(endDeg)
             while end < start { end += 360 } // DXF arcs sweep CCW start→end
 
-            let startPoint = CGPoint(x: center.x + radius * cos(startDeg * .pi / 180),
-                                      y: center.y + radius * sin(startDeg * .pi / 180))
-            let endPoint = CGPoint(x: center.x + radius * cos(Double(end) * .pi / 180),
-                                    y: center.y + radius * sin(Double(end) * .pi / 180))
+            let startPoint = CGPoint(x: center.x + radius * cos(startDeg.inRadians),
+                                      y: center.y + radius * sin(startDeg.inRadians))
+            let endPoint = CGPoint(x: center.x + radius * cos(Double(end).inRadians),
+                                    y: center.y + radius * sin(Double(end).inRadians))
 
             if reversed {
                 // Same physical arc, traced from `end` back down to `start`.
@@ -425,10 +425,10 @@ extension SC.Geometry {
             var end = CGFloat(endDeg)
             while end < start { end += 360 }
 
-            let startPoint = CGPoint(x: center.x + radius * cos(startDeg * .pi / 180),
-                                     y: center.y + radius * sin(startDeg * .pi / 180))
-            let endPoint = CGPoint(x: center.x + radius * cos(Double(end) * .pi / 180),
-                                   y: center.y + radius * sin(Double(end) * .pi / 180))
+            let startPoint = CGPoint(x: center.x + radius * cos(startDeg.inRadians),
+                                     y: center.y + radius * sin(startDeg.inRadians))
+            let endPoint = CGPoint(x: center.x + radius * cos(Double(end).inRadians),
+                                   y: center.y + radius * sin(Double(end).inRadians))
 
             if reversed {
                 if isFirst { path.move(to: endPoint) }

@@ -620,7 +620,7 @@ extension ToolpathGenerator {
         }
         PerfLog.log("gen", "job '\(toolpath.name)': \(operation) · tool Ø\(toolpath.tool.toolDiameter) · "
                     + stock
-                    + "stepdown \(toolpath.stepDown) · stepover \(toolpath.stepOverPercent)% (\(String(format: "%.2f", toolpath.stepOverMM)) mm) · Z \(toolpath.startZ)…\(toolpath.endZ) "
+                    + "stepdown \(toolpath.stepDown) · stepover \(toolpath.stepOverPercent)% (\(toolpath.stepOverMM.fixed(2)) mm) · Z \(toolpath.startZ)…\(toolpath.endZ) "
                     + "(≈\(expectedPasses) passes) · ramp: \(ramp)")
     }
 
@@ -657,7 +657,7 @@ extension ToolpathGenerator {
         PerfLog.log("gen", "\(label): \(outputs.count) toolpath(s), \(passes) pass(es), \(waypoints) waypoints "
                     + "(rapid \(rapid), linear \(linear), arcCW \(arcCW), arcCCW \(arcCCW))")
         PerfLog.log("gen", "\(label): waypoints/pass min \(perPass.min() ?? 0) · avg \(average) · max \(perPass.max() ?? 0) · "
-                    + "first passes \(Array(perPass.prefix(6))) · ≈\(String(format: "%.0f", megabytes)) MB in memory "
+                    + "first passes \(Array(perPass.prefix(6))) · ≈\(megabytes.fixed(0)) MB in memory "
                     + "(\(waypointStride) B per waypoint, arrays only)")
     }
 }

@@ -163,7 +163,7 @@ enum ToolpathPathBuilder {
     private static func signature(of pass: SC.ToolpathPass) -> Int {
 
         func q(_ value: Double) -> Int {
-            Int((value * 10_000).rounded())
+            value.roundedInt(scale: 10_000)
         }
 
         var hasher = Hasher()

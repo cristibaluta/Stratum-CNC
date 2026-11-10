@@ -82,7 +82,7 @@ enum FusionToolsImporter {
         let scale = f.unit?.lowercased().hasPrefix("inch") == true ? 25.4 : 1.0
         func mm(_ value: Double?) -> Double? {
             guard let value, value > 0 else { return nil }
-            return (value * scale * 1000).rounded() / 1000
+            return (value * scale).rounded(toPlaces: 3)
         }
 
         let shank = mm(g.SFDM) ?? mm(diameter)!
@@ -92,7 +92,7 @@ enum FusionToolsImporter {
         let toolLength = mm(g.OAL)
 
         let productID = (f.productID ?? "").trimmingCharacters(in: .whitespaces)
-        var name = (f.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        var name = (f.description ?? "").trimmed
         if name.isEmpty {
             name = productID.isEmpty ? f.type : productID
         } else if !productID.isEmpty && !name.hasPrefix(productID) {
@@ -103,7 +103,7 @@ enum FusionToolsImporter {
         let typeTitle = f.type.capitalized
         let group = vendor.isEmpty ? typeTitle : "\(vendor) \(typeTitle)"
 
-        var link = f.productLink?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var link = f.productLink?.trimmed
         // Some Fusion entries omit the scheme ("amanatool.com/…"); `Tool.linkURL` needs http(s).
         if let value = link, !value.isEmpty, !value.contains("://") {
             link = "https://" + value

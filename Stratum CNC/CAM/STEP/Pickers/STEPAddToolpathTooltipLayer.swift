@@ -102,7 +102,7 @@ struct STEPAddToolpathTooltipLayer: View {
     /// arc then counting by its length).
     static func summary(for scene: STEPDocumentScene) -> String {
         func mm(_ value: Float) -> String {
-            String(format: "%.3f", value)
+            value.fixed(3)
         }
         let count = scene.selectedEdges.count
         var parts = [count == 1 ? "1 edge" : "\(count) edges"]

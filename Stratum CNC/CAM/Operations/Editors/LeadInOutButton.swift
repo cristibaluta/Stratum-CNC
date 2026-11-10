@@ -175,7 +175,7 @@ struct LeadInOutEditor: View {
                     HStack(spacing: 8) {
                         Slider(value: position, in: 0...1)
                             .controlSize(.small)
-                        Text("\(Int((current.positionRatio * 100).rounded())) %")
+                        Text("\(current.positionRatio.roundedInt(scale: 100)) %")
                             .font(.system(size: 11).monospacedDigit())
                             .foregroundStyle(.secondary)
                             .frame(width: 40, alignment: .trailing)

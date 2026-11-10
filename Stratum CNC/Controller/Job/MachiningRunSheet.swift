@@ -463,7 +463,7 @@ struct MachiningRunSheet: View {
     private func format<T: BinaryFloatingPoint>(_ value: T) -> String {
         let value = Double(value)
         return value.truncatingRemainder(dividingBy: 1) == 0
-            ? String(format: "%.0f", value)
-            : String(format: "%.2f", value)
+            ? value.fixed(0)
+            : value.fixed(2)
     }
 }

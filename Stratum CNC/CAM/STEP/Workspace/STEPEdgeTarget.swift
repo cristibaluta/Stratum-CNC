@@ -78,8 +78,7 @@ extension STEPDocumentScene {
 extension STEPWorkspace {
 
     private func importIDs(in targets: [STEPEdgeTarget]) -> [UUID] {
-        var seen = Set<UUID>()
-        return targets.map(\.importID).filter { seen.insert($0).inserted }
+        return targets.map(\.importID).uniqued()
     }
 
     /// The contours of the edges, for the toolpath engine. Throws when a model or an edge
@@ -155,7 +154,7 @@ extension STEPWorkspace {
         var segments: [(SIMD2<Double>, SIMD2<Double>)] = []
         for polyline in rails.lower {
             for index in 0..<max(polyline.count - 1, 0) {
-                segments.append((flat(polyline[index]), flat(polyline[index + 1])))
+                segments.append((polyline[index].xy, polyline[index + 1].xy))
             }
         }
         guard !segments.isEmpty else {
@@ -177,14 +176,11 @@ extension STEPWorkspace {
 
         // Inside or outside needs a closed lower rail: every point where edges meet is shared by two.
         var degree: [SIMD2<Int>: Int] = [:]
-        func cell(_ p: SIMD2<Double>) -> SIMD2<Int> {
-            SIMD2<Int>(Int((p.x / 0.01).rounded()), Int((p.y / 0.01).rounded()))
-        }
         for polyline in rails.lower {
             guard let first = polyline.first, let last = polyline.last else {
                 continue
             }
-            let (a, b) = (cell(flat(first)), cell(flat(last)))
+            let (a, b) = (first.xy.cell(), last.xy.cell())
             if a != b {
                 degree[a, default: 0] += 1
                 degree[b, default: 0] += 1
@@ -201,7 +197,7 @@ extension STEPWorkspace {
             }
             side = inside ? .inside : .outside
         }
-        return ((width * 1000).rounded() / 1000, (depth * 1000).rounded() / 1000, side)
+        return (width.rounded(toPlaces: 3), depth.rounded(toPlaces: 3), side)
     }
 
     /// End Z for a toolpath cutting these edges: the distance from z0 down to the edges,
@@ -231,6 +227,6 @@ extension STEPWorkspace {
         guard let shortest = depths.min() else {
             return nil
         }
-        return -((shortest * 1000).rounded() / 1000)
+        return -shortest.rounded(toPlaces: 3)
     }
 }

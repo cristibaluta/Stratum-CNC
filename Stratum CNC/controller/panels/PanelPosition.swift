@@ -95,7 +95,7 @@ struct PanelPosition: View {
             rowTitle(title)
 
             ForEach(Array(values.enumerated()), id: \.offset) { index, value in
-                Text(String(format: "%.3f", value))
+                Text(value.fixed(3))
                     .font(.system(size: prominent ? 12 : 10.5,
                                   weight: prominent ? .medium : .regular,
                                   design: .monospaced))
@@ -124,7 +124,7 @@ struct PanelPosition: View {
             Text(axis)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.tertiary)
-            Text(String(format: "%.3f", value))
+            Text(value.fixed(3))
                 .font(.system(size: 10.5, design: .monospaced))
                 .foregroundStyle(.secondary)
         }

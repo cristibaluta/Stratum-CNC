@@ -221,7 +221,7 @@ struct SetupFrame: Sendable, Equatable {
             throw ToolpathGenerator.GenerationError.invalidOption(
                 "Setups between the four faces need a rotary axis, which isn't supported yet.")
         }
-        let turns = Int(quarter.rounded()) % 4
+        let turns = quarter.roundedInt % 4
         let extents = stock.setupExtents
         // A cylinder or disk is held flat: it can be flipped over, not stood on its side.
         if turns % 2 == 1, !extents.isBox {
@@ -258,7 +258,7 @@ struct SetupFrame: Sendable, Equatable {
             case 2?: return (-1, 0)
             case 3?: return (0, -1)
             default:
-                let radians = angle * .pi / 180
+                let radians = angle.inRadians
                 return (cos(radians), sin(radians))
         }
     }

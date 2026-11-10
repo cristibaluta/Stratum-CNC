@@ -85,10 +85,7 @@ struct ProbeCycleBuilder {
 
     /// 10 → "10", 1.5 → "1.5", −0.0004 → "0".
     static func number(_ value: Double) -> String {
-        var text = String(format: "%.3f", value)
-        while text.contains("."), text.hasSuffix("0") { text.removeLast() }
-        if text.hasSuffix(".") { text.removeLast() }
-        return text == "-0" ? "0" : text
+        value.trimmedString()
     }
 
     private func n(_ value: Double) -> String { Self.number(value) }

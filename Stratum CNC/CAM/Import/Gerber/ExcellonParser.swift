@@ -70,7 +70,7 @@ final class ExcellonParser {
 
     private func parseLine(_ rawLine: String) {
 
-        var line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        var line = rawLine.trimmed
 
         guard !line.isEmpty, !line.hasPrefix(";") else {
             return

@@ -57,7 +57,7 @@ struct ToolFilter: Equatable {
     var hasRefinements: Bool {
         material != .any
             || source != .any
-            || !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !query.isBlank
     }
 
     /// True when anything at all narrows the list. Drives the empty state.
@@ -134,7 +134,7 @@ struct ToolFilter: Equatable {
 
     /// Shank diameters compare to the thousandth of a mm, so 3.175 read from two files is one size.
     static func shankKey(_ value: Double) -> Int {
-        Int((value * 1000).rounded())
+        value.roundedInt(scale: 1000)
     }
 
     /// The distinct known shank sizes in the library, smallest first. A shank of 0 means

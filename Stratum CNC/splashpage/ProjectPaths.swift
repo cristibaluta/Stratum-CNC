@@ -20,7 +20,7 @@ struct ProjectPaths {
     enum PathError: Error { case invalidProjectName }
 
     static func isValidName(_ name: String) -> Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !name.isBlank
             && name != "." && name != ".."
             && !name.contains("/") && !name.contains("\\")
             && !name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)

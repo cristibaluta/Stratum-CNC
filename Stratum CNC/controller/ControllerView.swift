@@ -656,7 +656,7 @@ private struct CanvasSection: View {
                 // false` lets `CanvasSceneModel.scrubHeightmap` throttle the
                 // actual recarves. `onEditingChanged` below forces one final
                 // exact recarve once the drag ends.
-                ControllerView.scrubTo(line: Int(newValue.rounded()), gCodeModel: gCodeModel, camModel: camModel, scene: scene, forceHeightmap: false)
+                ControllerView.scrubTo(line: newValue.roundedInt, gCodeModel: gCodeModel, camModel: camModel, scene: scene, forceHeightmap: false)
             }
         )
     }

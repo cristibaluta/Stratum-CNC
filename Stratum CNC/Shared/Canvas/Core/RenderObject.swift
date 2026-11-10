@@ -800,7 +800,7 @@ extension RenderObject {
 
             case .cone:
                 if let angle = tipAngleDegrees, angle > 0, angle < 180 {
-                    let halfAngle = Float((angle / 2) * .pi / 180)
+                    let halfAngle = Float((angle / 2).inRadians)
                     tipHeight = radius / tan(halfAngle)
                     addFlat(0, 0, radius, tipHeight)
                 } else {

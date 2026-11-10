@@ -18,7 +18,7 @@ enum RampMath {
     static func linearDepth(angle: Double, length: Double) -> Double {
         let a = clampedAngle(angle)
         let l = max(length, 0.1)
-        return l * tan(a * .pi / 180)
+        return l * tan(a.inRadians)
     }
 
     /// Diameter of the helix's circular path. It is not user-editable: it
@@ -33,7 +33,7 @@ enum RampMath {
     static func helixDepthPerTurn(angle: Double, diameter: Double) -> Double {
         let a = clampedAngle(angle)
         let d = max(diameter, 0.1)
-        return .pi * d * tan(a * .pi / 180)
+        return .pi * d * tan(a.inRadians)
     }
 
     /// Turns (fractional) a helix needs to reach `stepdown`.
@@ -45,7 +45,7 @@ enum RampMath {
     static func zigZagPasses(angle: Double, length: Double, channelHeight: Double = 40) -> Int {
         let a = clampedAngle(angle, min: 5, max: 85)
         let l = max(length, 0.1)
-        let toothRun = channelHeight / tan(a * .pi / 180)
+        let toothRun = channelHeight / tan(a.inRadians)
         return min(max(Int((l / max(toothRun, 4)).rounded(.up)), 1), 10)
     }
 
@@ -55,7 +55,7 @@ enum RampMath {
     static func linearRequiredLength(angle: Double, stepdown: Double) -> Double {
         let a = clampedAngle(angle)
         let d = max(stepdown, 0.01)
-        return d / tan(a * .pi / 180)
+        return d / tan(a.inRadians)
     }
 
     /// The actual outcome of a linear ramp given angle, available length, and
@@ -69,11 +69,11 @@ enum RampMath {
         let a = clampedAngle(angle)
         let l = max(length, 0.1)
         let d = max(stepdown, 0.01)
-        let requiredLength = d / tan(a * .pi / 180)
+        let requiredLength = d / tan(a.inRadians)
         if l >= requiredLength {
             return (requiredLength, d, true)
         } else {
-            let depth = l * tan(a * .pi / 180)
+            let depth = l * tan(a.inRadians)
             return (l, depth, false)
         }
     }
@@ -98,7 +98,7 @@ extension CGVector {
 /// Returns the point on a polyline at normalised `phase` (0...1), looping.
 func point(along points: [CGPoint], phase: CGFloat) -> CGPoint {
     guard points.count > 1 else { return points.first ?? .zero }
-    let segmentLengths = zip(points, points.dropFirst()).map { $0.distance(to: $1) }
+    let segmentLengths = points.adjacentPairs().map { $0.distance(to: $1) }
     let total = segmentLengths.reduce(0, +)
     guard total > 0 else { return points[0] }
     var target = phase.truncatingRemainder(dividingBy: 1) * total
@@ -107,7 +107,7 @@ func point(along points: [CGPoint], phase: CGFloat) -> CGPoint {
             let t = segmentLength > 0 ? target / segmentLength : 0
             let p0 = points[index]
             let p1 = points[index + 1]
-            return CGPoint(x: p0.x + (p1.x - p0.x) * t, y: p0.y + (p1.y - p0.y) * t)
+            return p0.lerp(to: p1, t: t)
         }
         target -= segmentLength
     }

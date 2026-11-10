@@ -243,7 +243,7 @@ class ControllerModel: ObservableObject {
     /// (jog steps) from pushing the commands the user actually typed out of
     /// the 10-entry MDI history. They still show up in the terminal log.
     func sendRawCommand(_ command: String, recordInHistory: Bool = true) {
-        let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let command = command.trimmed
 
         guard !command.isEmpty, connection.isConnected else {
             return

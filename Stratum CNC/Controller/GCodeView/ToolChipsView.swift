@@ -211,9 +211,7 @@ private struct ToolChip: View {
     }
 
     static func diameter(_ value: Double) -> String {
-        value.truncatingRemainder(dividingBy: 1) == 0
-            ? String(format: "%.0f", value)
-            : String(format: "%.2f", value)
+        value.wholeOrFixed()
     }
 }
 

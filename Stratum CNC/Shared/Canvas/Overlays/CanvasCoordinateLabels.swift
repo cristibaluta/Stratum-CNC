@@ -113,7 +113,7 @@ struct CanvasCoordinateLabels: View {
         let v = Double(value)
         if v == 0 { return "0" }
         return v.truncatingRemainder(dividingBy: 1) == 0
-            ? String(format: "%.0f", v)
-            : String(format: "%.2f", v)
+            ? v.fixed(0)
+            : v.fixed(2)
     }
 }

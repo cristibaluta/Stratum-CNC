@@ -473,7 +473,7 @@ struct SetupGlyph: View {
 
             // Where the up direction leaves the stock: Rx(θ)·ẑ = (0, −sin θ, cos θ) in (Y, Z), and Y is
             // to the right and Z up on screen.
-            let radians = angle * .pi / 180
+            let radians = angle.inRadians
             let direction = CGPoint(x: -sin(radians), y: -cos(radians))   // screen y points down
             let half = box.width / 2
             let center = CGPoint(x: box.midX, y: box.midY)
