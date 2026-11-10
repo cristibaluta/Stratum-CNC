@@ -2,13 +2,14 @@
 
 A 100% native macOS app for designing toolpaths and control **Makera CNC** machines. 
 
-* **Instant Load Times:** Zero Electron or Java, small file size
-* **Metal Rendering Engine:** Handles massive line G-code files at a locked 60+ FPS
-* **CPU:** Zero CPU in idle
-* **Compatibility:** Import Fusion360 tool libs
-* **Open:** No proprietary project files, everything is open for you to inspect
-* **Joystick Support:** Control the machine with game controllers (PlayStation 4).
-* **Vector Processing:** Import and create toolpaths from SVG and DXF paths.
+- **Native and lightweight:** built in Swift for macOS, with no Electron or Java. Small download, instant launch.
+- **Metal rendering:** smooth FPS even with massive G-code files.
+- **Easy on resources:** near-zero CPU when idle and a memory footprint comparable to a browser tab.
+- **Fusion 360 compatible:** import your existing Fusion 360 tool libraries.
+- **Open formats:** no proprietary project files. Everything is stored in plain, inspectable files.
+- **Gamepad control:** jog the machine with a PlayStation 4 controller.
+- **SVG and DXF import:** create toolpaths straight from vector paths.
+- **Gerber import:** create toolpaths for PCBs.
 
 ![Stratum CNC](https://myimgs.org/storage/images/72345/s1.png)
 ![Stratum CNC](https://myimgs.org/storage/images/72346/s2.png)
@@ -22,6 +23,7 @@ A 100% native macOS app for designing toolpaths and control **Makera CNC** machi
 ## Dependencies
 * **StratumCAM** the CAM toolpaths generator https://github.com/cristibaluta/Stratumcam
 * **StratumLink** connects and communicates with the machine https://github.com/cristibaluta/Stratumlink
+* **SwiftSTEP** for parsing STEP/STL files https://github.com/cristibaluta/SwiftSTEP
 * **SwiftDXF** for parsing DXF files
 * **PocketSVG** for parsing SVG files
 * **zip** for unzipping Gerber archives
@@ -31,4 +33,17 @@ A 100% native macOS app for designing toolpaths and control **Makera CNC** machi
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Stratum CNC is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the [LICENSE](LICENSE) file for details.
+
+You are free to use, study, modify and sell this software, but any version you
+distribute, modified or not, must stay open source under the same license.
+Closed-source redistribution is not permitted.
+
+Copyright (C) 2026 Cristian Baluta
