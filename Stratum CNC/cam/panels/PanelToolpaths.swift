@@ -78,8 +78,8 @@ struct PanelToolpaths: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .canvasChrome()
         .confirmationDialog(setupToDelete.map { "Delete \($0.name)?" } ?? "",
                             isPresented: Binding(get: { setupToDelete != nil },
                                                  set: { if !$0 { setupToDelete = nil } }),

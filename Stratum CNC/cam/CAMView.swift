@@ -23,7 +23,7 @@ import SwiftUI
     - CAM_Metal_View                           <- canvas (Metal), always the free 3D camera; shapes sit flat at z0
         - CAMSceneModel (D2_CanvasState -> [RenderObject] via D2_RenderObjectBuilder)
         - MetalCanvasView
-    - CAMLayersOverlay                         <- objects list over the canvas, bottom-left (shapes, model, stock, toolpaths, anchor, axes): show / hide, plus Z0 projections
+    - CAMLayersOverlay                         <- legend over the canvas, bottom-left (shapes, model, stock, toolpaths, anchor, axes): show / hide, plus Z0 projections
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
     - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
     - ToolpathListView                         <- left, under the objects panel: select / show-hide / delete toolpaths
@@ -121,9 +121,7 @@ struct CAMView: View {
                 HStack {
                     VStack(spacing: 12) {
                         inspectorPanel
-                            .panelShadow()
                         toolpathListPanel
-                            .panelShadow()
                         Spacer()
                     }
                     .frame(minWidth: 200, maxWidth: 260)
@@ -140,13 +138,11 @@ struct CAMView: View {
                                            isStockVisible: stockVisibleBinding,
                                            isCompact: true,
                                            stocksStore: appModel.stocksStore)
-                            .panelShadow()
                             .frame(width: 320)
                         // Only while a toolpath is selected in the list
                         if let toolpath = selectedToolpath {
                             VStack(alignment: .trailing, spacing: 10) {
                                 toolpathSettingsPanel(for: toolpath)
-                                    .panelShadow()
                                 toolpathActionsBar
                             }
                             .transition(.opacity)
@@ -543,14 +539,6 @@ struct CAMView: View {
         )
     }
 
-}
-
-private extension View {
-    /// Opaque rounded card with a soft shadow, so the panels float above the canvas.
-    func panelShadow() -> some View {
-        background(.background, in: RoundedRectangle(cornerRadius: 8))
-            .shadow(color: .secondary.opacity(0.15), radius: 4, x: 0, y: 2)
-    }
 }
 
 /// Same look as the Controller's "Refresh from CAM" button: prominent, with the refresh

@@ -2,7 +2,7 @@
 //  CAMLayersOverlay.swift
 //  Stratum CNC
 //
-//  The objects list of the controller's canvas (`CanvasLayersList`), for the CAM
+//  The legend of the controller's canvas (`CanvasLayersList`), for the CAM
 //  screen. It lists only what the CAM canvas has right now: the shapes, the STEP
 //  model, the stock, the generated toolpaths, and the anchor and axes that are
 //  always there. A project with no STEP model has no Model row, and so on.
@@ -102,7 +102,7 @@ struct CAMLayersOverlay: View {
 }
 
 /// "Z0 projections" checkbox, styled like the layer rows above it. Only there while there is
-/// a STEP model; it is the scene's own `showsProjection` (the blue projection of the edges).
+/// a STEP model; it is the scene's own `showsProjection` (the orange projection of the edges).
 private struct ProjectionToggle: View {
 
     @ObservedObject var scene: STEPDocumentScene
@@ -116,6 +116,8 @@ private struct ProjectionToggle: View {
                 Text("Z0 projections")
                     .font(.caption)
             }
+            // The color the projection is drawn in
+            .foregroundStyle(Color(canvasColor: CanvasPalette.modelSelection))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

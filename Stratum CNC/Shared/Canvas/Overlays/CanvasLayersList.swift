@@ -68,14 +68,14 @@ struct CanvasLayersList: View {
                         .font(.system(size: 8, weight: .bold))
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
 
-                    Text("OBJECTS")
+                    Text("LEGEND")
                         .font(.caption2.weight(.semibold))
                 }
                 .foregroundStyle(.secondary)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help(isExpanded ? "Collapse" : "Show objects list")
+            .help(isExpanded ? "Collapse" : "Show legend")
 
             if isExpanded {
                 ForEach(layers) { layer in

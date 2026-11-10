@@ -112,8 +112,8 @@ struct PanelObjectsInspector: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .canvasChrome()
     }
 
     // MARK: - Header

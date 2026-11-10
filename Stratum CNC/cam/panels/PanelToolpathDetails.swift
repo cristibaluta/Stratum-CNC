@@ -114,8 +114,8 @@ struct PanelToolpathDetails: View {
             rowBottomBar
         }
         .padding(12)
-        .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .canvasChrome()
         .onChange(of: toolpath.id) { _, _ in
             model.reset()
         }
