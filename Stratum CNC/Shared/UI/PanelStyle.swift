@@ -74,16 +74,30 @@ struct PanelRowLabel: View {
     }
 }
 
+/// The look behind `canvasChrome()`. In dark mode the material barely differs from the canvas, so
+/// it gets a light veil and a stronger edge to set the panel apart; light mode is left as it is.
+private struct CanvasChrome: ViewModifier {
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let isDark = colorScheme == .dark
+        content
+            // A later background sits behind an earlier one: the veil lies over the material
+            .background(Color.white.opacity(isDark ? 0.07 : 0), in: RoundedRectangle(cornerRadius: 8))
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color.primary.opacity(isDark ? 0.2 : 0.12), lineWidth: 1)
+            )
+    }
+}
+
 extension View {
     /// Translucent rounded chrome for controls floating over the 3D canvas.
     /// Replaces the flat `.gray` backgrounds, which read as opaque slabs on
     /// top of the model and clashed with light mode.
     func canvasChrome() -> some View {
-        self
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
-            )
+        modifier(CanvasChrome())
     }
 }
