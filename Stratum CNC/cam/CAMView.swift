@@ -118,7 +118,7 @@ struct CAMView: View {
 
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right
-                HStack {
+                HStack(alignment: .top) {
                     VStack(spacing: 12) {
                         inspectorPanel
                         toolpathListPanel
@@ -132,27 +132,20 @@ struct CAMView: View {
 //                        Spacer()
 //                    }
                     Spacer()
-                    ScrollView(.vertical, showsIndicators: true) {
-                    VStack(alignment: .trailing, spacing: 16) {
-                        PanelStockMaterial(stock: $camModel.selectedStockMaterial,
-                                           isStockVisible: stockVisibleBinding,
-                                           isCompact: true,
-                                           stocksStore: appModel.stocksStore)
-                            .frame(width: 320)
-                        // Only while a toolpath is selected in the list
-                        if let toolpath = selectedToolpath {
-                            VStack(alignment: .trailing, spacing: 10) {
-                                toolpathSettingsPanel(for: toolpath)
-                                toolpathActionsBar
-                            }
-                            .transition(.opacity)
-                            .frame(width: 400)
+                    // The scroll view takes the whole height it is given, so it is only there while
+                    // a toolpath's settings are open (the column can then be taller than the window).
+                    // Without it the stock panel is all there is, and the empty space under it
+                    // passes clicks and scrolls to the canvas.
+                    if selectedToolpath != nil {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            rightPanels
                         }
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                    } else {
+                        rightPanels
+                            .fixedSize(horizontal: true, vertical: false)
                     }
-                    .padding(16)
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(maxHeight: .infinity, alignment: .top)
                 }
 
                 // The canvas's objects list (and the Z0 projections option): only what this
@@ -271,6 +264,27 @@ struct CAMView: View {
             .padding(8)
             Spacer()
         }
+    }
+
+    /// The stock panel, and the selected toolpath's settings under it.
+    private var rightPanels: some View {
+        VStack(alignment: .trailing, spacing: 16) {
+            PanelStockMaterial(stock: $camModel.selectedStockMaterial,
+                               isStockVisible: stockVisibleBinding,
+                               isCompact: true,
+                               stocksStore: appModel.stocksStore)
+                .frame(width: 320)
+            // Only while a toolpath is selected in the list
+            if let toolpath = selectedToolpath {
+                VStack(alignment: .trailing, spacing: 10) {
+                    toolpathSettingsPanel(for: toolpath)
+                    toolpathActionsBar
+                }
+                .transition(.opacity)
+                .frame(width: 320)
+            }
+        }
+        .padding(16)
     }
 
     private var inspectorPanel: some View {
