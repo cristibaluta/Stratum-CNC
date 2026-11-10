@@ -474,32 +474,28 @@ final class ProjectsStore: ObservableObject {
         try saveIndex()
     }
 
-    // MARK: - Delete
+    // MARK: - Remove and trash
 
-    /// Deletes an internal project's folder. An external project is only
-    /// removed from the list: the user's folder is never touched.
-    func delete(_ project: Project) throws {
-        if project.isExternal {
+    /// Moves the project's folder to the Trash and takes the project off the list. A folder that
+    /// can't be reached any more (already deleted, drive not mounted) leaves nothing to trash, so
+    /// the project is only taken off the list.
+    func moveToTrash(_ project: Project) throws {
+        if project.isExternal, isMissing(project) {
             try removeFromList(project)
             return
         }
-        guard let paths = try? ProjectPaths(project: project, documentsDirectory: documentsDirectory) else {
-            return
-        }
-        let directory = paths.projectDirectory
+        // An external folder can only be touched while its bookmark is active
+        guard beginAccess(project) else { throw ProjectError.projectFolderMissing }
+        defer { endAccess(project) }
 
+        let directory = try paths(for: project).projectDirectory
         if FileManager.default.fileExists(atPath: directory.path) {
-            try FileManager.default.removeItem(at: directory)
+            try FileManager.default.trashItem(at: directory, resultingItemURL: nil)
         }
-
-        projects.removeAll {
-            $0.id == project.id
-        }
-
-        try saveIndex()
+        try removeFromList(project)
     }
 
-    /// Forgets a project without touching its folder.
+    /// Hides a project: its entry is removed from `projects.json`, and its folder is left as it is.
     func removeFromList(_ project: Project) throws {
         if accessCounts[project.id] != nil {
             resolvedDirectories[project.id]?.stopAccessingSecurityScopedResource()

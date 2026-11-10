@@ -243,8 +243,12 @@ struct SplashpageView: View {
 
                                     Divider()
 
-                                    Button(project.isExternal ? "Remove from List" : "Delete", role: .destructive) {
-                                        delete(project)
+                                    Button("Hide") {
+                                        hide(project)
+                                    }
+
+                                    Button("Move to Trash", role: .destructive) {
+                                        moveToTrash(project)
                                     }
                                 }
                         }
@@ -349,11 +353,22 @@ struct SplashpageView: View {
         }
     }
 
-    private func delete(_ project: Project) {
+    /// Takes the project off the list; its folder stays where it is.
+    private func hide(_ project: Project) {
         do {
-            try projectsStore.delete(project)
+            try projectsStore.removeFromList(project)
         } catch {
-            print("Failed to delete project: \(error)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func moveToTrash(_ project: Project) {
+        do {
+            try projectsStore.moveToTrash(project)
+        } catch ProjectError.projectFolderMissing {
+            errorMessage = "That project's folder can't be reached."
+        } catch {
+            errorMessage = "Couldn't move \(project.name) to the Trash: \(error.localizedDescription)"
         }
     }
 
