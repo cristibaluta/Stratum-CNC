@@ -41,7 +41,7 @@ enum SetupAxis: String, Codable, CaseIterable, Identifiable, Sendable {
 
 /// The orientations the app offers today. A setup stores an angle and an axis, not a face, so a
 /// rotary axis can add other angles without a migration.
-enum SetupFace: CaseIterable, Identifiable, Sendable {
+enum SetupFace: String, Codable, CaseIterable, Identifiable, Sendable {
     case top
     case front
     case bottom

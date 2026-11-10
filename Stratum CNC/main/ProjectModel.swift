@@ -201,6 +201,14 @@ class ProjectModel: ObservableObject {
             self.hasUnsavedChanges = true
         }
 
+        // A STEP model was turned to put another face up: remember which.
+        camModel.stepWorkspace.onOrientationChanged = { [weak self] id, face in
+            guard let self,
+                  let index = self.projectData.assets?.firstIndex(where: { $0.stepImportID == id }) else { return }
+            self.projectData.assets?[index].stepOrientation = face
+            self.hasUnsavedChanges = true
+        }
+
         Timer.publish(every: Self.autosaveInterval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -319,6 +327,9 @@ class ProjectModel: ObservableObject {
         if let saved = projectData.assets?.first(where: { $0.name == asset.name })?.stepOffset ?? asset.stepOffset,
            saved.count == 3 {
             camModel.stepWorkspace.restorePosition(SIMD3<Float>(Float(saved[0]), Float(saved[1]), Float(saved[2])), for: id)
+        }
+        if let face = projectData.assets?.first(where: { $0.name == asset.name })?.stepOrientation ?? asset.stepOrientation {
+            camModel.stepWorkspace.restoreOrientation(face, for: id)
         }
         camModel.loadAndParseFileAt(paths.assetsDirectory.appendingPathComponent(asset.name), stepImportID: id,
                                    onSTEPFinished: { [weak self] in

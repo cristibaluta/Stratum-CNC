@@ -25,6 +25,8 @@ struct AssetData: Codable, Hashable {
     var stepImportID: UUID? = nil
     /// Where a STEP model sits on the canvas: x, y and z in mm.
     var stepOffset: [Double]? = nil
+    /// Which face of a STEP model faces up. `nil` is the top, as imported.
+    var stepOrientation: SetupFace? = nil
 }
 
 struct AssetObjectData: Codable, Hashable {
