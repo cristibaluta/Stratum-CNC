@@ -17,18 +17,36 @@ struct STEPEdgeTarget: Codable, Hashable, Sendable {
     let importID: UUID
     let representationID: Int
     let bodyEntityID: Int
+    /// Which placement of the part the edge belongs to (`STEP.BodyID.instance`). 0 for everything that
+    /// is not an assembly's repeated part, and for projects saved before the field existed.
+    let bodyInstance: Int
     let edgeEntityID: Int
 
     init(_ id: STEP.EdgeID) {
         importID = id.importID
         representationID = id.bodyID.representationID
         bodyEntityID = id.bodyID.entityID
+        bodyInstance = id.bodyID.instance
         edgeEntityID = id.entityID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case importID, representationID, bodyEntityID, bodyInstance, edgeEntityID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        importID = try container.decode(UUID.self, forKey: .importID)
+        representationID = try container.decode(Int.self, forKey: .representationID)
+        bodyEntityID = try container.decode(Int.self, forKey: .bodyEntityID)
+        bodyInstance = try container.decodeIfPresent(Int.self, forKey: .bodyInstance) ?? 0
+        edgeEntityID = try container.decode(Int.self, forKey: .edgeEntityID)
     }
 
     var edgeID: STEP.EdgeID {
         STEP.EdgeID(importID: importID,
-                    bodyID: STEP.BodyID(representationID: representationID, entityID: bodyEntityID),
+                    bodyID: STEP.BodyID(representationID: representationID, entityID: bodyEntityID,
+                                        instance: bodyInstance),
                    entityID: edgeEntityID)
     }
 }
@@ -107,10 +125,11 @@ enum STEPContourBuilder {
 
 extension STEPDocumentScene {
 
-    /// The sampled points of each wanted edge in canvas mm (the model's position applied).
+    /// The sampled points of each wanted edge in canvas mm (its body's position applied).
     func edgePoints(for ids: Set<STEP.EdgeID>) -> [STEP.EdgeID: [SIMD3<Float>]] {
         var result: [STEP.EdgeID: [SIMD3<Float>]] = [:]
         for body in content.geometry.bodies {
+            let offset = position(of: body.id)
             for edge in body.edges where ids.contains(edge.id) {
                 let raw = body.points[edge.vertices]
                 guard let first = raw.first else { continue }

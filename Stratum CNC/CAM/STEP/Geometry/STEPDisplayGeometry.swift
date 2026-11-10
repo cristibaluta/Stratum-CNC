@@ -3,10 +3,12 @@ import simd
 import SwiftSTEP
 
 /// Render-ready geometry, built off the main actor. Source coordinates remain
-/// untouched. The model is placed like a workpiece on the canvas: the bottom-left
-/// corner of its bounding box (min X, min Y) sits at x0 y0 and its top (max Z)
-/// at z0, so the part extends toward +X, +Y and down to -Z, same as the stock.
-/// The shared origin also avoids Float precision loss far from (0,0,0).
+/// untouched. Every body has a frame of its own and is placed like a workpiece in it: the
+/// bottom-left corner of its bounding box (min X, min Y) sits at x0 y0 and its top (max Z)
+/// at z0, so the body extends toward +X, +Y and down to -Z, same as the stock. Where the body
+/// is on the canvas is not part of the geometry: the scene keeps a position per body
+/// (`STEPDocumentScene.position(of:)`) and adds it to the points.
+/// The small local coordinates also avoid Float precision loss far from (0,0,0).
 struct STEPDisplayGeometry: Sendable {
     struct EdgeRange: Sendable {
         let id: STEP.EdgeID
@@ -16,7 +18,12 @@ struct STEPDisplayGeometry: Sendable {
         let id: STEP.BodyID
         let points: [SIMD3<Float>] // disconnected start/end pairs
         let edges: [EdgeRange]
+        /// Where the body's own frame sits in the file's coordinates (mm): its min X, min Y and max Z.
+        /// `points` are relative to it. Together with `STEPDisplayGeometry.origin` it says where
+        /// the body is in the arrangement the file describes.
+        var origin: SIMD3<Double> = .zero
     }
+    /// The whole file's corner and top in source coordinates (`STEP.Assembly.origin`).
     let origin: SIMD3<Double>
     var bodies: [Body]
 
@@ -26,23 +33,28 @@ struct STEPDisplayGeometry: Sendable {
         bounds?.workpieceOrigin ?? .zero
     }
 
-    init(model: STEP.EdgeModel) throws {
-        let origin = Self.displayOrigin(bounds: model.bounds)
+    /// The bodies of an imported file, each in its own frame (see the type's comment).
+    /// - Parameter origin: the whole file's corner and top, `displayOrigin(bounds: assembly.bounds)`.
+    init(bodies placed: [STEP.Body], origin: SIMD3<Double>) throws {
         guard (0..<3).allSatisfy({ origin[$0].isFinite }) else {
             throw STEP.ParseError("Invalid STEP display bounds")
         }
-        let grouped = Dictionary(grouping: model.edges, by: { $0.id.bodyID })
         var bodies: [Body] = []
-        for body in model.bodies {
+        for body in placed {
             try Task.checkCancellation()
+            guard let bounds = body.bounds else { continue }
+            let anchor = bounds.workpieceOrigin
+            guard (0..<3).allSatisfy({ anchor[$0].isFinite }) else {
+                throw STEP.ParseError("Invalid STEP display bounds")
+            }
             var points: [SIMD3<Float>] = []
             var ranges: [EdgeRange] = []
-            for edge in grouped[body.id] ?? [] {
+            for edge in body.edges {
                 try Task.checkCancellation()
                 guard edge.points.count >= 2 else { continue }
                 let start = points.count
                 func displayPoint(_ source: SIMD3<Double>) throws -> SIMD3<Float> {
-                    let local = source - origin
+                    let local = source - anchor
                     guard (0..<3).allSatisfy({ local[$0].isFinite && abs(local[$0]) <= 10_000_000 }) else {
                         throw STEP.ParseError("STEP extent exceeds the supported display range (20 km)")
                     }
@@ -58,27 +70,37 @@ struct STEPDisplayGeometry: Sendable {
                 }
                 ranges.append(EdgeRange(id: edge.id, vertices: start..<points.count))
             }
-            if !points.isEmpty { bodies.append(Body(id: body.id, points: points, edges: ranges)) }
+            if !points.isEmpty { bodies.append(Body(id: body.id, points: points, edges: ranges, origin: anchor)) }
         }
         self.origin = origin
         self.bodies = bodies
+    }
+
+    /// A translation as a matrix, to move a body to where it sits on the canvas.
+    static func translation(_ t: SIMD3<Float>) -> simd_float4x4 {
+        var matrix = matrix_identity_float4x4
+        matrix.columns.3 = SIMD4<Float>(t.x, t.y, t.z, 1)
+        return matrix
     }
 
     /// Uses exactly the Float points handed to Metal. Coordinates and tolerance
     /// are AppKit view points, not drawable pixels, so Retina does not alter picking.
     /// `isVisible` is asked about the point of an edge nearest the cursor (view points x, y and
     /// depth 0...1); an edge it rejects cannot be picked, the next best one is tried.
+    /// - Parameter offsets: where each body sits on the canvas; `matrix` sees the bodies at the origin,
+    ///   so each is moved into place first. A body without an entry is not moved.
     func hitTest(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
-                 hiddenBodies: Set<STEP.BodyID> = [], tolerance: CGFloat = 6,
-                 isVisible: ((SIMD3<Float>) -> Bool)? = nil) -> STEP.EdgeID? {
+                 hiddenBodies: Set<STEP.BodyID> = [], offsets: [STEP.BodyID: SIMD3<Float>] = [:],
+                 tolerance: CGFloat = 6, isVisible: ((SIMD3<Float>) -> Bool)? = nil) -> STEP.EdgeID? {
         guard viewport.width > 0, viewport.height > 0, tolerance >= 0 else { return nil }
         var best: (id: STEP.EdgeID, distance: Float, depth: Float)?
         let cursor = SIMD2<Float>(Float(point.x), Float(point.y))
         let limit = Float(tolerance * tolerance)
         for body in bodies where !hiddenBodies.contains(body.id) {
+            let bodyMatrix = offsets[body.id].map { matrix * Self.translation($0) } ?? matrix
             for edge in body.edges {
                 for index in stride(from: edge.vertices.lowerBound, to: edge.vertices.upperBound, by: 2) {
-                    guard let (a, b) = Self.projectSegment(body.points[index], body.points[index + 1], matrix: matrix, viewport: viewport) else { continue }
+                    guard let (a, b) = Self.projectSegment(body.points[index], body.points[index + 1], matrix: bodyMatrix, viewport: viewport) else { continue }
                     let delta = SIMD2<Float>(b.x - a.x, b.y - a.y)
                     let offset = cursor - SIMD2<Float>(a.x, a.y)
                     let length = simd_length_squared(delta)

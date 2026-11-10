@@ -28,6 +28,8 @@ struct STEPModelItem: Identifiable {
     let size: SIMD3<Float>?
     /// Which face of the model faces up. `nil` while it is loading or failed to load.
     var orientation: SetupFace? = nil
+    /// What the file calls the body (occurrence path and name), shown as the row's tooltip.
+    var detail: String? = nil
 }
 
 enum STEPModelAxis {
@@ -76,6 +78,10 @@ struct PanelObjectsInspector: View {
     var onStepModelValueChanged: ((UUID, STEPModelAxis, CGFloat) -> Void)?
     var onStepModelNudge: ((UUID, STEPModelAxis, CGFloat) -> Void)?
     var onStepModelOrientationChanged: ((UUID, SetupFace) -> Void)?
+    /// The width field was edited: the body is scaled to that width.
+    var onStepModelWidthChanged: ((UUID, CGFloat) -> Void)?
+    /// ÷2 / ×2, like the 2D objects: a factor of -2 or 2.
+    var onStepModelScale: ((UUID, Int) -> Void)?
     var onDeleteStepModel: ((UUID) -> Void)?
 
     /// Narrow, left-aligned label column: leaves the width to the fields.
@@ -244,6 +250,7 @@ struct PanelObjectsInspector: View {
             }
         }
         .inspectorListRow(isSelected: selectedStepModelID == model.id)
+        .help(model.detail.map { "\(model.name) — \($0)" } ?? model.name)
         .contextMenu {
             Button(role: .destructive) {
                 onDeleteStepModel?(model.id)
@@ -273,7 +280,13 @@ struct PanelObjectsInspector: View {
                 }
                 if let size = model.size {
                     InspectorSection(title: "Size") {
-                        readOnlyRow("Width", size.x)
+                        valueRow("Width", value: CGFloat(size.x), unit: "mm") {
+                            onStepModelWidthChanged?(model.id, $0)
+                        } trailing: {
+                            SmallButton("÷2") { onStepModelScale?(model.id, -2) }
+                            SmallButton("×2") { onStepModelScale?(model.id, 2) }
+                        }
+                        // Depth and height follow the width: the body is scaled as a whole.
                         readOnlyRow("Depth", size.y)
                         readOnlyRow("Height", size.z)
                     }

@@ -26,12 +26,15 @@ extension STEPDisplayGeometry {
     /// Which end of its hole a circle is.
     private enum HoleEnd { case top, bottom, alone }
 
-    private struct AxisKey: Hashable { let x: Int32, y: Int32, diameter: Int32 }
+    /// A hole's two circles share their axis and diameter. The body is part of the key: bodies have a frame
+    /// of their own, so two bodies' circles at the same x and y are not the ends of one hole.
+    private struct AxisKey: Hashable { let body: STEP.BodyID, x: Int32, y: Int32, diameter: Int32 }
 
     private static let holeTolerance: Float = 0.01
 
     private static func axisKey(_ c: HoleCircle) -> AxisKey {
-        AxisKey(x: Int32((c.center.x / holeTolerance).rounded()),
+        AxisKey(body: c.id.bodyID,
+                x: Int32((c.center.x / holeTolerance).rounded()),
                 y: Int32((c.center.y / holeTolerance).rounded()),
                 diameter: Int32((c.diameter / holeTolerance).rounded()))
     }

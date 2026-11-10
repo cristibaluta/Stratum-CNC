@@ -18,6 +18,8 @@
 //  about the vertical axis. After the turn the model is put back like a fresh import: its corner
 //  (min X, min Y) at x0 y0 and its top (max Z) at z0.
 //
+//  Each body of a file is turned (and scaled) on its own, about its own corner.
+//
 
 import Foundation
 import simd
@@ -44,25 +46,38 @@ extension SetupFace {
     }
 }
 
-/// How an imported model was turned and moved to sit on the canvas: applied to anything that is
-/// still in the file's frame, i.e. the surface meshes.
+/// How one body of an imported file was moved, scaled and turned to sit in its own frame: applied
+/// to anything that is still in the file's frame, i.e. the surface meshes. The meshes are measured
+/// from the whole file's origin; a body's edges are already in its own frame (`STEPDisplayGeometry`).
+///
+///     point(p) = rotation * ((p + anchor) * scale) + shift
+///
+/// `anchor` takes a mesh position to the body's own frame (corner at x0 y0, top at z0), `scale` and
+/// `rotation` act about that corner, and `shift` puts the turned body back on it.
 struct STEPPlacement: Sendable {
-    var rotation: simd_float3x3
-    var shift: SIMD3<Float>
+    let rotation: simd_float3x3
+    let shift: SIMD3<Float>
+    let anchor: SIMD3<Float>
+    let scale: Float
     /// Nothing to apply, so the original data can be used as it is.
     let isIdentity: Bool
 
-    static let identity = STEPPlacement(rotation: matrix_identity_float3x3, shift: .zero, isIdentity: true)
+    static let identity = STEPPlacement(rotation: matrix_identity_float3x3, shift: .zero)
 
-    init(rotation: simd_float3x3, shift: SIMD3<Float>, isIdentity: Bool = false) {
+    init(rotation: simd_float3x3, shift: SIMD3<Float>, anchor: SIMD3<Float> = .zero, scale: Float = 1) {
         self.rotation = rotation
         self.shift = shift
-        self.isIdentity = isIdentity
+        self.anchor = anchor
+        self.scale = scale
+        isIdentity = rotation.columns.0 == SIMD3<Float>(1, 0, 0)
+            && rotation.columns.1 == SIMD3<Float>(0, 1, 0)
+            && rotation.columns.2 == SIMD3<Float>(0, 0, 1)
+            && shift == .zero && anchor == .zero && scale == 1
     }
 
-    func point(_ p: SIMD3<Float>) -> SIMD3<Float> { rotation * p + shift }
+    func point(_ p: SIMD3<Float>) -> SIMD3<Float> { rotation * ((p + anchor) * scale) + shift }
 
-    /// Directions (normals) only turn.
+    /// Directions (normals) only turn. (A uniform scale leaves a unit direction as it is.)
     func direction(_ d: SIMD3<Float>) -> SIMD3<Float> { rotation * d }
 }
 
@@ -72,27 +87,25 @@ extension STEPDisplayGeometry {
         self.origin = origin
         self.bodies = bodies
     }
+}
 
-    /// The same edges turned by `rotation` and moved back to the origin: min X and min Y at 0,
-    /// max Z at 0. Edge ids and point order are unchanged.
-    func placed(rotation: simd_float3x3) -> (geometry: STEPDisplayGeometry, placement: STEPPlacement) {
+extension STEPDisplayGeometry.Body {
+
+    /// The same edges scaled by `scale` and turned by `rotation`, both about the body's corner, and
+    /// moved back to it: min X and min Y at 0, max Z at 0. Edge ids and point order are unchanged.
+    /// `shift` is the move that put it back, for `STEPPlacement`.
+    func placed(rotation: simd_float3x3, scale: Float) -> (body: STEPDisplayGeometry.Body, shift: SIMD3<Float>) {
         var low = SIMD3<Float>(repeating: .infinity)
         var high = SIMD3<Float>(repeating: -.infinity)
-        let turned: [Body] = bodies.map { body in
-            let points = body.points.map { rotation * $0 }
-            for point in points {
-                low = simd_min(low, point)
-                high = simd_max(high, point)
-            }
-            return Body(id: body.id, points: points, edges: body.edges)
+        let turned = points.map { rotation * ($0 * scale) }
+        for point in turned {
+            low = simd_min(low, point)
+            high = simd_max(high, point)
         }
-        guard low.x.isFinite, low.y.isFinite, high.z.isFinite else { return (self, .identity) }
+        guard low.x.isFinite, low.y.isFinite, high.z.isFinite else { return (self, .zero) }
 
         let shift = SIMD3<Float>(-low.x, -low.y, -high.z)
-        let placed = turned.map { body in
-            Body(id: body.id, points: body.points.map { $0 + shift }, edges: body.edges)
-        }
-        return (STEPDisplayGeometry(origin: origin, bodies: placed),
-                STEPPlacement(rotation: rotation, shift: shift))
+        let moved = STEPDisplayGeometry.Body(id: id, points: turned.map { $0 + shift }, edges: edges, origin: origin)
+        return (moved, shift)
     }
 }

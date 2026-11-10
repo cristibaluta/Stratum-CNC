@@ -221,7 +221,7 @@ class CAMModel: ObservableObject {
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
         // Toolpaths cut from a STEP model's edges follow its position, like an object's
-        stepWorkspace.onModelMoved = { [weak self] in self?.discardGenerations() }
+//        stepWorkspace.onModelMoved = { [weak self] in self?.discardGenerations() }
 
         canvasState.onObjectsChanged = { [weak self] in
             guard let self else { return }

@@ -193,19 +193,13 @@ class ProjectModel: ObservableObject {
             self?.updateAssetTransforms(from: objects)
         }
 
-        // A STEP model moved: remember where, like an object's transform.
-        camModel.stepWorkspace.onOffsetChanged = { [weak self] id, offset in
+        // A STEP body was moved, turned, scaled or deleted: remember it, like an object's transform.
+        camModel.stepWorkspace.onBodyStateChanged = { [weak self] id, key, state in
             guard let self,
                   let index = self.projectData.assets?.firstIndex(where: { $0.stepImportID == id }) else { return }
-            self.projectData.assets?[index].stepOffset = [Double(offset.x), Double(offset.y), Double(offset.z)]
-            self.hasUnsavedChanges = true
-        }
-
-        // A STEP model was turned to put another face up: remember which.
-        camModel.stepWorkspace.onOrientationChanged = { [weak self] id, face in
-            guard let self,
-                  let index = self.projectData.assets?.firstIndex(where: { $0.stepImportID == id }) else { return }
-            self.projectData.assets?[index].stepOrientation = face
+            var states = self.projectData.assets?[index].stepBodies ?? [:]
+            states[key] = state
+            self.projectData.assets?[index].stepBodies = states
             self.hasUnsavedChanges = true
         }
 
@@ -326,15 +320,18 @@ class ProjectModel: ObservableObject {
         let endAccess = endFolderAccess
         if let saved = projectData.assets?.first(where: { $0.name == asset.name })?.stepOffset ?? asset.stepOffset,
            saved.count == 3 {
-            camModel.stepWorkspace.restorePosition(SIMD3<Float>(Float(saved[0]), Float(saved[1]), Float(saved[2])), for: id)
+            camModel.stepWorkspace.restoreLegacyOffset(SIMD3<Float>(Float(saved[0]), Float(saved[1]), Float(saved[2])), for: id)
         }
         if let face = projectData.assets?.first(where: { $0.name == asset.name })?.stepOrientation ?? asset.stepOrientation {
-            camModel.stepWorkspace.restoreOrientation(face, for: id)
+            camModel.stepWorkspace.restoreLegacyFace(face, for: id)
+        }
+        if let states = projectData.assets?.first(where: { $0.name == asset.name })?.stepBodies ?? asset.stepBodies {
+            camModel.stepWorkspace.restoreBodyStates(states, for: id)
         }
         camModel.loadAndParseFileAt(paths.assetsDirectory.appendingPathComponent(asset.name), stepImportID: id,
                                    onSTEPFinished: { [weak self] in
             // Also called when the load failed or was cancelled, then there is no scene
-            if generatePreview, let geometry = self?.camModel.stepWorkspace.documents[id]?.content.geometry {
+            if generatePreview, let geometry = self?.camModel.stepWorkspace.documents[id]?.arrangedGeometry {
                 self?.updatePreview(from: geometry)
             }
             endAccess()
@@ -346,6 +343,18 @@ class ProjectModel: ObservableObject {
             throw CocoaError(.fileReadNoSuchFile)
         }
         try loadSTEPAsset(asset)
+    }
+
+    /// Deletes a row of the objects list. A STEP file of several bodies loses just that body (saved as
+    /// deleted, so it stays gone after a reload); deleting a file's last body removes the file.
+    func removeSTEPModel(_ id: UUID) throws {
+        let workspace = camModel.stepWorkspace
+        guard let source = workspace.sourceID(ofModel: id) else { return }
+        if workspace.body(ofModel: id) != nil, workspace.remainingBodies(inSource: source) > 1 {
+            workspace.removeBody(model: id)
+            return
+        }
+        try removeSTEPSource(source)
     }
 
     func removeSTEPSource(_ id: UUID) throws {

@@ -7,6 +7,7 @@
 import SwiftUI
 import AppKit
 import simd
+import SwiftSTEP
 
 /// The CAM canvas: one free 3D camera (orbit, pan, zoom and the orientation cube from
 /// `CanvasInputSettings`) over the whole scene — the stock, the shapes (flat, at z = 0), the
@@ -39,6 +40,8 @@ struct CAM_Metal_View: View {
     /// The STEP model selected in the objects list, if it is the one on the canvas. It gets a box
     /// and a handle like a selected shape, and dragging the handle moves it.
     let selectedStepModelID: UUID?
+    /// The body of `stepScene` that row stands for; `nil` when no body is selected.
+    let selectedStepBody: STEP.BodyID?
     /// The model was dragged by this much (canvas mm).
     let onMoveStepModel: (UUID, CGFloat, CGFloat) -> Void
     /// A click on empty canvas: the selected STEP model is deselected, like a selected shape.
@@ -54,6 +57,7 @@ struct CAM_Metal_View: View {
          canAddToolpathFromEdges: Bool = false,
          fitRequest: Int = 0,
          selectedStepModelID: UUID? = nil,
+         selectedStepBody: STEP.BodyID? = nil,
          onMoveStepModel: @escaping (UUID, CGFloat, CGFloat) -> Void = { _, _, _ in },
          onDeselectStepModel: @escaping () -> Void = {},
          onAddToolpath: @escaping () -> Void = {},
@@ -69,6 +73,7 @@ struct CAM_Metal_View: View {
         self.canAddToolpathFromEdges = canAddToolpathFromEdges
         self.fitRequest = fitRequest
         self.selectedStepModelID = selectedStepModelID
+        self.selectedStepBody = selectedStepBody
         self.onMoveStepModel = onMoveStepModel
         self.onDeselectStepModel = onDeselectStepModel
         self.onAddToolpath = onAddToolpath
@@ -90,22 +95,24 @@ struct CAM_Metal_View: View {
             .onChange(of: stepFootprint?.origin, initial: true) { _, _ in syncStepModelHandle() }
             .onChange(of: stepFootprint?.size) { _, _ in syncStepModelHandle() }
             .onChange(of: selectedStepModelID) { _, _ in syncStepModelHandle() }
+            .onChange(of: selectedStepBody) { _, _ in syncStepModelHandle() }
     }
 
     /// Where the selected STEP model's footprint is on the canvas (its corner and size, in mm),
     /// or `nil` when it isn't the one drawn, isn't selected or is hidden.
     private var stepFootprint: (origin: SIMD2<Float>, size: SIMD2<Float>)? {
-        guard let stepScene, selectedStepModelID == stepScene.id, stepScene.isModelVisible,
-              let size = stepScene.content.size else {
+        guard let stepScene, selectedStepModelID != nil, let body = selectedStepBody,
+              stepScene.isBodyVisible(body), let size = stepScene.content.size(of: body) else {
             return nil
         }
-        return (SIMD2<Float>(stepScene.offset.x, stepScene.offset.y), SIMD2<Float>(size.x, size.y))
+        let position = stepScene.position(of: body)
+        return (SIMD2<Float>(position.x, position.y), SIMD2<Float>(size.x, size.y))
     }
 
     private func syncStepModelHandle() {
-        if let stepScene, let footprint = stepFootprint {
+        if let selectedStepModelID, let footprint = stepFootprint {
             let center = footprint.origin + footprint.size / 2
-            scene.interaction.stepModelHandle = (stepScene.id, CGPoint(x: CGFloat(center.x), y: CGFloat(center.y)))
+            scene.interaction.stepModelHandle = (selectedStepModelID, CGPoint(x: CGFloat(center.x), y: CGFloat(center.y)))
         } else {
             scene.interaction.stepModelHandle = nil
         }

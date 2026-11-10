@@ -65,6 +65,9 @@ struct CAMView: View {
                                // A selected 2D object wins, like in the objects list
                                selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
                                    ? camModel.stepWorkspace.selectedModelID : nil,
+                               selectedStepBody: camModel.canvasState.selectedObjectIDs.isEmpty
+                                   ? camModel.stepWorkspace.selectedModelID.flatMap { camModel.stepWorkspace.body(ofModel: $0) }
+                                   : nil,
                                onMoveStepModel: { id, dx, dy in
                                    var position = camModel.stepWorkspace.position(of: id)
                                    position.x += Float(dx)
@@ -354,11 +357,10 @@ struct CAMView: View {
                 ? camModel.stepWorkspace.selectedModelID : nil,
             onSelectStepModel: { id in
                 camModel.canvasState.clearSelection()
-                camModel.stepWorkspace.selectedModelID = id
-                camModel.stepWorkspace.activeID = id
+                camModel.stepWorkspace.select(model: id)
             },
             onToggleStepModelVisibility: { id in
-                camModel.stepWorkspace.documents[id]?.isModelVisible.toggle()
+                camModel.stepWorkspace.toggleVisibility(of: id)
             },
             onStepModelValueChanged: { id, axis, value in
                 moveSTEPModel(id, axis: axis, to: Float(value))
@@ -377,8 +379,14 @@ struct CAMView: View {
             onStepModelOrientationChanged: { id, face in
                 camModel.stepWorkspace.setOrientation(face, for: id)
             },
+            onStepModelWidthChanged: { id, width in
+                camModel.stepWorkspace.setWidth(Float(width), for: id)
+            },
+            onStepModelScale: { id, factor in
+                camModel.stepWorkspace.scaleModel(id, factor: factor)
+            },
             onDeleteStepModel: { id in
-                do { try projectModel.removeSTEPSource(id) }
+                do { try projectModel.removeSTEPModel(id) }
                 catch { fileError = String(describing: error) }
             }
         )
@@ -386,14 +394,19 @@ struct CAMView: View {
 
     private var stepModelItems: [STEPModelItem] {
         let workspace = camModel.stepWorkspace
-        return workspace.sources.map { source in
-            let scene = workspace.documents[source.id]
-            return STEPModelItem(id: source.id,
-                                 name: source.name,
-                                 isVisible: scene?.isModelVisible ?? true,
-                                 position: scene == nil ? nil : workspace.position(of: source.id),
-                                 size: scene?.content.size,
-                                 orientation: scene?.orientation)
+        // One row per body of every loaded file (a file still loading has one row of its own)
+        return workspace.modelEntries.map { entry -> STEPModelItem in
+            guard let scene = workspace.documents[entry.sourceID], let body = entry.body else {
+                return STEPModelItem(id: entry.id, name: entry.name,
+                                     isVisible: workspace.documents[entry.sourceID]?.isModelVisible ?? true,
+                                     position: nil, size: nil)
+            }
+            return STEPModelItem(id: entry.id, name: entry.name,
+                                 isVisible: scene.isBodyVisible(body),
+                                 position: scene.position(of: body),
+                                 size: scene.content.size(of: body),
+                                 orientation: scene.content.orientation(of: body),
+                                 detail: entry.detail)
         }
     }
 

@@ -25,7 +25,10 @@ struct AssetData: Codable, Hashable {
     var stepImportID: UUID? = nil
     /// Where a STEP model sits on the canvas: x, y and z in mm.
     var stepOffset: [Double]? = nil
-    /// Which face of a STEP model faces up. `nil` is the top, as imported.
+    /// What was done to each body of a STEP file (moved, turned, scaled, deleted), by `STEP.BodyID.stateKey`.
+    var stepBodies: [String: STEPBodyState]? = nil
+    /// Which face of a STEP file as a whole faced up, in projects saved before its bodies were separate
+    /// objects. `nil` is the top, as imported. Read, no longer written: see `stepBodies`.
     var stepOrientation: SetupFace? = nil
 }
 

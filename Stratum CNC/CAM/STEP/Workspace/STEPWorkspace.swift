@@ -9,62 +9,184 @@ struct STEPSourceReference: Identifiable, Sendable {
     let url: URL
 }
 
-struct STEPViewerContent: Sendable {
-    let model: STEP.EdgeModel
-    /// The geometry as read from the file, before an orientation is applied.
-    let importedGeometry: STEPDisplayGeometry
-    /// The geometry as it sits on the canvas: `importedGeometry` turned so that `orientation` faces up.
-    private(set) var geometry: STEPDisplayGeometry
-    /// Triangles that hide edges behind the part. Empty when a body's faces could not all be
-    /// tessellated (see `diagnostics`); that body's edges are then drawn solid, as before.
-    /// They stay in the file's frame: `placement` takes them to where `geometry` is.
-    var surfaces = STEP.SurfaceModel()
-    /// Which face of the model faces up.
-    private(set) var orientation: SetupFace = .top
-    private(set) var placement = STEPPlacement.identity
+/// One body of a STEP file, as the objects list shows it.
+struct STEPBodyInfo: Sendable, Identifiable {
+    let id: STEP.BodyID
+    /// 1-based, in the file's order: "Body 2" in the objects list.
+    let number: Int
+    /// The occurrence path and name the file gives the body (`Gearbox / Shaft / Die`); `nil` when it has none.
+    let label: String?
+    /// Where the body sits, relative to the whole file's corner (min X, min Y) and top (max Z), when
+    /// nothing has been moved: the arrangement the file describes.
+    let defaultPosition: SIMD3<Float>
+}
 
-    init(model: STEP.EdgeModel, geometry: STEPDisplayGeometry, surfaces: STEP.SurfaceModel = STEP.SurfaceModel()) {
-        self.model = model
+/// What the user did to one body of a file, saved with the project (see `AssetData.stepBodies`).
+/// Everything is optional: a body nobody touched has no state at all.
+struct STEPBodyState: Codable, Hashable, Sendable {
+    /// Where the body's corner and top sit on the canvas: x, y and z in mm.
+    var position: [Double]?
+    /// `SetupFace.persistedName`; `nil` is the top.
+    var face: String?
+    /// Uniform scale; `nil` is 1.
+    var scale: Double?
+    /// The body was deleted from the objects list. It stays in the file, so this is what keeps it out.
+    var isRemoved: Bool?
+}
+
+extension STEP.BodyID {
+    /// The key of the body's saved state: stable for the same file.
+    var stateKey: String { "\(representationID).\(entityID).\(instance)" }
+}
+
+extension SetupFace {
+    var persistedName: String {
+        switch self {
+            case .top: return "top"
+            case .front: return "front"
+            case .bottom: return "bottom"
+            case .back: return "back"
+            case .left: return "left"
+            case .right: return "right"
+        }
+    }
+
+    init?(persistedName: String) {
+        guard let face = Self.allCases.first(where: { $0.persistedName == persistedName }) else { return nil }
+        self = face
+    }
+}
+
+struct STEPViewerContent: Sendable {
+    let importID: UUID
+    /// The bodies as read from the file, each in its own frame, before it is turned or scaled.
+    private(set) var importedGeometry: STEPDisplayGeometry
+    /// The bodies as they are on the canvas: each one scaled and turned so that its `orientation` faces up.
+    private(set) var geometry: STEPDisplayGeometry
+    /// Triangles that hide edges behind the part. A body that could not be tessellated completely has a
+    /// partial mesh or none (see `diagnostics`); its edges are then drawn solid, as before.
+    /// They stay in the file's frame: a body's `placement` takes them to where its `geometry` is.
+    var surfaces = STEP.SurfaceModel()
+    /// The bodies, in the file's order. A deleted body is gone from here.
+    private(set) var infos: [STEPBodyInfo]
+    /// How many bodies the file had before any was deleted: the list numbers them only when it is more than one.
+    let bodyCount: Int
+    let edgeCount: Int
+    let skippedEdgeCount: Int
+    let diagnostics: [STEP.Diagnostic]
+    private(set) var orientations: [STEP.BodyID: SetupFace] = [:]
+    private(set) var scales: [STEP.BodyID: Float] = [:]
+    private(set) var placements: [STEP.BodyID: STEPPlacement] = [:]
+    private(set) var sizes: [STEP.BodyID: SIMD3<Float>] = [:]
+
+    init(importID: UUID, geometry: STEPDisplayGeometry, surfaces: STEP.SurfaceModel = STEP.SurfaceModel(),
+         labels: [STEP.BodyID: String] = [:], edgeCount: Int = 0, skippedEdgeCount: Int = 0,
+         diagnostics: [STEP.Diagnostic] = []) {
+        self.importID = importID
         self.importedGeometry = geometry
         self.geometry = geometry
         self.surfaces = surfaces
+        self.edgeCount = edgeCount
+        self.skippedEdgeCount = skippedEdgeCount
+        self.diagnostics = diagnostics
+        bodyCount = geometry.bodies.count
+        var infos: [STEPBodyInfo] = []
+        var placements: [STEP.BodyID: STEPPlacement] = [:]
+        var sizes: [STEP.BodyID: SIMD3<Float>] = [:]
+        for (index, body) in geometry.bodies.enumerated() {
+            let position = SIMD3<Float>(body.origin - geometry.origin)
+            infos.append(STEPBodyInfo(id: body.id, number: index + 1, label: labels[body.id], defaultPosition: position))
+            // The mesh is measured from the file's origin, the edges from the body's own corner
+            placements[body.id] = STEPPlacement(rotation: matrix_identity_float3x3, shift: .zero, anchor: -position)
+            sizes[body.id] = Self.size(of: body)
+        }
+        self.infos = infos
+        self.placements = placements
+        self.sizes = sizes
     }
 
-    /// The same model with `face` up. Always starts from the imported geometry, so turning
-    /// back to `.top` is exact.
-    func oriented(_ face: SetupFace) -> STEPViewerContent {
-        var content = self
-        if face == .top {
-            content.geometry = importedGeometry
-            content.placement = .identity
-        } else {
-            let placed = importedGeometry.placed(rotation: face.modelRotation)
-            content.geometry = placed.geometry
-            content.placement = placed.placement
+    /// An import of a file's bodies, placed in the file's coordinates (assemblies applied).
+    init(assembly: STEP.Assembly) throws {
+        let geometry = try STEPDisplayGeometry(bodies: assembly.bodies,
+                                               origin: STEPDisplayGeometry.displayOrigin(bounds: assembly.bounds))
+        var labels: [STEP.BodyID: String] = [:]
+        for body in assembly.bodies {
+            let parts = body.path + (body.name.map { [$0] } ?? [])
+            if !parts.isEmpty { labels[body.id] = parts.joined(separator: " / ") }
         }
-        content.orientation = face
+        self.init(importID: assembly.importID, geometry: geometry, surfaces: assembly.surfaces, labels: labels,
+                  edgeCount: assembly.edgeCount, skippedEdgeCount: assembly.skippedEdgeCount,
+                  diagnostics: assembly.diagnostics)
+    }
+
+    func info(of id: STEP.BodyID) -> STEPBodyInfo? { infos.first { $0.id == id } }
+
+    /// Which face of the body faces up.
+    func orientation(of id: STEP.BodyID) -> SetupFace { orientations[id] ?? .top }
+
+    func scale(of id: STEP.BodyID) -> Float { scales[id] ?? 1 }
+
+    func placement(of id: STEP.BodyID) -> STEPPlacement { placements[id] ?? .identity }
+
+    /// Width (X), depth (Y) and height (Z) of the body as it sits (turned and scaled), in mm.
+    /// `nil` for a body that is not in the content.
+    func size(of id: STEP.BodyID) -> SIMD3<Float>? { sizes[id] }
+
+    /// The same content with the body turned so `face` faces up, and scaled by `scale`. Always starts
+    /// from the imported geometry, so turning back to `.top` at scale 1 is exact.
+    func updated(_ id: STEP.BodyID, orientation face: SetupFace, scale: Float) -> STEPViewerContent {
+        guard let imported = importedGeometry.bodies.first(where: { $0.id == id }),
+              let bodyInfo = self.info(of: id),
+              let index = geometry.bodies.firstIndex(where: { $0.id == id }) else { return self }
+        var content = self
+        let rotation = face.modelRotation
+        var body = imported
+        var shift = SIMD3<Float>.zero
+        if face != .top || scale != 1 {
+            let placed = imported.placed(rotation: rotation, scale: scale)
+            body = placed.body
+            shift = placed.shift
+        }
+        content.geometry.bodies[index] = body
+        content.placements[id] = STEPPlacement(rotation: rotation, shift: shift,
+                                               anchor: -bodyInfo.defaultPosition, scale: scale)
+        content.orientations[id] = face
+        content.scales[id] = scale
+        content.sizes[id] = Self.size(of: body)
         return content
     }
 
-    /// Width (X), depth (Y) and height (Z) of the model as it sits, in mm.
-    var size: SIMD3<Float>? {
-        guard let bounds = model.bounds else { return nil }
-        let imported = SIMD3<Float>(Float(bounds.max.x - bounds.min.x),
-                                    Float(bounds.max.y - bounds.min.y),
-                                    Float(bounds.max.z - bounds.min.z))
-        // Quarter turns only permute the sides
-        let r = orientation.modelRotation
-        return simd_float3x3(columns: (abs(r.columns.0), abs(r.columns.1), abs(r.columns.2))) * imported
+    /// The same content without the body.
+    func removing(_ id: STEP.BodyID) -> STEPViewerContent {
+        var content = self
+        content.importedGeometry.bodies.removeAll { $0.id == id }
+        content.geometry.bodies.removeAll { $0.id == id }
+        content.infos.removeAll { $0.id == id }
+        content.orientations.removeValue(forKey: id)
+        content.scales.removeValue(forKey: id)
+        content.placements.removeValue(forKey: id)
+        content.sizes.removeValue(forKey: id)
+        return content
+    }
+
+    private static func size(of body: STEPDisplayGeometry.Body) -> SIMD3<Float> {
+        var low = SIMD3<Float>(repeating: .infinity)
+        var high = SIMD3<Float>(repeating: -.infinity)
+        for point in body.points {
+            low = simd_min(low, point)
+            high = simd_max(high, point)
+        }
+        guard low.x.isFinite, high.x.isFinite else { return .zero }
+        return high - low
     }
 
     static func load(url: URL, importID: UUID) async throws -> STEPViewerContent {
         let worker = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
-            let imported = try STEP.readGeometry(data: Data(contentsOf: url, options: .mappedIfSafe),
-                                                              importID: importID)
-            return try STEPViewerContent(model: imported.edges,
-                                         geometry: STEPDisplayGeometry(model: imported.edges),
-                                         surfaces: imported.surfaces)
+            // `readAssembly`, not `readGeometry`: one `Body` per solid, and an assembly's parts placed.
+            let assembly = try STEP.readAssembly(data: Data(contentsOf: url, options: .mappedIfSafe),
+                                                 importID: importID)
+            return try STEPViewerContent(assembly: assembly)
         }
         return try await withTaskCancellationHandler {
             let result = try await worker.value
@@ -123,10 +245,10 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     @Published private(set) var solidObjects: [RenderObject?]
     @Published private(set) var selectedEdges: Set<STEP.EdgeID> = []
     @Published private(set) var hiddenBodies: Set<STEP.BodyID> = []
-    /// Where the model sits on the canvas, in mm. The model's own corner (min X,
-    /// min Y) and top (max Z) are at 0, so this is the position of that corner
-    /// and of the top surface. Changed through `STEPWorkspace.setPosition`.
-    @Published private(set) var offset: SIMD3<Float>
+    /// Where each body sits on the canvas, in mm. A body's own corner (min X, min Y) and top
+    /// (max Z) are at 0 in its frame, so this is the position of that corner and of its top
+    /// surface. Changed through `STEPWorkspace.setPosition`.
+    @Published private(set) var positions: [STEP.BodyID: SIMD3<Float>]
     @Published var isModelVisible = true {
         // Hiding the model drops a plain selection. A toolpath being edited keeps its edges.
         didSet { if !isModelVisible, !isPicking { setSelection([], notify: false) } }
@@ -135,11 +257,18 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     private(set) var isPicking = false
     /// Called with the whole selection after every change made by the user while picking.
     var onSelectionChanged: ((Set<STEP.EdgeID>) -> Void)?
-    /// Bounding box of the whole model in canvas mm, as it sits (its min X/Y corner and its top
-    /// are at `offset`, see there). The tooltip is held above its top. `nil` without bounds.
+    /// Bounding box of the shown bodies together in canvas mm, as they sit (each one's min X/Y corner
+    /// and top are at its position, see there). The tooltip is held above its top. `nil` without bounds.
     var modelBox: (min: SIMD3<Float>, max: SIMD3<Float>)? {
-        guard let size = content.size else { return nil }
-        return (offset + SIMD3<Float>(0, 0, -size.z), offset + SIMD3<Float>(size.x, size.y, 0))
+        var low = SIMD3<Float>(repeating: .infinity)
+        var high = SIMD3<Float>(repeating: -.infinity)
+        for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
+            guard let size = content.size(of: body.id) else { continue }
+            let origin = position(of: body.id)
+            low = simd_min(low, origin + SIMD3<Float>(0, 0, -size.z))
+            high = simd_max(high, origin + SIMD3<Float>(size.x, size.y, 0))
+        }
+        return low.x.isFinite ? (low, high) : nil
     }
     /// Bounding box of the selected edges in canvas mm, to anchor the "Add toolpath" tooltip.
     @Published private(set) var selectionBox: (min: SIMD3<Float>, max: SIMD3<Float>)?
@@ -211,13 +340,14 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         return nil
     }
 
-    init(content: STEPViewerContent, offset: SIMD3<Float> = .zero, orientation: SetupFace = .top,
+    /// - Parameter positions: where each body of `content` sits on the canvas. A body without an entry
+    ///   sits at the origin.
+    init(content: STEPViewerContent, positions: [STEP.BodyID: SIMD3<Float>] = [:],
          shadedTriangleCap: Int = STEPDocumentScene.defaultShadedTriangleCap,
          defaults: UserDefaults? = .standard) {
-        id = content.model.importID
-        let content = content.oriented(orientation)
+        id = content.importID
         self.content = content
-        self.offset = offset
+        self.positions = positions
         self.shadedTriangleCap = shadedTriangleCap
         self.defaults = defaults
         // The saved display options; without any, shaded + edges with dotted hidden edges. A model
@@ -236,43 +366,75 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         }
         hiddenEdgeMode = hidden
         displayMode = mode
-        let objects = Self.makeObjects(content, isDark: true, offset: offset, displayMode: mode, hiddenMode: hidden)
+        let objects = Self.makeObjects(content, isDark: true, positions: positions, displayMode: mode, hiddenMode: hidden)
         baseObjects = objects.lines
         solidObjects = objects.solids
     }
 
-    /// Moves the model: its edges, faces and the selection overlay are rebuilt translated.
-    func setOffset(_ newOffset: SIMD3<Float>) {
-        guard newOffset != offset else { return }
-        offset = newOffset
-        rebuildObjects()
+    /// Where the body sits on the canvas, in mm (its corner and its top, see `positions`).
+    func position(of body: STEP.BodyID) -> SIMD3<Float> { positions[body] ?? .zero }
+
+    /// Moves one body: its edges, faces and the selection overlay are rebuilt translated.
+    func setPosition(_ position: SIMD3<Float>, of body: STEP.BodyID) {
+        guard content.info(of: body) != nil, positions[body] != position else { return }
+        positions[body] = position
+        rebuildObjects(only: body)
         rebuildHighlight()
     }
 
-    /// The face of the model that faces up.
-    var orientation: SetupFace { content.orientation }
-
-    /// Turns the model so `face` faces up. The edges are the same ones, so the selection stays; what
-    /// depends on where they are (plane, highlight, faces) is rebuilt, and the camera frames the part again.
-    func setOrientation(_ face: SetupFace) {
-        guard face != content.orientation else { return }
-        content = content.oriented(face)
+    /// Turns one body so `face` faces up (about its own corner). The edges are the same ones, so the
+    /// selection stays; what depends on where they are (plane, highlight, faces) is rebuilt, and the
+    /// camera frames the part again.
+    func setOrientation(_ face: SetupFace, of body: STEP.BodyID) {
+        guard content.info(of: body) != nil, face != content.orientation(of: body) else { return }
+        content = content.updated(body, orientation: face, scale: content.scale(of: body))
         setSelection(selectedEdges, notify: false)
-        rebuildObjects()
+        rebuildObjects(only: body)
         fitRequest &+= 1
     }
 
-    private func rebuildObjects() {
-        let objects = Self.makeObjects(content, isDark: isDarkAppearance, offset: offset,
-                                       displayMode: displayMode, hiddenMode: hiddenEdgeMode)
-        baseObjects = objects.lines
-        solidObjects = objects.solids
+    /// Scales one body (uniformly, about its corner and top, so it stays where it is).
+    func setScale(_ scale: Float, of body: STEP.BodyID) {
+        guard content.info(of: body) != nil, scale.isFinite, scale > 0, scale != content.scale(of: body) else { return }
+        content = content.updated(body, orientation: content.orientation(of: body), scale: scale)
+        setSelection(selectedEdges, notify: false)
+        rebuildObjects(only: body)
     }
 
-    private static func translation(_ t: SIMD3<Float>) -> simd_float4x4 {
-        var matrix = matrix_identity_float4x4
-        matrix.columns.3 = SIMD4<Float>(t.x, t.y, t.z, 1)
-        return matrix
+    /// Takes a body out of the scene for good: its edges, faces and selected edges go.
+    func removeBody(_ body: STEP.BodyID) {
+        guard content.info(of: body) != nil else { return }
+        content = content.removing(body)
+        positions.removeValue(forKey: body)
+        hiddenBodies.remove(body)
+        setSelection(selectedEdges.filter { $0.bodyID != body }, notify: true)
+        rebuildObjects()
+    }
+
+    /// The bodies where they sit on the canvas, positions applied, for the project's preview picture.
+    var arrangedGeometry: STEPDisplayGeometry {
+        STEPDisplayGeometry(origin: content.geometry.origin, bodies: content.geometry.bodies.map { body in
+            let offset = position(of: body.id)
+            return STEPDisplayGeometry.Body(id: body.id, points: body.points.map { $0 + offset },
+                                            edges: body.edges, origin: body.origin)
+        })
+    }
+
+    /// Rebuilds the drawn objects: of one body, or of all of them. The bodies keep their order, so
+    /// `baseObjects[i]` and `solidObjects[i]` stay those of `content.geometry.bodies[i]`.
+    private func rebuildObjects(only body: STEP.BodyID? = nil) {
+        guard let body, let index = content.geometry.bodies.firstIndex(where: { $0.id == body }),
+              baseObjects.count == content.geometry.bodies.count else {
+            let objects = Self.makeObjects(content, isDark: isDarkAppearance, positions: positions,
+                                           displayMode: displayMode, hiddenMode: hiddenEdgeMode)
+            baseObjects = objects.lines
+            solidObjects = objects.solids
+            return
+        }
+        let objects = Self.makeObjects(content, isDark: isDarkAppearance, positions: positions,
+                                       displayMode: displayMode, hiddenMode: hiddenEdgeMode, only: index)
+        baseObjects[index] = objects.lines[0]
+        solidObjects[index] = objects.solids[0]
     }
 
     /// Edge color follows the canvas background: light edges on dark, dark on light.
@@ -291,12 +453,16 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// surface. Wireframe: the surface rides along as depth-only occluders so hidden edges can be
     /// dotted. Shaded: the faces themselves provide the depth, the lines are kept (for the camera fit
     /// and picking data) but not drawn. A body without a surface always keeps its drawn wireframe.
-    private static func makeObjects(_ content: STEPViewerContent, isDark: Bool, offset: SIMD3<Float>,
-                                    displayMode: STEPDisplayMode, hiddenMode: STEPHiddenEdgeMode)
+    /// - Parameter only: the index of the one body to build (the result then has one entry per list).
+    private static func makeObjects(_ content: STEPViewerContent, isDark: Bool, positions: [STEP.BodyID: SIMD3<Float>],
+                                    displayMode: STEPDisplayMode, hiddenMode: STEPHiddenEdgeMode, only: Int? = nil)
         -> (lines: [RenderObject], solids: [RenderObject?]) {
         var lines: [RenderObject] = []
         var solids: [RenderObject?] = []
-        for body in content.geometry.bodies {
+        for (index, body) in content.geometry.bodies.enumerated() {
+            if let only, only != index { continue }
+            let offset = positions[body.id] ?? .zero
+            let placement = content.placement(of: body.id)
             let points = offset == .zero ? body.points : body.points.map { $0 + offset }
             let mesh = content.surfaces.mesh(for: body.id)
             let shaded = displayMode != .wireframe && mesh != nil
@@ -308,9 +474,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                 switch displayMode {
                     case .wireframe:
                         if hiddenMode != .solid {
-                            line.occluderFaces = content.placement.isIdentity
+                            line.occluderFaces = placement.isIdentity
                                 ? mesh.occluderTriangles(offset: offset)
-                                : mesh.occluderTriangles(offset: .zero).map { content.placement.point($0) + offset }
+                                : mesh.occluderTriangles(offset: .zero).map { placement.point($0) + offset }
                             line.hiddenLineStyle = style
                         }
                     case .shadedEdges:
@@ -321,10 +487,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                 if displayMode != .wireframe {
                     var triangles: [SolidVertex] = []
                     triangles.reserveCapacity(mesh.indices.count)
-                    for index in mesh.indices {
-                        let placement = content.placement
-                        triangles.append(SolidVertex(position: placement.point(mesh.positions[Int(index)]) + offset,
-                                                     normal: placement.direction(mesh.normals[Int(index)])))
+                    for meshIndex in mesh.indices {
+                        triangles.append(SolidVertex(position: placement.point(mesh.positions[Int(meshIndex)]) + offset,
+                                                     normal: placement.direction(mesh.normals[Int(meshIndex)])))
                     }
                     solid = RenderObject(role: .model, points: [], color: faceColor,
                                          primitive: .lineList, solidTriangles: triangles)
@@ -355,6 +520,16 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         return objects + selectionObjects
     }
 
+    /// The body is drawn: the model is shown and the body itself is not hidden.
+    func isBodyVisible(_ id: STEP.BodyID) -> Bool { isModelVisible && !hiddenBodies.contains(id) }
+
+    /// The eye of the body's row. When the whole model is hidden, showing a body shows the model again.
+    func toggleBodyVisible(_ id: STEP.BodyID) {
+        let show = !isBodyVisible(id)
+        if show, !isModelVisible { isModelVisible = true }
+        setBodyVisible(id, show)
+    }
+
     func setBodyVisible(_ id: STEP.BodyID, _ visible: Bool) {
         if visible { hiddenBodies.remove(id) } else {
             hiddenBodies.insert(id)
@@ -367,13 +542,12 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     func edge(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> STEP.EdgeID? {
         // Edges that are not drawn must not be picked either.
         guard isModelVisible, displayMode != .shaded else { return nil }
-        // The geometry is stored at the origin; the matrix the canvas hands over
-        // sees it moved, so move it back into place first.
-        let matrix = matrix * Self.translation(offset)
+        // Every body is stored at the origin; the matrix the canvas hands over
+        // sees them there, so each is moved back into place first (`offsets`).
         // With hidden edges not drawn, the edges behind a face are not pickable.
         let isVisible = hiddenEdgeMode == .hidden ? visibilityTest(viewport: viewport, matrix: matrix) : nil
         return content.geometry.hitTest(at: point, viewport: viewport, matrix: matrix,
-                                        hiddenBodies: hiddenBodies, isVisible: isVisible)
+                                        hiddenBodies: hiddenBodies, offsets: positions, isVisible: isVisible)
     }
 
     /// Tells whether a point of an edge (view points x, y and depth) is in front of the faces,
@@ -381,14 +555,16 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// tolerance (mm) keeps them from hiding behind their own surface. `nil` when no body has
     /// faces: its edges are then all drawn.
     private func visibilityTest(viewport: CGSize, matrix: simd_float4x4) -> ((SIMD3<Float>) -> Bool)? {
-        let placement = content.placement
         var screen: [SIMD3<Float>] = []
         var indices: [Int] = []
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
             guard let mesh = content.surfaces.mesh(for: body.id) else { continue }
+            // The mesh goes through the body's placement and position, like the edges in `hitTest`
+            let placement = content.placement(of: body.id)
+            let bodyMatrix = matrix * STEPDisplayGeometry.translation(position(of: body.id))
             let base = screen.count
             screen += STEPFacePicker.project(positions: mesh.positions.map { placement.point($0) },
-                                             matrix: matrix, viewport: viewport)
+                                             matrix: bodyMatrix, viewport: viewport)
             indices += mesh.indices.map { base + Int($0) }
         }
         guard !indices.isEmpty else { return nil }
@@ -411,17 +587,19 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             PerfLog.log("pick", "face: ignored, model visible \(isModelVisible), display mode \(displayMode.rawValue)")
             return nil
         }
-        let matrix = matrix * Self.translation(offset)
-        let placement = content.placement
 
         var best: (body: STEP.BodyID, positions: [SIMD3<Float>], indices: [Int], triangle: Int, depth: Float,
                    outward: SIMD3<Float>?, normals: [SIMD3<Float>])?
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
             guard let mesh = content.surfaces.mesh(for: body.id) else { continue }
+            // The body's mesh is in the file's frame; its placement takes it to the body's own frame,
+            // which `matrix` sees at the origin, so the body's position moves it into place.
+            let placement = content.placement(of: body.id)
+            let bodyMatrix = matrix * STEPDisplayGeometry.translation(position(of: body.id))
             let positions = mesh.positions.map { placement.isIdentity ? $0 : placement.point($0) }
             let indices = mesh.indices.map { Int($0) }
             guard let hit = STEPFacePicker.pickTriangle(positions: positions, indices: indices, at: point,
-                                                        viewport: viewport, matrix: matrix),
+                                                        viewport: viewport, matrix: bodyMatrix),
                   hit.depth < (best?.depth ?? .infinity) else { continue }
             // The way the face looks out of the solid, from the mesh's own shading normals.
             // Used to tell bosses (walls rising off the face) from holes (walls dropping into it).
@@ -624,6 +802,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         var boxMin = SIMD3<Float>(repeating: .infinity), boxMax = SIMD3<Float>(repeating: -.infinity)
 
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
+            let offset = position(of: body.id)
             for edge in body.edges where selectedEdges.contains(edge.id) {
                 let edgePoints = body.points[edge.vertices].map { $0 + offset }
                 points.append(contentsOf: edgePoints)
@@ -683,18 +862,28 @@ final class STEPWorkspace: ObservableObject {
     @Published var activeID: UUID?
     /// The model selected in the objects list, whose position the inspector edits.
     @Published var selectedModelID: UUID?
-    /// Where each source sits, kept here (not in the scene) so a reload keeps it.
-    private var offsets: [UUID: SIMD3<Float>] = [:]
-    /// Which face of each model faces up. Kept here, like `offsets`, so a reload keeps it.
-    private var orientations: [UUID: SetupFace] = [:]
-    /// Called after the user turned a model, so the project can save it.
-    var onOrientationChanged: (@MainActor (UUID, SetupFace) -> Void)?
-    /// A model moved: toolpaths cut from its edges are outdated.
-    var onModelMoved: (() -> Void)?
+    /// Where a file as a whole sat in projects saved before the bodies could be moved one by one. A body
+    /// with no position of its own starts there, shifted by its place in the file's arrangement.
+    private var legacyOffsets: [UUID: SIMD3<Float>] = [:]
+    /// Likewise the face that faced up for a whole file: the face of every body with no saved face of its own.
+    private var legacyFaces: [UUID: SetupFace] = [:]
+    /// What the user did to each body of each file (`STEP.BodyID.stateKey`). Kept here, not in the scene,
+    /// so a reload keeps it, and so it can be put back before a file has loaded.
+    private var bodyStates: [UUID: [String: STEPBodyState]] = [:]
+    /// A body of a file: what a row of the objects list stands for.
+    private struct ModelKey: Hashable {
+        let source: UUID
+        let body: STEP.BodyID
+    }
+    /// The id of each body's row. Made up when the file loads and kept for as long as the workspace
+    /// lives (it is never saved: a body is saved by its `stateKey`).
+    private var modelIDs: [ModelKey: UUID] = [:]
+    private var modelKeys: [UUID: ModelKey] = [:]
+    /// Called after the user moved, turned, scaled or deleted a body, so the project can save it:
+    /// the file, the body's `stateKey` and its whole state.
+    var onBodyStateChanged: (@MainActor (UUID, String, STEPBodyState) -> Void)?
     /// The open toolpath's edges and where edits go; set while a toolpath is open.
     private var picking: (targets: [STEPEdgeTarget], onChange: (UUID, Set<STEP.EdgeID>) -> Void)?
-    /// Called after the user moved a model, so the project can save it.
-    var onOffsetChanged: (@MainActor (UUID, SIMD3<Float>) -> Void)?
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var tokens: [UUID: UUID] = [:]
     private let loader: Loader
@@ -706,40 +895,213 @@ final class STEPWorkspace: ObservableObject {
         self.loader = loader
     }
 
-    func position(of id: UUID) -> SIMD3<Float> { offsets[id] ?? .zero }
+    // MARK: Models
+    //
+    // A "model" is what a row of the objects list stands for, and its id is a `UUID`: a body of a
+    // loaded file, or the whole file while it is loading or when it failed to load (then the id is
+    // the source's own). Moving, turning, scaling, hiding and deleting act on one body.
 
-    func orientation(of id: UUID) -> SetupFace { orientations[id] ?? .top }
-
-    /// Puts a saved orientation back before the source loads. Not a user edit.
-    func restoreOrientation(_ face: SetupFace, for id: UUID) {
-        orientations[id] = face
-        documents[id]?.setOrientation(face)
+    /// A row of the objects list.
+    struct ModelEntry: Identifiable {
+        let id: UUID
+        let sourceID: UUID
+        /// `nil` for a file that has not loaded (or has no bodies): the row stands for the whole file.
+        let body: STEP.BodyID?
+        /// "plate.step · Body 2" for a file of several bodies, the file's name otherwise.
+        let name: String
+        /// What the file calls the body (occurrence path and name), for the row's tooltip.
+        let detail: String?
     }
 
-    /// The user picked which face of the model faces up. Toolpaths cut from its edges are outdated.
-    func setOrientation(_ face: SetupFace, for id: UUID) {
-        guard face != orientation(of: id) else { return }
-        orientations[id] = face
-        documents[id]?.setOrientation(face)
+    /// The rows of the objects list: every body of every loaded file, in the file's order.
+    var modelEntries: [ModelEntry] {
+        var entries: [ModelEntry] = []
+        for source in sources {
+            guard let scene = documents[source.id], !scene.content.infos.isEmpty else {
+                entries.append(ModelEntry(id: source.id, sourceID: source.id, body: nil, name: source.name, detail: nil))
+                continue
+            }
+            let numbered = scene.content.bodyCount > 1
+            for info in scene.content.infos {
+                entries.append(ModelEntry(id: modelID(source: source.id, body: info.id), sourceID: source.id,
+                                          body: info.id,
+                                          name: numbered ? "\(source.name) · Body \(info.number)" : source.name,
+                                          detail: info.label))
+            }
+        }
+        return entries
+    }
+
+    private func modelID(source: UUID, body: STEP.BodyID) -> UUID {
+        let key = ModelKey(source: source, body: body)
+        if let id = modelIDs[key] { return id }
+        let id = UUID()
+        modelIDs[key] = id
+        modelKeys[id] = key
+        return id
+    }
+
+    /// The body a row stands for; `nil` for the row of a file that has not loaded.
+    func body(ofModel id: UUID) -> STEP.BodyID? { modelKeys[id]?.body }
+
+    /// The file a row belongs to; `nil` for an id that is not a model.
+    func sourceID(ofModel id: UUID) -> UUID? {
+        if let key = modelKeys[id] { return key.source }
+        return sources.contains(where: { $0.id == id }) ? id : nil
+    }
+
+    /// How many bodies the file still shows; 0 while it has not loaded.
+    func remainingBodies(inSource id: UUID) -> Int { documents[id]?.content.infos.count ?? 0 }
+
+    /// A row was clicked: it is the selected model, and its file is the one on the canvas.
+    func select(model id: UUID) {
+        selectedModelID = id
+        if let source = sourceID(ofModel: id) { activeID = source }
+    }
+
+    private func resolve(_ model: UUID) -> (key: ModelKey, scene: STEPDocumentScene)? {
+        guard let key = modelKeys[model], let scene = documents[key.source] else { return nil }
+        return (key, scene)
+    }
+
+    func isVisible(model id: UUID) -> Bool {
+        if let (key, scene) = resolve(id) { return scene.isBodyVisible(key.body) }
+        return documents[id]?.isModelVisible ?? true
+    }
+
+    func toggleVisibility(of id: UUID) {
+        if let (key, scene) = resolve(id) {
+            scene.toggleBodyVisible(key.body)
+        } else {
+            documents[id]?.isModelVisible.toggle()
+        }
         objectWillChange.send()
-        onModelMoved?()
-        onOrientationChanged?(id, face)
     }
 
-    /// Puts a saved position back before the source loads. Not a user edit.
-    func restorePosition(_ position: SIMD3<Float>, for id: UUID) {
-        offsets[id] = position
-        documents[id]?.setOffset(position)
+    /// Where the body's corner and top sit on the canvas, in mm.
+    func position(of id: UUID) -> SIMD3<Float> {
+        guard let (key, scene) = resolve(id) else { return .zero }
+        return scene.position(of: key.body)
+    }
+
+    /// Which face of the body faces up; `nil` for a model that is not loaded.
+    func orientation(of id: UUID) -> SetupFace? {
+        guard let (key, scene) = resolve(id) else { return nil }
+        return scene.content.orientation(of: key.body)
+    }
+
+    /// Puts what the project saved back before the file loads. Not a user edit.
+    func restoreBodyStates(_ states: [String: STEPBodyState], for source: UUID) {
+        bodyStates[source] = states
+    }
+
+    /// Puts the saved position of a whole file back before it loads (see `legacyOffsets`). Not a user edit.
+    func restoreLegacyOffset(_ offset: SIMD3<Float>, for source: UUID) {
+        legacyOffsets[source] = offset
+    }
+
+    /// Puts the saved face-up of a whole file back before it loads (see `legacyFaces`). Not a user edit.
+    func restoreLegacyFace(_ face: SetupFace, for source: UUID) {
+        legacyFaces[source] = face
+    }
+
+    /// Records a change of one body: kept for reloads, and reported so the project saves it.
+    private func update(_ key: ModelKey, _ change: (inout STEPBodyState) -> Void) {
+        var state = bodyStates[key.source]?[key.body.stateKey] ?? STEPBodyState()
+        change(&state)
+        bodyStates[key.source, default: [:]][key.body.stateKey] = state
+        onBodyStateChanged?(key.source, key.body.stateKey, state)
+    }
+
+    /// A body changed: toolpaths cut from its edges are outdated.
+    private func bodyChanged() {
+        objectWillChange.send()
+        // TODO: who deleted this? Is it needed?
+//        onModelMoved?()
     }
 
     func setPosition(_ position: SIMD3<Float>, for id: UUID) {
         guard position.x.isFinite, position.y.isFinite, position.z.isFinite,
-              position != self.position(of: id) else { return }
-        offsets[id] = position
-        documents[id]?.setOffset(position)
-        objectWillChange.send()
-        onModelMoved?()
-        onOffsetChanged?(id, position)
+              let (key, scene) = resolve(id), position != scene.position(of: key.body) else { return }
+        scene.setPosition(position, of: key.body)
+        update(key) { $0.position = [Double(position.x), Double(position.y), Double(position.z)] }
+        bodyChanged()
+    }
+
+    /// The user picked which face of the body faces up. Toolpaths cut from its edges are outdated.
+    func setOrientation(_ face: SetupFace, for id: UUID) {
+        guard let (key, scene) = resolve(id), face != scene.content.orientation(of: key.body) else { return }
+        scene.setOrientation(face, of: key.body)
+        // Saved even for the top: a body that was put back must not take the file's old face again
+        update(key) { $0.face = face.persistedName }
+        bodyChanged()
+    }
+
+    /// Scales the body about its corner and top, to this width (X, as it sits). Depth and height follow.
+    func setWidth(_ width: Float, for id: UUID) {
+        guard width.isFinite, width > 0, let (key, scene) = resolve(id),
+              let size = scene.content.size(of: key.body), size.x > 1e-6 else { return }
+        setScale(scene.content.scale(of: key.body) * width / size.x, for: id)
+    }
+
+    /// Scales the body by `factor` (×2 is 2, ÷2 is -2), like the 2D objects.
+    func scaleModel(_ id: UUID, factor: Int) {
+        guard factor != 0, let (key, scene) = resolve(id) else { return }
+        let by = factor > 0 ? Float(factor) : 1 / Float(-factor)
+        setScale(scene.content.scale(of: key.body) * by, for: id)
+    }
+
+    private func setScale(_ scale: Float, for id: UUID) {
+        guard scale.isFinite, let (key, scene) = resolve(id) else { return }
+        let clamped = min(max(scale, 0.001), 1000)
+        guard clamped != scene.content.scale(of: key.body) else { return }
+        scene.setScale(clamped, of: key.body)
+        update(key) { $0.scale = clamped == 1 ? nil : Double(clamped) }
+        bodyChanged()
+    }
+
+    /// Takes one body out of its file's scene. Its state remembers it as deleted, so it stays out after
+    /// a reload (the file itself is not touched). The last body of a file is not removed here: the project
+    /// removes the whole source (`ProjectModel.removeSTEPModel`).
+    func removeBody(model id: UUID) {
+        guard let (key, scene) = resolve(id), scene.content.infos.count > 1 else { return }
+        scene.removeBody(key.body)
+        update(key) { $0.isRemoved = true }
+        modelKeys.removeValue(forKey: id)
+        modelIDs.removeValue(forKey: key)
+        if selectedModelID == id { selectedModelID = nil }
+        bodyChanged()
+    }
+
+    /// The scene of a file that has loaded: its bodies turned, scaled and removed as the project saved them,
+    /// and each one where it was left, or where the file's arrangement puts it.
+    private func makeScene(for source: UUID, content loaded: STEPViewerContent) -> STEPDocumentScene {
+        var content = loaded
+        let states = bodyStates[source] ?? [:]
+        let legacy = legacyOffsets[source] ?? .zero
+        let legacyFace = legacyFaces[source] ?? .top
+        var positions: [STEP.BodyID: SIMD3<Float>] = [:]
+        for info in loaded.infos {
+            let state = states[info.id.stateKey]
+            if state?.isRemoved == true {
+                content = content.removing(info.id)
+                continue
+            }
+            var face = legacyFace
+            if let name = state?.face, let saved = SetupFace(persistedName: name) { face = saved }
+            var scale: Float = 1
+            if let saved = state?.scale, saved.isFinite, saved > 0 { scale = Float(saved) }
+            if face != .top || scale != 1 {
+                content = content.updated(info.id, orientation: face, scale: scale)
+            }
+            if let saved = state?.position, saved.count == 3 {
+                positions[info.id] = SIMD3<Float>(Float(saved[0]), Float(saved[1]), Float(saved[2]))
+            } else {
+                positions[info.id] = info.defaultPosition + legacy
+            }
+        }
+        for info in content.infos { _ = modelID(source: source, body: info.id) }
+        return STEPDocumentScene(content: content, positions: positions)
     }
 
     /// A toolpath was opened: its edges become the selection of their models, and clicking an
@@ -780,8 +1142,7 @@ final class STEPWorkspace: ObservableObject {
                 let content = try await loader(source.url, source.id)
                 try Task.checkCancellation()
                 guard let self, self.tokens[source.id] == token else { return }
-                let scene = STEPDocumentScene(content: content, offset: self.offsets[source.id] ?? .zero,
-                                              orientation: self.orientations[source.id] ?? .top)
+                let scene = self.makeScene(for: source.id, content: content)
                 self.documents[source.id] = scene
                 self.attachPicking(to: scene)
                 self.finish(source.id)
@@ -802,15 +1163,17 @@ final class STEPWorkspace: ObservableObject {
     private static func logImport(of source: STEPSourceReference, content: STEPViewerContent) {
         #if DEBUG
         var lines = ["[STEP] \(source.name)"]
-        lines.append("  \(content.model.edges.count) edges shown · \(content.model.skippedEdgeCount) skipped")
-        if let size = content.size {
-            lines.append(String(format: "  %g × %g × %g mm", size.x, size.y, size.z))
+        lines.append("  \(content.infos.count) bod\(content.infos.count == 1 ? "y" : "ies") · "
+                     + "\(content.edgeCount) edges shown · \(content.skippedEdgeCount) skipped")
+        for info in content.infos {
+            guard let size = content.size(of: info.id) else { continue }
+            lines.append(String(format: "  Body %d: %g × %g × %g mm", info.number, size.x, size.y, size.z)
+                         + (info.label.map { " (\($0))" } ?? ""))
         }
         let surfaces = content.surfaces
         lines.append("  \(surfaces.tessellatedFaceCount) of \(surfaces.reachableFaceCount) faces · \(surfaces.triangleCount) triangles"
                      + (surfaces.failedFaceCount > 0 ? " · \(surfaces.failedFaceCount) faces failed" : ""))
-        let diagnostics = content.model.diagnostics + surfaces.diagnostics
-        for diagnostic in diagnostics {
+        for diagnostic in content.diagnostics {
             lines.append("  " + (diagnostic.entityID.map { "#\($0): " } ?? "") + diagnostic.message)
         }
         print(lines.joined(separator: "\n"))
@@ -844,8 +1207,14 @@ final class STEPWorkspace: ObservableObject {
         documents.removeValue(forKey: id)
         errors.removeValue(forKey: id)
         sources.removeAll { $0.id == id }
-        offsets.removeValue(forKey: id)
-        orientations.removeValue(forKey: id)
+        if let selected = selectedModelID, sourceID(ofModel: selected) == id { selectedModelID = nil }
+        legacyOffsets.removeValue(forKey: id)
+        legacyFaces.removeValue(forKey: id)
+        bodyStates.removeValue(forKey: id)
+        for (key, model) in modelIDs.filter({ $0.key.source == id }) {
+            modelIDs.removeValue(forKey: key)
+            modelKeys.removeValue(forKey: model)
+        }
         if selectedModelID == id { selectedModelID = nil }
         if activeID == id { activeID = sources.last?.id }
     }
@@ -858,8 +1227,11 @@ final class STEPWorkspace: ObservableObject {
         documents.removeAll()
         errors.removeAll()
         sources.removeAll()
-        offsets.removeAll()
-        orientations.removeAll()
+        legacyOffsets.removeAll()
+        legacyFaces.removeAll()
+        bodyStates.removeAll()
+        modelIDs.removeAll()
+        modelKeys.removeAll()
         picking = nil
         selectedModelID = nil
         activeID = nil
