@@ -76,7 +76,7 @@ extension ToolpathData {
 
     /// The only place the stepover limits live (% of tool diameter), matching what the
     /// generator accepts.
-    static let stepOverRange: ClosedRange<Double> = 10...95
+    static let stepOverRange: ClosedRange<Double> = 1...95
 
     static func clampedStepOver(_ percent: Double) -> Double {
         min(max(percent, stepOverRange.lowerBound), stepOverRange.upperBound)

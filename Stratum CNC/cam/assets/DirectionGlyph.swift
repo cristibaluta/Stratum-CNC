@@ -25,6 +25,17 @@ import SwiftUI
 struct DirectionGlyph: View {
     let direction: CutDirectionOption
     var tint: Color = .primary
+    /// How far the tooth moves between two bites, in design units (the tool is 24 wide). The
+    /// default is exaggerated so the chip reads at a small size; the feed calculator passes
+    /// the real chip load, scaled up the same way for every value.
+    var feedPerTooth: CGFloat = 6
+    /// Radial engagement as a fraction of the tool diameter: how far into the stock the tool
+    /// is. 0.5 is the tool's own radius, the picture of the direction picker.
+    var stepOverFraction: CGFloat = 0.5
+    /// The color of the chip.
+    var chipTint: Color = .orange
+    /// 0...1: how hot the cut is. Above 0 the tool gets a wash of `chipTint` that grows with it.
+    var heat: Double = 0
 
     private let designSize = CGSize(width: 60, height: 40)
 
@@ -53,10 +64,9 @@ struct DirectionGlyph: View {
             let radius: CGFloat = 12
             let finishedY: CGFloat = 6                  // the wall the tool leaves
             let center = CGPoint(x: width / 2, y: finishedY + radius)
-            let engagement = radius                     // stock it takes off, radially: as deep as the tool is wide from its centre
+            let engagement = min(max(2 * radius * stepOverFraction, 1.5), 2 * radius)   // stock it takes off, radially
             let uncutY = finishedY + engagement         // the wall as it was
             let reach = (radius * radius - (radius - engagement) * (radius - engagement)).squareRoot()
-            let feedPerTooth: CGFloat = 6             // exaggerated, so the chip is visible
 
             // Material above the finished wall.
             context.fill(Path(roundedRect: CGRect(x: 1, y: 0, width: width - 2, height: finishedY),
@@ -91,9 +101,15 @@ struct DirectionGlyph: View {
             let previous = CGPoint(x: center.x - travel * feedPerTooth, y: center.y)
             context.drawLayer { layer in
                 layer.clip(to: Path(CGRect(x: 0, y: 0, width: width, height: uncutY)))
-                layer.fill(circle(at: center, radius: radius), with: .color(Color.orange.opacity(1)))
+                layer.fill(circle(at: center, radius: radius), with: .color(chipTint))
                 layer.blendMode = .destinationOut
                 layer.fill(circle(at: previous, radius: radius), with: .color(.black))
+            }
+
+            // The tool, warmed by the cut.
+            if heat > 0 {
+                context.fill(circle(at: center, radius: radius),
+                             with: .color(chipTint.opacity(0.28 * heat)))
             }
 
             // The tool, with its centre marked.
@@ -104,7 +120,7 @@ struct DirectionGlyph: View {
             // Its head stops just short of where the tooth starts cutting: at the uncut wall for
             // climb, at the finished wall (where the chip is still nothing) for conventional.
             let entryAngle: CGFloat = direction == .climb
-                ? .pi
+                ? atan2(uncutY - center.y, travel * reach)
                 : -.pi / 2 - asin(feedPerTooth / (2 * radius))
             let endAngle: CGFloat = entryAngle - (direction == .climb ? 0.4 : 0)
             context.stroke(spinArrow(center: center, radius: radius * 0.35, endAngle: endAngle),

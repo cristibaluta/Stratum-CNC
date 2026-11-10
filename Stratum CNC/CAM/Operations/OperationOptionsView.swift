@@ -335,8 +335,12 @@ struct OperationOptionsView: View {
             }
 
             // Feed rate of the cutting moves in the plane (the entry's own feed is in the Entry section)
-            InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min")
-                .help("How fast the tool moves while cutting in the XY plane.")
+            InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min") {
+                FeedCalculatorButton(toolpath: $toolpath,
+                                     direction: cutDirectionBinding?.wrappedValue ?? .climb,
+                                     usesStepover: usesStepover)
+            }
+            .help("How fast the tool moves while cutting in the XY plane.")
 
             // Stepover is about how the area is cleared (facing included).
             if usesStepover {
@@ -359,9 +363,13 @@ struct OperationOptionsView: View {
             }
             InspectorCompactNumberField(tag: "Feed", value: $toolpath.feedRate,
                                         help: "Feed rate: how fast the tool moves while cutting in the XY plane (mm/min).")
+            FeedCalculatorButton(toolpath: $toolpath,
+                                 direction: cutDirectionBinding?.wrappedValue ?? .climb,
+                                 usesStepover: usesStepover)
             if usesStepover {
                 InspectorCompactNumberField(tag: "Stepover", value: stepOverPercent, suffix: "%",
-                                            help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter. \(stepOverNote)")
+                                            secondary: stepOverMMBinding, secondarySuffix: "mm",
+                                            help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter and in mm. Changing one updates the other. \(stepOverNote)")
             }
             if requirements.usesAllowance, kind != .restMachining {
                 InspectorCompactNumberField(tag: "Leave", value: stockToLeave,
@@ -528,14 +536,31 @@ struct OperationOptionsView: View {
         }
     }
 
-    /// Stepover, typed as a percentage of the tool diameter; what that comes to in mm is
-    /// spelled out underneath, since that's what the machine actually steps.
+    /// Stepover, typed as a percentage of the tool diameter; what that comes to in mm is in
+    /// the same field (a third of its width) and spelled out underneath, since that's what the
+    /// machine actually steps. Editing either value updates the other.
     /// The only clamp is `ToolpathData.stepOverRange`.
     @ViewBuilder
     private var stepOverRow: some View {
-        InspectorNumberField(title: "Stepover", value: stepOverPercent, suffix: "% of tool Ø")
-            .help("Distance between neighbouring passes, as a percentage of the tool diameter. Smaller means a smoother finish and more passes.")
+        InspectorNumberField(title: "Stepover", value: stepOverPercent, suffix: "% of tool Ø",
+                             secondary: stepOverMMBinding, secondarySuffix: "mm")
+            .help("Distance between neighbouring passes, as a percentage of the tool diameter (and in mm). Changing one updates the other. Smaller means a smoother finish and more passes.")
         InspectorNote(text: stepOverNote)
+    }
+
+    /// The stepover in mm. It is the same value as the percentage (`stepOverPercent` is what
+    /// is stored), so a mm typed here becomes a percentage of the tool diameter, clamped like it.
+    private var stepOverMMBinding: Binding<Double>? {
+        let diameter = Double(toolpath.tool.toolDiameter)
+        guard diameter > 0 else {
+            return nil
+        }
+        return Binding(
+            get: { toolpath.stepOverMM },
+            set: { mm in
+                stepOverPercent.wrappedValue = mm / diameter * 100
+            }
+        )
     }
 
     /// Whether the stepover row is shown: whatever the library says reads it (facing included).

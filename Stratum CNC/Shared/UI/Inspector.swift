@@ -381,6 +381,33 @@ struct InspectorValueTextField: View {
     }
 }
 
+/// Two parts of one number field side by side, the second taking a third of the width and
+/// the first the rest, with a thin divider between them. For one quantity in two units
+/// (stepover in % and in mm).
+struct InspectorSplitPair<Primary: View, Secondary: View>: View {
+    @ViewBuilder var primary: Primary
+    @ViewBuilder var secondary: Secondary
+
+    private let spacing: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                primary
+                    .frame(width: geo.size.width * 2 / 3, alignment: .leading)
+                HStack(spacing: spacing) {
+                    Divider()
+                        .frame(height: 14)
+                    secondary
+                }
+                .frame(width: geo.size.width / 3, alignment: .leading)
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .frame(height: Inspector.fieldHeight)
+    }
+}
+
 /// The small "0." checkbox at the right end of a number field.
 struct InspectorDecimalToggle: View {
     @Binding var isOn: Bool
@@ -407,44 +434,73 @@ struct InspectorNumberField<Accessory: View>: View {
     let prefix: String
     /// Optional control on the right of the field, on the same row (e.g. a helper button).
     let accessory: Accessory
+    /// A second value in the same gray field, after the first one's suffix, for two numbers
+    /// that are the same quantity in different units (stepover in % and in mm). Editing either
+    /// changes the other, since both bindings read and write the same underlying value.
+    let secondary: Binding<Double>?
+    let secondarySuffix: String
     /// Opt-in: a field that can be typed as just its decimals shows the checkbox for it at the
     /// right end of the field. Off for every other field.
     private let offersDecimalsOnly: Bool
     @AppStorage private var decimalsOnly: Bool
 
     init(title: String, value: Binding<Double>, suffix: String, prefix: String = "",
+         secondary: Binding<Double>? = nil, secondarySuffix: String = "",
          offersDecimalsOnly: Bool = false,
          @ViewBuilder accessory: () -> Accessory) {
         self.title = title
         self._value = value
         self.suffix = suffix
         self.prefix = prefix
+        self.secondary = secondary
+        self.secondarySuffix = secondarySuffix
         self.accessory = accessory()
         self.offersDecimalsOnly = offersDecimalsOnly
         _decimalsOnly = AppStorage(wrappedValue: false, InspectorDecimalEntry.key(for: title))
     }
 
+    /// The first value with its prefix, suffix and decimals checkbox.
+    private var primaryContent: some View {
+        HStack(spacing: 6) {
+            if !prefix.isEmpty {
+                Text(prefix)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, -5)
+            }
+
+            InspectorValueTextField(value: $value, decimalKey: offersDecimalsOnly ? title : nil)
+
+            if !suffix.isEmpty {
+                Text(suffix)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+
+            if offersDecimalsOnly {
+                InspectorDecimalToggle(isOn: $decimalsOnly)
+            }
+        }
+    }
+
     var body: some View {
         InspectorRow(label: title) {
             HStack(spacing: 6) {
-                HStack(spacing: 6) {
-                    if !prefix.isEmpty {
-                        Text(prefix)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .padding(.trailing, -5)
-                    }
-
-                    InspectorValueTextField(value: $value, decimalKey: offersDecimalsOnly ? title : nil)
-
-                    if !suffix.isEmpty {
-                        Text(suffix)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if offersDecimalsOnly {
-                        InspectorDecimalToggle(isOn: $decimalsOnly)
+                Group {
+                    if let secondary {
+                        InspectorSplitPair {
+                            primaryContent
+                        } secondary: {
+                            InspectorValueTextField(value: secondary, decimalKey: nil)
+                            Text(secondarySuffix)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    } else {
+                        primaryContent
                     }
                 }
                 .inspectorField()
@@ -458,8 +514,10 @@ struct InspectorNumberField<Accessory: View>: View {
 extension InspectorNumberField where Accessory == EmptyView {
 
     init(title: String, value: Binding<Double>, suffix: String, prefix: String = "",
+         secondary: Binding<Double>? = nil, secondarySuffix: String = "",
          offersDecimalsOnly: Bool = false) {
         self.init(title: title, value: value, suffix: suffix, prefix: prefix,
+                  secondary: secondary, secondarySuffix: secondarySuffix,
                   offersDecimalsOnly: offersDecimalsOnly) {
             EmptyView()
         }
@@ -477,9 +535,13 @@ struct InspectorCompactNumberField: View {
     /// The full form's title, when this field can take just the decimals: it follows that
     /// field's checkbox (the compact form has none of its own).
     var decimalKey: String? = nil
+    /// A second value in the same field (the same quantity in another unit): editing either
+    /// changes the other.
+    var secondary: Binding<Double>? = nil
+    var secondarySuffix: String = ""
     let help: String
 
-    var body: some View {
+    private var primaryContent: some View {
         HStack(spacing: 4) {
             Text(tag)
                 .font(.system(size: 10))
@@ -501,6 +563,24 @@ struct InspectorCompactNumberField: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize()
+            }
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let secondary {
+                InspectorSplitPair {
+                    primaryContent
+                } secondary: {
+                    InspectorValueTextField(value: secondary, decimalKey: nil)
+                    Text(secondarySuffix)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
+                }
+            } else {
+                primaryContent
             }
         }
         .inspectorField()
