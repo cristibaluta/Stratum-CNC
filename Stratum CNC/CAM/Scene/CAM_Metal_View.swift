@@ -16,6 +16,8 @@ import SwiftSTEP
 struct CAM_Metal_View: View {
 
     @StateObject private var scene: CAMSceneModel
+    /// Turns the stock and model over when the active setup's face changes.
+    @StateObject private var flip: SetupFlipAnimator
     let zoomModel: CanvasZoomModel
     /// The STEP scene drawn with the shapes. `nil` without a STEP model, or while it is still
     /// loading or failed to load.
@@ -64,6 +66,7 @@ struct CAM_Metal_View: View {
          onAddStepToolpath: @escaping (OperationKind) -> Void = { _ in }) {
 
         _scene = StateObject(wrappedValue: CAMSceneModel(canvasState: canvasState))
+        _flip = StateObject(wrappedValue: SetupFlipAnimator(initial: partFrame))
 
         self.zoomModel = zoomModel
         self.stepScene = stepScene
@@ -87,6 +90,9 @@ struct CAM_Metal_View: View {
             }
             .onChange(of: colorScheme) { _, newScheme in
                 scene.setColorScheme(newScheme)
+            }
+            .onChange(of: partFrame) { _, newFrame in
+                flip.start(to: newFrame)
             }
             .onAppear {
                 scene.interaction.onStepModelMoved = onMoveStepModel
@@ -134,6 +140,18 @@ struct CAM_Metal_View: View {
         return objects
     }
 
+    /// The matrix the stock and model are drawn with: the active setup's, or part-way to it while flipping.
+    private var partMatrix: simd_float4x4 {
+        flip.displayMatrix(for: partFrame)
+    }
+
+    /// The scene's objects for the 3D view. The flat shapes and toolpath overlay lie on the face
+    /// that is up, so they sit out the flip and come back when the new face has landed.
+    private var sceneObjects3D: [RenderObject] {
+        let objects = scene.renderObjects3D(frame: partFrame)
+        return flip.isFlipping(to: partFrame) ? objects.filter { $0.role != .faceOverlay } : objects
+    }
+
     /// The CAM scene (shapes, toolpaths, stock, selection overlays; the ruler on the stock's
     /// bottom face and the XYZ origin axes — see `CAMSceneModel.renderObjects3D`), plus the STEP
     /// wireframe when there is one. A different branch for STEP means a fresh `MetalCanvasView`
@@ -142,8 +160,8 @@ struct CAM_Metal_View: View {
     private var canvas: some View {
         if let stepScene {
             STEP3DCanvas(scene: stepScene, shapes: scene,
-                         sceneObjects: scene.renderObjects3D(frame: partFrame) + stepModelOverlay,
-                         partTransform: partFrame.matrix,
+                         sceneObjects: sceneObjects3D + stepModelOverlay,
+                         partTransform: partMatrix,
                          previewTransform: partFrame.previewMatrix,
                          projectionZ: Float(partFrame.z0InPartFrame),
                          clearColor: scene.backgroundColor, isDark: colorScheme == .dark,
@@ -155,7 +173,7 @@ struct CAM_Metal_View: View {
                          onAddStepToolpath: onAddStepToolpath,
                          onEmptyClick: onDeselectStepModel)
         } else {
-            MetalCanvasView(objects: .constant(scene.renderObjects3D(frame: partFrame)),
+            MetalCanvasView(objects: .constant(sceneObjects3D),
                             clearColor: scene.backgroundColor,
                             pointerHandler: scene.interaction,
                             zoomModel: zoomModel,
@@ -163,7 +181,7 @@ struct CAM_Metal_View: View {
                                 Self.route(click, shapes: scene.interaction, step: nil,
                                            onEmptyClick: onDeselectStepModel)
                             },
-                            partTransform: partFrame.matrix,
+                            partTransform: partMatrix,
                             previewTransform: partFrame.previewMatrix,
                             startsTopDown: startsTopDown,
                             adaptiveModelFit: true,
