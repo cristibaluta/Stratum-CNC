@@ -41,6 +41,7 @@ struct CAMLayersOverlay: View {
                          isVisible: { isVisible($0, stepScene: stepScene) },
                          setVisible: { setVisible($0, $1, stepScene: stepScene) },
                          tint: { tint(for: $0) },
+                         label: { label(for: $0) },
                          footer: stepScene.map { AnyView(ProjectionToggle(scene: $0)) })
     }
 
@@ -87,6 +88,11 @@ struct CAMLayersOverlay: View {
         }
     }
 
+    /// CAM calls the anchor its ruler (the controller's canvas keeps "Anchor").
+    private func label(for layer: CanvasLayer) -> String {
+        layer == .anchor ? "Ruler" : layer.label
+    }
+
     /// The canvas draws the stock in its material's color and the ruler gray, not in the
     /// controller's palette.
     private func tint(for layer: CanvasLayer) -> Color? {
@@ -95,6 +101,9 @@ struct CAMLayersOverlay: View {
                 return canvasState.stock.map { Color(canvasColor: $0.material.surfaceColor) }
             case .anchor:
                 return Color(canvasColor: CAMSceneModel.Style.rulerColor)
+            case .toolpaths:
+                // The top face's toolpath color, the canvas's usual blue
+                return Color(canvasColor: CAMSceneModel.Style.toolpathColor(for: .top))
             default:
                 return layer.tint
         }

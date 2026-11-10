@@ -259,7 +259,7 @@ class GCodeStore: ObservableObject {
 
     // MARK: Importing
 
-    /// Builds a G-code program from the toolpaths of the CAM project and loads it as the current
+    /// Builds a G-code program from the toolpaths of the CAM project's active setup (face) and loads it as the current
     /// document, exactly as if it had been opened from a file (canvas, heightmap, tool list and
     /// the uploader all follow from `document`).
     ///
@@ -281,14 +281,21 @@ class GCodeStore: ObservableObject {
 
     private func importFromCAM(_ camModel: CAMModel) async {
 
-        let pending = camModel.toolpaths.filter { Self.needsGeneration($0, in: camModel) }
+        // A program is one setup (the stock is turned between setups), so only the toolpaths of the
+        // face active in CAM are generated and posted. The others are left alone.
+        let activeSetup = camModel.setup(withID: camModel.activeSetupID) ?? camModel.setups[0]
+        let toolpaths = camModel.toolpaths.filter { camModel.setup(for: $0).id == activeSetup.id }
+
+        let pending = toolpaths.filter { Self.needsGeneration($0, in: camModel) }
         if !pending.isEmpty {
-            await generate(pending, in: camModel)
+            await generate(pending, of: toolpaths, in: camModel)
         }
 
         // Read after the generations above: they are what the program is built from, and they
         // bump `camModel.revision`, which must not make the fresh program look outdated.
-        let plan = ToolpathGCodeBuilder.plan(toolpaths: camModel.toolpaths, generations: camModel.generations)
+        // Re-read the setup's toolpaths: they may have been edited or removed while generating.
+        let current = camModel.toolpaths.filter { camModel.setup(for: $0).id == activeSetup.id }
+        let plan = ToolpathGCodeBuilder.plan(toolpaths: current, generations: camModel.generations)
         guard !plan.sections.isEmpty else {
             endCAMImport()
             camImportMessage = plan.nothingToGenerateMessage
@@ -298,11 +305,13 @@ class GCodeStore: ObservableObject {
         isBuildingCAMGCode = true
         let sections = plan.sections
         let stock = camModel.selectedStockMaterial
+        // The header names the setup only when the project has several
+        let headerSetup = camModel.setups.count > 1 ? activeSetup : nil
         let revision = camModel.revision
 
         // The engine can take a while on a big job; keep it off the main thread.
         let gcode = await Task.detached(priority: .userInitiated) {
-            ToolpathGCodeBuilder.generate(sections, stock: stock)
+            ToolpathGCodeBuilder.generate(sections, stock: stock, setup: headerSetup)
         }.value
 
         finishGeneratingFromCAM(gcode: gcode, plan: plan, camRevision: revision)
@@ -310,10 +319,11 @@ class GCodeStore: ObservableObject {
 
     /// Generates `pending` one after the other, updating the popover as each one starts and ends.
     /// One at a time keeps the progress readable and the engine from competing with itself.
-    private func generate(_ pending: [ToolpathData], in camModel: CAMModel) async {
+    /// `listed` is what the popover shows: the toolpaths of the setup being generated.
+    private func generate(_ pending: [ToolpathData], of listed: [ToolpathData], in camModel: CAMModel) async {
 
         let pendingIDs = Set(pending.map(\.id))
-        camProgress = camModel.toolpaths.map { toolpath in
+        camProgress = listed.map { toolpath in
             CAMProgressItem(id: toolpath.id,
                             name: toolpath.name,
                             state: pendingIDs.contains(toolpath.id) ? .waiting : Self.state(of: toolpath, in: camModel))

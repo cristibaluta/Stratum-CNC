@@ -29,6 +29,9 @@ struct CanvasLayersList: View {
     /// The color the canvas draws a layer in, for tinting its row. `CanvasLayer.tint` unless the
     /// canvas draws it in another one.
     private let tint: (CanvasLayer) -> Color?
+    /// What a layer is called in the list. `CanvasLayer.label` unless the canvas names it differently
+    /// (CAM calls the anchor its ruler).
+    private let label: (CanvasLayer) -> String
     /// The layers that have a gear, and the content of the popover behind it.
     private let settingsLayers: Set<CanvasLayer>
     private let settings: (CanvasLayer) -> AnyView
@@ -43,6 +46,7 @@ struct CanvasLayersList: View {
          setVisible: @escaping (CanvasLayer, Bool) -> Void,
          unavailableReason: @escaping (CanvasLayer) -> String? = { _ in nil },
          tint: @escaping (CanvasLayer) -> Color? = { $0.tint },
+         label: @escaping (CanvasLayer) -> String = { $0.label },
          settingsLayers: Set<CanvasLayer> = [],
          settings: @escaping (CanvasLayer) -> AnyView = { _ in AnyView(EmptyView()) },
          footer: AnyView? = nil) {
@@ -51,6 +55,7 @@ struct CanvasLayersList: View {
         self.setVisible = setVisible
         self.unavailableReason = unavailableReason
         self.tint = tint
+        self.label = label
         self.settingsLayers = settingsLayers
         self.settings = settings
         self.footer = footer
@@ -107,7 +112,7 @@ struct CanvasLayersList: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: isOn ? "checkmark.square.fill" : "square")
-                    Text(layer.label)
+                    Text(label(layer))
                         .font(.caption)
                 }
                 .foregroundStyle(layerTint ?? Color.primary)
@@ -115,7 +120,7 @@ struct CanvasLayersList: View {
             }
             .buttonStyle(.plain)
             .disabled(reason != nil)
-            .help(reason ?? "Show or hide \(layer.label.lowercased())")
+            .help(reason ?? "Show or hide \(label(layer).lowercased())")
 
             Spacer(minLength: 0)
 
