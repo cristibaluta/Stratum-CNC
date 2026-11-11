@@ -36,11 +36,15 @@ enum SVGFlattener {
 
         var flatPaths: [XMLElement] = []
         walk(root, transform: .identity, defs: defs, inDefs: false, out: &flatPaths, depth: 0)
-        guard !flatPaths.isEmpty else { return url }
+        guard !flatPaths.isEmpty else {
+            return url
+        }
 
         let newRoot = XMLElement(name: "svg")
         for attr in root.attributes ?? [] {
-            guard let name = attr.name, !name.hasPrefix("xmlns:") else { continue }
+            guard let name = attr.name, !name.hasPrefix("xmlns:") else {
+                continue
+            }
             newRoot.addAttribute(XMLNode.attribute(withName: name, stringValue: attr.stringValue ?? "") as! XMLNode)
         }
         flatPaths.forEach { newRoot.addChild($0) }
@@ -59,15 +63,28 @@ enum SVGFlattener {
     private static let drawable: Set<String> = ["path", "rect", "circle", "ellipse", "line", "polyline", "polygon"]
 
     private static func collectIDs(in element: XMLElement, into map: inout [String: XMLElement]) {
-        if let id = element.attribute(forName: "id")?.stringValue { map[id] = element }
-        for case let child as XMLElement in element.children ?? [] { collectIDs(in: child, into: &map) }
+        if let id = element.attribute(forName: "id")?.stringValue {
+            map[id] = element
+        }
+        for case let child as XMLElement in element.children ?? [] {
+            collectIDs(in: child, into: &map)
+        }
     }
 
-    private static func walk(_ el: XMLElement, transform: CGAffineTransform, defs: [String: XMLElement],
-                             inDefs: Bool, out: inout [XMLElement], depth: Int) {
-        guard depth < 32 else { return }   // guards against <use> cycles
+    private static func walk(_ el: XMLElement,
+                             transform: CGAffineTransform,
+                             defs: [String: XMLElement],
+                             inDefs: Bool,
+                             out: inout [XMLElement],
+                             depth: Int) {
+
+        guard depth < 32 else {
+            return
+        }   // guards against <use> cycles
         let name = el.name ?? ""
-        if name == "defs" || name == "symbol" || name == "clipPath" || name == "mask" { return }
+        if name == "defs" || name == "symbol" || name == "clipPath" || name == "mask" {
+            return
+        }
 
         var t = transform
         if let s = el.attribute(forName: "transform")?.stringValue {
@@ -76,7 +93,9 @@ enum SVGFlattener {
 
         if name == "use" {
             let ref = (el.attribute(forName: "xlink:href") ?? el.attribute(forName: "href"))?.stringValue ?? ""
-            guard ref.hasPrefix("#"), let target = defs[String(ref.dropFirst())] else { return }
+            guard ref.hasPrefix("#"), let target = defs[String(ref.dropFirst())] else {
+                return
+            }
             var ut = t
             let x = Double(el.attribute(forName: "x")?.stringValue ?? "") ?? 0
             let y = Double(el.attribute(forName: "y")?.stringValue ?? "") ?? 0
@@ -107,25 +126,29 @@ enum SVGFlattener {
         var result = CGAffineTransform.identity
         let regex = try! NSRegularExpression(pattern: #"(matrix|translate|scale|rotate)\s*\(([^)]*)\)"#)
         let ns = string as NSString
+
         for m in regex.matches(in: string, range: NSRange(location: 0, length: ns.length)) {
             let fn = ns.substring(with: m.range(at: 1))
             let v = ns.substring(with: m.range(at: 2))
                 .split(whereSeparator: { $0 == "," || $0 == " " || $0 == "\n" || $0 == "\t" })
                 .compactMap { Double($0) }.map { CGFloat($0) }
             var op = CGAffineTransform.identity
+
             switch fn {
-            case "matrix" where v.count == 6:
-                op = CGAffineTransform(a: v[0], b: v[1], c: v[2], d: v[3], tx: v[4], ty: v[5])
-            case "translate" where v.count >= 1:
-                op = CGAffineTransform(translationX: v[0], y: v.count > 1 ? v[1] : 0)
-            case "scale" where v.count >= 1:
-                op = CGAffineTransform(scaleX: v[0], y: v.count > 1 ? v[1] : v[0])
-            case "rotate" where v.count >= 1:
-                let r = v[0] * .pi / 180
-                if v.count == 3 {
-                    op = CGAffineTransform(translationX: v[1], y: v[2]).rotated(by: r).translatedBy(x: -v[1], y: -v[2])
-                } else { op = CGAffineTransform(rotationAngle: r) }
-            default: break
+                case "matrix" where v.count == 6:
+                    op = CGAffineTransform(a: v[0], b: v[1], c: v[2], d: v[3], tx: v[4], ty: v[5])
+                case "translate" where v.count >= 1:
+                    op = CGAffineTransform(translationX: v[0], y: v.count > 1 ? v[1] : 0)
+                case "scale" where v.count >= 1:
+                    op = CGAffineTransform(scaleX: v[0], y: v.count > 1 ? v[1] : v[0])
+                case "rotate" where v.count >= 1:
+                    let r = v[0] * .pi / 180
+                    if v.count == 3 {
+                        op = CGAffineTransform(translationX: v[1], y: v[2]).rotated(by: r).translatedBy(x: -v[1], y: -v[2])
+                    } else {
+                        op = CGAffineTransform(rotationAngle: r)
+                    }
+                default: break
             }
             result = op.concatenating(result)
         }

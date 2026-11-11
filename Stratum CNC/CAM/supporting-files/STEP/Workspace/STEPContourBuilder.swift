@@ -20,17 +20,21 @@ enum STEPContourBuilder {
     static let joinTolerance = 0.005
 
     static func contours(from polylines: [[SIMD3<Double>]]) -> [SC.Contour] {
+
         var remaining: [[SIMD2<Double>]] = polylines.compactMap { polyline in
             var points: [SIMD2<Double>] = []
             for point in polyline {
                 let flat = point.xy
-                if let last = points.last, simd_distance(last, flat) < 1e-9 { continue }
+                if let last = points.last, simd_distance(last, flat) < 1e-9 {
+                    continue
+                }
                 points.append(flat)
             }
             return points.count >= 2 ? points : nil
         }
 
         var chains: [[SIMD2<Double>]] = []
+        
         while !remaining.isEmpty {
             var chain = remaining.removeFirst()
             var extended = true
@@ -60,7 +64,9 @@ enum STEPContourBuilder {
         return chains.compactMap { chain in
             var points = chain
             let closed = isClosed(points)
-            if closed { points[points.count - 1] = points[0] }   // no gap left at the seam
+            if closed {
+                points[points.count - 1] = points[0]
+            }   // no gap left at the seam
             var entities: [SC.Contour.Chained] = []
             for index in 0..<(points.count - 1) where simd_distance(points[index], points[index + 1]) > 1e-9 {
                 entities.append(SC.Contour.Chained(geometry: .line(a: points[index], b: points[index + 1]),

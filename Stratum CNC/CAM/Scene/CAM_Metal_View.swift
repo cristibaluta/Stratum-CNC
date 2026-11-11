@@ -200,14 +200,19 @@ struct CAM_Metal_View: View {
     /// edges), then empty space. Shapes and edges are never
     /// selected together, except as the picks of an open toolpath.
     /// A double click on a STEP edge also expands the selection (see `expandSelection(from:)`).
-    static func route(_ click: CanvasClick, shapes: CAMCanvasInteraction, step: STEPDocumentScene?,
+    static func route(_ click: CanvasClick,
+                      shapes: CAMCanvasInteraction,
+                      step: STEPDocumentScene?,
                       onEmptyClick: () -> Void = {}) {
+
         let extend = click.extendsSelection
         let picking = shapes.isPicking
 
         if let pointer = click.pointer, let hit = shapes.shapeHit(at: pointer) {
             shapes.select(hit, extend: extend)
-            if !picking { step?.clearSelection() }
+            if !picking {
+                step?.clearSelection()
+            }
             return
         }
         if let step, let edge = step.edge(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
@@ -217,12 +222,16 @@ struct CAM_Metal_View: View {
             } else {
                 step.select(edge, extend: extend)
             }
-            if !picking { shapes.clearSelection() }
+            if !picking {
+                shapes.clearSelection()
+            }
             return
         }
         if let step, let edges = step.faceEdges(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
             step.selectFace(edges, extend: extend)
-            if !picking { shapes.clearSelection() }
+            if !picking {
+                shapes.clearSelection()
+            }
             return
         }
         // Empty space: keeps a toolpath's picks, and a multi-select's selection
@@ -232,59 +241,5 @@ struct CAM_Metal_View: View {
         shapes.select(nil, extend: false)
         step?.clearSelection()
         onEmptyClick()
-    }
-}
-
-/// The CAM scene plus the STEP wireframe in one canvas, with edge picking next to shape picking.
-private struct STEP3DCanvas: View {
-
-    @ObservedObject var scene: STEPDocumentScene
-    let shapes: CAMSceneModel
-    let sceneObjects: [RenderObject]
-    let partTransform: simd_float4x4
-    let previewTransform: simd_float4x4
-    /// Part-frame height of the active setup's z0 (`SetupFrame.z0InPartFrame`)
-    let projectionZ: Float
-    let clearColor: SIMD4<Float>
-    let isDark: Bool
-    let zoomModel: CanvasZoomModel
-    let addToolpathShapeCount: Int
-    let canAddToolpath: Bool
-    let fitRequest: Int
-    let onAddToolpath: () -> Void
-    let onAddStepToolpath: (SC.MachiningOperation.Kind) -> Void
-    let onEmptyClick: () -> Void
-
-    var body: some View {
-        MetalCanvasView(objects: .constant(sceneObjects + scene.visibleObjects),
-                        clearColor: clearColor,
-                        pointerHandler: shapes.interaction,
-                        zoomModel: zoomModel,
-                        onClick: { click in
-                            CAM_Metal_View.route(click, shapes: shapes.interaction, step: scene,
-                                                 onEmptyClick: onEmptyClick)
-                        },
-                        partTransform: partTransform,
-                        previewTransform: previewTransform,
-                        adaptiveModelFit: true,
-                        fitRequest: scene.fitRequest &+ fitRequest)
-            .id(ObjectIdentifier(scene))
-            .onAppear { scene.setAppearance(isDark: isDark) }
-            .onChange(of: isDark) { _, dark in scene.setAppearance(isDark: dark) }
-            // The projection lands on the setup's z0, which is the part's underside when flipped
-            .onChange(of: projectionZ, initial: true) { _, z in scene.setProjectionZ(z) }
-            .overlay {
-                AddToolpathTooltipLayer(scene: shapes,
-                                        zoomModel: zoomModel,
-                                        shapeCount: addToolpathShapeCount,
-                                        onAdd: onAddToolpath)
-            }
-            .overlay {
-                // No callout while a toolpath is open (its details panel is showing)
-                if canAddToolpath {
-                    STEPAddToolpathTooltipLayer(scene: scene, zoomModel: zoomModel,
-                                                canAdd: canAddToolpath, onChoose: onAddStepToolpath)
-                }
-            }
     }
 }

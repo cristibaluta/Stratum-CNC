@@ -1,87 +1,14 @@
 //
-//  SVGImporter.swift
+//  DXFPathConverter.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 06/09/2026.
+//  Created by Cristian Baluta on 11.11.2026.
 //
 
 import Foundation
-import PocketSVG
+import CoreGraphics
 import SwiftDXF
 import StratumCAM
-
-class SVGImporter: Importer {
-
-    private let factory = ObjectFactory()
-
-    func parse(url: URL) -> D2_Object? {
-
-        // PocketSVG ignores <use>/<defs> and group transforms; flatten first.
-        let source = SVGFlattener.flattenedURLIfNeeded(for: url)
-        defer { if source != url { try? FileManager.default.removeItem(at: source) } }
-
-        let svg = SVGLayer(contentsOf: source)
-        if svg.paths.isEmpty {
-            print("SVGImporter: no paths found in \(url.lastPathComponent) (viewBox \(svg.viewBox))")
-        }
-
-        var bezierPaths: [STBezierPath] = []
-        let svgPaths: [SVGBezierPath] = svg.paths
-        for path in svgPaths {
-//            print(path.svgAttributes)
-//            print(path.svgAttributes["transform"] as Any)
-            // Some svgs (saved by Inkscape) do not have the real values that will match the viewbox
-            // But they contain a transform we can use to scale everything down
-            if let cg = path.svgAttributes["transform"] as? CGAffineTransform {
-                let nsTransform = AffineTransform(
-                    m11: cg.a,
-                    m12: cg.b,
-                    m21: cg.c,
-                    m22: cg.d,
-                    tX: cg.tx,
-                    tY: cg.ty
-                )
-                path.transform(using: nsTransform)
-            }
-            bezierPaths.append(path)
-        }
-
-        #if os(macOS)
-        // SVG coordinate system starts from top-left
-        // Mac coordinate system starts from bottom-left
-        // We need to flip all the y values of the bezierPaths while maintaining the viewbox
-        bezierPaths = bezierPaths.map { $0.pathWithFlippedY(inHeight: svg.viewBox.height) }
-        #endif
-
-        // One path per subpath, like the DXF and Gerber importers (one path per
-        // contour). A single SVG <path> can hold many subpaths — the outline
-        // and the cut-outs of a shape, the rings of an "O" — and keeping them
-        // in one `paths[i]` made them select and pick as a single unit.
-        // Split after the Y-flip so the pieces keep the flipped orientation.
-        // To machine an outline together with its holes, pick them all.
-        var paths: [STBezierPath] = []
-        // Index-aligned with `paths` — see D2_Object.contours
-        var contours: [[SC.Contour]] = []
-        for subpath in bezierPaths.flatMap({ $0.subpaths() }) {
-            let subpathContours = subpath.dxfContours()
-            // Nothing machinable (e.g. a zero-length segment): skip it so
-            // `paths` and `contours` stay aligned and nothing selectable is empty.
-            guard !subpathContours.isEmpty else {
-                continue
-            }
-            paths.append(subpath)
-            contours.append(subpathContours)
-        }
-
-        // Derive entities from the final, already-flipped paths so `entities`
-        // describes the exact same orientation as `paths` — computing them
-        // beforehand (from pre-flip geometry) would leave entities mirrored
-        // vertically relative to what's actually drawn.
-        let entities = paths.flatMap { $0.dxfEntities() }
-
-        return factory.makeObject(name: url.lastPathComponent, paths: paths, entities: entities, contours: contours)
-    }
-}
 
 extension STBezierPath {
 
@@ -275,13 +202,7 @@ private extension DXFPathConverter {
 
         for index in 1...steps {
             let t = Double(index) / Double(steps)
-
-            let point = quadraticPoint(
-                p0: p0,
-                p1: p1,
-                p2: p2,
-                t: t
-            )
+            let point = quadraticPoint(p0: p0, p1: p1, p2: p2, t: t)
 
             entities.append(
                 .line(
@@ -314,14 +235,7 @@ private extension DXFPathConverter {
 
         for index in 1...steps {
             let t = Double(index) / Double(steps)
-
-            let point = cubicPoint(
-                p0: p0,
-                p1: p1,
-                p2: p2,
-                p3: p3,
-                t: t
-            )
+            let point = cubicPoint(p0: p0, p1: p1, p2: p2, p3: p3, t: t)
 
             entities.append(
                 .line(
@@ -354,13 +268,12 @@ private func quadraticPoint(p0: CGPoint,
     )
 }
 
-private func cubicPoint(
-    p0: CGPoint,
-    p1: CGPoint,
-    p2: CGPoint,
-    p3: CGPoint,
-    t: Double
-) -> CGPoint {
+private func cubicPoint(p0: CGPoint,
+                        p1: CGPoint,
+                        p2: CGPoint,
+                        p3: CGPoint,
+                        t: Double) -> CGPoint {
+
     let u = 1.0 - t
 
     return CGPoint(
@@ -388,13 +301,12 @@ private func cubicPoint(
 /// It used to be `ceil(controlPolygonLength / tolerance)` — one segment per 0.01 mm of curve,
 /// regardless of how straight or curved it was — which turned a simple outline into tens of
 /// thousands of entities and the toolpath engine's output into millions of waypoints.
-private func bezierStepCount(
-    from p0: CGPoint,
-    control1 p1: CGPoint,
-    control2 p2: CGPoint,
-    to p3: CGPoint,
-    tolerance: Double
-) -> Int {
+private func bezierStepCount(from p0: CGPoint,
+                             control1 p1: CGPoint,
+                             control2 p2: CGPoint,
+                             to p3: CGPoint,
+                             tolerance: Double) -> Int {
+
     let d1 = hypot(Double(p0.x - 2 * p1.x + p2.x), Double(p0.y - 2 * p1.y + p2.y))
     let d2 = hypot(Double(p1.x - 2 * p2.x + p3.x), Double(p1.y - 2 * p2.y + p3.y))
     let n = (0.75 * max(d1, d2) / max(tolerance, 0.000001)).squareRoot()
@@ -403,22 +315,18 @@ private func bezierStepCount(
 }
 
 /// Same idea for a quadratic: max|B''| = 2 * |p0-2p1+p2|, so n = ceil(sqrt(0.25 * M / tolerance)).
-private func quadraticStepCount(
-    from p0: CGPoint,
-    control p1: CGPoint,
-    to p2: CGPoint,
-    tolerance: Double
-) -> Int {
+private func quadraticStepCount(from p0: CGPoint,
+                                control p1: CGPoint,
+                                to p2: CGPoint,
+                                tolerance: Double) -> Int {
+
     let d = hypot(Double(p0.x - 2 * p1.x + p2.x), Double(p0.y - 2 * p1.y + p2.y))
     let n = (0.25 * d / max(tolerance, 0.000001)).squareRoot()
 
     return max(4, Int(n.rounded(.up)))
 }
 
-private func distance(
-    _ a: CGPoint,
-    _ b: CGPoint
-) -> Double {
+private func distance(_ a: CGPoint, _ b: CGPoint) -> Double {
     hypot(
         Double(b.x - a.x),
         Double(b.y - a.y)
