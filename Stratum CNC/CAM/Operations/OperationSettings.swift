@@ -73,11 +73,11 @@ struct OperationSettings: Codable, Hashable {
 
     // Contour
     /// Holding tabs left in the cut, in the order the form lists them.
-    var contourTabs: [HoldingTabSettings] = []
+    var contourTabs: [SC.HoldingTab] = []
     /// The approach before the cut and the move off it afterwards. `nil` = none (the tool
     /// goes straight in / out). A ramp or helix entry is made at the lead-in's start point.
-    var contourLeadIn: LeadInOutSettings? = nil
-    var contourLeadOut: LeadInOutSettings? = nil
+    var contourLeadIn: SC.LeadInOut? = nil
+    var contourLeadOut: SC.LeadInOut? = nil
 
     // Facing
     /// How far the passes run past the selection's bounding box, mm.
@@ -173,9 +173,9 @@ extension OperationSettings {
             let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
             legacyAdaptiveLoadMM = try legacy.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoad)
         }
-        contourTabs = try c.decodeIfPresent([HoldingTabSettings].self, forKey: .contourTabs) ?? d.contourTabs
-        contourLeadIn = try c.decodeIfPresent(LeadInOutSettings.self, forKey: .contourLeadIn) ?? d.contourLeadIn
-        contourLeadOut = try c.decodeIfPresent(LeadInOutSettings.self, forKey: .contourLeadOut) ?? d.contourLeadOut
+        contourTabs = try c.decodeIfPresent([SC.HoldingTab].self, forKey: .contourTabs) ?? d.contourTabs
+        contourLeadIn = try c.decodeIfPresent(SC.LeadInOut.self, forKey: .contourLeadIn) ?? d.contourLeadIn
+        contourLeadOut = try c.decodeIfPresent(SC.LeadInOut.self, forKey: .contourLeadOut) ?? d.contourLeadOut
         facingExtension = try c.decodeIfPresent(Double.self, forKey: .facingExtension) ?? d.facingExtension
         facingWholeStock = try c.decodeIfPresent(Bool.self, forKey: .facingWholeStock) ?? d.facingWholeStock
         slotSource = try c.decodeIfPresent(SlotSource.self, forKey: .slotSource) ?? d.slotSource
@@ -218,118 +218,5 @@ private extension KeyedDecodingContainer {
             text.filter { $0.isLetter || $0.isNumber }.lowercased()
         }
         return T.allCases.first { normalized($0.rawValue) == normalized(stored) }
-    }
-}
-
-/// A contour's lead-in or lead-out: the app's own Codable copy of `SC.LeadInOut`.
-struct LeadInOutSettings: Codable, Hashable {
-
-    enum Style: Codable, Hashable {
-        /// A straight run, mm.
-        case linear(length: Double)
-        /// A quarter-circle-like arc: radius in mm, sweep in degrees.
-        case arc(radius: Double, sweepAngleDegrees: Double)
-    }
-
-    var style: Style
-    /// mm/min.
-    var feedRate: Double
-    /// Moves the move along a closed contour, 0...1 of its length. A lead-in starts the cut
-    /// there; a lead-out carries the cut on that far past where it would end.
-    var positionRatio: Double = 0
-    /// Linear leads only: the angle to the contour in degrees. 0 = in line with it, positive
-    /// leans towards the free side, negative towards the material.
-    var angleDegrees: Double = 0
-
-    init(style: Style, feedRate: Double, positionRatio: Double = 0, angleDegrees: Double = 0) {
-        self.style = style
-        self.feedRate = feedRate
-        self.positionRatio = positionRatio
-        self.angleDegrees = angleDegrees
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case style, feedRate, positionRatio, angleDegrees
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        style = try c.decode(Style.self, forKey: .style)
-        feedRate = try c.decode(Double.self, forKey: .feedRate)
-        positionRatio = try c.decodeIfPresent(Double.self, forKey: .positionRatio) ?? 0
-        angleDegrees = try c.decodeIfPresent(Double.self, forKey: .angleDegrees) ?? 0
-    }
-
-    init(_ leadInOut: SC.LeadInOut) {
-        switch leadInOut.style {
-            case .linear(let length):
-                style = .linear(length: length)
-            case .arc(let radius, let sweep):
-                style = .arc(radius: radius, sweepAngleDegrees: sweep)
-        }
-        feedRate = leadInOut.feedRate
-        positionRatio = leadInOut.positionRatio
-        angleDegrees = leadInOut.angleDegrees
-    }
-
-    var libraryLeadInOut: SC.LeadInOut {
-        switch style {
-            case .linear(let length):
-                return SC.LeadInOut(style: .linear(length: length), feedRate: feedRate, positionRatio: positionRatio, angleDegrees: angleDegrees)
-            case .arc(let radius, let sweep):
-                return SC.LeadInOut(style: .arc(radius: radius, sweepAngleDegrees: sweep), feedRate: feedRate, positionRatio: positionRatio, angleDegrees: angleDegrees)
-        }
-    }
-}
-
-/// One holding tab of a contour: the app's own Codable copy of `SC.HoldingTab`
-/// (whose id is new every time it is built). The `id` here only identifies the row in the
-/// editor and isn't saved.
-struct HoldingTabSettings: Codable, Hashable, Identifiable {
-    var id = UUID()
-    /// Where along the contour the tab sits, 0...1.
-    var positionRatio: Double
-    /// mm.
-    var width: Double
-    /// mm, measured up from the bottom of the cut.
-    var height: Double
-
-    /// The ranges `SC.MachiningOperation.formFields` gives these values.
-    static let positionRange: ClosedRange<Double> = 0...1
-    static let widthRange: ClosedRange<Double> = 1...20
-    static let heightRange: ClosedRange<Double> = 0.1...10
-
-    private enum CodingKeys: String, CodingKey {
-        case positionRatio, width, height
-    }
-
-    init(positionRatio: Double, width: Double, height: Double) {
-        self.positionRatio = positionRatio
-        self.width = width
-        self.height = height
-    }
-
-    init(_ tab: SC.HoldingTab) {
-        self.init(positionRatio: tab.positionRatio, width: tab.width, height: tab.height)
-    }
-
-    /// A tab with the library's default size, put in the middle of the largest gap between
-    /// the existing ones so they don't pile up at the same spot.
-    static func new(after tabs: [HoldingTabSettings]) -> HoldingTabSettings {
-        var tab = HoldingTabSettings(SC.HoldingTab(positionRatio: 0.5))
-        let positions = ([0.0] + tabs.map(\.positionRatio).sorted() + [1.0])
-        var best = (gap: 0.0, middle: 0.5)
-        for (a, b) in positions.adjacentPairs() where b - a > best.gap {
-            best = (b - a, (a + b) / 2)
-        }
-        tab.positionRatio = best.middle
-        return tab
-    }
-
-    var libraryTab: SC.HoldingTab {
-        var tab = SC.HoldingTab(positionRatio: positionRatio)
-        tab.width = width
-        tab.height = height
-        return tab
     }
 }

@@ -51,8 +51,8 @@ extension ToolpathData {
 
             case .contour(let side, _, _, let leadIn, let leadOut, _):
                 contour = side
-                operation.contourLeadIn = leadIn.map(LeadInOutSettings.init)
-                operation.contourLeadOut = leadOut.map(LeadInOutSettings.init)
+                operation.contourLeadIn = leadIn
+                operation.contourLeadOut = leadOut
 
             case .pocket(_, let pattern, _):
                 switch pattern {

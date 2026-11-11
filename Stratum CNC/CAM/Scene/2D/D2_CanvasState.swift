@@ -9,6 +9,7 @@ import Foundation
 import CoreGraphics
 import Combine
 import simd
+import StratumCAM
 
 /// Single source of truth for everything the 2D canvas, the objects inspector
 /// and the material panel need to agree on: the objects, the current
@@ -122,7 +123,7 @@ final class D2_CanvasState: ObservableObject, Equatable {
     /// The shapes the open contour toolpath cuts and the holding tabs it leaves in them.
     struct HoldingTabsOverlay: Equatable {
         var targets: [PathSelection]
-        var tabs: [HoldingTabSettings]
+        var tabs: [SC.HoldingTab]
     }
 
     /// The tabs drawn on the canvas: only for the open toolpath, and only when it has some.

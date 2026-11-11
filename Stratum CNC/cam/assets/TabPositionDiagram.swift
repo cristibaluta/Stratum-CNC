@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 /// A closed contour with one numbered marker per tab, placed by its position ratio: the
 /// selected shape when there is one, otherwise a schematic rounded rectangle. A ratio is a
@@ -14,7 +15,7 @@ import SwiftUI
 /// offset by its radius, and the engine decides the real start and direction, so the markers
 /// are an approximation.
 struct TabPositionDiagram: View {
-    let tabs: [HoldingTabSettings]
+    let tabs: [SC.HoldingTab]
     /// The outline in world space (y up); `nil` draws the schematic.
     var shape: CGPath? = nil
 

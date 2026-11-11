@@ -16,7 +16,7 @@ import StratumCAM
 /// "Lead-In" / "Lead-Out": the switch, then (while it is on) what it is set to and the gear.
 struct LeadInOutRow: View {
     let title: String
-    @Binding var leadInOut: LeadInOutSettings?
+    @Binding var leadInOut: SC.LeadInOut?
     /// Orange gear: the settings are on but something about them needs a look (see `LeadInOutEditor`).
     var needsAttention: Bool = false
     let action: () -> Void
@@ -55,11 +55,11 @@ struct LeadInOutRow: View {
     }
 }
 
-extension LeadInOutSettings {
+extension SC.LeadInOut {
 
     /// What the switch seeds when it is turned on: the same 3 mm line at 300 mm/min that the
     /// library's own form (`SC.LeadInOut.optionalFormField`) starts from.
-    static let seed = LeadInOutSettings(style: .linear(length: 3), feedRate: 300)
+    static let seed = SC.LeadInOut(style: .linear(length: 3), feedRate: 300)
 
     /// "Line 3 mm · 300 mm/min" or "Arc R3 mm · 90° · 300 mm/min".
     var summary: String {
@@ -120,11 +120,11 @@ struct LeadInOutEditor: View {
     }
 
     let role: Role
-    @Binding var leadInOut: LeadInOutSettings?
+    @Binding var leadInOut: SC.LeadInOut?
     let side: SC.CutSide
     let toolDiameter: Double
 
-    private var current: LeadInOutSettings {
+    private var current: SC.LeadInOut {
         leadInOut ?? .seed
     }
 
@@ -344,7 +344,7 @@ struct LeadInOutEditor: View {
 /// length, radius and sweep, and the tool circle shows how big the move is next to the bit.
 struct LeadInOutDiagram: View {
     let role: LeadInOutEditor.Role
-    let style: LeadInOutSettings.Style
+    let style: SC.LeadInOut.Style
     let side: SC.CutSide
     /// mm. Zero (no tool picked yet) draws a 6 mm tool.
     let toolDiameter: Double
@@ -567,7 +567,7 @@ struct LeadInOutDiagram: View {
 }
 
 #Preview {
-    @Previewable @State var leadIn: LeadInOutSettings? = LeadInOutSettings(style: .arc(radius: 4, sweepAngleDegrees: 90), feedRate: 300)
+    @Previewable @State var leadIn: SC.LeadInOut? = SC.LeadInOut(style: .arc(radius: 4, sweepAngleDegrees: 90), feedRate: 300)
     LeadInOutEditor(role: .leadIn, leadInOut: $leadIn, side: .outside, toolDiameter: 3)
         .frame(width: 400)
 }

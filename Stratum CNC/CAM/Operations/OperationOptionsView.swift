@@ -525,7 +525,7 @@ struct OperationOptionsView: View {
 
     private func leadInOutRow(title: String,
                               role: LeadInOutEditor.Role,
-                              binding: Binding<LeadInOutSettings?>,
+                              binding: Binding<SC.LeadInOut?>,
                               isPresented: Binding<Bool>,
                               needsAttention: Bool = false) -> some View {
         LeadInOutRow(title: title, leadInOut: binding, needsAttention: needsAttention) {

@@ -11,10 +11,11 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 /// Same look as `RampingButton`: a labelled pop-up button, here showing a summary of the tabs.
 struct HoldingTabsButton: View {
-    let tabs: [HoldingTabSettings]
+    let tabs: [SC.HoldingTab]
     let action: () -> Void
 
     var body: some View {
@@ -49,7 +50,7 @@ struct HoldingTabsButton: View {
 }
 
 struct HoldingTabsEditor: View {
-    @Binding var tabs: [HoldingTabSettings]
+    @Binding var tabs: [SC.HoldingTab]
 
     /// The selected shapes' outlines, built when the popover is drawn. Empty when nothing is
     /// selected (or the facing covers the whole stock): the drawing is then a schematic.
@@ -65,7 +66,7 @@ struct HoldingTabsEditor: View {
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button {
-                    tabs.append(HoldingTabSettings.new(after: tabs))
+                    tabs.append(SC.HoldingTab.new(after: tabs))
                 } label: {
                     Label("Add", systemImage: "plus")
                         .font(.system(size: 11))
@@ -87,17 +88,17 @@ struct HoldingTabsEditor: View {
                 GroupBox {
                     VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
                         InspectorNumberField(title: "Position",
-                                             value: clamped($tab.positionRatio, HoldingTabSettings.positionRange),
+                                             value: clamped($tab.positionRatio, SC.HoldingTab.positionRange),
                                              suffix: "ratio (0-1)")
                             .help("How far along the contour the tab sits, as a fraction of its total length.")
                         InspectorNote(text: String(format: "%.0f %% of the way along the contour, counted from where it starts. 0 and 1 are the same spot.",
                                                    tab.positionRatio * 100))
                         InspectorNumberField(title: "Width",
-                                             value: clamped($tab.width, HoldingTabSettings.widthRange),
+                                             value: clamped($tab.width, SC.HoldingTab.widthRange),
                                              suffix: "mm")
                             .help("How long the tab is, measured along the contour.")
                         InspectorNumberField(title: "Height",
-                                             value: clamped($tab.height, HoldingTabSettings.heightRange),
+                                             value: clamped($tab.height, SC.HoldingTab.heightRange),
                                              suffix: "mm")
                             .help("How much material the tab leaves, measured up from the bottom of the cut. The tool rises to this height over the tab.")
                     }
@@ -173,7 +174,7 @@ struct HoldingTabsEditor: View {
 }
 
 #Preview {
-    @Previewable @State var tabs = [HoldingTabSettings(positionRatio: 0.25, width: 4, height: 1.5)]
+    @Previewable @State var tabs = [SC.HoldingTab(positionRatio: 0.25, width: 4, height: 1.5)]
     HoldingTabsEditor(tabs: $tabs)
         .frame(width: 400)
 }

@@ -14,6 +14,7 @@
 
 import Foundation
 import CoreGraphics
+import StratumCAM
 
 enum CAMHoldingTabsOverlay {
 
@@ -96,7 +97,7 @@ enum CAMHoldingTabsOverlay {
         }
     }
 
-    private static func appendTab(_ tab: HoldingTabSettings, on outline: Outline, into points: inout [SIMD3<Float>]) {
+    private static func appendTab(_ tab: SC.HoldingTab, on outline: Outline, into points: inout [SIMD3<Float>]) {
         let total = outline.length
         let half = min(CGFloat(tab.width), total) / 2
         let center = CGFloat(min(max(tab.positionRatio, 0), 1)) * total
