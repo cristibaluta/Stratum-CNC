@@ -81,27 +81,28 @@ enum RampMath {
 
 // MARK: - Path-following helper (drives the animated tool dot)
 
-extension CGPoint {
-    func distance(to other: CGPoint) -> CGFloat {
-        hypot(x - other.x, y - other.y)
-    }
-}
-
 extension CGVector {
     var normalized: CGVector {
         let len = sqrt(dx * dx + dy * dy)
-        guard len > 0 else { return .zero }
+        guard len > 0 else {
+            return .zero
+        }
         return CGVector(dx: dx / len, dy: dy / len)
     }
 }
 
 /// Returns the point on a polyline at normalised `phase` (0...1), looping.
 func point(along points: [CGPoint], phase: CGFloat) -> CGPoint {
-    guard points.count > 1 else { return points.first ?? .zero }
+    guard points.count > 1 else {
+        return points.first ?? .zero
+    }
     let segmentLengths = points.adjacentPairs().map { $0.distance(to: $1) }
     let total = segmentLengths.reduce(0, +)
-    guard total > 0 else { return points[0] }
+    guard total > 0 else {
+        return points[0]
+    }
     var target = phase.truncatingRemainder(dividingBy: 1) * total
+
     for (index, segmentLength) in segmentLengths.enumerated() {
         if target <= segmentLength {
             let t = segmentLength > 0 ? target / segmentLength : 0

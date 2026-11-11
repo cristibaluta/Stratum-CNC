@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import AppKit
 
 enum ObjectProperty: String {
     case x
