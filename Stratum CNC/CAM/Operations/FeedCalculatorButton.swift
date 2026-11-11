@@ -30,10 +30,10 @@ struct FeedCalculatorButton: View {
         HoverIconButton {
             isPresented = true
         } label: {
-            Image(systemName: "calculator")
-                .font(.system(size: 12))
+            Image(systemName: "function")
+                .font(.system(size: 16))
                 .foregroundStyle(.secondary)
-                .frame(width: 16)
+                .frame(width: 24)
         }
         // In the compact XY row the buttons share the width with the fields: without this the
         // icon is the first thing to be squeezed out.
