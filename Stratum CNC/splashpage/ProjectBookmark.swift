@@ -19,17 +19,28 @@ enum ProjectBookmark {
     /// to it: either the user just picked it (or its parent), or it was
     /// resolved from an earlier bookmark with access started.
     static func make(for folder: URL) throws -> Data {
-        try folder.bookmarkData(options: .withSecurityScope,
-                                includingResourceValuesForKeys: nil,
-                                relativeTo: nil)
+        // iOS has no `.withSecurityScope`: a bookmark of a URL it granted access to is already scoped.
+        #if os(macOS)
+        let options: URL.BookmarkCreationOptions = .withSecurityScope
+        #else
+        let options: URL.BookmarkCreationOptions = []
+        #endif
+        return try folder.bookmarkData(options: options,
+                                       includingResourceValuesForKeys: nil,
+                                       relativeTo: nil)
     }
 
     /// Resolves a bookmark without ever showing UI or mounting a volume, so a
     /// missing folder or an unmounted drive throws instead of prompting.
     static func resolve(_ data: Data) throws -> Resolved {
         var isStale = false
+        #if os(macOS)
+        let options: URL.BookmarkResolutionOptions = [.withSecurityScope, .withoutUI, .withoutMounting]
+        #else
+        let options: URL.BookmarkResolutionOptions = [.withoutUI]
+        #endif
         let url = try URL(resolvingBookmarkData: data,
-                          options: [.withSecurityScope, .withoutUI, .withoutMounting],
+                          options: options,
                           relativeTo: nil,
                           bookmarkDataIsStale: &isStale)
         return Resolved(url: url, isStale: isStale)

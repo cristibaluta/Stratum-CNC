@@ -130,8 +130,7 @@ struct CAM_Metal_View: View {
             return []
         }
         var objects: [RenderObject] = []
-        let appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua) ?? NSApp.effectiveAppearance
-        appearance.performAsCurrentDrawingAppearance {
+        STAppearance.perform(as: colorScheme) {
             objects = CAMSelectionOverlay.renderObjects(forSTEPModelAt: footprint.origin,
                                                         size: footprint.size,
                                                         boxColor: CAMSceneModel.rgba(STColor.systemRed),

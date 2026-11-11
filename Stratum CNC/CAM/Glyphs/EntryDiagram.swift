@@ -187,7 +187,7 @@ struct EntryDiagram: View {
         let running = point(along: screenPath, phase: time)
         let dot = CGRect(x: running.x - 5, y: running.y - 5, width: 10, height: 10)
         context.fill(Path(ellipseIn: dot), with: .color(accent))
-        context.stroke(Path(ellipseIn: dot), with: .color(Color(.windowBackgroundColor)), style: StrokeStyle(lineWidth: 1.5))
+        context.stroke(Path(ellipseIn: dot), with: .color(Color.stWindowBackground), style: StrokeStyle(lineWidth: 1.5))
 
         // How far the entry runs, measured along the surface, when it runs anywhere.
         if type != .none, let first = screenPath.map(\.x).min(), let last = screenPath.map(\.x).max(), last - first > 8 {

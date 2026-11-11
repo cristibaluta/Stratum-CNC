@@ -47,7 +47,7 @@ final class GerberImporter: Importer {
                     path.close()
                 }
 
-                guard path.elementCount > 0 else {
+                guard !path.isEmpty else {
                     continue
                 }
 

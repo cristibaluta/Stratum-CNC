@@ -401,7 +401,7 @@ struct MachiningRunSheet: View {
                     if let title = check.actionTitle, let action = check.action {
                         Button(title, action: action)
                             .font(.caption)
-                            .buttonStyle(.link)
+                            .stLinkButtonStyle()
                             .disabled(check.actionDisabled)
                     }
                 }
@@ -409,7 +409,7 @@ struct MachiningRunSheet: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color.stControlBackground)
         .cornerRadius(6)
     }
 
@@ -441,7 +441,7 @@ struct MachiningRunSheet: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .background(Color.stControlBackground)
             .cornerRadius(8)
         }
     }

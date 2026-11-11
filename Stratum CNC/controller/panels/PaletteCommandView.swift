@@ -91,7 +91,7 @@ struct PaletteCommandView: View {
                 }
             }
             .frame( width: 500, height: 500)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background(Color.stWindowBackground)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .shadow(radius: 30)
         }

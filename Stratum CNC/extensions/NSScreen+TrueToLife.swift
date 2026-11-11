@@ -5,8 +5,13 @@
 //  Created by Cristian Baluta on 10.09.2026.
 //
 
+import Foundation
+import CoreGraphics
+
 #if os(macOS)
 import AppKit
+
+typealias STWindow = NSWindow
 
 extension NSScreen {
 
@@ -41,4 +46,30 @@ extension NSScreen {
         return pointsPerMM
     }
 }
+#else
+import UIKit
+
+typealias STWindow = UIWindow
 #endif
+
+/// How many view points one millimetre of the real display covers.
+enum TrueToLife {
+
+    /// 72 points per inch: what a display with no known physical size is assumed to be.
+    static let fallbackPointsPerMM: CGFloat = 72.0 / 25.4
+
+    @MainActor
+    static func pointsPerMM(in window: STWindow?) -> CGFloat {
+        #if os(macOS)
+        guard let screen = window?.screen ?? NSScreen.main else {
+            return fallbackPointsPerMM
+        }
+        return screen.trueToLifeZoomScale(in: window)
+        #else
+        // iOS doesn't expose the physical size of the display. An iPhone is 163 points per
+        // inch and an iPad (except the mini) 132, so 1 mm is close to true size, not exact.
+        let pointsPerInch: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 132 : 163
+        return pointsPerInch / 25.4
+        #endif
+    }
+}

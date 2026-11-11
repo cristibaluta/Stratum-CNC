@@ -26,7 +26,7 @@ struct TerminalView: View {
 //            HStack {
 //                Spacer()
 //                Toggle("Auto-scroll", isOn: $model.terminalAutoScroll)
-//                    .toggleStyle(.checkbox)
+//                    .stCheckboxToggleStyle()
 //                    .font(.caption)
 //                Button {
 //                    model.clearTerminal()

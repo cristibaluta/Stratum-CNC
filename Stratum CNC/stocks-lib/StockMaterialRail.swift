@@ -15,7 +15,7 @@ extension Color {
     /// One background for the rail and the stock list, so they match the editor column
     /// instead of taking the translucent gray sidebar material.
     static var stockColumnBackground: Color {
-        Color(nsColor: .controlBackgroundColor)
+        Color.stControlBackground
     }
 }
 

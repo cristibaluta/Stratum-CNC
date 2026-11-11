@@ -65,8 +65,7 @@ struct MacroDetailView: View {
                 case .success(let lines):
                     HStack {
                         Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(lines.joined(separator: "\n"), forType: .string)
+                            STPasteboard.copy(lines.joined(separator: "\n"))
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
                         }

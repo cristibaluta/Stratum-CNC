@@ -20,6 +20,8 @@ class AppModel: ObservableObject {
 
     @Published var showingNewProject = false
     @Published var showingToolsSheet: Bool = false
+    /// iOS only: the settings are a sheet there (see `settingsPresenter`).
+    @Published var showingSettings: Bool = false
     @Published var showingStocksSheet: Bool = false
 
     private var toolsSheetContinuation: CheckedContinuation<Tool?, Never>?

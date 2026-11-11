@@ -31,34 +31,25 @@ enum BezierPathFlattener {
 
         var currentPoint = STPoint.zero
         var subpathStart = STPoint.zero
-        let pointsBuffer = STPointArray.allocate(capacity: 3)
-        defer {
-            pointsBuffer.deallocate()
-        }
 
-        for i in 0..<path.elementCount {
-            let elementType = path.element(at: i, associatedPoints: pointsBuffer)
+        for element in path.stElements {
 
-            switch elementType {
-            case .moveTo:
+            switch element {
+            case .move(let point):
                 // Starting a new subpath — flush the previous one if it has content.
                 if currentSubpath.count > 1 {
                     subpaths.append(currentSubpath)
                 }
-                currentPoint = pointsBuffer[0]
-                subpathStart = currentPoint
-                currentSubpath = [currentPoint]
+                currentPoint = point
+                subpathStart = point
+                currentSubpath = [point]
 
-            case .lineTo:
-                let endPoint = pointsBuffer[0]
+            case .line(let endPoint):
                 currentSubpath.append(endPoint)
                 currentPoint = endPoint
 
-            case .curveTo:
-                let control1 = pointsBuffer[0]
-                let control2 = pointsBuffer[1]
-                let endPoint = pointsBuffer[2]
-
+            case .curve(let control1, let control2, let endPoint):
+                // Quadratics arrive here already promoted to cubic (see `STBezierPath.stElements`).
                 let flattenedPoints = flattenCubicBezierAdaptive(
                     p0: currentPoint,
                     p1: control1,
@@ -70,47 +61,9 @@ enum BezierPathFlattener {
                 currentSubpath.append(contentsOf: flattenedPoints)
                 currentPoint = endPoint
 
-            case .closePath:
+            case .close:
                 currentSubpath.append(subpathStart)
                 currentPoint = subpathStart
-
-            case .cubicCurveTo, .quadraticCurveTo:
-                // Present on newer AppKit versions when paths are built with the
-                // typed curve APIs. Handle the cubic case the same as curveTo;
-                // quadratic is rare from SVG import (SVG quadratics are usually
-                // already converted to cubic by the parser) but handled for safety.
-                if elementType == .cubicCurveTo {
-                    let control1 = pointsBuffer[0]
-                    let control2 = pointsBuffer[1]
-                    let endPoint = pointsBuffer[2]
-                    let flattenedPoints = flattenCubicBezierAdaptive(
-                        p0: currentPoint, p1: control1, p2: control2, p3: endPoint,
-                        tolerance: tolerance
-                    )
-                    currentSubpath.append(contentsOf: flattenedPoints)
-                    currentPoint = endPoint
-                } else {
-                    let control = pointsBuffer[0]
-                    let endPoint = pointsBuffer[1]
-                    // Promote quadratic to cubic control points, then flatten.
-                    let c1 = STPoint(
-                        x: currentPoint.x + 2.0/3.0 * (control.x - currentPoint.x),
-                        y: currentPoint.y + 2.0/3.0 * (control.y - currentPoint.y)
-                    )
-                    let c2 = STPoint(
-                        x: endPoint.x + 2.0/3.0 * (control.x - endPoint.x),
-                        y: endPoint.y + 2.0/3.0 * (control.y - endPoint.y)
-                    )
-                    let flattenedPoints = flattenCubicBezierAdaptive(
-                        p0: currentPoint, p1: c1, p2: c2, p3: endPoint,
-                        tolerance: tolerance
-                    )
-                    currentSubpath.append(contentsOf: flattenedPoints)
-                    currentPoint = endPoint
-                }
-
-            @unknown default:
-                break
             }
         }
 

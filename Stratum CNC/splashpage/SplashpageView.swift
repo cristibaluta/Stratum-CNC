@@ -14,9 +14,7 @@ struct SplashpageView: View {
     @ObservedObject var appModel: AppModel
     @ObservedObject var projectsStore: ProjectsStore
 
-    #if os(macOS)
-    @Environment(\.openSettings) private var openSettings
-    #endif
+    @Environment(\.stOpenSettings) private var openSettings
 
     private enum PickerKind { case projectFolder, gcode }
 
@@ -91,15 +89,28 @@ struct SplashpageView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        #if os(macOS)
         .navigationSubtitle("Select or create project...")
+        #endif
     }
 
     // MARK: - Sections
 
+    @ViewBuilder
+    private var appIcon: some View {
+        #if os(macOS)
+        Image(nsImage: NSApp.applicationIconImage)
+            .resizable()
+        #else
+        Image("AppLogo")
+            .resizable()
+            .scaledToFit()
+        #endif
+    }
+
     private var header_: some View {
         HStack(spacing: 20) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
+            appIcon
                 .frame(width: 64, height: 64)
 
             VStack(alignment: .leading, spacing: 4) {

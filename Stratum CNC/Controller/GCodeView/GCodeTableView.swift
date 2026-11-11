@@ -192,4 +192,73 @@ struct GCodeTableView: NSViewRepresentable {
         }
     }
 }
+
+#else
+import SwiftUI
+
+/// The G-code list on iOS: the same lines, highlight and jump-to-line as the AppKit table,
+/// minus editing a line in place.
+struct GCodeTableView: View {
+    @ObservedObject var document: NCFileDocument
+    var highlightedLine: Int?
+    var requestedLine: Int?
+    var onLineSelected: ((Int) -> Void)? = nil
+
+    @State private var selectedLine: Int?
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView([.vertical, .horizontal]) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(document.lines) { line in
+                        row(line)
+                            .id(line.id)
+                    }
+                }
+            }
+            .onChange(of: highlightedLine) { _, line in
+                if let line, line >= 1, line <= document.lines.count {
+                    proxy.scrollTo(line)
+                }
+            }
+            // A toolpath selection requests a one-time jump to the toolpath's
+            // first G-code line (separate from `highlightedLine`, which may be
+            // driven by a running job).
+            .onChange(of: requestedLine) { _, line in
+                if let line, line >= 1, line <= document.lines.count {
+                    proxy.scrollTo(line, anchor: .center)
+                    selectedLine = line
+                }
+            }
+        }
+    }
+
+    private func row(_ line: GCodeLine) -> some View {
+        HStack(spacing: 8) {
+            Text("\(line.id)")
+                .foregroundStyle(.tertiary)
+                .frame(width: 56, alignment: .trailing)
+            Text(line.text)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+        .font(.system(size: 12, design: .monospaced))
+        .frame(height: 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(background(for: line))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedLine = line.id
+            onLineSelected?(line.id)
+        }
+    }
+
+    private func background(for line: GCodeLine) -> Color {
+        if line.id == highlightedLine {
+            return Color.accentColor.opacity(0.18)
+        }
+        return line.id == selectedLine ? Color.secondary.opacity(0.2) : .clear
+    }
+}
 #endif

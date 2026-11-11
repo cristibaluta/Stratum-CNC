@@ -11,21 +11,27 @@ import SwiftUI
 struct Stratum_CNC_App: App {
 
     @State private var model = AppModel()
+    #if os(macOS)
     @Environment(\.openWindow) private var openWindow
+    #endif
 
     var body: some Scene {
         WindowGroup {
             ContentView(appModel: model, projectsStore: model.projectsStore)
         }
+        #if os(macOS)
         .defaultSize(width: 1200, height: 800)
         .windowIdealSize(.maximum)
         .windowResizability(.contentSize)
+        #endif
         .commands {
+            #if os(macOS)
             CommandGroup(replacing: .appInfo) {
                 Button("About Stratum") {
                     openWindow(id: AboutView.windowID)
                 }
             }
+            #endif
             CommandGroup(replacing: .newItem) {
                 Button("New Project") {
                     model.showingNewProject = true
@@ -40,6 +46,7 @@ struct Stratum_CNC_App: App {
             }
         }
 
+        #if os(macOS)
         Window("About Stratum", id: AboutView.windowID) {
             AboutView()
         }
@@ -50,5 +57,6 @@ struct Stratum_CNC_App: App {
         Settings {
             SettingsView(appModel: model)
         }
+        #endif
     }
 }

@@ -5,9 +5,10 @@
 //  Created by Cristian Baluta on 18.09.2026.
 //
 
-#if os(macOS)
 import SwiftUI
+#if os(macOS)
 import AppKit
+#endif
 
 /// A transparent overlay that only claims scroll-wheel events — every other
 /// event type (clicks, drags) falls straight through to whatever SwiftUI
@@ -19,15 +20,31 @@ import AppKit
 /// replace — e.g. scroll-to-scrub over the g-code slider in
 /// `ControllerView`, without breaking the slider's own thumb-drag.
 
-struct ScrollWheelCapture: NSViewRepresentable {
+struct ScrollWheelCapture: View {
 
-    let onScroll: (NSEvent) -> Void
+    let onScroll: (CanvasScrollEvent) -> Void
+
+    var body: some View {
+        #if os(macOS)
+        AppKitScrollWheelCapture(onScroll: onScroll)
+        #else
+        // Touch has no scroll wheel; the overlay stays out of the way of the slider beneath.
+        Color.clear.allowsHitTesting(false)
+        #endif
+    }
+}
+
+#if os(macOS)
+
+private struct AppKitScrollWheelCapture: NSViewRepresentable {
+
+    let onScroll: (CanvasScrollEvent) -> Void
 
     private final class CaptureView: NSView {
-        var onScroll: ((NSEvent) -> Void)?
+        var onScroll: ((CanvasScrollEvent) -> Void)?
 
         override func scrollWheel(with event: NSEvent) {
-            onScroll?(event)
+            onScroll?(CanvasScrollEvent(event, in: self))
         }
 
         /// The trick that makes "capture scroll, pass through everything

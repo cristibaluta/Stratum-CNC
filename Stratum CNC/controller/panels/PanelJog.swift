@@ -68,7 +68,7 @@ struct PanelJog: View {
                 if let j = joystick.controllers.first {
                     HStack(spacing: 8) {
                         Toggle("Enable \(j.vendorName ?? "Unknown")", isOn: $joystickActive)
-                            .toggleStyle(.checkbox)
+                            .stCheckboxToggleStyle()
                             .font(.caption)
                             .onChange(of: joystickActive) { _, newValue in
                                 joystick.setActive(newValue)

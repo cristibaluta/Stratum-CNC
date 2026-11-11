@@ -9,14 +9,14 @@ import SwiftUI
 
 struct ProjectPreview: View {
 
-    let image: NSImage?
+    let image: STImage?
 
     var body: some View {
         Group {
             if let image {
                 // The preview is a transparent drawing in black: shown as a template in the
                 // text color, it reads on both the light and the dark card background.
-                Image(nsImage: image)
+                Image(stImage: image)
                     .renderingMode(.template)
                     .resizable()
                     .aspectRatio(contentMode: .fit)

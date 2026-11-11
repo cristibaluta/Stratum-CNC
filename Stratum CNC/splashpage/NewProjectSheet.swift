@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct NewProjectSheet: View {
 
@@ -14,6 +15,9 @@ struct NewProjectSheet: View {
     @State private var name = ""
     @State private var usesCustomLocation = false
     @State private var customFolder: URL?
+    #if !os(macOS)
+    @State private var isChoosingFolder = false
+    #endif
     @State private var errorMessage: String?
 
     /// Creates the project: in the app's own storage when `folder` is nil, or
@@ -92,23 +96,41 @@ struct NewProjectSheet: View {
             }
         }
         .padding(24)
+        #if os(macOS)
         .frame(width: 420)
+        #endif
         .onChange(of: usesCustomLocation) { _, isOn in
             errorMessage = nil
             // Ask for the folder right away; if the user backs out, there's no custom location.
             if isOn && customFolder == nil {
                 chooseFolder()
+                #if os(macOS)
+                // The panel above is modal; on iOS the picker answers later (see `fileImporter`).
                 if customFolder == nil {
                     usesCustomLocation = false
                 }
+                #endif
             }
         }
         .onChange(of: name) { _, _ in
             errorMessage = nil
         }
+        #if !os(macOS)
+        .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result {
+                // Needed to make the bookmark of this folder when the project is created
+                _ = url.startAccessingSecurityScopedResource()
+                customFolder = url
+            }
+            if customFolder == nil {
+                usesCustomLocation = false
+            }
+        }
+        #endif
     }
 
     private func chooseFolder() {
+        #if os(macOS)
         let panel = NSOpenPanel()
         panel.title = "Choose Project Location"
         panel.message = "Choose the folder where the new project folder will be created."
@@ -120,6 +142,9 @@ struct NewProjectSheet: View {
         if panel.runModal() == .OK, let url = panel.url {
             customFolder = url
         }
+        #else
+        isChoosingFolder = true
+        #endif
     }
 
     private func create() {

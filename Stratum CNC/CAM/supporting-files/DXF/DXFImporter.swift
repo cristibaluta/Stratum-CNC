@@ -48,7 +48,7 @@ class DXFImporter: Importer {
             // aren't built yet — see DXF+Chaining.swift) draws nothing.
             // Skip the resulting empty path rather than adding a
             // zero-bounds phantom entry to `paths`.
-            guard path.elementCount > 0 else {
+            guard !path.isEmpty else {
                 continue
             }
 
@@ -77,7 +77,7 @@ extension DXF.Entity {
 
             case let .circle(center, radius, _, _):
                 return STBezierPath(
-                    ovalIn: NSRect(
+                    ovalIn: CGRect(
                         x: center.x - radius,
                         y: center.y - radius,
                         width: radius * 2,
@@ -329,7 +329,7 @@ extension DXF.Entity {
 
         case let .circle(center, radius, _, _):
             // EntityChainer never chains circles — always its own contour.
-            path.append(STBezierPath(ovalIn: NSRect(
+            path.append(STBezierPath(ovalIn: CGRect(
                 x: center.x - radius, y: center.y - radius,
                 width: radius * 2, height: radius * 2
             )))
@@ -414,7 +414,7 @@ extension SC.Geometry {
             path.line(to: end)
 
         case let .circle(center, radius):
-            path.append(STBezierPath(ovalIn: NSRect(
+            path.append(STBezierPath(ovalIn: CGRect(
                 x: center.x - radius, y: center.y - radius,
                 width: radius * 2, height: radius * 2
             )))

@@ -26,7 +26,7 @@ struct AnchorSettingsView: View {
                     Text("\(choice.label) · \(choice.placement)").tag(choice)
                 }
             }
-            .pickerStyle(.radioGroup)
+            .stRadioGroupPickerStyle()
             .labelsHidden()
 
             Divider()

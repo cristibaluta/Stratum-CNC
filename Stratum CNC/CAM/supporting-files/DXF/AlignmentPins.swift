@@ -149,7 +149,7 @@ enum AlignmentPins {
         for center in centers {
             let x = Double(center.x)
             let y = Double(center.y)
-            paths.append(STBezierPath(ovalIn: NSRect(x: x - radius,
+            paths.append(STBezierPath(ovalIn: CGRect(x: x - radius,
                                                      y: y - radius,
                                                      width: spec.diameter,
                                                      height: spec.diameter)))

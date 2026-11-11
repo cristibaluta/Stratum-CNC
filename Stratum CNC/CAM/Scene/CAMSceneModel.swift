@@ -126,7 +126,7 @@ final class CAMSceneModel: ObservableObject {
                                                             })
 
     private let canvasState: D2_CanvasState
-    private var appearance: NSAppearance
+    private var colorScheme: ColorScheme
     private var stateObserver: AnyCancellable?
     private var scrubStepObserver: AnyCancellable?
     private var rebuildScheduled = false
@@ -137,9 +137,9 @@ final class CAMSceneModel: ObservableObject {
     /// — and so its GPU buffer — survives them: only a new generation replaces it.
     private var scrubPathCache: (id: UUID, object: RenderObject)?
 
-    init(canvasState: D2_CanvasState, appearance: NSAppearance = NSApp.effectiveAppearance) {
+    init(canvasState: D2_CanvasState, colorScheme: ColorScheme = STAppearance.systemScheme) {
         self.canvasState = canvasState
-        self.appearance = appearance
+        self.colorScheme = colorScheme
 
         // `objectWillChange` fires *before* the mutation lands, and often
         // several times per user action (selection + picking + ...). Hop to
@@ -192,11 +192,10 @@ final class CAMSceneModel: ObservableObject {
     /// vertex data, so a light/dark switch needs a rebuild — the view
     /// calls this from its `colorScheme` change.
     func setColorScheme(_ scheme: ColorScheme) {
-        let name: NSAppearance.Name = (scheme == .dark) ? .darkAqua : .aqua
-        guard let newAppearance = NSAppearance(named: name), newAppearance.name != appearance.name else {
+        guard scheme != colorScheme else {
             return
         }
-        appearance = newAppearance
+        colorScheme = scheme
         rebuild()
     }
 
@@ -234,7 +233,7 @@ final class CAMSceneModel: ObservableObject {
         var restRegions: RenderObject?
         var background = SIMD4<Float>(0.2, 0.2, 0.2, 1)
         var overlay: [RenderObject] = []
-        appearance.performAsCurrentDrawingAppearance {
+        STAppearance.perform(as: colorScheme) {
             paths = D2_RenderObjectBuilder.renderPaths(for: canvasState)
             if showsToolpaths {
                 toolpath = D2_RenderObjectBuilder.toolpathRenderObject(for: canvasState)
@@ -243,13 +242,13 @@ final class CAMSceneModel: ObservableObject {
             // Flat 2D content is tagged (see `.faceOverlay`) so the 3D canvas projects it onto the
             // face that is up instead of carrying it along with the stock
             restRegions?.role = .faceOverlay
-            background = Self.rgba(NSColor.textBackgroundColor)
+            background = Self.rgba(STColor.stTextBackground)
 
             // Dashed box + rotation-center handle for whichever objects
             // are selected as a whole (a selected *path* gets neither, same
             // as `D2_ObjectNode`).
-            let boxColor = Self.rgba(NSColor.systemRed)
-            let handleColor = Self.rgba(NSColor.systemOrange)
+            let boxColor = Self.rgba(STColor.systemRed)
+            let handleColor = Self.rgba(STColor.systemOrange)
             for object in canvasState.objects
                 where showsShapes && canvasState.selectedObjectIDs.contains(object.id) && object.isVisible {
                 overlay.append(contentsOf: CAMSelectionOverlay.renderObjects(for: object,
@@ -261,7 +260,7 @@ final class CAMSceneModel: ObservableObject {
             if showsToolpaths, let tabs = canvasState.holdingTabs {
                 overlay.append(contentsOf: CAMHoldingTabsOverlay.renderObjects(for: tabs,
                                                                                paths: paths,
-                                                                               color: Self.rgba(NSColor.systemPurple)))
+                                                                               color: Self.rgba(STColor.systemPurple)))
             }
         }
 
@@ -344,11 +343,7 @@ final class CAMSceneModel: ObservableObject {
         PerfLog.log("metal-cam", "rebuild: \(paths.count) path(s) → \(objects.count) object(s) in \(PerfLog.fmt(PerfLog.ms(since: t0)))")
     }
 
-    static func rgba(_ color: NSColor) -> SIMD4<Float> {
-        guard let c = color.usingColorSpace(.sRGB) else {
-            return SIMD4<Float>(0.2, 0.2, 0.2, 1)
-        }
-        return SIMD4<Float>(Float(c.redComponent), Float(c.greenComponent),
-                            Float(c.blueComponent), Float(c.alphaComponent))
+    static func rgba(_ color: STColor) -> SIMD4<Float> {
+        color.stRGBA
     }
 }

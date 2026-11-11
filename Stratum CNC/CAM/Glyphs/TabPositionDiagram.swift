@@ -43,7 +43,7 @@ struct TabPositionDiagram: View {
                     .stroke(Color.secondary, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
                 Circle()
                     .strokeBorder(Color.secondary, lineWidth: 1.5)
-                    .background(Circle().fill(Color(.windowBackgroundColor)))
+                    .background(Circle().fill(Color.stWindowBackground))
                     .frame(width: 7, height: 7)
                     .position(start)
                 Text("Start")

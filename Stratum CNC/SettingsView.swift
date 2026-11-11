@@ -53,7 +53,9 @@ struct SettingsView: View {
                 .tabItem { Label("Machine", systemImage: "gearshape.2") }
                 .tag(SettingsTab.machine)
         }
+        #if os(macOS)
         .frame(width: 420, height: 500)
+        #endif
         // The Settings window is its own scene, outside ContentView, so it has
         // to apply the app-wide appearance itself.
         .preferredColorScheme(appModel.isDarkMode ? .dark : .light)

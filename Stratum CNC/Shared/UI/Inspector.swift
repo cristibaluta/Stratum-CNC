@@ -418,7 +418,7 @@ struct InspectorDecimalToggle: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
-        .toggleStyle(.checkbox)
+        .stCheckboxToggleStyle()
         .controlSize(.mini)
         .fixedSize()
         .help("Type only the decimals: the \"0.\" is filled in, so 3 means 0.3. Applies to this field's compact form too.")

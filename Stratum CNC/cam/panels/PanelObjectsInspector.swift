@@ -148,7 +148,7 @@ struct PanelObjectsInspector: View {
                     .font(.system(size: 12, weight: .medium))
                     .padding(3)
             }
-            .menuStyle(.borderlessButton)
+            .stBorderlessMenuStyle()
             .menuIndicator(.hidden)
             .fixedSize()
             .foregroundStyle(.secondary)
@@ -181,7 +181,7 @@ struct PanelObjectsInspector: View {
     private func objectRow(_ object: D2_Object) -> some View {
         HStack(spacing: 8) {
             Button {
-                let flags = NSEvent.modifierFlags
+                let flags = CanvasModifiers.current
                 onSelectionChanged?(object.id, flags.contains(.shift) || flags.contains(.command))
             } label: {
                 HStack(spacing: 6) {

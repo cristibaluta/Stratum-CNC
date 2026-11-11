@@ -68,10 +68,8 @@ struct CanvasZoomToolbar: View {
         .padding(.vertical, 6)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
         .onAppear {
-            if let mainScreen = NSScreen.main {
-                viewModel.updateTrueToLifeScale(for: mainScreen)
-                viewModel.resetToTrueToLife()
-            }
+            viewModel.updateTrueToLifeScale(pointsPerMM: TrueToLife.pointsPerMM(in: nil))
+            viewModel.resetToTrueToLife()
         }
     }
     

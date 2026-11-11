@@ -16,7 +16,7 @@ extension Color {
     /// instead of taking the translucent gray sidebar material. If the editor's white ever
     /// differs from this, change it here and both columns follow.
     static var toolColumnBackground: Color {
-        Color(nsColor: .controlBackgroundColor)
+        Color.stControlBackground
     }
 }
 

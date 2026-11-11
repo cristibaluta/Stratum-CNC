@@ -9,13 +9,27 @@ import SwiftUI
 import MetalKit
 
 @MainActor
-struct MetalCanvasView: NSViewRepresentable {
+struct MetalCanvasView: STViewRepresentable {
 
-    // Custom MTKView subclass to capture scroll wheel events directly
+    // Custom MTKView subclass that forwards raw input (scroll wheel on AppKit,
+    // touches on UIKit) as platform-neutral `Canvas…Event`s.
     private class InteractiveMTKView: MTKView {
-        var onScroll: ((NSEvent) -> Void)?
+        var onScroll: ((CanvasScrollEvent) -> Void)?
+
+        // Direct pointer forwarding, used only when the owner installs these
+        // (CAM, which needs press/drag/release and clicks rather than
+        // a pan gesture). Left `nil` — the controller — the events fall
+        // through to `super` and the gesture recognizers, exactly as before.
+        var onMouseDown: ((CanvasMouseEvent) -> Void)?
+        var onMouseDragged: ((CanvasMouseEvent) -> Void)?
+        /// The flag is true when the system cancelled the touch (a second finger
+        /// landed and a gesture took over): finish the drag, but it is no click.
+        var onMouseUp: ((CanvasMouseEvent, _ cancelled: Bool) -> Void)?
+
+        #if os(macOS)
+
         override func scrollWheel(with event: NSEvent) {
-            onScroll?(event)
+            onScroll?(CanvasScrollEvent(event, in: self))
         }
 
         // With `isPaused = true` / `enableSetNeedsDisplay = false` the view
@@ -33,17 +47,9 @@ struct MetalCanvasView: NSViewRepresentable {
             draw()
         }
 
-        // Direct mouse forwarding, used only when the owner installs these
-        // (CAM, which needs press/drag/release and clicks rather than
-        // a pan gesture). Left `nil` — the controller — the events fall
-        // through to `super` and the gesture recognizers, exactly as before.
-        var onMouseDown: ((NSEvent) -> Void)?
-        var onMouseDragged: ((NSEvent) -> Void)?
-        var onMouseUp: ((NSEvent) -> Void)?
-
         override func mouseDown(with event: NSEvent) {
             if let onMouseDown {
-                onMouseDown(event)
+                onMouseDown(CanvasMouseEvent(event, in: self))
             } else {
                 super.mouseDown(with: event)
             }
@@ -51,7 +57,7 @@ struct MetalCanvasView: NSViewRepresentable {
 
         override func mouseDragged(with event: NSEvent) {
             if let onMouseDragged {
-                onMouseDragged(event)
+                onMouseDragged(CanvasMouseEvent(event, in: self))
             } else {
                 super.mouseDragged(with: event)
             }
@@ -59,11 +65,78 @@ struct MetalCanvasView: NSViewRepresentable {
 
         override func mouseUp(with event: NSEvent) {
             if let onMouseUp {
-                onMouseUp(event)
+                onMouseUp(CanvasMouseEvent(event, in: self), false)
             } else {
                 super.mouseUp(with: event)
             }
         }
+
+        #else
+
+        // UIKit's equivalent of AppKit's `layout()` above: a real size is in place.
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            draw()
+        }
+
+        /// The finger that is the "mouse" while `onMouseDown` is installed. A
+        /// second finger belongs to the two-finger pan / pinch recognizers.
+        private var activeTouch: UITouch?
+
+        private func mouseEvent(for touch: UITouch) -> CanvasMouseEvent {
+            CanvasMouseEvent(location: canvasPoint(touch.location(in: self)),
+                             modifiers: [],
+                             clickCount: max(touch.tapCount, 1))
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let onMouseDown else {
+                super.touchesBegan(touches, with: event)
+                return
+            }
+            guard activeTouch == nil, (event?.allTouches?.count ?? 1) == 1, let touch = touches.first else {
+                return
+            }
+            activeTouch = touch
+            onMouseDown(mouseEvent(for: touch))
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let onMouseDragged else {
+                super.touchesMoved(touches, with: event)
+                return
+            }
+            guard let touch = activeTouch, touches.contains(touch) else {
+                return
+            }
+            onMouseDragged(mouseEvent(for: touch))
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let onMouseUp else {
+                super.touchesEnded(touches, with: event)
+                return
+            }
+            guard let touch = activeTouch, touches.contains(touch) else {
+                return
+            }
+            activeTouch = nil
+            onMouseUp(mouseEvent(for: touch), false)
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+            guard let onMouseUp else {
+                super.touchesCancelled(touches, with: event)
+                return
+            }
+            guard let touch = activeTouch, touches.contains(touch) else {
+                return
+            }
+            activeTouch = nil
+            onMouseUp(mouseEvent(for: touch), true)
+        }
+
+        #endif
     }
 
     @Binding var objects: [RenderObject]
@@ -140,7 +213,26 @@ struct MetalCanvasView: NSViewRepresentable {
         Coordinator(self)
     }
 
+    #if os(macOS)
     func makeNSView(context: Context) -> MTKView {
+        makeCanvasView(context: context)
+    }
+
+    func updateNSView(_ nsView: MTKView, context: Context) {
+        updateCanvasView(nsView, context: context)
+    }
+    #else
+    func makeUIView(context: Context) -> MTKView {
+        makeCanvasView(context: context)
+    }
+
+    func updateUIView(_ uiView: MTKView, context: Context) {
+        updateCanvasView(uiView, context: context)
+    }
+    #endif
+
+    /// `makeNSView` / `makeUIView`.
+    private func makeCanvasView(context: Context) -> MTKView {
         let mtkView = InteractiveMTKView()
         guard let renderer = MetalRenderer(metalView: mtkView) else {
             return mtkView
@@ -219,30 +311,18 @@ struct MetalCanvasView: NSViewRepresentable {
             mtkView.onMouseDragged = { [weak coordinator = context.coordinator] event in
                 coordinator?.handleMouseDragged(event)
             }
-            mtkView.onMouseUp = { [weak coordinator = context.coordinator] event in
-                coordinator?.handleMouseUp(event)
+            mtkView.onMouseUp = { [weak coordinator = context.coordinator] event, cancelled in
+                coordinator?.handleMouseUp(event, cancelled: cancelled)
             }
-        } else {
-            let panGesture = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
-            mtkView.addGestureRecognizer(panGesture)
         }
 
-        // Middle-button drag, its own recognizer so handlePan can tell it
-        // apart from the two above (see `middleDragGesture` below) and look
-        // its own action up in CanvasInputSettings independently.
-        let middleDragGesture = NSPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
-        middleDragGesture.buttonMask = 0x4 // middle mouse button
-        mtkView.addGestureRecognizer(middleDragGesture)
-        context.coordinator.middleDragGesture = middleDragGesture
-
-        // Trackpad pinch → zoom
-        let magnification = NSMagnificationGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleMagnification(_:)))
-        mtkView.addGestureRecognizer(magnification)
+        context.coordinator.installGestures(on: mtkView, usesPointerHandler: pointerHandler != nil || onClick != nil)
 
         return mtkView
     }
 
-    func updateNSView(_ nsView: MTKView, context: Context) {
+    /// `updateNSView` / `updateUIView`.
+    private func updateCanvasView(_ nsView: MTKView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.isInsideSwiftUIUpdate = true
         defer { context.coordinator.isInsideSwiftUIUpdate = false }
@@ -305,38 +385,30 @@ struct MetalCanvasView: NSViewRepresentable {
         /// retains the coordinator back (its `resetAction` closure only
         /// captures it weakly), so there's no cycle to worry about.
         var zoomModel: CanvasZoomModel?
-        /// The second drag recognizer, set up in `makeNSView` to fire only
-        /// on middle-button drags. `handlePan` checks gesture identity
+        /// The second drag recognizer, set up in `installGestures` to fire only
+        /// on middle-button drags (AppKit) or two-finger drags (UIKit). `handlePan` checks gesture identity
         /// against this to tell a middle-button drag apart from a
         /// left-button one — both call the same handler.
-        weak var middleDragGesture: NSPanGestureRecognizer?
+        weak var middleDragGesture: AnyObject?
         private var lastMousePosition: CGPoint = .zero
 
         init(_ parent: MetalCanvasView) {
             self.parent = parent
         }
 
-        @objc func handlePan(_ gesture: NSPanGestureRecognizer) {
+        /// One step of a drag: what the trigger is assigned to in
+        /// `CanvasInputSettings`, applied to the camera. `translation` is the
+        /// travel since the last call (points, y up); `location` is where the
+        /// pointer is (view coordinates, origin bottom-left).
+        func applyDrag(trigger: CanvasInputTrigger, translation: CGPoint, location: CGPoint) {
             guard renderer?.camera != nil else {
                 return
             }
-            let translation = gesture.translation(in: gesture.view)
 
             // Which physical input this drag is decides the right entry of
             // CanvasInputSettings — same lookup for CAM and the controller, so
             // reassigning a mapping in CanvasControlsSettingsView affects both
             // canvases identically.
-            // Shift+left-drag and a plain left-drag are told apart by the
-            // modifier flag; middle-button drag is its own recognizer (see
-            // `middleDragGesture`), never this one with the modifier held.
-            let trigger: CanvasInputTrigger
-            if gesture === middleDragGesture {
-                trigger = .middleButton
-            } else if NSEvent.modifierFlags.contains(.shift) {
-                trigger = .modified
-            } else {
-                trigger = .primary
-            }
             // Reassigning a trigger in CanvasControlsSettingsView takes
             // effect immediately since this looks the mapping up fresh
             // on every drag rather than caching it.
@@ -350,14 +422,15 @@ struct MetalCanvasView: NSViewRepresentable {
             case .zoom:
                 performDragZoom(translation: translation)
             case .zoomToCursor:
-                performDragZoomToCursor(gesture: gesture, translation: translation)
+                if let view = metalView {
+                    performDragZoomToCursor(location: location, translation: translation, in: view)
+                }
             case .snapToFace, .none:
                 // Snap to Face only exists for scroll inputs (see
                 // `CanvasControlAction.isAvailable(for:)`).
                 break
             }
 
-            gesture.setTranslation(.zero, in: gesture.view)
             metalView?.draw()
         }
 
@@ -402,13 +475,13 @@ struct MetalCanvasView: NSViewRepresentable {
         /// the cursor fixed on screen (like pinch) instead of zooming
         /// toward `target`. Finer than `performDragZoom` to match — the
         /// point is more careful, cursor-anchored control.
-        private func performDragZoomToCursor(gesture: NSPanGestureRecognizer, translation: CGPoint) {
-            guard let camera = renderer?.camera, let view = gesture.view else {
+        private func performDragZoomToCursor(location: CGPoint, translation: CGPoint, in view: STView) {
+            guard let camera = renderer?.camera else {
                 return
             }
             let sensitivity: Float = 0.006
             let newDistance = camera.distance - Float(translation.y) * (camera.distance * sensitivity)
-            applyZoom(to: newDistance, towards: gesture.location(in: view), in: view)
+            applyZoom(to: newDistance, towards: location, in: view)
         }
 
         // MARK: - Direct mouse (CAM: shapes, STEP edges)
@@ -417,9 +490,9 @@ struct MetalCanvasView: NSViewRepresentable {
         weak var pointerHandler: (any CanvasPointerHandler)?
         private var dragAction: CanvasPointerDragAction = .camera
 
-        func handleMouseDown(_ event: NSEvent) {
+        func handleMouseDown(_ event: CanvasMouseEvent) {
             guard let view = metalView else { return }
-            lastMousePosition = view.convert(event.locationInWindow, from: nil)
+            lastMousePosition = event.location
             clickTracker.begin(at: lastMousePosition)
             dragAction = .camera
             if let pointer = pointerEvent(for: event) {
@@ -428,9 +501,9 @@ struct MetalCanvasView: NSViewRepresentable {
             view.draw()
         }
 
-        func handleMouseDragged(_ event: NSEvent) {
+        func handleMouseDragged(_ event: CanvasMouseEvent) {
             guard let view = metalView, let camera = renderer?.camera else { return }
-            let point = view.convert(event.locationInWindow, from: nil)
+            let point = event.location
             clickTracker.move(to: point)
             let translation = CGPoint(x: point.x - lastMousePosition.x, y: point.y - lastMousePosition.y)
             lastMousePosition = point
@@ -448,7 +521,7 @@ struct MetalCanvasView: NSViewRepresentable {
             }
 
             guard clickTracker.isDragging else { return }
-            let trigger: CanvasInputTrigger = event.modifierFlags.contains(.shift) ? .modified : .primary
+            let trigger: CanvasInputTrigger = event.modifiers.contains(.shift) ? .modified : .primary
             switch CanvasInputSettings.shared.action(for: trigger) {
                 case .orbit: performOrbit(translation: translation)
                 case .pan: performPan(translation: translation)
@@ -460,9 +533,9 @@ struct MetalCanvasView: NSViewRepresentable {
             view.draw()
         }
 
-        func handleMouseUp(_ event: NSEvent) {
+        func handleMouseUp(_ event: CanvasMouseEvent, cancelled: Bool = false) {
             guard let view = metalView, let camera = renderer?.camera else { return }
-            let point = view.convert(event.locationInWindow, from: nil)
+            let point = event.location
             let pointer = pointerEvent(for: event)
             let wasHandled = dragAction == .handled
             dragAction = .camera
@@ -470,7 +543,7 @@ struct MetalCanvasView: NSViewRepresentable {
                 pointerHandler?.pointerUp(pointer)
             }
             let clicked = clickTracker.end(at: point)
-            guard !wasHandled, clicked, view.bounds.contains(point) else {
+            guard !cancelled, !wasHandled, clicked, view.bounds.contains(point) else {
                 view.draw()
                 return
             }
@@ -478,7 +551,7 @@ struct MetalCanvasView: NSViewRepresentable {
                                       viewPoint: point,
                                       viewSize: view.bounds.size,
                                       matrix: camera.updateMatrix() * (renderer?.partTransform ?? matrix_identity_float4x4),
-                                      modifierFlags: event.modifierFlags,
+                                      modifierFlags: event.modifiers,
                                       clickCount: event.clickCount))
             view.draw()
         }
@@ -492,7 +565,7 @@ struct MetalCanvasView: NSViewRepresentable {
         /// the cursor meets z = 0 wherever the camera is orbited to; the flat overlay may be
         /// turned (`previewTransform`), so the point is taken back into the shapes' own frame.
         /// `nil` when the camera is edge-on to that plane.
-        private func pointerEvent(for event: NSEvent) -> CanvasPointerEvent? {
+        private func pointerEvent(for event: CanvasMouseEvent) -> CanvasPointerEvent? {
             guard let camera = renderer?.camera, let view = metalView else {
                 return nil
             }
@@ -500,7 +573,7 @@ struct MetalCanvasView: NSViewRepresentable {
             guard size.width > 0, size.height > 0 else {
                 return nil
             }
-            let location = view.convert(event.locationInWindow, from: nil)
+            let location = event.location
             let ndc = SIMD2<Float>(Float(location.x / size.width) * 2 - 1,
                                    Float(location.y / size.height) * 2 - 1)
             // Nearly edge-on, a pixel is metres of drawing: nothing sensible to hit
@@ -515,45 +588,42 @@ struct MetalCanvasView: NSViewRepresentable {
             let worldPerPoint = 2 * camera.distance * tan(camera.fov * 0.5) / Float(size.height)
             return CanvasPointerEvent(worldPoint: CGPoint(x: CGFloat(shape.x), y: CGFloat(shape.y)),
                                       viewPoint: location,
-                                      modifierFlags: event.modifierFlags,
+                                      modifierFlags: event.modifiers,
                                       pointsPerWorldUnit: CGFloat(1 / max(worldPerPoint, 1e-9)))
         }
 
-        @objc func handleMagnification( _ gesture: NSMagnificationGestureRecognizer) {
-            guard let camera = renderer?.camera, let view = gesture.view else {
+        /// Pinch: `distanceScale` multiplies the camera distance (below 1 zooms in),
+        /// `location` is the pinch center (view coordinates, origin bottom-left).
+        ///
+        /// Reads camera.distance itself — the same value every other
+        /// zoom path reads and writes — rather than a separately
+        /// tracked "current zoom" float. That old separate variable
+        /// is what let pinch and scroll drift apart: whichever one
+        /// you used last silently moved `camera.distance` out from
+        /// under the other's own private zoom level, so switching
+        /// between them produced a jump instead of continuing
+        /// smoothly from wherever the last zoom left off.
+        func applyPinch(distanceScale: Float, location: CGPoint, in view: STView) {
+            guard let camera = renderer?.camera else {
                 return
             }
-            if gesture.state == .changed {
-                // Reads camera.distance itself — the same value every other
-                // zoom path reads and writes — rather than a separately
-                // tracked "current zoom" float. That old separate variable
-                // is what let pinch and scroll drift apart: whichever one
-                // you used last silently moved `camera.distance` out from
-                // under the other's own private zoom level, so switching
-                // between them produced a jump instead of continuing
-                // smoothly from wherever the last zoom left off.
-                let amount = Float(gesture.magnification)
-                let newDistance = camera.distance * (1 - amount)
-
-                applyZoom(to: newDistance, towards: gesture.location(in: view), in: view)
-                gesture.magnification = 0
-                metalView?.draw()
-            }
+            applyZoom(to: camera.distance * distanceScale, towards: location, in: view)
+            metalView?.draw()
         }
 
-        func handleScroll(_ event: NSEvent) {
+        func handleScroll(_ event: CanvasScrollEvent) {
             // Same CanvasInputSettings lookup for Locked 2D (CAM) and Free
             // 3D (controller) now: reassigning Scroll / Shift + Scroll /
             // Option + Scroll in CanvasControlsSettingsView takes effect
             // immediately, on both canvases, since this looks the mapping
             // up fresh on every scroll event rather than caching it.
             // Modifiers are read from the event itself (not
-            // `NSEvent.modifierFlags`) so they reflect the state at the
+            // the keys held right now) so they reflect the state at the
             // moment this scroll was generated.
             let trigger: CanvasInputTrigger
-            if event.modifierFlags.contains(.option) {
+            if event.modifiers.contains(.option) {
                 trigger = .optionScroll
-            } else if event.modifierFlags.contains(.shift) {
+            } else if event.modifiers.contains(.shift) {
                 trigger = .modifiedScroll
             } else {
                 trigger = .scroll
@@ -613,7 +683,7 @@ struct MetalCanvasView: NSViewRepresentable {
         /// ignores the rest of that swipe and its momentum, and re-arms when
         /// the next one begins. A mouse wheel has no phases, so there each
         /// notch snaps, rate-limited by `snapWheelCooldown`.
-        private func performViewSnap(_ event: NSEvent) {
+        private func performViewSnap(_ event: CanvasScrollEvent) {
             guard let camera = renderer?.camera else {
                 return
             }
@@ -670,7 +740,7 @@ struct MetalCanvasView: NSViewRepresentable {
         /// assigned to Orbit or Pan can reuse `performOrbit`/`performPan`
         /// unchanged. The scale factor roughly matches how far a drag would
         /// need to travel to produce the same-feeling amount of rotation/pan.
-        private func scrollTranslation(_ event: NSEvent) -> CGPoint {
+        private func scrollTranslation(_ event: CanvasScrollEvent) -> CGPoint {
             let scale: CGFloat = event.hasPreciseScrollingDeltas ? 1.0 : 4.0
             return CGPoint(x: -event.scrollingDeltaX * scale, y: event.scrollingDeltaY * scale)
         }
@@ -709,7 +779,7 @@ struct MetalCanvasView: NSViewRepresentable {
         /// input. The percentages here are well under `performSmoothZoom`'s
         /// 0.02 and `performSteppedZoom`'s 0.08 on purpose — this is meant
         /// to read as noticeably more controlled than either.
-        private func performCursorZoom(event: NSEvent) {
+        private func performCursorZoom(event: CanvasScrollEvent) {
             guard let camera = renderer?.camera, let view = metalView else {
                 return
             }
@@ -723,8 +793,7 @@ struct MetalCanvasView: NSViewRepresentable {
                 let notch: Float = event.scrollingDeltaY > 0 ? 1 : -1
                 newDistance = camera.distance - notch * max(1.0, camera.distance * 0.02)
             }
-            let location = view.convert(event.locationInWindow, from: nil)
-            applyZoom(to: newDistance, towards: location, in: view)
+            applyZoom(to: newDistance, towards: event.location, in: view)
         }
 
         /// Shared by every cursor-anchored zoom (pinch, `.zoomToCursor` on
@@ -732,7 +801,7 @@ struct MetalCanvasView: NSViewRepresentable {
         /// `view`'s own coordinate space) to normalized device coords, and
         /// hands both to `Camera.zoom(to:towards:)`, which keeps whatever
         /// world point sits under that point fixed on screen.
-        private func applyZoom(to newDistance: Float, towards location: CGPoint, in view: NSView) {
+        private func applyZoom(to newDistance: Float, towards location: CGPoint, in view: STView) {
             guard let camera = renderer?.camera else {
                 return
             }
@@ -762,14 +831,14 @@ struct MetalCanvasView: NSViewRepresentable {
         // MARK: - True-to-life zoom (100% button)
 
         /// Points-per-millimeter for the physical screen this canvas is on
-        /// right now — see `NSScreen.trueToLifeZoomScale`. Falls back to
-        /// that same extension's own 72dpi/25.4mm-per-inch default if the
+        /// right now — see `TrueToLife`. Falls back to
+        /// its 72dpi/25.4mm-per-inch default if the
         /// view isn't in a window yet (e.g. the very first frame).
         private func truePointsPerMM() -> CGFloat {
             guard let window = metalView?.window else {
-                return 72.0 / 25.4
+                return TrueToLife.fallbackPointsPerMM
             }
-            return (window.screen ?? NSScreen.main)?.trueToLifeZoomScale(in: window) ?? 72.0 / 25.4
+            return TrueToLife.pointsPerMM(in: window)
         }
 
         /// Refreshes `zoomModel.percent` from the camera's current
@@ -844,3 +913,128 @@ struct MetalCanvasView: NSViewRepresentable {
         }
     }
 }
+
+// MARK: - Gestures
+
+#if os(macOS)
+
+extension MetalCanvasView.Coordinator {
+
+    func installGestures(on view: MTKView, usesPointerHandler: Bool) {
+        // Plain left-button drag and Shift+drag. handlePan tells these two
+        // apart via the Shift modifier and looks up what each one should do
+        // in CanvasInputSettings (see CanvasControlsSettingsView). With a
+        // pointer handler the mouse events are forwarded directly instead
+        // (a recognizer would swallow them).
+        if !usesPointerHandler {
+            let panGesture = NSPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+            view.addGestureRecognizer(panGesture)
+        }
+
+        // Middle-button drag, its own recognizer so handlePan can tell it
+        // apart from the two above (see `middleDragGesture`) and look
+        // its own action up in CanvasInputSettings independently.
+        let middleDragGesture = NSPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        middleDragGesture.buttonMask = 0x4 // middle mouse button
+        view.addGestureRecognizer(middleDragGesture)
+        self.middleDragGesture = middleDragGesture
+
+        // Trackpad pinch → zoom
+        let magnification = NSMagnificationGestureRecognizer(target: self, action: #selector(handleMagnification(_:)))
+        view.addGestureRecognizer(magnification)
+    }
+
+    @objc func handlePan(_ gesture: NSPanGestureRecognizer) {
+        // Shift+left-drag and a plain left-drag are told apart by the
+        // modifier flag; middle-button drag is its own recognizer (see
+        // `middleDragGesture`), never this one with the modifier held.
+        let trigger: CanvasInputTrigger
+        if gesture === middleDragGesture {
+            trigger = .middleButton
+        } else if CanvasModifiers.current.contains(.shift) {
+            trigger = .modified
+        } else {
+            trigger = .primary
+        }
+        let translation = gesture.translation(in: gesture.view)
+        let location = gesture.view.map { gesture.location(in: $0) } ?? .zero
+        applyDrag(trigger: trigger, translation: translation, location: location)
+        gesture.setTranslation(.zero, in: gesture.view)
+    }
+
+    @objc func handleMagnification(_ gesture: NSMagnificationGestureRecognizer) {
+        guard gesture.state == .changed, let view = gesture.view else {
+            return
+        }
+        applyPinch(distanceScale: 1 - Float(gesture.magnification), location: gesture.location(in: view), in: view)
+        gesture.magnification = 0
+    }
+}
+
+#else
+
+/// Touch: one finger drags like the left mouse button, two fingers drag like the middle one
+/// (pan, by default) and pinch zooms. With a pointer handler (CAM) one finger goes to the
+/// handler directly, see `InteractiveMTKView`.
+extension MetalCanvasView.Coordinator: UIGestureRecognizerDelegate {
+
+    func installGestures(on view: MTKView, usesPointerHandler: Bool) {
+        if !usesPointerHandler {
+            let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+            panGesture.minimumNumberOfTouches = 1
+            panGesture.maximumNumberOfTouches = 1
+            panGesture.delegate = self
+            view.addGestureRecognizer(panGesture)
+        }
+
+        let twoFingerPan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+        twoFingerPan.minimumNumberOfTouches = 2
+        twoFingerPan.maximumNumberOfTouches = 2
+        twoFingerPan.delegate = self
+        view.addGestureRecognizer(twoFingerPan)
+        middleDragGesture = twoFingerPan
+
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        pinch.delegate = self
+        view.addGestureRecognizer(pinch)
+    }
+
+    @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
+        guard let view = gesture.view else {
+            return
+        }
+        let trigger: CanvasInputTrigger
+        if gesture === middleDragGesture {
+            trigger = .middleButton
+        } else if CanvasModifiers(gesture.modifierFlags).contains(.shift) {
+            trigger = .modified
+        } else {
+            trigger = .primary
+        }
+        // UIKit's y points down, the camera code's up
+        let translation = gesture.translation(in: view)
+        applyDrag(trigger: trigger,
+                  translation: CGPoint(x: translation.x, y: -translation.y),
+                  location: view.canvasPoint(gesture.location(in: view)))
+        gesture.setTranslation(.zero, in: view)
+    }
+
+    @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        guard gesture.state == .changed, let view = gesture.view else {
+            return
+        }
+        // `scale` is the spread since the last reset: fingers twice as far apart = half the distance
+        applyPinch(distanceScale: Float(1 / max(gesture.scale, 0.01)),
+                   location: view.canvasPoint(gesture.location(in: view)),
+                   in: view)
+        gesture.scale = 1
+    }
+
+    /// Pinching and dragging with two fingers happen together.
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                           shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
+    }
+}
+
+#endif

@@ -9,8 +9,8 @@
 //  seam between them, so `MetalCanvasView` never imports anything CAM-specific.
 //
 
-#if os(macOS)
-import AppKit
+import Foundation
+import CoreGraphics
 import simd
 
 /// One mouse event, already translated out of screen space.
@@ -24,7 +24,7 @@ struct CanvasPointerEvent {
     /// — for "did it move far enough to be a drag" checks, which are about
     /// screen distance and must not change with zoom.
     let viewPoint: CGPoint
-    let modifierFlags: NSEvent.ModifierFlags
+    let modifierFlags: CanvasModifiers
     /// Current zoom: how many view points one world mm covers (across the view direction).
     /// Divide a screen-space tolerance by this to get a world-space one.
     let pointsPerWorldUnit: CGFloat
@@ -39,8 +39,8 @@ struct CanvasClick {
     let viewSize: CGSize
     /// The exact matrix the part is rendered with (camera and part transform).
     let matrix: simd_float4x4
-    let modifierFlags: NSEvent.ModifierFlags
-    /// 1 for a single click, 2 for the second click of a double click (`NSEvent.clickCount`).
+    let modifierFlags: CanvasModifiers
+    /// 1 for a single click, 2 for the second click of a double click (`CanvasMouseEvent.clickCount`).
     let clickCount: Int
 
     /// The second (or later) click of a quick series on the same spot.
@@ -78,4 +78,3 @@ protocol CanvasPointerHandler: AnyObject {
 extension CanvasPointerHandler {
     var liveRenderObjects: [RenderObject]? { nil }
 }
-#endif

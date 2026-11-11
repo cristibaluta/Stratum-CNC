@@ -120,7 +120,7 @@ enum D2_RenderObjectBuilder {
         } else if pathSelected {
             return STColor.systemBlue.simd4RGBA
         } else {
-            return STColor.labelColor.simd4RGBA
+            return STColor.stLabel.simd4RGBA
         }
     }
 

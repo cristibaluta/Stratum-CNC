@@ -11,9 +11,6 @@ import Combine
 import UniformTypeIdentifiers
 import StratumCAM
 import SwiftSTEP
-#if os(macOS)
-import AppKit
-#endif
 
 @MainActor
 class CAMModel: ObservableObject {
@@ -1112,25 +1109,11 @@ class CAMModel: ObservableObject {
         }
     }
 
-    /// Call this on init or when the NSView moves to a new screen
-    func updateTrueToLifeScale(for screen: NSScreen?) {
-        // TODO: use updateTrueToLifeScale extension?
-        guard let screen = screen else {
+    /// Call this on init or when the view moves to a new screen (see `TrueToLife.pointsPerMM`)
+    func updateTrueToLifeScale(pointsPerMM: CGFloat) {
+        guard pointsPerMM > 0 else {
             return
         }
-
-        let deviceDescription = screen.deviceDescription
-        guard let displayID = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
-              let displaySizeMM = Optional(CGDisplayScreenSize(displayID)), displaySizeMM.width > 0,
-              let backingScale = Optional(screen.backingScaleFactor) else {
-            return
-        }
-
-        // Compute actual physical DPI / point scale
-        let pixelWidth = (deviceDescription[NSDeviceDescriptionKey.size] as? NSSize ?? .zero).width * backingScale
-        let physicalDPI = (pixelWidth / displaySizeMM.width) * 25.4
-        let pointsPerMM = (physicalDPI / 25.4) / backingScale
-
         self.trueToLifeScale = pointsPerMM
     }
 

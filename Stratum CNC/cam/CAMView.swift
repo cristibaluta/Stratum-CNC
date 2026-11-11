@@ -42,7 +42,7 @@ struct CAMView: View {
     /// The mouse-icon button opens the Settings window on its Canvas tab, which
     /// edits the same `CanvasInputSettings.shared` as the controller's canvas —
     /// see `CanvasControlsSettingsView`'s doc comment.
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.stOpenSettings) private var openSettings
 
     var body: some View {
         let _ = Self._printChanges()

@@ -115,6 +115,8 @@ struct ProjectView: View {
             projectModel.gCodeStore.toolLibrary = { [weak appModel] in appModel?.toolsStore.tools ?? [] }
         }
         .navigationTitle(title)
+        #if os(macOS)
         .navigationSubtitle(subtitle)
+        #endif
     }
 }

@@ -564,8 +564,10 @@ final class ProjectsStore: ObservableObject {
     }
 
     func revealInFinder(_ project: Project) {
+        #if os(macOS)
         guard let directory = directory(for: project) else { return }
         NSWorkspace.shared.activateFileViewerSelecting([directory])
+        #endif
     }
 
     // MARK: - Persistence

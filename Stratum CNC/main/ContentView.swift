@@ -22,7 +22,9 @@ struct ContentView: View {
                 SplashpageView(appModel: appModel, projectsStore: projectsStore)
             }
         }
+        #if os(macOS)
         .frame(minWidth: 800, minHeight: 600)
+        #endif
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // On every screen, the Projects list included
 //        .toolbar {
@@ -57,8 +59,9 @@ struct ContentView: View {
         // Single source of truth for the whole app's appearance. Every
         // screen reads `\.colorScheme` from this environment
         .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: STApp.willTerminateNotification)) { _ in
             projectsStore.saveActiveProject()
         }
+        .settingsPresenter(appModel)
     }
 }

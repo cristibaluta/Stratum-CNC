@@ -25,6 +25,7 @@ enum GCodeExporter {
             return
         }
 
+        #if os(macOS)
         let panel = NSSavePanel()
         panel.title = "Export G-code"
         panel.prompt = "Export"
@@ -57,6 +58,21 @@ enum GCodeExporter {
         } else {
             panel.begin(completionHandler: write)
         }
+        #else
+        // No save panel on iOS: the file goes to the app's Documents folder, which the
+        // Files app shows when the target enables file sharing.
+        // TODO: present a `.fileExporter` from the view instead.
+        let text = programText(of: document)
+        guard let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        let url = folder.appendingPathComponent(fileName(for: document, suggestedName: suggestedName))
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            document.lastError = "Couldn't export G-code: \(error.localizedDescription)"
+        }
+        #endif
     }
 
     /// The program text, one line per G-code line and a closing newline.

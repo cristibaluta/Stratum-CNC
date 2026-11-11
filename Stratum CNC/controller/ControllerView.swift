@@ -120,7 +120,7 @@ struct ControllerView: View {
                 .frame(width: 300)
         }
         .padding(16)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(Color.stWindowBackground)
         .onAppear {
             if let machine = model.selectedMachine {
                 model.connection.connect(to: machine)
@@ -606,7 +606,7 @@ private struct CanvasSection: View {
     /// canvas then shows it in place of the loaded program.
     let showsMacroPreview: Bool
     let isStockVisible: Binding<Bool>
-    @Environment(\.openSettings) private var openSettings
+    @Environment(\.stOpenSettings) private var openSettings
     let onOpenStocksLib: (() -> Void)?
     /// `nil` hides the import buttons (the program comes from elsewhere).
     let onImportFile: (() -> Void)?
@@ -688,7 +688,7 @@ private struct CanvasSection: View {
                              force: true)
     }
 
-    private func handleScrubScroll(_ event: NSEvent) {
+    private func handleScrubScroll(_ event: CanvasScrollEvent) {
         let totalLines = gCodeModel.document.lines.count
         guard totalLines > 0, !scene.isMacroPreviewActive else {
             return
@@ -708,7 +708,7 @@ private struct CanvasSection: View {
         }
 
         let step: Double
-        if event.modifierFlags.contains(.shift) {
+        if event.modifiers.contains(.shift) {
             // Shift keeps the old coarse paging, for crossing a long file
             // quickly: proportional to the swipe on a trackpad, one chunk
             // of the file per notch on a wheel.

@@ -212,7 +212,7 @@ struct PanelToolpaths: View {
                 .frame(width: 22, height: 20)
                 .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
+        .stBorderlessMenuStyle()
         .menuIndicator(.hidden)
         .fixedSize()
         .foregroundStyle(.secondary)

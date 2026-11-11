@@ -1,22 +1,11 @@
-//
-//  SVGFlattener.swift
-//  Stratum CNC
-//
-//  PocketSVG only reads <path>-like elements that are drawn directly. SVGs
-//  exported by Flash/Animate-style tools keep the geometry inside <defs> and
-//  draw it through <use xlink:href="#id"> under transformed <g> groups.
-//  PocketSVG finds no paths in those, so the import silently produced nothing.
-//
-//  This rewrites such a file into a flat one: every drawn <path> is emitted
-//  at the top level, carrying the accumulated transform of its ancestors
-//  (and of any <use> that referenced it) in its own `transform` attribute,
-//  which SVGImporter already applies.
-//
-
 import Foundation
 import CoreGraphics
+#if canImport(FoundationXML)
+import FoundationXML   // XMLParser lives here on Linux; on Apple platforms it's in Foundation
+#endif
 
-// TODO Use XMLParser because XMLDocument is not available on ios
+/// Flattens `<use>` / `<defs>` in an SVG into plain drawable elements with baked-in transforms.
+/// Uses XMLParser (available on macOS and iOS) instead of XMLDocument (macOS only).
 enum SVGFlattener {
 
     /// Returns a URL to import: the original when it needs no work,
@@ -24,111 +13,192 @@ enum SVGFlattener {
     static func flattenedURLIfNeeded(for url: URL) -> URL {
         guard let data = try? Data(contentsOf: url),
               let text = String(data: data, encoding: .utf8),
-              text.contains("<use") || text.contains("<defs") else {
-            return url
-        }
-        guard let doc = try? XMLDocument(data: data, options: [.nodePreserveWhitespace]),
-              let root = doc.rootElement() else {
+              text.contains("<use") || text.contains("<defs"),
+              let root = parseTree(from: data) else {
             return url
         }
 
-        var defs: [String: XMLElement] = [:]
+        var defs: [String: Node] = [:]
         collectIDs(in: root, into: &defs)
 
-        var flatPaths: [XMLElement] = []
-        walk(root, transform: .identity, defs: defs, inDefs: false, out: &flatPaths, depth: 0)
+        var flatPaths: [Node] = []
+        walk(root, transform: .identity, defs: defs, out: &flatPaths, depth: 0)
         guard !flatPaths.isEmpty else {
             return url
         }
 
-        let newRoot = XMLElement(name: "svg")
-        for attr in root.attributes ?? [] {
-            guard let name = attr.name, !name.hasPrefix("xmlns:") else {
-                continue
-            }
-            newRoot.addAttribute(XMLNode.attribute(withName: name, stringValue: attr.stringValue ?? "") as! XMLNode)
-        }
-        flatPaths.forEach { newRoot.addChild($0) }
-        let out = XMLDocument(rootElement: newRoot)
+        // Keep root attributes (viewBox, width, height, xmlns...) except prefixed namespace declarations.
+        let newRoot = Node(name: "svg",
+                           attributes: root.attributes.filter { !$0.key.hasPrefix("xmlns:") })
+        newRoot.children = flatPaths
+
+        var xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        newRoot.write(to: &xml)
 
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("flat-\(UUID().uuidString)-\(url.lastPathComponent)")
         do {
-            try out.xmlData.write(to: tmp)
+            try Data(xml.utf8).write(to: tmp)
             return tmp
         } catch {
             return url
         }
     }
 
+    // MARK: - Minimal XML tree
+
+    private final class Node {
+        let name: String
+        var attributes: [String: String]
+        var children: [Node] = []
+
+        init(name: String, attributes: [String: String]) {
+            self.name = name
+            self.attributes = attributes
+        }
+
+        func deepCopy() -> Node {
+            let copy = Node(name: name, attributes: attributes)
+            copy.children = children.map { $0.deepCopy() }
+            return copy
+        }
+
+        func write(to out: inout String) {
+            out += "<\(name)"
+            for key in attributes.keys.sorted() {
+                out += " \(key)=\"\(Node.escape(attributes[key] ?? ""))\""
+            }
+            if children.isEmpty {
+                out += "/>"
+            } else {
+                out += ">"
+                for child in children {
+                    child.write(to: &out)
+                }
+                out += "</\(name)>"
+            }
+        }
+
+        private static func escape(_ s: String) -> String {
+            s.replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+                .replacingOccurrences(of: "\n", with: "&#10;")
+                .replacingOccurrences(of: "\t", with: "&#9;")
+        }
+    }
+
+    private final class TreeBuilder: NSObject, XMLParserDelegate {
+        private(set) var root: Node?
+        private var stack: [Node] = []
+
+        func parser(_ parser: XMLParser,
+                    didStartElement elementName: String,
+                    namespaceURI: String?,
+                    qualifiedName qName: String?,
+                    attributes attributeDict: [String: String] = [:]) {
+            let node = Node(name: elementName, attributes: attributeDict)
+            if let parent = stack.last {
+                parent.children.append(node)
+            } else if root == nil {
+                root = node
+            }
+            stack.append(node)
+        }
+
+        func parser(_ parser: XMLParser,
+                    didEndElement elementName: String,
+                    namespaceURI: String?,
+                    qualifiedName qName: String?) {
+            _ = stack.popLast()
+        }
+    }
+
+    private static func parseTree(from data: Data) -> Node? {
+        let parser = XMLParser(data: data)
+        parser.shouldProcessNamespaces = false      // keep "xlink:href" etc. as written
+        parser.shouldResolveExternalEntities = false
+        let builder = TreeBuilder()
+        parser.delegate = builder
+        guard parser.parse() else {
+            return nil
+        }
+        return builder.root
+    }
+
+    // MARK: - Flattening
+
     private static let drawable: Set<String> = ["path", "rect", "circle", "ellipse", "line", "polyline", "polygon"]
 
-    private static func collectIDs(in element: XMLElement, into map: inout [String: XMLElement]) {
-        if let id = element.attribute(forName: "id")?.stringValue {
-            map[id] = element
+    private static func collectIDs(in node: Node, into map: inout [String: Node]) {
+        if let id = node.attributes["id"] {
+            map[id] = node
         }
-        for case let child as XMLElement in element.children ?? [] {
+        for child in node.children {
             collectIDs(in: child, into: &map)
         }
     }
 
-    private static func walk(_ el: XMLElement,
+    private static func walk(_ el: Node,
                              transform: CGAffineTransform,
-                             defs: [String: XMLElement],
-                             inDefs: Bool,
-                             out: inout [XMLElement],
+                             defs: [String: Node],
+                             out: inout [Node],
                              depth: Int) {
 
         guard depth < 32 else {
             return
         }   // guards against <use> cycles
-        let name = el.name ?? ""
+        let name = el.name
         if name == "defs" || name == "symbol" || name == "clipPath" || name == "mask" {
             return
         }
 
         var t = transform
-        if let s = el.attribute(forName: "transform")?.stringValue {
+        if let s = el.attributes["transform"] {
             t = parseTransform(s).concatenating(transform)   // child applied first, then ancestors
         }
 
         if name == "use" {
-            let ref = (el.attribute(forName: "xlink:href") ?? el.attribute(forName: "href"))?.stringValue ?? ""
+            let ref = el.attributes["xlink:href"] ?? el.attributes["href"] ?? ""
             guard ref.hasPrefix("#"), let target = defs[String(ref.dropFirst())] else {
                 return
             }
             var ut = t
-            let x = Double(el.attribute(forName: "x")?.stringValue ?? "") ?? 0
-            let y = Double(el.attribute(forName: "y")?.stringValue ?? "") ?? 0
-            if x != 0 || y != 0 { ut = CGAffineTransform(translationX: x, y: y).concatenating(ut) }
-            walk(target, transform: ut, defs: defs, inDefs: true, out: &out, depth: depth + 1)
+            let x = Double(el.attributes["x"] ?? "") ?? 0
+            let y = Double(el.attributes["y"] ?? "") ?? 0
+            if x != 0 || y != 0 {
+                ut = CGAffineTransform(translationX: x, y: y).concatenating(ut)
+            }
+            walk(target, transform: ut, defs: defs, out: &out, depth: depth + 1)
             return
         }
 
         if drawable.contains(name) {
-            let copy = el.copy() as! XMLElement
-            copy.removeAttribute(forName: "id")
-            copy.removeAttribute(forName: "transform")
+            let copy = el.deepCopy()
+            copy.attributes["id"] = nil
+            copy.attributes["transform"] = nil
             if !t.isIdentity {
-                copy.addAttribute(XMLNode.attribute(withName: "transform", stringValue:
-                    "matrix(\(t.a) \(t.b) \(t.c) \(t.d) \(t.tx) \(t.ty))") as! XMLNode)
+                copy.attributes["transform"] = "matrix(\(t.a) \(t.b) \(t.c) \(t.d) \(t.tx) \(t.ty))"
             }
             out.append(copy)
             return
         }
 
-        for case let child as XMLElement in el.children ?? [] {
-            walk(child, transform: t, defs: defs, inDefs: inDefs, out: &out, depth: depth + 1)
+        for child in el.children {
+            walk(child, transform: t, defs: defs, out: &out, depth: depth + 1)
         }
     }
+
+    private static let transformRegex = try! NSRegularExpression(
+        pattern: #"(matrix|translate|scale|rotate)\s*\(([^)]*)\)"#)
 
     /// matrix(), translate(), scale(), rotate() — applied left to right as in SVG.
     private static func parseTransform(_ string: String) -> CGAffineTransform {
         var result = CGAffineTransform.identity
-        let regex = try! NSRegularExpression(pattern: #"(matrix|translate|scale|rotate)\s*\(([^)]*)\)"#)
         let ns = string as NSString
 
-        for m in regex.matches(in: string, range: NSRange(location: 0, length: ns.length)) {
+        for m in transformRegex.matches(in: string, range: NSRange(location: 0, length: ns.length)) {
             let fn = ns.substring(with: m.range(at: 1))
             let v = ns.substring(with: m.range(at: 2))
                 .split(whereSeparator: { $0 == "," || $0 == " " || $0 == "\n" || $0 == "\t" })

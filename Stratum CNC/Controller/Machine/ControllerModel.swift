@@ -182,11 +182,10 @@ class ControllerModel: ObservableObject {
             self?.handle(event)
         }
 
-        #if os(macOS)
         // A held button's release is never delivered once the app is in the
         // background, so switching away mid-jog must stop the jog itself.
         _ = NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
+            forName: STApp.didResignActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -194,7 +193,6 @@ class ControllerModel: ObservableObject {
                 self?.jogController.stopAll()
             }
         }
-        #endif
     }
 
     private var cancellables = Set<AnyCancellable>()

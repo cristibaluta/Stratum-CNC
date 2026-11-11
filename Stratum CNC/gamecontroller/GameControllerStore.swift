@@ -5,7 +5,7 @@
 //  Created by Cristian Baluta on 25.08.2026.
 //
 
-import Foundation
+@preconcurrency import Foundation
 import Combine
 import Observation
 import GameController
@@ -57,7 +57,7 @@ final class GameControllerStore: ObservableObject {
     // MARK: - Private
 
     private let continuation: AsyncStream<ButtonPress>.Continuation
-    private var notificationTasks: [Task<Void, Never>] = []
+    private var observers: [NSObjectProtocol] = []
 
     init() {
         var continuation: AsyncStream<ButtonPress>.Continuation!
@@ -71,7 +71,8 @@ final class GameControllerStore: ObservableObject {
 
     deinit {
         continuation.finish()
-        notificationTasks.forEach { $0.cancel() }
+//        stopObserving()
+//        notificationTasks.forEach { $0.cancel() }
     }
 
     // MARK: - Controller discovery
@@ -80,31 +81,54 @@ final class GameControllerStore: ObservableObject {
         controllers = GCController.controllers()
     }
 
+
+    func stopObserving() {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers.removeAll()
+    }
+
     private func startListening() {
-        let connected = NotificationCenter.default.notifications(named: .GCControllerDidConnect)
-        let disconnected = NotificationCenter.default.notifications(named: .GCControllerDidDisconnect)
+        let nc = NotificationCenter.default
 
-        notificationTasks.append(
-            Task { [weak self] in
-                for await notification in connected {
-                    guard let self, let controller = notification.object as? GCController else {
-                        continue
-                    }
-                    self.addController(controller)
-                }
+        observers.append(
+            nc.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main) { [weak self] note in
+                guard let controller = note.object as? GCController else { return }
+                nonisolated(unsafe) let c = controller
+                MainActor.assumeIsolated { self?.addController(c) }
+            }
+        )
+        observers.append(
+            nc.addObserver(forName: .GCControllerDidDisconnect, object: nil, queue: .main) { [weak self] note in
+                guard let controller = note.object as? GCController else { return }
+                nonisolated(unsafe) let c = controller
+                MainActor.assumeIsolated { self?.removeController(c) }
             }
         )
 
-        notificationTasks.append(
-            Task { [weak self] in
-                for await notification in disconnected {
-                    guard let self, let controller = notification.object as? GCController else {
-                        continue
-                    }
-                    self.removeController(controller)
-                }
-            }
-        )
+//        let connected = NotificationCenter.default.notifications(named: .GCControllerDidConnect)
+//        let disconnected = NotificationCenter.default.notifications(named: .GCControllerDidDisconnect)
+//
+//        notificationTasks.append(
+////            Task { [weak self] in
+//                for notification in connected {
+//                    guard let self, let controller = notification.object as? GCController else {
+//                        continue
+//                    }
+//                    self.addController(controller)
+//                }
+////            }
+//        )
+//
+//        notificationTasks.append(
+//            Task { [weak self] in
+//                for await notification in disconnected {
+//                    guard let self, let controller = notification.object as? GCController else {
+//                        continue
+//                    }
+//                    self.removeController(controller)
+//                }
+//            }
+//        )
 
         // Configure controllers that were already connected.
         for controller in GCController.controllers() {

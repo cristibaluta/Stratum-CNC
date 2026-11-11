@@ -36,25 +36,15 @@ class SVGImporter: Importer {
             // Some svgs (saved by Inkscape) do not have the real values that will match the viewbox
             // But they contain a transform we can use to scale everything down
             if let cg = path.svgAttributes["transform"] as? CGAffineTransform {
-                let nsTransform = AffineTransform(
-                    m11: cg.a,
-                    m12: cg.b,
-                    m21: cg.c,
-                    m22: cg.d,
-                    tX: cg.tx,
-                    tY: cg.ty
-                )
-                path.transform(using: nsTransform)
+                path.applyTransform(cg)
             }
             bezierPaths.append(path)
         }
 
-        #if os(macOS)
-        // SVG coordinate system starts from top-left
-        // Mac coordinate system starts from bottom-left
-        // We need to flip all the y values of the bezierPaths while maintaining the viewbox
+        // SVG coordinate system starts from top-left, the canvas (and the machine) from
+        // bottom-left, on every platform. We need to flip all the y values of the
+        // bezierPaths while maintaining the viewbox
         bezierPaths = bezierPaths.map { $0.pathWithFlippedY(inHeight: svg.viewBox.height) }
-        #endif
 
         // One path per subpath, like the DXF and Gerber importers (one path per
         // contour). A single SVG <path> can hold many subpaths — the outline

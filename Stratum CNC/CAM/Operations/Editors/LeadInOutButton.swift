@@ -27,7 +27,7 @@ struct LeadInOutRow: View {
                 Toggle("", isOn: Binding(get: { leadInOut != nil },
                                          set: { leadInOut = $0 ? (leadInOut ?? .seed) : nil }))
                     .labelsHidden()
-                    .toggleStyle(.checkbox)
+                    .stCheckboxToggleStyle()
                     .controlSize(.small)
 
                 if let current = leadInOut {
@@ -512,7 +512,7 @@ struct LeadInOutDiagram: View {
         context.stroke(circle(at: scene.toolOnContour, radius: r),
                        with: .color(accent.opacity(0.35)), style: StrokeStyle(lineWidth: 1))
         if !scene.lead.isEmpty {
-            context.fill(circle(at: scene.toolAtLead, radius: r), with: .color(Color(.windowBackgroundColor).opacity(0.6)))
+            context.fill(circle(at: scene.toolAtLead, radius: r), with: .color(Color.stWindowBackground.opacity(0.6)))
             context.stroke(circle(at: scene.toolAtLead, radius: r),
                            with: .color(accent), style: StrokeStyle(lineWidth: 1.2, dash: [3, 3]))
         }
@@ -532,7 +532,7 @@ struct LeadInOutDiagram: View {
             context.fill(Path(ellipseIn: CGRect(x: marker.x - 4.5, y: marker.y - 4.5, width: 9, height: 9)),
                          with: .color(accent))
             context.stroke(Path(ellipseIn: CGRect(x: marker.x - 4.5, y: marker.y - 4.5, width: 9, height: 9)),
-                           with: .color(Color(.windowBackgroundColor)), style: StrokeStyle(lineWidth: 1.5))
+                           with: .color(Color.stWindowBackground), style: StrokeStyle(lineWidth: 1.5))
             let isIn = role == .leadIn
             let labelAbove = scene.free > 0
             let labelY = labelAbove ? marker.y - r * scale - 6 : marker.y + r * scale + 6

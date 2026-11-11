@@ -81,7 +81,7 @@ struct ProjectCard: View {
             .padding(.vertical, 10)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .background(Color.stControlBackground)
         .contentShape(
             RoundedRectangle(cornerRadius: 10)
         )
@@ -90,7 +90,7 @@ struct ProjectCard: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(isHovered ? Color.primary.opacity(0.4) : Color(nsColor: .separatorColor))
+                .strokeBorder(isHovered ? Color.primary.opacity(0.4) : Color.stSeparator)
         }
         .shadow(color: .black.opacity(isHovered ? 0.10 : 0), radius: isHovered ? 8 : 0, x: 0, y: 3)
         .scaleEffect(isHovered ? 1.02 : 1.0)

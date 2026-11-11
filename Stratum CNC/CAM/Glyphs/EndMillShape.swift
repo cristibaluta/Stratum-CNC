@@ -73,13 +73,22 @@ struct EndMillGlyph: View {
 @MainActor
 func endMillTemplateImage(size: CGFloat = 16) -> Image {
     let renderer = ImageRenderer(content: EndMillGlyph(size: size).foregroundStyle(.black))
+    #if os(macOS)
     renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
+    #else
+    renderer.scale = UITraitCollection.current.displayScale > 0 ? UITraitCollection.current.displayScale : 2
+    #endif
     guard let cg = renderer.cgImage else {
         return Image(systemName: "wrench.and.screwdriver")
     }
+    #if os(macOS)
     let ns = NSImage(cgImage: cg, size: NSSize(width: size, height: size))
     ns.isTemplate = true
     return Image(nsImage: ns)
+    #else
+    let ui = UIImage(cgImage: cg, scale: renderer.scale, orientation: .up).withRenderingMode(.alwaysTemplate)
+    return Image(uiImage: ui)
+    #endif
 }
 
 #Preview {
