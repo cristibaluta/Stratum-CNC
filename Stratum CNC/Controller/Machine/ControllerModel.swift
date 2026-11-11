@@ -10,9 +10,6 @@ import Combine
 import simd
 import CryptoKit
 import StratumLink
-#if os(macOS)
-import AppKit
-#endif
 
 /// The app-side model of the controller screen. Connecting, uploading and
 /// spotting alarms and tool changes live in `SL.Session`; the job policy

@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import AppKit
 
 /// Parameters and run button for the selected macro. Shown between the macro
 /// list and the G-code table, which displays the macro's generated G-code.

@@ -8,9 +8,6 @@
 import SwiftUI
 import UserNotifications
 import StratumLink
-#if os(macOS)
-import AppKit
-#endif
 
 /// Owns the queue of alerts and everything that makes them hard to miss:
 /// a modal dialog in the app (`machineAlerts(_:onResume:)` below), a bouncing
@@ -35,7 +32,9 @@ final class MachineAlertCenter: ObservableObject {
     func post(_ alert: MachineAlert) {
         // A status change and the line explaining it usually both arrive.
         let key = "\(alert.kind)|\(alert.message)"
-        if let last = lastKey, last.key == key, Date().timeIntervalSince(last.date) < 5 { return }
+        if let last = lastKey, last.key == key, Date().timeIntervalSince(last.date) < 5 {
+            return 
+        }
         lastKey = (key, Date())
         lastPosted[alert.kind] = Date()
 
@@ -52,7 +51,9 @@ final class MachineAlertCenter: ObservableObject {
     }
 
     func wasPosted(_ kind: MachineAlert.Kind, within seconds: TimeInterval) -> Bool {
-        guard let date = lastPosted[kind] else { return false }
+        guard let date = lastPosted[kind] else {
+            return false 
+        }
         return Date().timeIntervalSince(date) < seconds
     }
 

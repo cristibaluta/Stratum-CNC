@@ -13,7 +13,6 @@
 
 import Foundation
 import CoreGraphics
-import AppKit
 import SwiftDXF
 import StratumCAM
 
@@ -69,7 +68,9 @@ enum AlignmentPins {
     /// The offsets at which the pins stay whole inside the stock and apart from each other.
     /// Nil when none does (or the diameter is not positive).
     static func offsetRange(diameter: Double, on stock: StockMaterial) -> ClosedRange<Double>? {
-        guard diameter > 0 else { return nil }
+        guard diameter > 0 else {
+            return nil
+        }
         let size = stock.footprintSize
         let width = Double(size.width)
         let height = Double(size.height)
@@ -85,22 +86,35 @@ enum AlignmentPins {
             break
         case .cylindrical, .disk:
             let c = width / 2
-            guard c >= radius else { return nil }
+                guard c >= radius else {
+                    return nil
+                }
             lower = max(lower, c - (c - radius) / 2.0.squareRoot())
         }
-        guard lower <= upper + 1e-9 else { return nil }
+        guard lower <= upper + 1e-9 else {
+            return nil
+        }
+        
         return lower...max(lower, upper)
     }
 
     /// The centres of the four pins, in canvas mm (stock corner at 0, 0): symmetric about the
     /// stock's centre. Throws a message fit for the dialog when they would not fit.
     static func centers(on stock: StockMaterial?, spec: AlignmentPinsSpec) throws -> [CGPoint] {
-        guard let stock else { throw PinError.noStock }
-        guard spec.diameter > 0 else { throw PinError.invalidDiameter }
+        guard let stock else {
+            throw PinError.noStock
+        }
+        guard spec.diameter > 0 else {
+            throw PinError.invalidDiameter
+        }
         let range = offsetRange(diameter: spec.diameter, on: stock)
-        guard let range, range.contains(spec.offset) else { throw PinError.invalidOffset(range: range) }
+
+        guard let range, range.contains(spec.offset) else {
+            throw PinError.invalidOffset(range: range)
+        }
         let size = stock.footprintSize
         let offset = spec.offset
+
         return [CGPoint(x: offset, y: offset),
                 CGPoint(x: Double(size.width) - offset, y: offset),
                 CGPoint(x: Double(size.width) - offset, y: Double(size.height) - offset),
@@ -110,27 +124,37 @@ enum AlignmentPins {
     /// The spec with its offset brought into what fits this stock (after the stock changed), or
     /// nil when the pins no longer fit it at all.
     static func fitted(_ spec: AlignmentPinsSpec, on stock: StockMaterial?) -> AlignmentPinsSpec? {
-        guard let stock, let range = offsetRange(diameter: spec.diameter, on: stock) else { return nil }
+        guard let stock, let range = offsetRange(diameter: spec.diameter, on: stock) else {
+            return nil
+        }
         var result = spec
         result.offset = min(max(spec.offset, range.lowerBound), range.upperBound)
+
         return result
     }
 
     /// The pins as an object. `id` is kept when an existing one is rebuilt or restored.
-    static func makeObject(id: UUID = UUID(), name: String, spec: AlignmentPinsSpec,
+    static func makeObject(id: UUID = UUID(),
+                           name: String,
+                           spec: AlignmentPinsSpec,
                            stock: StockMaterial?) throws -> D2_Object {
+
         let centers = try centers(on: stock, spec: spec)
         let radius = spec.diameter / 2
 
         var paths: [STBezierPath] = []
         var entities: [DXF.Entity] = []
         var contours: [[SC.Contour]] = []
+
         for center in centers {
             let x = Double(center.x)
             let y = Double(center.y)
-            paths.append(STBezierPath(ovalIn: NSRect(x: x - radius, y: y - radius,
-                                                     width: spec.diameter, height: spec.diameter)))
+            paths.append(STBezierPath(ovalIn: NSRect(x: x - radius,
+                                                     y: y - radius,
+                                                     width: spec.diameter,
+                                                     height: spec.diameter)))
             entities.append(.circle(center: DXF.Point(x, y), radius: radius, layer: "0", color: 256))
+
             let circle = SC.Contour.Chained(geometry: .circle(center: SIMD2(x, y), radius: radius), reversed: false)
             contours.append([SC.Contour(entities: [circle], isClosed: true)])
         }
@@ -141,6 +165,7 @@ enum AlignmentPins {
                                contours: built.contours, position: built.position,
                                originalSize: built.originalSize, width: built.width)
         object.alignmentPins = spec
+
         return object
     }
 }

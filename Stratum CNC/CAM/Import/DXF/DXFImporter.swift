@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import AppKit
 import CoreText
 import SwiftDXF
 import StratumCAM
@@ -296,7 +295,7 @@ private func textPath(at point: SwiftDXF.DXF.Point, height: Double, rotationDeg:
 
     let path = STBezierPath()
 
-    let font = NSFont.systemFont(ofSize: height)
+    let font = STFont.systemFont(ofSize: height)
     let attributes: [NSAttributedString.Key: Any] = [
         .font: font
     ]
@@ -463,7 +462,9 @@ extension SC.Geometry {
 
     private static func reversedVertices(_ vertices: [Vertex], closed: Bool) -> [Vertex] {
         let n = vertices.count
-        guard n > 1 else { return vertices }
+        guard n > 1 else {
+            return vertices
+        }
         return (0..<n).map { i in
             let originalIndex = n - 1 - i
             let bulgeSourceIndex = originalIndex - 1
@@ -481,7 +482,9 @@ extension SC.Geometry {
 }
 
 private func appendPolyline(vertices: [DXF.PolyVertex], closed: Bool, isFirst: Bool, to path: STBezierPath) {
-    guard vertices.count >= 2 else { return }
+    guard vertices.count >= 2 else {
+        return
+    }
 
     if isFirst {
         path.move(to: vertices[0].point.cgPoint)

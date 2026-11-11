@@ -16,8 +16,9 @@
 //  view.
 //
 
-import AppKit
+import Foundation
 import CoreGraphics
+import simd
 
 /// One CAM vector path's rendering + hit-testing data, built together in a
 /// single flatten pass so a future hit tester (the plan's "D" workstream,
@@ -219,7 +220,7 @@ enum D2_RenderObjectBuilder {
     /// — reused rather than re-implemented. A path with no curves (the
     /// toolpath preview) flattens to itself at negligible cost.
     private static func flattenedSubpaths(_ path: CGPath) -> [[CGPoint]] {
-        BezierPathFlattener.flatten([NSBezierPath(cgPath: path)], tolerance: flattenTolerance)
+        BezierPathFlattener.flatten([STBezierPath(cgPath: path)], tolerance: flattenTolerance)
     }
 
     /// Builds a `.lineList` `RenderObject` from one or more world-space

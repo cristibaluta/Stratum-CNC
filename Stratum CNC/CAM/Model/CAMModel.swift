@@ -1111,6 +1111,7 @@ class CAMModel: ObservableObject {
 
     /// Call this on init or when the NSView moves to a new screen
     func updateTrueToLifeScale(for screen: NSScreen?) {
+        // TODO: use updateTrueToLifeScale extension?
         guard let screen = screen else {
             return
         }

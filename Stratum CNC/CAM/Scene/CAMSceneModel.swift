@@ -7,7 +7,6 @@
 
 import Foundation
 import Combine
-import AppKit
 import SwiftUI
 
 @MainActor
