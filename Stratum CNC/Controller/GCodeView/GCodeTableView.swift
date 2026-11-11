@@ -5,6 +5,7 @@
 //  Created by Cristian Baluta on 26.08.2026.
 //
 
+#if os(macOS)
 import SwiftUI
 import AppKit
 
@@ -191,3 +192,4 @@ struct GCodeTableView: NSViewRepresentable {
         }
     }
 }
+#endif

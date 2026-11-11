@@ -14,7 +14,9 @@ struct SplashpageView: View {
     @ObservedObject var appModel: AppModel
     @ObservedObject var projectsStore: ProjectsStore
 
+    #if os(macOS)
     @Environment(\.openSettings) private var openSettings
+    #endif
 
     private enum PickerKind { case projectFolder, gcode }
 

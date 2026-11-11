@@ -5,7 +5,10 @@
 //  Saves the G-code shown in the Controller to a file the user picks.
 //
 
+#if os(macOS)
 import AppKit
+#endif
+import Foundation
 import UniformTypeIdentifiers
 
 @MainActor

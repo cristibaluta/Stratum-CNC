@@ -10,7 +10,7 @@ import SwiftUI
 struct ProjectCard: View {
 
     let project: Project
-    let previewImage: NSImage?
+    let previewImage: STImage?
     /// Material and size of the stock, if the project has one.
     var stockSummary: String? = nil
     /// Material of the project's stock; tints the preview background.

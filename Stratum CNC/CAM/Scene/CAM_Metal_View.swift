@@ -134,8 +134,8 @@ struct CAM_Metal_View: View {
         appearance.performAsCurrentDrawingAppearance {
             objects = CAMSelectionOverlay.renderObjects(forSTEPModelAt: footprint.origin,
                                                         size: footprint.size,
-                                                        boxColor: CAMSceneModel.rgba(NSColor.systemRed),
-                                                        handleColor: CAMSceneModel.rgba(NSColor.systemOrange))
+                                                        boxColor: CAMSceneModel.rgba(STColor.systemRed),
+                                                        handleColor: CAMSceneModel.rgba(STColor.systemOrange))
         }
         return objects
     }
@@ -178,8 +178,7 @@ struct CAM_Metal_View: View {
                             pointerHandler: scene.interaction,
                             zoomModel: zoomModel,
                             onClick: { click in
-                                Self.route(click, shapes: scene.interaction, step: nil,
-                                           onEmptyClick: onDeselectStepModel)
+                                Self.route(click, shapes: scene.interaction, step: nil, onEmptyClick: onDeselectStepModel)
                             },
                             partTransform: partMatrix,
                             previewTransform: partFrame.previewMatrix,
@@ -240,6 +239,7 @@ struct CAM_Metal_View: View {
         }
         shapes.select(nil, extend: false)
         step?.clearSelection()
+        
         onEmptyClick()
     }
 }

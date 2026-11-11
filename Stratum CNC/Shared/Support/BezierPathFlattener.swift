@@ -5,16 +5,16 @@
 //  Created by Cristian Baluta on 26.08.2026.
 //
 
-import AppKit
+import Foundation
 
 enum BezierPathFlattener {
 
-    /// Flattens an array of NSBezierPath into an array of subpaths, where each
-    /// subpath is an array of NSPoint forming a polyline approximation of the
+    /// Flattens an array of STBezierPath into an array of subpaths, where each
+    /// subpath is an array of STPoint forming a polyline approximation of the
     /// original curves.
     ///
-    static func flatten(_ paths: [NSBezierPath], tolerance: CGFloat = 0.1) -> [[NSPoint]] {
-        var allSubpaths: [[NSPoint]] = []
+    static func flatten(_ paths: [STBezierPath], tolerance: CGFloat = 0.1) -> [[STPoint]] {
+        var allSubpaths: [[STPoint]] = []
 
         for path in paths {
             allSubpaths.append(contentsOf: flattenSinglePath(path, tolerance: tolerance))
@@ -25,15 +25,16 @@ enum BezierPathFlattener {
 
     // MARK: - Single path handling
 
-    private static func flattenSinglePath(_ path: NSBezierPath, tolerance: CGFloat) -> [[NSPoint]] {
-        var subpaths: [[NSPoint]] = []
-        var currentSubpath: [NSPoint] = []
+    private static func flattenSinglePath(_ path: STBezierPath, tolerance: CGFloat) -> [[STPoint]] {
+        var subpaths: [[STPoint]] = []
+        var currentSubpath: [STPoint] = []
 
-        var currentPoint = NSPoint.zero
-        var subpathStart = NSPoint.zero
-
-        let pointsBuffer = NSPointArray.allocate(capacity: 3)
-        defer { pointsBuffer.deallocate() }
+        var currentPoint = STPoint.zero
+        var subpathStart = STPoint.zero
+        let pointsBuffer = STPointArray.allocate(capacity: 3)
+        defer {
+            pointsBuffer.deallocate()
+        }
 
         for i in 0..<path.elementCount {
             let elementType = path.element(at: i, associatedPoints: pointsBuffer)
@@ -92,11 +93,11 @@ enum BezierPathFlattener {
                     let control = pointsBuffer[0]
                     let endPoint = pointsBuffer[1]
                     // Promote quadratic to cubic control points, then flatten.
-                    let c1 = NSPoint(
+                    let c1 = STPoint(
                         x: currentPoint.x + 2.0/3.0 * (control.x - currentPoint.x),
                         y: currentPoint.y + 2.0/3.0 * (control.y - currentPoint.y)
                     )
-                    let c2 = NSPoint(
+                    let c2 = STPoint(
                         x: endPoint.x + 2.0/3.0 * (control.x - endPoint.x),
                         y: endPoint.y + 2.0/3.0 * (control.y - endPoint.y)
                     )
@@ -125,22 +126,20 @@ enum BezierPathFlattener {
     /// Recursively subdivides a cubic bezier until each segment is flat enough
     /// (within `tolerance`), returning the resulting points EXCLUDING p0
     /// (so callers can directly append to an existing point list).
-    private static func flattenCubicBezierAdaptive(
-        p0: NSPoint, p1: NSPoint, p2: NSPoint, p3: NSPoint,
-        tolerance: CGFloat,
-        maxDepth: Int = 24
-    ) -> [NSPoint] {
-        var result: [NSPoint] = []
+    private static func flattenCubicBezierAdaptive(p0: STPoint, p1: STPoint, p2: STPoint, p3: STPoint,
+                                                   tolerance: CGFloat,
+                                                   maxDepth: Int = 24) -> [STPoint] {
+        var result: [STPoint] = []
         subdivide(p0: p0, p1: p1, p2: p2, p3: p3, tolerance: tolerance, depth: 0, maxDepth: maxDepth, output: &result)
         result.append(p3)
+
         return result
     }
 
-    private static func subdivide(
-        p0: NSPoint, p1: NSPoint, p2: NSPoint, p3: NSPoint,
-        tolerance: CGFloat, depth: Int, maxDepth: Int,
-        output: inout [NSPoint]
-    ) {
+    private static func subdivide(p0: STPoint, p1: STPoint, p2: STPoint, p3: STPoint,
+                                  tolerance: CGFloat, depth: Int, maxDepth: Int,
+                                  output: inout [STPoint]) {
+
         if depth >= maxDepth || isFlatEnough(p0: p0, p1: p1, p2: p2, p3: p3, tolerance: tolerance) {
             return
         }
@@ -163,13 +162,14 @@ enum BezierPathFlattener {
     /// Flatness test: checks how far the interior control points deviate from
     /// the chord p0->p3. If both are within tolerance, the curve is "flat enough"
     /// to be approximated by the straight line p0->p3.
-    private static func isFlatEnough(p0: NSPoint, p1: NSPoint, p2: NSPoint, p3: NSPoint, tolerance: CGFloat) -> Bool {
+    private static func isFlatEnough(p0: STPoint, p1: STPoint, p2: STPoint, p3: STPoint, tolerance: CGFloat) -> Bool {
         let d1 = perpendicularDistance(point: p1, lineStart: p0, lineEnd: p3)
         let d2 = perpendicularDistance(point: p2, lineStart: p0, lineEnd: p3)
+
         return max(d1, d2) <= tolerance
     }
 
-    private static func perpendicularDistance(point: NSPoint, lineStart: NSPoint, lineEnd: NSPoint) -> CGFloat {
+    private static func perpendicularDistance(point: STPoint, lineStart: STPoint, lineEnd: STPoint) -> CGFloat {
         let dx = lineEnd.x - lineStart.x
         let dy = lineEnd.y - lineStart.y
         let lengthSquared = dx * dx + dy * dy
@@ -183,18 +183,19 @@ enum BezierPathFlattener {
 
         // Cross product magnitude / line length = perpendicular distance.
         let cross = abs(dx * (lineStart.y - point.y) - dy * (lineStart.x - point.x))
+
         return cross / lengthSquared.squareRoot()
     }
 
-    private static func midpoint(_ a: NSPoint, _ b: NSPoint) -> NSPoint {
-        NSPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
+    private static func midpoint(_ a: STPoint, _ b: STPoint) -> STPoint {
+        STPoint(x: (a.x + b.x) / 2, y: (a.y + b.y) / 2)
     }
 }
 
 // MARK: - Usage example
 
 /*
-let svgPaths: [NSBezierPath] = ... // your parsed SVG paths
+let svgPaths: [STBezierPath] = ... // your parsed SVG paths
 
 // tolerance in the same units as your path coordinates (e.g. points, or mm
 // if you've already scaled). 0.1 is a good starting point for mm.

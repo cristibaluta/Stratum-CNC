@@ -18,7 +18,7 @@ extension STBezierPath {
 
     func pathWithFlippedY(inHeight height: CGFloat) -> STBezierPath {
         let newPath = STBezierPath()
-        var points = [NSPoint](repeating: .zero, count: 3)
+        var points = [STPoint](repeating: .zero, count: 3)
 
         for i in 0..<self.elementCount {
             let type = self.element(at: i, associatedPoints: &points)

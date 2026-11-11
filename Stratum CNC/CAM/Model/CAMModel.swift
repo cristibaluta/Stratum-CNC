@@ -9,9 +9,11 @@ import Foundation
 import CoreGraphics
 import Combine
 import UniformTypeIdentifiers
-import AppKit
 import StratumCAM
 import SwiftSTEP
+#if os(macOS)
+import AppKit
+#endif
 
 @MainActor
 class CAMModel: ObservableObject {

@@ -128,8 +128,8 @@ private extension SC.CutDirection {
     }
 }
 
-#Preview {
-    @Previewable @State var direction = SC.CutDirection.climb
-    DirectionPicker(direction: $direction)
-        .padding()
-}
+//#Preview {
+//    @Previewable @State var direction = SC.CutDirection.climb
+//    DirectionPicker(direction: $direction)
+//        .padding()
+//}

@@ -5,6 +5,7 @@
 //  Created by Cristian Baluta on 10.09.2026.
 //
 
+#if os(macOS)
 import AppKit
 
 extension NSScreen {
@@ -40,3 +41,4 @@ extension NSScreen {
         return pointsPerMM
     }
 }
+#endif

@@ -9,6 +9,7 @@
 //  seam between them, so `MetalCanvasView` never imports anything CAM-specific.
 //
 
+#if os(macOS)
 import AppKit
 import simd
 
@@ -77,3 +78,4 @@ protocol CanvasPointerHandler: AnyObject {
 extension CanvasPointerHandler {
     var liveRenderObjects: [RenderObject]? { nil }
 }
+#endif

@@ -16,6 +16,7 @@
 import Foundation
 import CoreGraphics
 
+// TODO Use XMLParser because XMLDocument is not available on ios
 enum SVGFlattener {
 
     /// Returns a URL to import: the original when it needs no work,

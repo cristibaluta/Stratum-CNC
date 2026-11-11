@@ -5,6 +5,7 @@
 //  Created by Cristian Baluta on 18.09.2026.
 //
 
+#if os(macOS)
 import SwiftUI
 import AppKit
 
@@ -55,3 +56,4 @@ struct ScrollWheelCapture: NSViewRepresentable {
         (nsView as? CaptureView)?.onScroll = onScroll
     }
 }
+#endif

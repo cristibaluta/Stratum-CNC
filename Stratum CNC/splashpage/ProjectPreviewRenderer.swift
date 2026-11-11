@@ -8,7 +8,12 @@
 //  rotation. Pure CoreGraphics, so it needs neither the Metal view nor a window.
 //
 
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
+import Foundation
 import CoreGraphics
 import simd
 
@@ -30,14 +35,19 @@ enum ProjectPreviewRenderer {
     /// picked by name.
     static func pngData(for objects: [D2_Object], ignoringVisibility: Bool = false) -> Data? {
         let paths = objects
-            .filter { ignoringVisibility || $0.isVisible }
+            .filter {
+                ignoringVisibility || $0.isVisible
+            }
             .flatMap { object in
                 D2_RenderObjectBuilder.renderPaths(for: object,
                                                    objectSelected: false,
                                                    selectedPathIndexes: [],
                                                    pickedPathIndexes: [])
             }
-            .filter { !$0.worldBounds.isNull && !$0.worldBounds.isInfinite }
+            .filter {
+                !$0.worldBounds.isNull && !$0.worldBounds.isInfinite
+            }
+
         guard let first = paths.first else {
             return nil
         }
@@ -70,6 +80,7 @@ enum ProjectPreviewRenderer {
         let path = CGMutablePath()
         var minPoint = CGPoint(x: CGFloat.infinity, y: CGFloat.infinity)
         var maxPoint = CGPoint(x: -CGFloat.infinity, y: -CGFloat.infinity)
+
         for body in geometry.bodies {
             // Disconnected start/end pairs
             var index = 0
@@ -102,6 +113,7 @@ enum ProjectPreviewRenderer {
     /// Fits `bounds` in the image and draws with `draw`, in world units (y up).
     /// `lineWidth` is in picture pixels, whatever the scale.
     private static func render(bounds: CGRect, lineWidth: CGFloat, draw: (CGContext) -> Void) -> Data? {
+
         var bounds = bounds
 
         // A single line has no width or height; give it some so the scale stays finite
@@ -115,6 +127,7 @@ enum ProjectPreviewRenderer {
 
         let width = Int(imageSize.width)
         let height = Int(imageSize.height)
+
         guard let context = CGContext(data: nil, width: width, height: height,
                                       bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpaceCreateDeviceRGB(),
@@ -142,6 +155,11 @@ enum ProjectPreviewRenderer {
         guard let image = context.makeImage() else {
             return nil
         }
+
+        #if os(macOS)
         return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+        #else
+        return UIImage(cgImage: image).pngData()
+        #endif
     }
 }

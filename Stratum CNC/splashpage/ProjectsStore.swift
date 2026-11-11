@@ -6,9 +6,11 @@
 //
 
 import Foundation
-import AppKit
 import Observation
 import Combine
+#if os(macOS)
+import AppKit
+#endif
 
 enum ProjectError: Error {
     case projectNotFound
@@ -49,8 +51,13 @@ final class ProjectsStore: ObservableObject {
     private let decoder: JSONDecoder
 
     private let documentsDirectory: URL
-    private var indexFile: URL { documentsDirectory.appendingPathComponent("projects.json") }
-    private var scratchDirectory: URL { documentsDirectory.appendingPathComponent(".stratum-scratch", isDirectory: true) }
+    private var indexFile: URL {
+        documentsDirectory.appendingPathComponent("projects.json")
+    }
+    // TODO: clear the scratch after we leave the project?
+    private var scratchDirectory: URL {
+        documentsDirectory.appendingPathComponent(".stratum-scratch", isDirectory: true)
+    }
 
     init(documentsDirectory: URL = ProjectPaths.appDocuments) {
         self.documentsDirectory = documentsDirectory
@@ -511,9 +518,9 @@ final class ProjectsStore: ObservableObject {
 
     /// The grid thumbnail. Read eagerly inside a short access window, since
     /// an external folder can't be read once access is released.
-    func previewImage(for project: Project) -> NSImage? {
+    func previewImage(for project: Project) -> STImage? {
         withAccess(to: project) { paths in
-            (try? Data(contentsOf: paths.preview)).flatMap { NSImage(data: $0) }
+            (try? Data(contentsOf: paths.preview)).flatMap { STImage(data: $0) }
         } ?? nil
     }
 
