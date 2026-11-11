@@ -62,9 +62,6 @@ struct PatternGlyph: View {
     private func rasterPath(in rect: CGRect) -> Path {
         var path = Path()
         let lineCount = 4
-        guard lineCount > 1 else {
-            return path
-        }
         let step = rect.height / CGFloat(lineCount - 1)
 
         for i in 0..<lineCount {

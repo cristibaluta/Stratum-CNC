@@ -19,6 +19,9 @@ struct OperationOptionsView: View {
     /// tabs drawing.
     var targetShapes: () -> [CGPath] = { [] }
 
+    /// The stock being cut, for the feed calculator's preset.
+    var stockMaterial: StockMaterialType? = nil
+
     @State private var showRampEditor = false
     @State private var showTabsEditor = false
     @State private var showLeadInEditor = false
@@ -342,7 +345,8 @@ struct OperationOptionsView: View {
             InspectorNumberField(title: "Feed rate", value: $toolpath.feedRate, suffix: "mm/min") {
                 FeedCalculatorButton(toolpath: $toolpath,
                                      direction: cutDirectionBinding?.wrappedValue ?? .climb,
-                                     usesStepover: usesStepover)
+                                     usesStepover: usesStepover,
+                                     stockMaterial: stockMaterial)
             }
             .help("How fast the tool moves while cutting in the XY plane.")
 
@@ -369,7 +373,8 @@ struct OperationOptionsView: View {
                                         help: "Feed rate: how fast the tool moves while cutting in the XY plane (mm/min).")
             FeedCalculatorButton(toolpath: $toolpath,
                                  direction: cutDirectionBinding?.wrappedValue ?? .climb,
-                                 usesStepover: usesStepover)
+                                 usesStepover: usesStepover,
+                                 stockMaterial: stockMaterial)
             if usesStepover {
                 InspectorCompactNumberField(tag: "Stepover", value: stepOverPercent, suffix: "%",
                                             secondary: stepOverMMBinding, secondarySuffix: "mm",

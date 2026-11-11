@@ -78,7 +78,7 @@ struct ToolPicker: View {
             Button {
                 showingLibrary = true
             } label: {
-                EndMillIcon(size: 15)
+                EndMillGlyph(size: 15)
                     .foregroundStyle(.secondary)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
@@ -258,7 +258,7 @@ private struct ToolListPopover: View {
     private var libraryRow: some View {
         Button(action: onOpenLibrary) {
             HStack(spacing: 8) {
-                EndMillIcon(size: 14)
+                EndMillGlyph(size: 14)
                     .foregroundStyle(.secondary)
                 Text("Pick from Library…")
                     .font(.system(size: 12))

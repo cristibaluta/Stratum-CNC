@@ -75,7 +75,6 @@ struct EntryDiagram: View {
                 }
         }
 
-        let end = path.last ?? .zero
         return Scene(path: path, depth: depth, diameter: diameter, turns: turns)
     }
 

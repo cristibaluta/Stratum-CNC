@@ -12,7 +12,7 @@ import SwiftUI
 /// Side view of a flat end mill in the unit square, tip at the bottom: a shank, a shoulder, and
 /// a wider fluted cutting body with a flat end. Stroke it for an outline icon; it follows the
 /// foreground style it is given.
-struct EndMillShape: Shape {
+private struct EndMillShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         var p = Self.outline(in: rect)
@@ -58,7 +58,7 @@ struct EndMillShape: Shape {
 
 /// `EndMillShape` sized and weighted like an SF Symbol at `size` points; colour it with
 /// `foregroundStyle`.
-struct EndMillIcon: View {
+struct EndMillGlyph: View {
     var size: CGFloat = 16
 
     var body: some View {
@@ -72,7 +72,7 @@ struct EndMillIcon: View {
 /// can render invisible there; this rasterizes it as a template image.
 @MainActor
 func endMillTemplateImage(size: CGFloat = 16) -> Image {
-    let renderer = ImageRenderer(content: EndMillIcon(size: size).foregroundStyle(.black))
+    let renderer = ImageRenderer(content: EndMillGlyph(size: size).foregroundStyle(.black))
     renderer.scale = NSScreen.main?.backingScaleFactor ?? 2
     guard let cg = renderer.cgImage else {
         return Image(systemName: "wrench.and.screwdriver")
@@ -85,7 +85,7 @@ func endMillTemplateImage(size: CGFloat = 16) -> Image {
 #Preview {
     HStack(spacing: 20) {
         EndMillShape().stroke(lineWidth: 1.5).frame(width: 64, height: 64)
-        EndMillIcon(size: 16)
+        EndMillGlyph(size: 16)
     }
     .padding()
 }

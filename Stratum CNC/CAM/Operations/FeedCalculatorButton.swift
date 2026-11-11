@@ -23,8 +23,41 @@ struct FeedCalculatorButton: View {
     var direction: SC.CutDirection = .climb
     /// Whether the operation has a stepover to take into account (chip thinning).
     var usesStepover: Bool = true
+    /// The stock being cut, which picks the tool's preset the chip load and surface speed come
+    /// from. Without it the first preset that has a chip load is used.
+    var stockMaterial: StockMaterialType? = nil
 
     @State private var isPresented = false
+
+    /// The preset the calculator starts from: the tool's preset for the stock material (see
+    /// `Tool.preset(for:)`), so a tool with one preset per material doesn't offer the aluminum
+    /// chip load for wood.
+    private var preset: ToolPreset? {
+        guard let stockMaterial else {
+            return toolpath.tool.presets.first { ($0.feedPerTooth ?? 0) > 0 }
+        }
+        return toolpath.tool.preset(for: stockMaterial)
+    }
+
+    /// The preset's chip load (mm per tooth). A preset that only has a feed and a spindle speed
+    /// gives it as feed / (flutes × RPM).
+    private var presetChipLoad: Double? {
+        guard let preset else {
+            return nil
+        }
+        if let chipLoad = preset.feedPerTooth, chipLoad > 0 {
+            return chipLoad
+        }
+        let flutes = Double(toolpath.tool.numberOfFlutes ?? 0)
+        if let feed = preset.feedRate, let rpm = preset.spindleRPM, feed > 0, rpm > 0, flutes > 0 {
+            return (feed / (flutes * Double(rpm)) * 10_000).rounded() / 10_000
+        }
+        return nil
+    }
+
+    private var presetSurfaceSpeed: Double? {
+        preset?.surfaceSpeed.flatMap { $0 > 0 ? $0 : nil }
+    }
 
     var body: some View {
         HoverIconButton {
@@ -42,7 +75,7 @@ struct FeedCalculatorButton: View {
         .help("Calculate the feed rate from chip load, flutes and RPM")
         .popover(isPresented: $isPresented, arrowEdge: .leading) {
             FeedCalculatorView(
-                chipLoad: Self.initialChipLoad(for: toolpath),
+                chipLoad: initialChipLoad,
                 flutes: toolpath.tool.numberOfFlutes ?? 0,
                 rpm: toolpath.spindleRPM,
                 stepOver: toolpath.stepOverPercent,
@@ -50,8 +83,8 @@ struct FeedCalculatorButton: View {
                 toolDiameter: Double(toolpath.tool.toolDiameter),
                 stepDown: toolpath.stepDown,
                 direction: direction,
-                recommendedChipLoad: toolpath.tool.presets.compactMap(\.feedPerTooth).first(where: { $0 > 0 }),
-                recommendedSurfaceSpeed: toolpath.tool.presets.compactMap(\.surfaceSpeed).first(where: { $0 > 0 }),
+                recommendedChipLoad: presetChipLoad,
+                recommendedSurfaceSpeed: presetSurfaceSpeed,
                 currentFeed: toolpath.feedRate,
                 toolHasFlutes: (toolpath.tool.numberOfFlutes ?? 0) > 0
             ) { feed in
@@ -61,11 +94,11 @@ struct FeedCalculatorButton: View {
         }
     }
 
-    /// The chip load (mm per tooth) to start from: the one a preset of the tool has, otherwise
-    /// what the current feed works out to when the flutes and RPM are known, otherwise 0.
-    private static func initialChipLoad(for toolpath: ToolpathData) -> Double {
-        if let fromPreset = toolpath.tool.presets.compactMap(\.feedPerTooth).first(where: { $0 > 0 }) {
-            return fromPreset
+    /// The chip load (mm per tooth) to start from: the one of the tool's preset for the stock,
+    /// otherwise what the current feed works out to when the flutes and RPM are known, otherwise 0.
+    private var initialChipLoad: Double {
+        if let presetChipLoad {
+            return presetChipLoad
         }
         let flutes = Double(toolpath.tool.numberOfFlutes ?? 0)
         let rpm = Double(toolpath.spindleRPM)

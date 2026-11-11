@@ -176,7 +176,7 @@ struct SplashpageView: View {
                                title: "Tools Library",
                                subtitle: "Your cutting tools",
                                systemImage: "pencil.tip.crop.circle.fill",
-                               glyph: AnyView(EndMillIcon(size: 20))) {
+                               glyph: AnyView(EndMillGlyph(size: 20))) {
                     appModel.showingToolsSheet = true
                 }
                 QuickActionRow(usageID: .stockLibrary,

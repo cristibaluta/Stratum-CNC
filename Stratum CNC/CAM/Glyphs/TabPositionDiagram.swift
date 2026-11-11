@@ -19,13 +19,13 @@ struct TabPositionDiagram: View {
     /// The outline in world space (y up); `nil` draws the schematic.
     var shape: CGPath? = nil
 
-    private static let corner: CGFloat = 12
+    private let corner: CGFloat = 12
 
     var body: some View {
         GeometryReader { proxy in
             let rect = CGRect(origin: .zero, size: proxy.size).insetBy(dx: 24, dy: 18)
-            let path = shape.map { Self.fit(Path($0), in: rect) } ?? Self.contourPath(in: rect)
-            let start = Self.point(on: path, at: 0)
+            let path = shape.map { fit(Path($0), in: rect) } ?? contourPath(in: rect)
+            let start = point(on: path, at: 0)
             ZStack {
                 path.stroke(Color.secondary.opacity(0.6),
                             style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
@@ -39,7 +39,7 @@ struct TabPositionDiagram: View {
                 }
 
                 // Where the outline starts (position 0, and also 1), with the way it runs
-                Self.arrow(on: path)
+                arrow(on: path)
                     .stroke(Color.secondary, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
                 Circle()
                     .strokeBorder(Color.secondary, lineWidth: 1.5)
@@ -57,7 +57,7 @@ struct TabPositionDiagram: View {
                         .foregroundStyle(.white)
                         .frame(width: 16, height: 16)
                         .background(Circle().fill(Color.accentColor))
-                        .position(Self.point(on: path, at: tab.positionRatio))
+                        .position(point(on: path, at: tab.positionRatio))
                 }
             }
         }
@@ -67,7 +67,7 @@ struct TabPositionDiagram: View {
 
     /// `path` scaled to fit `rect` (keeping its proportions, centred) and flipped, because the
     /// shape's Y points up and the screen's down.
-    private static func fit(_ path: Path, in rect: CGRect) -> Path {
+    private func fit(_ path: Path, in rect: CGRect) -> Path {
         let box = path.boundingRect
         guard box.width > 0 || box.height > 0 else {
             return path
@@ -81,7 +81,7 @@ struct TabPositionDiagram: View {
     }
 
     /// A rounded rectangle, started at the top edge and run clockwise.
-    private static func contourPath(in rect: CGRect) -> Path {
+    private func contourPath(in rect: CGRect) -> Path {
         let r = corner
         var path = Path()
         path.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
@@ -101,13 +101,13 @@ struct TabPositionDiagram: View {
     }
 
     /// The point `ratio` (0...1) of the way along the path's length.
-    private static func point(on path: Path, at ratio: Double) -> CGPoint {
+    private func point(on path: Path, at ratio: Double) -> CGPoint {
         let end = min(max(ratio, 0.0001), 1)
         return path.trimmedPath(from: 0, to: end).currentPoint ?? .zero
     }
 
     /// A small arrowhead a little way along the outline, pointing the way ratios increase.
-    private static func arrow(on path: Path) -> Path {
+    private func arrow(on path: Path) -> Path {
         let tail = point(on: path, at: 0.02)
         let tip = point(on: path, at: 0.035)
         let dx = tip.x - tail.x
@@ -123,6 +123,7 @@ struct TabPositionDiagram: View {
         arrow.move(to: CGPoint(x: tip.x - ux * size - uy * size * 0.6, y: tip.y - uy * size + ux * size * 0.6))
         arrow.addLine(to: tip)
         arrow.addLine(to: CGPoint(x: tip.x - ux * size + uy * size * 0.6, y: tip.y - uy * size - ux * size * 0.6))
+
         return arrow
     }
 }
