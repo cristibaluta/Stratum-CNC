@@ -454,7 +454,7 @@ extension ToolpathGenerator {
     /// reads it to build the form.
     public static func makeOperation(from toolpath: ToolpathData) -> SC.MachiningOperation {
         let options = toolpath.operation
-        let direction = makeDirection(from: options.direction)
+        let direction = options.direction
         let entry = makeEntry(from: toolpath.ramping, toolDiameter: Double(toolpath.tool.toolDiameter))
 
         switch options.kind {
@@ -510,7 +510,7 @@ extension ToolpathGenerator {
             case .threadMilling:
                 return .threadMilling(pitch: options.threadPitch,
                                       isInternal: options.threadIsInternal,
-                                      direction: options.threadHandedness == .rightHand ? .rightHand : .leftHand,
+                                      direction: options.threadHandedness,
                                       radialPasses: options.threadRadialPasses,
                                       targetDiameter: options.threadTargetDiameter)
 
@@ -536,7 +536,7 @@ extension ToolpathGenerator {
             case .raster:
                 return .raster
             case .spiral:
-                return .spiral(direction: options.pocketSpiral == .outsideIn ? .outsideIn : .insideOut)
+                return .spiral(direction: options.pocketSpiral)
             case .trochoidal:
                 // `radialEngagement` is a fraction of the tool radius; the pocket ignores `loopRadius`.
                 return .trochoidal(settings: SC.TrochoidalSettings(radialEngagement: options.pocketTrochoidalPitch / 100,
@@ -545,14 +545,7 @@ extension ToolpathGenerator {
                 // `optimalLoad` is in mm; the app stores a percentage of the tool diameter.
                 return .adaptive(settings: SC.AdaptiveSettings(optimalLoad: toolDiameter * options.pocketAdaptiveLoadPercent / 100))
             case .concentric:
-                return .concentric(direction: options.pocketSpiral == .outsideIn ? .outsideIn : .insideOut)
-        }
-    }
-
-    static func makeDirection(from direction: CutDirectionOption) -> SC.CutDirection {
-        switch direction {
-            case .climb:        return .climb
-            case .conventional: return .conventional
+                return .concentric(direction: options.pocketSpiral)
         }
     }
 

@@ -2,58 +2,72 @@
 //  OperationOptions.swift
 //  Stratum CNC
 //
-//  Small option enums used by `OperationSettings`.
+//  The app's labels for the library's option enums (`SC.CutDirection`, `SC.ThreadDirection`,
+//  `SC.SpiralDirection`, `SC.PocketClearingPattern.Kind`), and the one option the library
+//  doesn't have: what the selected shape means for a slot.
 //
 
 import Foundation
 import StratumCAM
 
-// MARK: - Small option enums
-
-enum CutDirectionOption: String, CaseIterable, Codable, Hashable {
-    case climb = "Climb"
-    case conventional = "Conventional"
+/// An option the user picks from a menu, with the name the menu shows for it.
+protocol TitledOption {
+    var title: String { get }
 }
 
-enum ThreadHandedness: String, CaseIterable, Codable, Hashable {
-    case rightHand = "Right-hand"
-    case leftHand = "Left-hand"
+extension SC.CutDirection: TitledOption {
+    var title: String {
+        switch self {
+            case .climb:        return "Climb"
+            case .conventional: return "Conventional"
+        }
+    }
+
+    /// The id of the option in the library's choice field (`SC.cutDirectionChoice`).
+    var fieldID: String {
+        rawValue
+    }
 }
 
-/// How a pocket is cleared. Mirrors StratumCAM's `SC.PocketClearingPattern`.
-enum PocketPattern: String, CaseIterable, Codable, Hashable {
-    case offset = "Offset"
-    case raster = "Raster"
-    case spiral = "Spiral"
-    case trochoidal = "Trochoidal"
-    case concentric = "Concentric"
-    case adaptive = "Adaptive"
-}
-
-extension PocketPattern {
-
-    /// The app's pattern for one of the library's (its parameters are kept in `OperationSettings`).
-    init(_ pattern: SC.PocketClearingPattern) {
-        switch pattern {
-            case .offset:     self = .offset
-            case .concentric: self = .concentric
-            case .raster:     self = .raster
-            case .spiral:     self = .spiral
-            case .trochoidal: self = .trochoidal
-            case .adaptive:   self = .adaptive
+extension SC.ThreadDirection: TitledOption {
+    var title: String {
+        switch self {
+            case .rightHand: return "Right-hand"
+            case .leftHand:  return "Left-hand"
         }
     }
 }
 
-enum SpiralOrder: String, CaseIterable, Codable, Hashable {
-    case outsideIn = "Outside in"
-    case insideOut = "Inside out"
+extension SC.SpiralDirection: TitledOption {
+    var title: String {
+        switch self {
+            case .outsideIn: return "Outside in"
+            case .insideOut: return "Inside out"
+        }
+    }
+}
+
+extension SC.PocketClearingPattern.Kind: TitledOption {
+    var title: String {
+        switch self {
+            case .offset:     return "Offset"
+            case .raster:     return "Raster"
+            case .spiral:     return "Spiral"
+            case .trochoidal: return "Trochoidal"
+            case .concentric: return "Concentric"
+            case .adaptive:   return "Adaptive"
+        }
+    }
 }
 
 /// What the selected shape means for a slot.
-enum SlotSource: String, CaseIterable, Codable, Hashable {
+enum SlotSource: String, CaseIterable, Codable, Hashable, TitledOption {
     /// The drawn slot walls: a straight-sided rectangle as wide as the tool.
     case outline = "Slot outline"
     /// The line the tool centre follows.
     case centerline = "Centre line"
+
+    var title: String {
+        rawValue
+    }
 }

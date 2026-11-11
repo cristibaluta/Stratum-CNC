@@ -6,14 +6,15 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 /// Chooses how a pocket is cleared. Same look as `OperationPicker`: a pop-up field that
 /// opens a list on its left, one drawn-and-explained row per pattern.
 struct PatternPicker: View {
-    @Binding var pattern: PocketPattern
+    @Binding var pattern: SC.PocketClearingPattern.Kind
 
     /// The patterns on offer, in order -- what the operation accepts, as the library says.
-    var available: [PocketPattern] = PocketPattern.allCases
+    var available: [SC.PocketClearingPattern.Kind] = SC.PocketClearingPattern.Kind.allCases
 
     /// Just the button, at its natural width and without the label column, to share a row.
     var isCompact: Bool = false
@@ -38,7 +39,7 @@ struct PatternPicker: View {
             InspectorMenuLabel {
                 PatternGlyph(pattern: pattern)
                     .frame(width: 18, height: 14)
-                Text(pattern.rawValue)
+                Text(pattern.title)
             }
         }
         .buttonStyle(.plain)
@@ -51,11 +52,11 @@ struct PatternPicker: View {
 
 /// The popover content: every pattern as a row of drawing + name + explanation.
 private struct PatternOptionsPopover: View {
-    @Binding var pattern: PocketPattern
-    let available: [PocketPattern]
+    @Binding var pattern: SC.PocketClearingPattern.Kind
+    let available: [SC.PocketClearingPattern.Kind]
     @Binding var isPresented: Bool
 
-    @State private var hovered: PocketPattern?
+    @State private var hovered: SC.PocketClearingPattern.Kind?
 
     private let width: CGFloat = 380
 
@@ -69,7 +70,7 @@ private struct PatternOptionsPopover: View {
         .frame(width: width)
     }
 
-    private func row(for option: PocketPattern) -> some View {
+    private func row(for option: SC.PocketClearingPattern.Kind) -> some View {
         let isSelected = option == pattern
 
         return Button {
@@ -83,7 +84,7 @@ private struct PatternOptionsPopover: View {
                     .clipShape(RoundedRectangle(cornerRadius: 5))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(option.rawValue)
+                    Text(option.title)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(isSelected ? Color.accentColor : .primary)
 
@@ -122,7 +123,7 @@ private struct PatternOptionsPopover: View {
     }
 }
 
-private extension PocketPattern {
+private extension SC.PocketClearingPattern.Kind {
     var selectionHint: String {
         switch self {
             case .offset:     return "Clears with rings that follow the pocket's shape, working inward."
@@ -136,7 +137,7 @@ private extension PocketPattern {
 }
 
 #Preview {
-    @Previewable @State var pattern = PocketPattern.spiral
+    @Previewable @State var pattern = SC.PocketClearingPattern.Kind.spiral
     PatternPicker(pattern: $pattern)
         .padding()
 }

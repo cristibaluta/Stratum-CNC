@@ -6,11 +6,12 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 /// Chooses which way the tool cuts relative to its rotation. Same look as `OperationPicker`:
 /// a pop-up field that opens a list on its left, one drawn-and-explained row per direction.
 struct DirectionPicker: View {
-    @Binding var direction: CutDirectionOption
+    @Binding var direction: SC.CutDirection
     /// Just the button, at its natural width and without the label column, to share a row.
     var isCompact: Bool = false
 
@@ -34,7 +35,7 @@ struct DirectionPicker: View {
             InspectorMenuLabel {
                 DirectionGlyph(direction: direction, tint: .primary)
                     .frame(width: 22, height: 15)
-                Text(direction.rawValue)
+                Text(direction.title)
             }
         }
         .buttonStyle(.plain)
@@ -47,16 +48,16 @@ struct DirectionPicker: View {
 
 /// The popover content: both directions as a row of drawing + name + explanation.
 private struct DirectionOptionsPopover: View {
-    @Binding var direction: CutDirectionOption
+    @Binding var direction: SC.CutDirection
     @Binding var isPresented: Bool
 
-    @State private var hovered: CutDirectionOption?
+    @State private var hovered: SC.CutDirection?
 
     private let width: CGFloat = 340
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(CutDirectionOption.allCases, id: \.self) { option in
+            ForEach(SC.CutDirection.allCases, id: \.self) { option in
                 row(for: option)
             }
         }
@@ -64,7 +65,7 @@ private struct DirectionOptionsPopover: View {
         .frame(width: width)
     }
 
-    private func row(for option: CutDirectionOption) -> some View {
+    private func row(for option: SC.CutDirection) -> some View {
         let isSelected = option == direction
 
         return Button {
@@ -79,7 +80,7 @@ private struct DirectionOptionsPopover: View {
                     .clipShape(RoundedRectangle(cornerRadius: 5))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(option.rawValue)
+                    Text(option.title)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(isSelected ? Color.accentColor : .primary)
 
@@ -118,7 +119,7 @@ private struct DirectionOptionsPopover: View {
     }
 }
 
-private extension CutDirectionOption {
+private extension SC.CutDirection {
     var selectionHint: String {
         switch self {
             case .climb:        return "Each tooth bites at full chip thickness and leaves at the finished wall with none. Usually the better finish and less tool wear, but it pulls the tool into the cut, so it needs a rigid setup without backlash."
@@ -128,7 +129,7 @@ private extension CutDirectionOption {
 }
 
 #Preview {
-    @Previewable @State var direction = CutDirectionOption.climb
+    @Previewable @State var direction = SC.CutDirection.climb
     DirectionPicker(direction: $direction)
         .padding()
 }

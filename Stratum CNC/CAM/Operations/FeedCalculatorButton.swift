@@ -13,13 +13,14 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 struct FeedCalculatorButton: View {
 
     @Binding var toolpath: ToolpathData
     /// The cut direction the glyph shows. Operations that have no climb / conventional choice
     /// leave it at climb.
-    var direction: CutDirectionOption = .climb
+    var direction: SC.CutDirection = .climb
     /// Whether the operation has a stepover to take into account (chip thinning).
     var usesStepover: Bool = true
 
@@ -84,7 +85,7 @@ private struct FeedCalculatorView: View {
     let usesStepover: Bool
     let toolDiameter: Double
     let stepDown: Double
-    let direction: CutDirectionOption
+    let direction: SC.CutDirection
     let recommendedChipLoad: Double?
     let recommendedSurfaceSpeed: Double?
     let currentFeed: Double

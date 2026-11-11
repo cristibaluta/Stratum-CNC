@@ -17,7 +17,7 @@ struct OperationSettings: Codable, Hashable {
 
     /// Which of the library's operations this is (a rest toolpath is a `.pocket`: see `isRest`).
     var kind: SC.MachiningOperation.Kind = .contour
-    var direction: CutDirectionOption = .climb
+    var direction: SC.CutDirection = .climb
 
     // Stock to leave (pocket, and contour cut on a side: see `SC.OperationRequirements.usesAllowance`)
     /// Material the roughing leaves on the walls and, for a pocket, the floor, mm.
@@ -26,8 +26,8 @@ struct OperationSettings: Codable, Hashable {
     var finishingPass: Bool = false
 
     // Pocket
-    var pocketPattern: PocketPattern = .offset
-    var pocketSpiral: SpiralOrder = .outsideIn// TODO: reuse model from stratum cam
+    var pocketPattern: SC.PocketClearingPattern.Kind = .offset
+    var pocketSpiral: SC.SpiralDirection = .outsideIn
     /// Trochoidal forward pitch per loop, as a percentage of the tool radius.
     var pocketTrochoidalPitch: Double = 50
     /// Adaptive clearing: the radial engagement the tool is kept at, as a percentage of the
@@ -118,7 +118,7 @@ struct OperationSettings: Codable, Hashable {
     var threadPitch: Double = 0.5
     var threadRadialPasses: Int = 3
     var threadIsInternal: Bool = true
-    var threadHandedness: ThreadHandedness = .rightHand
+    var threadHandedness: SC.ThreadDirection = .rightHand
     /// "Custom" was picked in the standard thread dropdown, which unlocks the diameter and pitch.
     var threadIsCustom: Bool = false
 
@@ -159,12 +159,12 @@ extension OperationSettings {
         } else {
             kind = d.kind
         }
-        direction = try c.decodeIfPresent(CutDirectionOption.self, forKey: .direction) ?? d.direction
+        direction = try c.decodeLegacyOption(SC.CutDirection.self, forKey: .direction) ?? d.direction
         stockToLeave = try c.decodeIfPresent(Double.self, forKey: .stockToLeave) ?? d.stockToLeave
         finishingPass = try c.decodeIfPresent(Bool.self, forKey: .finishingPass) ?? d.finishingPass
         restSourceID = try c.decodeIfPresent(UUID.self, forKey: .restSourceID)
-        pocketPattern = try c.decodeIfPresent(PocketPattern.self, forKey: .pocketPattern) ?? d.pocketPattern
-        pocketSpiral = try c.decodeIfPresent(SpiralOrder.self, forKey: .pocketSpiral) ?? d.pocketSpiral
+        pocketPattern = try c.decodeLegacyOption(SC.PocketClearingPattern.Kind.self, forKey: .pocketPattern) ?? d.pocketPattern
+        pocketSpiral = try c.decodeLegacyOption(SC.SpiralDirection.self, forKey: .pocketSpiral) ?? d.pocketSpiral
         pocketTrochoidalPitch = try c.decodeIfPresent(Double.self, forKey: .pocketTrochoidalPitch) ?? d.pocketTrochoidalPitch
         if let percent = try c.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoadPercent) {
             pocketAdaptiveLoadPercent = percent
@@ -194,10 +194,30 @@ extension OperationSettings {
         boreShiftRetract = try c.decodeIfPresent(Bool.self, forKey: .boreShiftRetract) ?? d.boreShiftRetract
         threadPitch = try c.decodeIfPresent(Double.self, forKey: .threadPitch) ?? d.threadPitch
         threadIsInternal = try c.decodeIfPresent(Bool.self, forKey: .threadIsInternal) ?? d.threadIsInternal
-        threadHandedness = try c.decodeIfPresent(ThreadHandedness.self, forKey: .threadHandedness) ?? d.threadHandedness
+        threadHandedness = try c.decodeLegacyOption(SC.ThreadDirection.self, forKey: .threadHandedness) ?? d.threadHandedness
         threadRadialPasses = try c.decodeIfPresent(Int.self, forKey: .threadRadialPasses) ?? d.threadRadialPasses
         threadTargetDiameter = try c.decodeIfPresent(Double.self, forKey: .threadTargetDiameter) ?? d.threadTargetDiameter
         threadIsCustom = try c.decodeIfPresent(Bool.self, forKey: .threadIsCustom) ?? d.threadIsCustom
+    }
+}
+
+private extension KeyedDecodingContainer {
+
+    /// Decodes one of the library's option enums. Projects saved before the app used them
+    /// stored the title instead ("Climb", "Right-hand", "Outside in"), so a value that isn't
+    /// a raw value is matched to a case ignoring case, spaces and hyphens.
+    func decodeLegacyOption<T: RawRepresentable & CaseIterable>(_ type: T.Type, forKey key: Key) throws -> T?
+    where T.RawValue == String {
+        guard let stored = try decodeIfPresent(String.self, forKey: key) else {
+            return nil
+        }
+        if let exact = T(rawValue: stored) {
+            return exact
+        }
+        func normalized(_ text: String) -> String {
+            text.filter { $0.isLetter || $0.isNumber }.lowercased()
+        }
+        return T.allCases.first { normalized($0.rawValue) == normalized(stored) }
     }
 }
 

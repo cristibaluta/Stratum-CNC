@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 /// A small chip-formation diagram, the way CAM packages draw climb and conventional milling.
 ///
@@ -23,7 +24,7 @@ import SwiftUI
 /// climb travels to the right and conventional to the left.
 /// Drawn in a fixed 60x40 design space and scaled to whatever frame it's given.
 struct DirectionGlyph: View {
-    let direction: CutDirectionOption
+    let direction: SC.CutDirection
     var tint: Color = .primary
     /// How far the tooth moves between two bites, in design units (the tool is 24 wide). The
     /// default is exaggerated so the chip reads at a small size; the feed calculator passes

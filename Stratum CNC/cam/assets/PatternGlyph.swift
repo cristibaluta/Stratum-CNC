@@ -6,13 +6,14 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 /// A small drawing of the tool's path filling a pocket: nested rings for an offset,
 /// scanlines for a raster, a tightening spiral, looping coils for a trochoid, and a helix with
 /// growing partial passes for adaptive —
 /// all against the pocket's boundary (solid), same convention as `ContourTypeGlyph`.
 struct PatternGlyph: View {
-    let pattern: PocketPattern
+    let pattern: SC.PocketClearingPattern.Kind
     var tint: Color = .primary
 
     private let partInset: CGFloat = 2

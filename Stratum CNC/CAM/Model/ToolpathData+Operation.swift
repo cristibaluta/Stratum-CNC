@@ -28,7 +28,7 @@ extension ToolpathData {
     private mutating func apply(_ newValue: SC.MachiningOperation) {
         // Every operation that has a direction stores it in the same place.
         if let direction = newValue.direction {
-            operation.direction = CutDirectionOption(direction)
+            operation.direction = direction
         }
 
         switch newValue {
@@ -42,7 +42,7 @@ extension ToolpathData {
             case .threadMilling(let pitch, let isInternal, let direction, let radialPasses, let targetDiameter):
                 operation.threadPitch = pitch
                 operation.threadIsInternal = isInternal
-                operation.threadHandedness = direction == .leftHand ? .leftHand : .rightHand
+                operation.threadHandedness = direction
                 operation.threadRadialPasses = radialPasses
                 operation.threadTargetDiameter = targetDiameter
 
@@ -62,14 +62,14 @@ extension ToolpathData {
                         operation.pocketPattern = .raster
                     case .spiral(let spiralDirection):
                         operation.pocketPattern = .spiral
-                        operation.pocketSpiral = spiralDirection == .insideOut ? .insideOut : .outsideIn
+                        operation.pocketSpiral = spiralDirection
                     case .trochoidal(let settings):
                         operation.pocketPattern = .trochoidal
                         // The app keeps the loop pitch as a percentage of the tool radius.
                         operation.pocketTrochoidalPitch = settings.radialEngagement * 100
                     case .concentric(let spiralDirection):
                         operation.pocketPattern = .concentric
-                        operation.pocketSpiral = spiralDirection == .insideOut ? .insideOut : .outsideIn
+                        operation.pocketSpiral = spiralDirection
                     case .adaptive(let settings):
                         operation.pocketPattern = .adaptive
                         // The library speaks mm; the app keeps a percentage of the tool diameter.
@@ -108,10 +108,3 @@ extension ToolpathData {
     }
 }
 
-// MARK: - StratumCAM -> app enums
-
-private extension CutDirectionOption {
-    init(_ direction: SC.CutDirection) {
-        self = direction == .conventional ? .conventional : .climb
-    }
-}

@@ -193,17 +193,8 @@ extension SC.ParameterField.ChoiceField {
         options.map(\.id) == [SC.CutDirection.climb.rawValue, SC.CutDirection.conventional.rawValue]
     }
 
-    var cutDirection: CutDirectionOption {
+    var cutDirection: SC.CutDirection {
         selectedId == SC.CutDirection.conventional.rawValue ? .conventional : .climb
-    }
-}
-
-extension CutDirectionOption {
-    var fieldID: String {
-        switch self {
-            case .climb:        return SC.CutDirection.climb.rawValue
-            case .conventional: return SC.CutDirection.conventional.rawValue
-        }
     }
 }
 

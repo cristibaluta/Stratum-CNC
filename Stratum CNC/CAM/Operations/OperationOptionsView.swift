@@ -41,12 +41,12 @@ struct OperationOptionsView: View {
     /// The patterns to offer in the pattern row: the pocket's. A slot has patterns of its own
     /// (`requirements.slotPatterns`), which the app doesn't offer until open-ended slots can
     /// be derived from the drawing.
-    private var offeredPatterns: [PocketPattern] {
+    private var offeredPatterns: [SC.PocketClearingPattern.Kind] {
         // A rest pass always clears each corner with offset rings.
         guard !isRest else {
             return []
         }
-        return requirements.pocketPatterns.map { PocketPattern($0) }
+        return requirements.pocketPatterns.map(\.kind)
     }
 
     /// Which section of the panel this instance fills. The panel places one of each, so the
@@ -388,7 +388,7 @@ struct OperationOptionsView: View {
     }
 
     /// The climb / conventional field of the operation, if it has one.
-    private var cutDirectionBinding: Binding<CutDirectionOption>? {
+    private var cutDirectionBinding: Binding<SC.CutDirection>? {
         for case .choice(let field) in displayedFields(of: formFields)
         where Self.xyDirectionFieldIDs.contains(field.id) && field.isCutDirection {
             return Binding(get: { field.cutDirection },
@@ -782,7 +782,7 @@ private extension SC.MachiningOperation.Kind {
 // MARK: - Reusable controls
 
 /// A labelled pop-up button for any string-backed enum.
-struct EnumMenuPicker<Value: Hashable & CaseIterable & RawRepresentable>: View where Value.RawValue == String {
+struct EnumMenuPicker<Value: Hashable & CaseIterable & TitledOption>: View {
     let title: String
     @Binding var selection: Value
 
@@ -794,15 +794,15 @@ struct EnumMenuPicker<Value: Hashable & CaseIterable & RawRepresentable>: View w
                         selection = option
                     } label: {
                         if option == selection {
-                            Label(option.rawValue, systemImage: "checkmark")
+                            Label(option.title, systemImage: "checkmark")
                         } else {
-                            Text(option.rawValue)
+                            Text(option.title)
                         }
                     }
                 }
             } label: {
                 InspectorMenuLabel {
-                    Text(selection.rawValue)
+                    Text(selection.title)
                 }
             }
             .menuIndicator(.hidden)

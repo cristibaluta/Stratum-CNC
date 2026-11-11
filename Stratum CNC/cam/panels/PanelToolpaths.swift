@@ -351,7 +351,7 @@ struct PanelToolpaths: View {
             if !requirements.pocketPatterns.isEmpty {
                 PatternGlyph(pattern: toolpath.operation.pocketPattern, tint: .secondary)
                     .frame(width: 18, height: 14)
-                    .help("Pocketing: \(toolpath.operation.pocketPattern.rawValue)")
+                    .help("Pocketing: \(toolpath.operation.pocketPattern.title)")
             }
 
             if toolpath.operation.isRest {
