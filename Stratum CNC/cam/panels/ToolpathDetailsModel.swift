@@ -62,7 +62,7 @@ final class ToolpathDetailsModel: ObservableObject {
     /// "Pocket 1" -- whatever its name was. Editing the name never triggers this, only
     /// picking an operation does.
     func operationKindBinding(_ toolpath: Binding<ToolpathData>,
-                              siblingNames: Set<String>) -> Binding<OperationKind> {
+                              siblingNames: Set<String>) -> Binding<SC.MachiningOperation.Kind> {
         Binding(
             get: { toolpath.wrappedValue.operation.kind },
             set: { [weak self] newKind in
@@ -254,7 +254,7 @@ final class ToolpathDetailsModel: ObservableObject {
     // MARK: Preview
 
     func previewButtonHelp(for toolpath: ToolpathData) -> String {
-        if toolpath.operation.kind == .restMachining {
+        if toolpath.operation.isRest {
             return "Cut the corners of the linked pocket with this tool and preview it on the canvas"
         }
         if !toolpath.hasGeometry {

@@ -51,7 +51,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
 
     /// What the toolpath does (contour, pocket, drill…) and that operation's own options.
     /// `contour` (the contour's side) and `ramping` (the entry) above are used by the
-    /// operations that have them; see `OperationKind`.
+    /// operations that have them; see `SC.MachiningOperation.Kind`.
     var operation = OperationSettings()
 
     /// General fields the user has set by hand (or a tool preset has). Those keep their value
@@ -156,7 +156,7 @@ extension ToolpathData {
 
     /// Whether there is anything to cut: selected shapes, or the whole stock.
     var hasGeometry: Bool {
-        if operation.kind == .restMachining {
+        if operation.isRest {
             return operation.restSourceID != nil   // its geometry is its source pocket's corners
         }
         return hasSelectedTargets || cutsWholeStock
@@ -251,7 +251,7 @@ extension ToolpathData {
                     return String(format: "The counterbore diameter (%.2f mm) must be larger than the tool (Ø%.2f mm).",
                                   operation.counterboreDiameter, diameter)
                 }
-            case .drilling, .boring, .contour, .pocket, .facing, .slotting, .engrave, .restMachining:
+            case .drilling, .boring, .contour, .pocket, .facing, .slotting, .engrave:
                 break
         }
         return nil
@@ -270,6 +270,9 @@ extension ToolpathData {
         guard !toolSuitsOperation else {
             return nil
         }
+        if operation.isRest {
+            return "A rest operation requires an end mill."
+        }
         switch operation.kind {
             case .drilling:      return "Drilling requires a drill bit."
             case .threadMilling: return "Thread milling requires a thread mill bit."
@@ -281,7 +284,6 @@ extension ToolpathData {
             case .slotting:      return "A slot requires an end mill."
             case .engrave:       return "Engraving requires an engraving bit or a V-bit."
             case .chamfer:       return "A chamfer requires a V-bit or a chamfer bit."
-            case .restMachining: return "A rest operation requires an end mill."
         }
     }
 

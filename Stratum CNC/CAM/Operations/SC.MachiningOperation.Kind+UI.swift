@@ -1,35 +1,27 @@
 //
-//  OperationKind.swift
+//  SC.MachiningOperation.Kind+UI.swift
 //  Stratum CNC
 //
-//  Created by Cristian Baluta on 26.10.2026.
+//  What the app shows for each kind of StratumCAM operation: its name, icon, help text and
+//  place in the picker. The kinds themselves come from the library (`SC.MachiningOperation.Kind`).
 //
 
 import Foundation
 import StratumCAM
 
-enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
-    case contour
-    case pocket
-    case facing
-    case slotting
-    case engrave
-    case drilling
-    case counterbore
-    case boring
-    case threadMilling
-    case chamfer
-    /// Cleans the corners a pocket's larger tool couldn't reach, with a smaller tool. Not
-    /// picked from the list: it is created from a previewed pocket (see `OperationSettings.restSourceID`).
-    case restMachining
-
-    var id: String {
-        rawValue
+extension SC.MachiningOperation {
+    /// Display name for the operation (the same short name as its kind's `title`).
+    public var displayName: String {
+        kind.title
     }
+}
 
-    /// The order and grouping used by the picker menu. `.restMachining` isn't in it: a rest
-    /// toolpath needs a source pocket, so it's made with "Create rest operation" on a pocket.
-    static let groups: [[OperationKind]] = [
+extension SC.MachiningOperation.Kind {
+
+    /// The order and grouping used by the picker menu. A rest toolpath isn't in it: it needs a
+    /// source pocket, so it's made with "Create rest operation" on a pocket
+    /// (see `OperationSettings.isRest`).
+    static let groups: [[SC.MachiningOperation.Kind]] = [
         [.facing],
         [.pocket, .contour, .slotting],
         [.drilling, .counterbore, .boring, .threadMilling],
@@ -48,7 +40,6 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .boring:        return "Bore"
             case .threadMilling: return "Thread mill"
             case .chamfer:       return "Chamfer"
-            case .restMachining: return "Rest"
         }
     }
 
@@ -65,7 +56,6 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
             case .boring:        return "circle.dashed"
             case .threadMilling: return "screwdriver"
             case .chamfer:       return "diamond"
-            case .restMachining: return "angle"
         }
     }
 
@@ -93,8 +83,6 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
                 return "Cuts a thread inside an existing hole, or on the outside of a stud when Internal is off. Select the hole or stud. Needs a thread mill."
             case .chamfer:
                 return "Bevels the selected edges. Needs a V-bit."
-            case .restMachining:
-                return "Cuts the corners the pocket's larger tool couldn't reach, with a smaller tool. Linked to its pocket: no shapes to select."
         }
     }
 
@@ -119,8 +107,6 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
                 return "Select an existing hole (or a stud for an external thread). Needs a thread mill."
             case .chamfer:
                 return "Bevels the selected edges. Needs a V-bit."
-            case .restMachining:
-                return nil   // linked to a pocket, nothing to select
         }
     }
 
@@ -143,6 +129,11 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
     /// (`Contour 1`, `Contour 2`, `Pocket 1`, ...) instead of sharing one counter
     /// across every kind of operation.
     func nextName(among existingNames: Set<String>) -> String {
+        Self.nextName(titled: title, among: existingNames)
+    }
+
+    /// Same, for a title that isn't a kind's own (a rest toolpath's "Rest").
+    static func nextName(titled title: String, among existingNames: Set<String>) -> String {
         var number = 1
         while existingNames.contains("\(title) \(number)") {
             number += 1
@@ -151,52 +142,3 @@ enum OperationKind: String, CaseIterable, Codable, Hashable, Identifiable {
     }
 }
 
-// MARK: - Small option enums
-
-enum CutDirectionOption: String, CaseIterable, Codable, Hashable {
-    case climb = "Climb"
-    case conventional = "Conventional"
-}
-
-enum ThreadHandedness: String, CaseIterable, Codable, Hashable {
-    case rightHand = "Right-hand"
-    case leftHand = "Left-hand"
-}
-
-/// How a pocket is cleared. Mirrors StratumCAM's `SC.PocketClearingPattern`.
-enum PocketPattern: String, CaseIterable, Codable, Hashable {
-    case offset = "Offset"
-    case raster = "Raster"
-    case spiral = "Spiral"
-    case trochoidal = "Trochoidal"
-    case concentric = "Concentric"
-    case adaptive = "Adaptive"
-}
-
-extension PocketPattern {
-
-    /// The app's pattern for one of the library's (its parameters are kept in `OperationSettings`).
-    init(_ pattern: SC.PocketClearingPattern) {
-        switch pattern {
-            case .offset:     self = .offset
-            case .concentric: self = .concentric
-            case .raster:     self = .raster
-            case .spiral:     self = .spiral
-            case .trochoidal: self = .trochoidal
-            case .adaptive:   self = .adaptive
-        }
-    }
-}
-
-enum SpiralOrder: String, CaseIterable, Codable, Hashable {
-    case outsideIn = "Outside in"
-    case insideOut = "Inside out"
-}
-
-/// What the selected shape means for a slot.
-enum SlotSource: String, CaseIterable, Codable, Hashable {
-    /// The drawn slot walls: a straight-sided rectangle as wide as the tool.
-    case outline = "Slot outline"
-    /// The line the tool centre follows.
-    case centerline = "Centre line"
-}

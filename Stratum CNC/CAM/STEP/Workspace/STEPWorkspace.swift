@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import simd
 import SwiftSTEP
+import StratumCAM
 
 struct STEPSourceReference: Identifiable, Sendable {
     let id: UUID
@@ -684,8 +685,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     private var chamferEdges = Set<STEP.EdgeID>()
 
     /// The operations "Add toolpath" offers for the selection, most likely first.
-    var availableOperations: [OperationKind] {
-        selectionFeature.map(OperationKind.operations(for:)) ?? []
+    var availableOperations: [SC.MachiningOperation.Kind] {
+        selectionFeature.map(SC.MachiningOperation.Kind.operations(for:)) ?? []
     }
 
     /// "Select linked in plane" would add something: the selection lies in one plane and edges

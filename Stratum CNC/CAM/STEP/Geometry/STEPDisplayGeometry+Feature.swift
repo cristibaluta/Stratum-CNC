@@ -9,6 +9,7 @@
 import Foundation
 import simd
 import SwiftSTEP
+import StratumCAM
 
 /// The kind of feature a selection of edges forms.
 enum STEPSelectionFeature: Equatable, Sendable {
@@ -72,10 +73,10 @@ extension STEPDisplayGeometry {
     }
 }
 
-extension OperationKind {
+extension SC.MachiningOperation.Kind {
 
     /// The operations offered for a selection of STEP edges, most likely first.
-    static func operations(for feature: STEPSelectionFeature) -> [OperationKind] {
+    static func operations(for feature: STEPSelectionFeature) -> [SC.MachiningOperation.Kind] {
         switch feature {
             case .holes:
                 return [.drilling, .threadMilling, .counterbore, .boring, .pocket, .contour, .chamfer]

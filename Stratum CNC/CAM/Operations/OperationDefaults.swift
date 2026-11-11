@@ -15,6 +15,7 @@
 //
 
 import Foundation
+import StratumCAM
 
 /// The general fields whose default depends on the operation.
 enum ToolpathField: String, Codable, Hashable {
@@ -32,7 +33,7 @@ struct OperationDefaults {
     var stepOverFraction: Double?
 }
 
-extension OperationKind {
+extension SC.MachiningOperation.Kind {
 
     var defaults: OperationDefaults {
         switch self {
@@ -52,8 +53,6 @@ extension OperationKind {
                 return OperationDefaults(stepDown: 0.5, stepOverFraction: 0.4)
             case .chamfer:
                 return OperationDefaults()
-            case .restMachining:
-                return OperationDefaults(endZ: -1, stepDown: 0.5, stepOverFraction: 0.4)
         }
     }
 }
@@ -62,7 +61,7 @@ extension ToolpathData {
 
     /// Sets End Z, Stepdown and Stepover to `kind`'s defaults, except the ones the user has
     /// edited and the ones `kind` doesn't use.
-    mutating func applyDefaults(for kind: OperationKind) {
+    mutating func applyDefaults(for kind: SC.MachiningOperation.Kind) {
         let defaults = kind.defaults
 
         if !editedFields.contains(.endZ), let endZ = defaults.endZ {

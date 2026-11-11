@@ -62,16 +62,17 @@ struct PanelToolpathDetails: View {
                     // One line, like the other sections' compact forms
                     HStack(spacing: 6) {
                         OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
+                                        isRest: toolpath.operation.isRest,
                                         isCompact: true)
                         // A rest operation is created from a pocket and stays one.
-                        .disabled(toolpath.operation.kind == .restMachining)
+                        .disabled(toolpath.operation.isRest)
                         if OperationOptionsView.hasOperationFields(for: toolpath) {
                             OperationOptionsView(toolpath: $toolpath, part: .operationCompact)
                         }
                     }
                 } else {
                     rowOperation
-                    InspectorNote(text: toolpath.operation.kind.summary)
+                    InspectorNote(text: toolpath.operation.summary)
                     // The operation's own settings, right under its type: a thread's standard
                     // and pitch, a bore's diameter, a chamfer's width…
                     if OperationOptionsView.hasOperationFields(for: toolpath) {
@@ -128,7 +129,7 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowHeader: some View {
         HStack(spacing: 8) {
-            OperationIcon(kind: toolpath.operation.kind, size: 16)
+            OperationIcon(kind: toolpath.operation.kind, isRest: toolpath.operation.isRest, size: 16)
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
 
@@ -152,9 +153,10 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowOperation: some View {
-        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames))
+        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
+                        isRest: toolpath.operation.isRest)
             // A rest operation is created from a pocket and stays one.
-            .disabled(toolpath.operation.kind == .restMachining)
+            .disabled(toolpath.operation.isRest)
     }
 
     /// Which of the general fields (End Z, Stepdown, Stepover) the operation reads.
@@ -358,7 +360,7 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowShapes: some View {
         // A rest toolpath has no shapes of its own: it cuts the corners of its pocket
-        if toolpath.operation.kind == .restMachining {
+        if toolpath.operation.isRest {
             InspectorRow(label: "Source") {
                 Label(restSource?.name ?? "Source missing", systemImage: "link")
                     .font(.system(size: 12, weight: .medium))
@@ -433,7 +435,7 @@ struct PanelToolpathDetails: View {
                     InspectorNote(text: message, isWarning: true, isIndented: false)
                 }
                 // The corners this pocket's tool couldn't reach: offer to clean them with a smaller tool
-                if toolpath.operation.kind == .pocket, generation.errorMessage == nil, !generation.restCorners.isEmpty {
+                if toolpath.operation.kind == .pocket, !toolpath.operation.isRest, generation.errorMessage == nil, !generation.restCorners.isEmpty {
                     restAreasRows(cornerCount: generation.restCorners.count)
                 }
             }

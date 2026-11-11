@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftSTEP
+import StratumCAM
 
 /// The callout over the selected STEP edges: "Select linked" and "Add toolpath" on top, always
 /// there (disabled when they do not apply), and under them one line with what is selected.
@@ -19,7 +20,7 @@ struct STEPAddToolpathTooltipLayer: View {
     let zoomModel: CanvasZoomModel
     let canAdd: Bool
     /// An operation was chosen from the list: create the toolpath with it.
-    let onChoose: (OperationKind) -> Void
+    let onChoose: (SC.MachiningOperation.Kind) -> Void
 
     @State private var frameTick = 0
     /// The callout's own height (its arrow included), so it can be kept below the top edge.
@@ -149,12 +150,12 @@ private struct STEPSelectionCallout: View {
     let canSelectSimilar: Bool
     let canAdd: Bool
     /// The operations that fit the selection.
-    let operations: [OperationKind]
+    let operations: [SC.MachiningOperation.Kind]
     /// The selected edges: choosing is dropped when they change.
     let selection: Set<STEP.EdgeID>
     let onSelectLinked: () -> Void
     let onSelectSimilar: () -> Void
-    let onChoose: (OperationKind) -> Void
+    let onChoose: (SC.MachiningOperation.Kind) -> Void
 
     /// "Add toolpath" was pressed: the list of operations replaces the buttons.
     @State private var isChoosing = false

@@ -7,6 +7,7 @@
 import SwiftUI
 import simd
 import SwiftSTEP
+import StratumCAM
 
 /// The CAM canvas: one free 3D camera (orbit, pan, zoom and the orientation cube from
 /// `CanvasInputSettings`) over the whole scene — the stock, the shapes (flat, at z = 0), the
@@ -37,7 +38,7 @@ struct CAM_Metal_View: View {
     let fitRequest: Int
     let onAddToolpath: () -> Void
     /// An operation was picked in the STEP edges' "Add toolpath" list.
-    let onAddStepToolpath: (OperationKind) -> Void
+    let onAddStepToolpath: (SC.MachiningOperation.Kind) -> Void
     /// The STEP model selected in the objects list, if it is the one on the canvas. It gets a box
     /// and a handle like a selected shape, and dragging the handle moves it.
     let selectedStepModelID: UUID?
@@ -62,7 +63,7 @@ struct CAM_Metal_View: View {
          onMoveStepModel: @escaping (UUID, CGFloat, CGFloat) -> Void = { _, _, _ in },
          onDeselectStepModel: @escaping () -> Void = {},
          onAddToolpath: @escaping () -> Void = {},
-         onAddStepToolpath: @escaping (OperationKind) -> Void = { _ in }) {
+         onAddStepToolpath: @escaping (SC.MachiningOperation.Kind) -> Void = { _ in }) {
 
         _scene = StateObject(wrappedValue: CAMSceneModel(canvasState: canvasState))
         _flip = StateObject(wrappedValue: SetupFlipAnimator(initial: partFrame))
@@ -251,7 +252,7 @@ private struct STEP3DCanvas: View {
     let canAddToolpath: Bool
     let fitRequest: Int
     let onAddToolpath: () -> Void
-    let onAddStepToolpath: (OperationKind) -> Void
+    let onAddStepToolpath: (SC.MachiningOperation.Kind) -> Void
     let onEmptyClick: () -> Void
 
     var body: some View {

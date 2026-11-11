@@ -256,15 +256,14 @@ class CAMModel: ObservableObject {
     /// - Parameter operation: the operation it is created with, when the user has already chosen it
     ///   (the canvas tooltip's list); otherwise the one of the toolpath it is copied from.
     func addToolpath(targets: [PathSelection] = [], stepTargets: [STEPEdgeTarget] = [], setupID: UUID? = nil,
-                     operation: OperationKind? = nil) {
+                     operation: SC.MachiningOperation.Kind? = nil) {
         let setupID = setupID.flatMap { id in setups.contains { $0.id == id } ? id : nil } ?? activeSetupID
         var toolpath = toolpaths.last(where: { $0.setupID == setupID }) ?? toolpaths.last ?? Self.defaultToolpath()
         toolpath.id = UUID()
         toolpath.setupID = setupID
         // A rest toolpath is tied to its pocket, so a copy of it would be one too: start from
         // the pocket's kind of operation instead.
-        if toolpath.operation.kind == .restMachining {
-            toolpath.operation.kind = .pocket
+        if toolpath.operation.isRest {
             toolpath.operation.restSourceID = nil
         }
         // The chosen operation; untouched fields take its defaults, like picking it in the panel.
@@ -310,7 +309,8 @@ class CAMModel: ObservableObject {
     /// recomputed from the pocket on every Preview (see `OperationSettings.restSourceID`).
     func addRestToolpath(from sourceID: UUID) {
         guard let index = toolpaths.firstIndex(where: { $0.id == sourceID }),
-              toolpaths[index].operation.kind == .pocket else {
+              toolpaths[index].operation.kind == .pocket,
+              !toolpaths[index].operation.isRest else {
             return
         }
         let source = toolpaths[index]
@@ -318,7 +318,7 @@ class CAMModel: ObservableObject {
         var rest = source
         rest.id = UUID()
         rest.targets = []
-        rest.operation.kind = .restMachining
+        rest.operation.kind = .pocket
         rest.operation.restSourceID = sourceID
         rest.operation.pocketPattern = .offset
         rest.operation.stockToLeave = 0
@@ -326,7 +326,7 @@ class CAMModel: ObservableObject {
         // One plunge to the pocket's End Z: stepdown equals the depth (both editable afterwards).
         rest.endZ = source.endZ
         rest.stepDown = max(abs(source.endZ), 0.01)
-        rest.name = OperationKind.restMachining.nextName(among: Set(toolpaths.map(\.name)))
+        rest.name = SC.MachiningOperation.Kind.nextName(titled: rest.operation.title, among: Set(toolpaths.map(\.name)))
 
         // A tool half the pocket's size, to start from; the user picks the real one in the panel.
         // It needs an id of its own: the G-code header numbers tools by id.
@@ -361,7 +361,7 @@ class CAMModel: ObservableObject {
     /// "Add toolpath" from the canvas tooltip: a new toolpath that cuts the selected shapes
     /// (or, in the 3D canvas, the selected STEP edges).
     /// - Parameter operation: the operation picked in the tooltip's list, if it offered one.
-    func addToolpathFromSelection(operation: OperationKind? = nil) {
+    func addToolpathFromSelection(operation: SC.MachiningOperation.Kind? = nil) {
         let edges = stepEdgesForNewToolpath
         if !edges.isEmpty {
             addToolpath(stepTargets: edges, operation: operation)
@@ -452,11 +452,11 @@ class CAMModel: ObservableObject {
         guard setups.contains(where: { $0.id == setupID }),
               let toolpath = toolpaths.first(where: { $0.id == id }),
               toolpath.setupID != setupID,
-              toolpath.operation.kind != .restMachining else {
+              !toolpath.operation.isRest else {
             return
         }
         let moving = Set([id] + toolpaths.filter {
-            $0.operation.kind == .restMachining && $0.operation.restSourceID == id
+            $0.operation.isRest && $0.operation.restSourceID == id
         }.map(\.id))
         var moved = toolpaths.filter { moving.contains($0.id) }
         for index in moved.indices {
@@ -687,7 +687,7 @@ class CAMModel: ObservableObject {
     private func syncPickingWithSelection() {
         // A rest toolpath has no shapes of its own, so nothing is picked while one is open
         let wanted = selectedToolpathID.flatMap { id in
-            toolpaths.first { $0.id == id }?.operation.kind == .restMachining ? nil : id
+            toolpaths.first { $0.id == id }?.operation.isRest == true ? nil : id
         }
         guard pickingToolpathID != wanted else {
             return
@@ -705,7 +705,7 @@ class CAMModel: ObservableObject {
             return
         }
         // A rest toolpath has no shapes of its own: it is linked to a pocket
-        guard toolpath.operation.kind != .restMachining else {
+        guard !toolpath.operation.isRest else {
             return
         }
         // Set before seeding the canvas: seeding can prune stale targets and
@@ -870,6 +870,7 @@ class CAMModel: ObservableObject {
               let id = selectedToolpathID,
               let toolpath = toolpaths.first(where: { $0.id == id }),
               toolpath.operation.kind == .pocket,
+              !toolpath.operation.isRest,
               let generation = generations[id],
               generation.isCurrent(for: toolpath) else {
             canvasState.setRestRegionsPath(nil)
@@ -881,7 +882,7 @@ class CAMModel: ObservableObject {
     /// A rest toolpath's result is outdated once the pocket it is linked to is edited or deleted.
     /// The pocket's name is ignored: renaming it changes nothing that is cut.
     private func refreshLinkedGenerations() {
-        for (id, generation) in generations where generation.source.operation.kind == .restMachining {
+        for (id, generation) in generations where generation.source.operation.isRest {
             let current = generation.source.operation.restSourceID.flatMap { sourceID in
                 toolpaths.first { $0.id == sourceID }
             }

@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 /// Side view of a thread mill, drawn in the unit square with the tip at the bottom. Stroke it
 /// for an outline icon or fill it; it follows whatever foreground style it is given.
@@ -58,11 +59,16 @@ struct ThreadMillShape: Shape {
 /// nothing fitting (the thread mill). Sized like `Image(systemName:).font(.system(size:))`;
 /// colour it with `foregroundStyle`.
 struct OperationIcon: View {
-    let kind: OperationKind
+    let kind: SC.MachiningOperation.Kind
+    /// A rest operation has the icon of its own, not of the pocket it is made from.
+    var isRest: Bool = false
     var size: CGFloat = 16
 
     var body: some View {
-        if kind == .threadMilling {
+        if isRest {
+            Image(systemName: "angle")
+                .font(.system(size: size))
+        } else if kind == .threadMilling {
             ThreadMillShape()
                 .stroke(style: StrokeStyle(lineWidth: max(1, size / 13), lineJoin: .round))
                 .frame(width: size, height: size)

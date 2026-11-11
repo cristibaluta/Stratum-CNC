@@ -24,7 +24,7 @@ struct GCodeToolpathAnalyzer {
         var currentStart: Int?
         var currentEnd: Int?
         var motionCount = 0
-        var currentKind: OperationKind?
+        var currentKind: MoveKind?
 
         func finishCurrent() {
             guard let start = currentStart, let end = currentEnd, motionCount > 0 else {
@@ -81,7 +81,7 @@ struct GCodeToolpathAnalyzer {
                                        options: .regularExpression) != nil
             guard let motion = modalMotion,
                   hasAxes || ([2, 3].contains(motion) && hasCenter) else { continue }
-            let kind: OperationKind = (81...89).contains(motion) ? .drilling
+            let kind: MoveKind = (81...89).contains(motion) ? .drilling
                 : (motion == 0 ? .rapid : .cutting)
             if currentKind != kind {
                 finishCurrent()
@@ -102,7 +102,7 @@ struct GCodeToolpathAnalyzer {
         return machining.isEmpty ? result : machining
     }
 
-    private enum OperationKind: Equatable {
+    private enum MoveKind: Equatable {
         case rapid
         case cutting
         case drilling

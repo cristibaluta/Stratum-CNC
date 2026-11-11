@@ -15,7 +15,8 @@ import StratumCAM
 
 struct OperationSettings: Codable, Hashable {
 
-    var kind: OperationKind = .contour
+    /// Which of the library's operations this is (a rest toolpath is a `.pocket`: see `isRest`).
+    var kind: SC.MachiningOperation.Kind = .contour
     var direction: CutDirectionOption = .climb
 
     // Stock to leave (pocket, and contour cut on a side: see `SC.OperationRequirements.usesAllowance`)
@@ -37,9 +38,38 @@ struct OperationSettings: Codable, Hashable {
     var legacyAdaptiveLoadMM: Double? = nil
 
     // Rest machining
-    /// The pocket this rest operation cleans the corners of (`OperationKind.restMachining`).
+    /// The pocket this rest operation cleans the corners of (see `isRest`).
     /// Linked by id: the corners are recomputed from that pocket on every Generate.
     var restSourceID: UUID? = nil
+
+    /// A rest operation: a pocket cut with a smaller tool in the corners of the pocket it is
+    /// linked to. Not an operation of the library (it is described to it as an offset pocket,
+    /// see `ToolpathGenerator.makeOperation(from:)`), so it is a pocket with a source.
+    var isRest: Bool {
+        kind == .pocket && restSourceID != nil
+    }
+
+    /// Name shown for the operation, auto-names of toolpaths included.
+    var title: String {
+        isRest ? "Rest" : kind.title
+    }
+
+    /// SF Symbol of the operation.
+    var symbol: String {
+        isRest ? "angle" : kind.symbol
+    }
+
+    /// What the operation does, for the picker and the panel.
+    var summary: String {
+        isRest
+            ? "Cuts the corners the pocket's larger tool couldn't reach, with a smaller tool. Linked to its pocket: no shapes to select."
+            : kind.summary
+    }
+
+    /// What to select on the canvas; `nil` when there is nothing to select or it depends on the slot source.
+    var selectionHint: String? {
+        isRest ? nil : kind.selectionHint
+    }
 
     // Contour
     /// Holding tabs left in the cut, in the order the form lists them.
@@ -122,7 +152,13 @@ extension OperationSettings {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = OperationSettings()
 
-        kind = try c.decodeIfPresent(OperationKind.self, forKey: .kind) ?? d.kind
+        // Projects saved when a rest operation had a kind of its own ("restMachining"): it is a
+        // pocket now, told apart by its `restSourceID`.
+        if let rawKind = try c.decodeIfPresent(String.self, forKey: .kind) {
+            kind = rawKind == "restMachining" ? .pocket : (SC.MachiningOperation.Kind(rawValue: rawKind) ?? d.kind)
+        } else {
+            kind = d.kind
+        }
         direction = try c.decodeIfPresent(CutDirectionOption.self, forKey: .direction) ?? d.direction
         stockToLeave = try c.decodeIfPresent(Double.self, forKey: .stockToLeave) ?? d.stockToLeave
         finishingPass = try c.decodeIfPresent(Bool.self, forKey: .finishingPass) ?? d.finishingPass

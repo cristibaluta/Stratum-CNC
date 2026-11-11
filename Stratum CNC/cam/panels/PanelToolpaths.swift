@@ -272,7 +272,7 @@ struct PanelToolpaths: View {
         let isHidden = hiddenIDs.contains(toolpath.id)
 
         return HStack(spacing: 6) {
-            OperationIcon(kind: toolpath.operation.kind, size: 13)
+            OperationIcon(kind: toolpath.operation.kind, isRest: toolpath.operation.isRest, size: 13)
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
                 .opacity(isHidden ? 0.5 : 1)
@@ -301,7 +301,7 @@ struct PanelToolpaths: View {
         }
         .gesture(dragGesture(for: toolpath, at: index, count: count))
         .contextMenu {
-            if setups.count > 1, toolpath.operation.kind != .restMachining {
+            if setups.count > 1, !toolpath.operation.isRest {
                 Menu("Move to face") {
                     ForEach(setups.filter { $0.id != toolpath.setupID }) { setup in
                         Button(setup.name) {
@@ -354,7 +354,7 @@ struct PanelToolpaths: View {
                     .help("Pocketing: \(toolpath.operation.pocketPattern.rawValue)")
             }
 
-            if toolpath.operation.kind == .restMachining {
+            if toolpath.operation.isRest {
                 // Linked to a pocket instead of shapes
                 let source = toolpaths.first { $0.id == toolpath.operation.restSourceID }
                 Label(source?.name ?? "Source missing", systemImage: "link")

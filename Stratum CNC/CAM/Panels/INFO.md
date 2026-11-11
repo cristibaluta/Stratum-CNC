@@ -102,10 +102,10 @@ PanelToolpathDetails
 
 ## Rest machining
 
-A rest toolpath (`OperationKind.restMachining`) cleans the corners a pocket's larger tool couldn't reach, with a smaller tool.
+A rest toolpath (a `.pocket` with `OperationSettings.restSourceID` set, see `OperationSettings.isRest`) cleans the corners a pocket's larger tool couldn't reach, with a smaller tool.
 
 - **Link:** `OperationSettings.restSourceID` is the pocket's `ToolpathData.id`. Corners are never stored: every Preview runs the pocket again (`ToolpathGenerator.runRest`), reads `restCorners` from its output and cuts them with `SCEngine.generateRestToolpaths`.
-- **Created** from a previewed pocket ("Create rest operation", `CAMModel.addRestToolpath(from:)`), inserted right after it. It isn't in `OperationKind.groups`.
+- **Created** from a previewed pocket ("Create rest operation", `CAMModel.addRestToolpath(from:)`), inserted right after it. It isn't in `SC.MachiningOperation.Kind.groups`.
 - **Outdated:** `CAMModel.refreshLinkedGenerations()` flags a rest result when its pocket changes (the name is ignored) or is deleted; `ToolpathGeneration.isCurrent(for:)` then returns false. A deleted source is kept and reported as "no longer in the list".
 - **Overlay:** the pocket's `ToolpathGeneration.restPath` is drawn on the canvas while the pocket is open and current (`CAMModel.showsRestAreas`).
 - **Limits:** only line-to-line corners, only the pocket's outer boundary (islands ignored), regions are geometric (wall minus the tool circle), not the roughing actually cut.

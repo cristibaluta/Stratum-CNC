@@ -24,8 +24,12 @@ struct OperationOptionsView: View {
     @State private var showLeadInEditor = false
     @State private var showLeadOutEditor = false
 
-    private var kind: OperationKind {
+    private var kind: SC.MachiningOperation.Kind {
         toolpath.operation.kind
+    }
+
+    private var isRest: Bool {
+        toolpath.operation.isRest
     }
 
     /// What the library says the operation takes and accepts; every optional row below is
@@ -39,7 +43,7 @@ struct OperationOptionsView: View {
     /// be derived from the drawing.
     private var offeredPatterns: [PocketPattern] {
         // A rest pass always clears each corner with offset rings.
-        guard kind != .restMachining else {
+        guard !isRest else {
             return []
         }
         return requirements.pocketPatterns.map { PocketPattern($0) }
@@ -111,7 +115,7 @@ struct OperationOptionsView: View {
     /// Whether the "Entry" section has an entry row for this toolpath.
     static func hasEntry(for toolpath: ToolpathData) -> Bool {
         // A rest pass always plunges in the middle of a corner's two wall ends.
-        toolpath.operation.kind != .restMachining && toolpath.machiningOperation.requirements.usesEntry
+        !toolpath.operation.isRest && toolpath.machiningOperation.requirements.usesEntry
     }
 
     /// The library's own fields of the operation, as the "operation" section shows them: not
@@ -125,7 +129,7 @@ struct OperationOptionsView: View {
     }
 
     /// Field ids that belong to another section (direction, depth) or to a control of the app's own.
-    private static func hiddenOperationFieldIDs(for kind: OperationKind) -> Set<String> {
+    private static func hiddenOperationFieldIDs(for kind: SC.MachiningOperation.Kind) -> Set<String> {
         kind.hiddenFieldIDs.union(xyDirectionFieldIDs).union(zFieldIDs)
     }
 
@@ -202,7 +206,7 @@ struct OperationOptionsView: View {
             if !fields.isEmpty {
                 ParameterFieldsView(fields: fields,
                                     hiddenFieldIDs: hiddenIDs,
-                                    hiddenCaseIDs: OperationKind.hiddenCaseIDs)
+                                    hiddenCaseIDs: SC.MachiningOperation.Kind.hiddenCaseIDs)
             }
 
             // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
@@ -348,7 +352,7 @@ struct OperationOptionsView: View {
             }
 
             // Stock for a finishing pass: wherever the library says the operation can leave some.
-            if requirements.usesAllowance, kind != .restMachining {
+            if requirements.usesAllowance, !isRest {
                 stockToLeaveRows
             }
         }
@@ -371,7 +375,7 @@ struct OperationOptionsView: View {
                                             secondary: stepOverMMBinding, secondarySuffix: "mm",
                                             help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter and in mm. Changing one updates the other. \(stepOverNote)")
             }
-            if requirements.usesAllowance, kind != .restMachining {
+            if requirements.usesAllowance, !isRest {
                 InspectorCompactNumberField(tag: "Leave", value: stockToLeave,
                                             help: toolpath.operation.stockToLeave > 0
                                                 ? "Stock to leave (mm). \(stockToLeaveNote)"
@@ -486,7 +490,7 @@ struct OperationOptionsView: View {
         Self.displayedFields(of: fields, kind: kind)
     }
 
-    private static func displayedFields(of fields: [SC.ParameterField], kind: OperationKind) -> [SC.ParameterField] {
+    private static func displayedFields(of fields: [SC.ParameterField], kind: SC.MachiningOperation.Kind) -> [SC.ParameterField] {
         guard kind == .chamfer else {
             return fields
         }
@@ -638,7 +642,7 @@ struct OperationOptionsView: View {
                 case .plunge:      types.append(.none)
                 case .ramp:        types.append(.linear)
                 case .helix:       types.append(.helix)
-                case .fromOpenEnd: break   // not offered by the app, see `OperationKind.hiddenCaseIDs`
+                case .fromOpenEnd: break   // not offered by the app, see `SC.MachiningOperation.Kind.hiddenCaseIDs`
             }
         }
         return types
@@ -735,7 +739,7 @@ struct OperationOptionsView: View {
 
 // MARK: - What the app doesn't offer (yet)
 
-private extension OperationKind {
+private extension SC.MachiningOperation.Kind {
 
     /// `formFields` describes everything the engine can take. These parts have no home in
     /// `ToolpathData` yet, or are covered by another control.
@@ -746,7 +750,7 @@ private extension OperationKind {
             // `LeadInOutRow` + popover (stored on `OperationSettings.contourLeadIn/Out`). Holding tabs
             // have their own row and popover (`HoldingTabsEditor`) on `OperationSettings.contourTabs`.
             return ["entry", "contour.side", "contour.tabs", "contour.leadIn", "contour.leadOut"]
-        case .pocket, .restMachining:
+        case .pocket:
             // The clearing pattern gets its own dedicated picker in the Operation section with icon
             // glyphs, so the generic text-only field is hidden entirely, spiral direction
             // and trochoidal pitch included.

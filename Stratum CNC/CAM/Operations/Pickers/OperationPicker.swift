@@ -4,10 +4,13 @@
 //
 
 import SwiftUI
+import StratumCAM
 
 /// Chooses what the toolpath does. Same look as `ToolPicker`.
 struct OperationPicker: View {
-    @Binding var kind: OperationKind
+    @Binding var kind: SC.MachiningOperation.Kind
+    /// Shown as a rest operation (see `OperationSettings.isRest`); the picker is disabled then.
+    var isRest: Bool = false
     /// Just the field (icon and title), without the label column, for the title section's
     /// compact form. The summary that sits under it in the full form goes to the help.
     var isCompact: Bool = false
@@ -29,9 +32,9 @@ struct OperationPicker: View {
             isPresented.toggle()
         } label: {
             InspectorMenuLabel {
-                OperationIcon(kind: kind, size: 13)
+                OperationIcon(kind: kind, isRest: isRest, size: 13)
                     .foregroundStyle(.secondary)
-                Text(kind.title)
+                Text(isRest ? "Rest" : kind.title)
             }
         }
         .buttonStyle(.plain)
@@ -47,16 +50,16 @@ struct OperationPicker: View {
 /// The tooltip-style popover content: every operation, laid out as a grid of
 /// icon + label tiles instead of `Menu`'s single vertical list.
 private struct OperationGridPicker: View {
-    @Binding var kind: OperationKind
+    @Binding var kind: SC.MachiningOperation.Kind
     @Binding var isPresented: Bool
 
-    @State private var hovered: OperationKind?
+    @State private var hovered: SC.MachiningOperation.Kind?
 
     private let width: CGFloat = 440
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(OperationKind.groups.enumerated()), id: \.offset) { index, group in
+            ForEach(Array(SC.MachiningOperation.Kind.groups.enumerated()), id: \.offset) { index, group in
                 if index > 0 {
                     // More air between the groups than between the rows inside one
                     Divider()
@@ -73,7 +76,7 @@ private struct OperationGridPicker: View {
         .frame(width: width)
     }
 
-    private func row(for option: OperationKind) -> some View {
+    private func row(for option: SC.MachiningOperation.Kind) -> some View {
         let isSelected = option == kind
 
         return Button {
@@ -127,7 +130,7 @@ private struct OperationGridPicker: View {
 }
 
 #Preview {
-    @Previewable @State var kind = OperationKind.contour
+    @Previewable @State var kind = SC.MachiningOperation.Kind.contour
     OperationPicker(kind: $kind)
         .padding()
 }
