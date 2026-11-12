@@ -387,6 +387,19 @@ struct SetupFrame: Sendable, Equatable {
         return contour.mirrored(about: axis, at: pivot)
     }
 
+    /// Facing sides named as the canvas shows them, in this setup's own coordinates: the bottom
+    /// is mirrored by `placeFlat(_: SC.Contour)` (in Y for a flip about X, in X for a flip about
+    /// Y), so those two sides trade places. Every other setup keeps the shape where it is drawn.
+    func placeFlat(_ sides: FacingSides) -> FacingSides {
+        guard quarterTurns == 2 else { return sides }
+        var placed = sides
+        switch axis {
+            case .x: (placed.front, placed.back) = (sides.back, sides.front)
+            case .y: (placed.left, placed.right) = (sides.right, sides.left)
+        }
+        return placed
+    }
+
     /// The rectangle a facing toolpath covers when it faces the whole stock: the stock's footprint
     /// for the top and the bottom, the face that is up for the front, back, left and right.
     /// Same rectangle as `StockMaterial.footprintContour` for the first two.

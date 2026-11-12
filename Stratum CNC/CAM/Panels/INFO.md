@@ -17,7 +17,7 @@ PanelToolpathDetails
       │     contour / chamfer: Side (ContourPicker)
       │     pocket: Clearing pattern (PatternPicker + patternDetail)
       │     thread: standard, handedness, Internal, target diameter, pitch, radial passes
-      │     bore / counterbore: target diameter / diameter · chamfer: width · facing: extension length
+      │     bore / counterbore: target diameter / diameter · chamfer: width
       │     (everything the library defines except direction, depths and what the app draws itself)
       │
       ├─ InspectorSection "Shapes"
@@ -35,6 +35,8 @@ PanelToolpathDetails
       │  ├─ cut direction (climb / conventional)
       │  ├─ Feed rate
       │  ├─ stepOverRow (% of Ø + mm note)     ← if requirements.usesStepover, or facing
+      │  ├─ facingExtensionRows                ← facing: Extension + FacingSidesButton → FacingSidesEditor popover
+      │  │                                       (selection top view, a handle per side, dotted faced area; saved as operation.facingSides)
       │  └─ stockToLeaveRows                   ← if requirements.usesAllowance (pocket; contour on a side)
       │
       ├─ InspectorSection "Z axis"

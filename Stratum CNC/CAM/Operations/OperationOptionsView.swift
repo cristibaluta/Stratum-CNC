@@ -16,7 +16,7 @@ struct OperationOptionsView: View {
     @Binding var toolpath: ToolpathData
 
     /// The selected shapes' outlines (see `PanelToolpathDetails.targetShapes`), for the holding
-    /// tabs drawing.
+    /// tabs drawing and the facing's sides drawing.
     var targetShapes: () -> [CGPath] = { [] }
 
     /// The stock being cut, for the feed calculator's preset.
@@ -61,12 +61,13 @@ struct OperationOptionsView: View {
         /// What the operation is, shown in the header under the operation picker: the side of a
         /// contour or chamfer, a pocket's clearing pattern, and the library's fields that are
         /// neither a direction nor a depth (a thread's standard, pitch and diameter, the diameter
-        /// of a bore or a counterbore, a chamfer's width, a facing's extension).
+        /// of a bore or a counterbore, a chamfer's width).
         case operation
         /// The title section's collapsed form of `operation`: its controls on one line, to
         /// follow the operation picker. A thread mill keeps its standard thread and radial passes.
         case operationCompact
-        /// How the tool moves in the plane: cut direction, feed rate, stepover, stock to leave.
+        /// How the tool moves in the plane: cut direction, feed rate, stepover, a facing's extension
+        /// and its sides, stock to leave.
         case xyMovement
         /// The operation's own depth settings (dwell, shift before retract, a chamfer's depth
         /// override). Shown in "Z axis".
@@ -192,7 +193,7 @@ struct OperationOptionsView: View {
     // MARK: Operation
 
     /// What the library defines for the operation besides the direction and the depths:
-    /// a chamfer's width, the diameter of a counterbore or a bore, a thread, a facing's extension.
+    /// a chamfer's width, the diameter of a counterbore or a bore, a thread.
     private var operationPart: some View {
         let hiddenIDs = Self.hiddenOperationFieldIDs(for: kind)
         let fields = displayedFields(of: formFields).filter { !hiddenIDs.contains($0.id) }
@@ -355,6 +356,11 @@ struct OperationOptionsView: View {
                 stepOverRow
             }
 
+            // How far a facing runs past the selection, and on which sides.
+            if kind == .facing {
+                facingExtensionRows
+            }
+
             // Stock for a finishing pass: wherever the library says the operation can leave some.
             if requirements.usesAllowance, !isRest {
                 stockToLeaveRows
@@ -379,6 +385,14 @@ struct OperationOptionsView: View {
                 InspectorCompactNumberField(tag: "Stepover", value: stepOverPercent, suffix: "%",
                                             secondary: stepOverMMBinding, secondarySuffix: "mm",
                                             help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter and in mm. Changing one updates the other. \(stepOverNote)")
+            }
+            if kind == .facing {
+                InspectorCompactNumberField(tag: "Extend", value: facingExtension, suffix: "mm",
+                                            help: "Extension length (mm): how far the passes run past the selection. "
+                                                + "\(toolpath.operation.facingSides.summary).")
+                if !toolpath.operation.facingWholeStock {
+                    facingSidesButton
+                }
             }
             if requirements.usesAllowance, !isRest {
                 InspectorCompactNumberField(tag: "Leave", value: stockToLeave,
@@ -599,6 +613,41 @@ struct OperationOptionsView: View {
         return String(format: "= %.2f mm for a Ø%.2f mm tool", toolpath.stepOverMM, diameter)
     }
 
+    // MARK: Facing extension
+
+    /// The range the library accepts for the extension (`facing.extensionLength`).
+    private static let facingExtensionRange: ClosedRange<Double> = 0...50
+
+    private var facingExtension: Binding<Double> {
+        Binding(
+            get: { toolpath.operation.facingExtension },
+            set: { toolpath.operation.facingExtension = min(max($0, Self.facingExtensionRange.lowerBound),
+                                                             Self.facingExtensionRange.upperBound) }
+        )
+    }
+
+    /// The icon that opens the popover where the sides are chosen. A facing of the whole stock
+    /// has no selection to extend past, so it has no sides to choose.
+    private var facingSidesButton: some View {
+        FacingSidesButton(sides: $toolpath.operation.facingSides,
+                          extensionLength: toolpath.operation.facingExtension,
+                          shapes: targetShapes)
+    }
+
+    /// Extension length with the sides button after it; underneath, which sides when not all.
+    @ViewBuilder
+    private var facingExtensionRows: some View {
+        InspectorNumberField(title: "Extension", value: facingExtension, suffix: "mm") {
+            if !toolpath.operation.facingWholeStock {
+                facingSidesButton
+            }
+        }
+        .help("How far the passes run past the selection's bounding box. The icon on the right chooses the sides it applies to.")
+        if !toolpath.operation.facingWholeStock, !toolpath.operation.facingSides.isAll {
+            InspectorNote(text: "Extends on: \(toolpath.operation.facingSides.summary).")
+        }
+    }
+
     /// Stock to leave and the finishing pass. The roughing stays `stockToLeave` away from the
     /// walls (and from a pocket's floor); the finishing pass, when on, cuts that stock away.
     /// The only clamp is `ToolpathData.stockToLeaveRange`.
@@ -764,6 +813,10 @@ private extension SC.MachiningOperation.Kind {
             // Only `.raster` makes sense until open-ended slots are derived. The depth per
             // pass is edited in the Z axis section, next to the other depths.
             return ["entry", "pattern", "slotting.depthPerPass"]
+        case .facing:
+            // The extension length is edited in the XY plane section, next to the button that
+            // chooses the sides it applies to (`facingExtensionRows`).
+            return ["facing.extensionLength"]
         case .drilling:
             // The peck depth is edited in the Z axis section (`PanelToolpathDetails.rowDepth`).
             return ["drilling.peckDepth"]

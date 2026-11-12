@@ -92,7 +92,7 @@ struct PanelToolpathDetails: View {
             }
             // How the tool moves in the plane
             InspectorSection(title: "XY plane", collapsible: true, compact: {
-                OperationOptionsView(toolpath: $toolpath, stockMaterial: stockMaterial, part: .xyCompact)
+                OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, stockMaterial: stockMaterial, part: .xyCompact)
             }) {
                 rowXYMovement
             }
