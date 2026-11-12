@@ -48,7 +48,7 @@ struct OperationPicker: View {
 }
 
 /// The tooltip-style popover content: every operation, laid out as a grid of
-/// icon + label tiles instead of `Menu`'s single vertical list.
+/// 3D icon + label tiles instead of `Menu`'s single vertical list.
 private struct OperationGridPicker: View {
     @Binding var kind: SC.MachiningOperation.Kind
     @Binding var isPresented: Bool
@@ -83,10 +83,9 @@ private struct OperationGridPicker: View {
             kind = option
             isPresented = false
         } label: {
-            HStack(alignment: .top, spacing: 12) {
-                OperationIcon(kind: option, size: 18)
-                    .frame(width: 28, height: 28)
-                    .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+            HStack(alignment: .center, spacing: 12) {
+                // As tall as the three lines of text beside it (title and a two-line summary).
+                OperationIcon3D(kind: option, size: 56, isSelected: isSelected)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(option.title)
@@ -105,10 +104,9 @@ private struct OperationGridPicker: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.accentColor)
-                        .padding(.top, 6)
                 }
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(rowBackground(isSelected: isSelected, isHovered: hovered == option))

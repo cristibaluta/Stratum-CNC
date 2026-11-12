@@ -389,7 +389,7 @@ struct OperationOptionsView: View {
             if kind == .facing {
                 InspectorCompactNumberField(tag: "Extend", value: facingExtension, suffix: "mm",
                                             help: "Extension length (mm): how far the passes run past the selection. "
-                                                + "\(toolpath.operation.facingSides.summary).")
+                                                + "The icon's blue sides are the ones it applies to.")
                 if !toolpath.operation.facingWholeStock {
                     facingSidesButton
                 }
@@ -628,11 +628,11 @@ struct OperationOptionsView: View {
     /// has no selection to extend past, so it has no sides to choose.
     private var facingSidesButton: some View {
         FacingSidesButton(sides: $toolpath.operation.facingSides,
-                          extensionLength: toolpath.operation.facingExtension,
+                          extensionLength: facingExtension,
                           shapes: targetShapes)
     }
 
-    /// Extension length with the sides button after it; underneath, which sides when not all.
+    /// Extension length with the sides button after it. The button's blue sides say which are extended.
     @ViewBuilder
     private var facingExtensionRows: some View {
         InspectorNumberField(title: "Extension", value: facingExtension, suffix: "mm") {
@@ -641,9 +641,6 @@ struct OperationOptionsView: View {
             }
         }
         .help("How far the passes run past the selection's bounding box. The icon on the right chooses the sides it applies to.")
-        if !toolpath.operation.facingWholeStock, !toolpath.operation.facingSides.isAll {
-            InspectorNote(text: "Extends on: \(toolpath.operation.facingSides.summary).")
-        }
     }
 
     /// Stock to leave and the finishing pass. The roughing stays `stockToLeave` away from the

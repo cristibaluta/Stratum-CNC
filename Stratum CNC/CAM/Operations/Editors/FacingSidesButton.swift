@@ -3,18 +3,21 @@
 //  Stratum CNC
 //
 //  The facing's "which sides to extend". An icon after the Extension field opens a popover with
-//  the selected shapes in top view, inside their bounding box, and one handle on each side of
-//  that box: click a handle (or its chip below) to stop the extension on that side. The dotted
-//  line is the area that will be faced, redrawn as the sides and the length change.
+//  a title, a one-line explanation and the selected shapes in top view, inside their bounding
+//  box. Each side of that box has a checkbox on its edge: tick it (or click the line) to extend
+//  the facing past that side. The dotted line is the area that will be faced, redrawn as the
+//  sides and the length change. Under the picture: the original and final area sizes and the
+//  Extension field. The icon draws its active sides in blue (none while the extension is 0).
 //  Same pattern as `FeedCalculatorButton` / `HoldingTabsEditor`.
 //
 
 import SwiftUI
 
-/// The icon after the Extension field. Accent-coloured while some side is switched off.
+/// The icon after the Extension field: a dashed square whose extended sides are blue. Nothing
+/// is blue while the extension is 0, since nothing is extended then.
 struct FacingSidesButton: View {
     @Binding var sides: FacingSides
-    let extensionLength: Double
+    @Binding var extensionLength: Double
     /// The selected shapes' outlines in world space; called when the popover is drawn.
     var shapes: () -> [CGPath] = { [] }
 
@@ -24,25 +27,52 @@ struct FacingSidesButton: View {
         HoverIconButton {
             isPresented = true
         } label: {
-            Image(systemName: sides.isAll ? "square.dashed" : "square.dashed.inset.filled")
-                .font(.system(size: 16))
-                .foregroundStyle(sides.isAll ? Color.secondary : Color.accentColor)
-                .frame(width: 24)
+            FacingSidesIcon(sides: extensionLength > 0 ? sides : FacingSides(left: false, right: false,
+                                                                            front: false, back: false))
+                .frame(width: 24, height: 18)
         }
         // Shares the row with the field: without this the icon is the first thing squeezed out.
         .fixedSize()
         .layoutPriority(1)
-        .help("Choose which sides the facing extends past (\(sides.summary))")
+        .help(extensionLength > 0
+              ? "Choose which sides the facing extends past (\(sides.summary))"
+              : "Choose which sides the facing extends past (extension is 0)")
         .popover(isPresented: $isPresented, arrowEdge: .leading) {
-            FacingSidesEditor(sides: $sides, extensionLength: extensionLength, shapes: shapes)
+            FacingSidesEditor(sides: $sides, extensionLength: $extensionLength, shapes: shapes)
                 .frame(width: 340)
+        }
+    }
+}
+
+/// A dashed square, each side drawn on its own so the extended ones can be blue.
+/// Y is up like the canvas: "back" is the top edge, "front" the bottom one.
+struct FacingSidesIcon: View {
+    let sides: FacingSides
+
+    var body: some View {
+        Canvas { context, size in
+            let side = min(size.width, size.height) - 2
+            let rect = CGRect(x: (size.width - side) / 2, y: (size.height - side) / 2,
+                              width: side, height: side)
+            let style = StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [2.5, 2.5])
+
+            func edge(_ from: CGPoint, _ to: CGPoint, on: Bool) {
+                var path = Path()
+                path.move(to: from)
+                path.addLine(to: to)
+                context.stroke(path, with: .color(on ? Color.accentColor : Color.secondary), style: style)
+            }
+            edge(CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY), on: sides.back)
+            edge(CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.maxY), on: sides.front)
+            edge(CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.minX, y: rect.maxY), on: sides.left)
+            edge(CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY), on: sides.right)
         }
     }
 }
 
 struct FacingSidesEditor: View {
     @Binding var sides: FacingSides
-    let extensionLength: Double
+    @Binding var extensionLength: Double
     var shapes: () -> [CGPath] = { [] }
 
     var body: some View {
@@ -50,68 +80,42 @@ struct FacingSidesEditor: View {
         let box = FacingSidesDiagram.selectionBox(of: outlines)
 
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Extend facing")
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer()
-                Button("All") { sides = .all }
-                    .disabled(sides.isAll)
-                Button("None") { sides = FacingSides(left: false, right: false, front: false, back: false) }
-                    .disabled(sides.isNone)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Facing extension")
+                    .font(.headline)
+                Text("Select the sides you want the facing extended past.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
 
             FacingSidesDiagram(sides: $sides, extensionLength: extensionLength, shapes: outlines)
-                .frame(height: 220)
+                .frame(height: 210)
 
-            HStack(spacing: 6) {
-                ForEach(FacingSides.Side.allCases) { side in
-                    Toggle(side.title, isOn: Binding(get: { sides[side] },
-                                                     set: { sides[side] = $0 }))
-                        .toggleStyle(.button)
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity)
-                }
+            Divider()
+
+            // The numbers behind the dotted line
+            VStack(alignment: .leading, spacing: 8) {
+                areaRow("Original", box)
+                areaRow("Final", box.map { sides.area(of: $0, extendedBy: extensionLength) })
+                InspectorNumberField(title: "Extension", value: $extensionLength, suffix: "mm")
             }
-
-            Text(sizeSummary(of: box))
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(note(hasShapes: !outlines.isEmpty))
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
     }
 
-    /// "Selection 60.0 × 40.0 mm → faced 62.0 × 41.0 mm", the numbers behind the dotted line.
-    private func sizeSummary(of box: CGRect?) -> String {
-        guard let box else {
-            return sides.isNone || extensionLength == 0
-                ? "Nothing is added past the selection."
-                : "Extends \(String(format: "%.2f", extensionLength)) mm on: \(sides.summary)."
+    /// "Original  60.0 × 40.0 mm"; a dash when no shape is selected.
+    private func areaRow(_ title: String, _ rect: CGRect?) -> some View {
+        InspectorRow(label: title) {
+            Text(rect.map { String(format: "%.1f × %.1f mm", Double($0.width), Double($0.height)) } ?? "—")
+                .font(.system(size: 12, weight: .medium))
+                .monospacedDigit()
         }
-        let area = sides.area(of: box, extendedBy: extensionLength)
-        return String(format: "Selection %.1f × %.1f mm → faced area %.1f × %.1f mm",
-                      Double(box.width), Double(box.height), Double(area.width), Double(area.height))
-    }
-
-    private func note(hasShapes: Bool) -> String {
-        var text = "The facing covers the bounding box of the selected shapes. The dotted line is the area that will be faced: "
-            + "a side that is switched off stops at the box's edge instead of running \(String(format: "%.2f", extensionLength)) mm past it."
-        if !hasShapes {
-            text += " Schematic: select shapes on the canvas to see their real shape here."
-        }
-        return text
     }
 }
 
-/// The selected shapes inside their bounding box, one handle per side, and the dotted outline of
-/// the faced area. Drawn in top view with Y up, like the canvas.
+/// The selected shapes inside their bounding box, one line and checkbox per side, and the dotted
+/// outline of the faced area. Drawn in top view with Y up, like the canvas.
 struct FacingSidesDiagram: View {
     @Binding var sides: FacingSides
     let extensionLength: Double
@@ -122,7 +126,8 @@ struct FacingSidesDiagram: View {
     private static let schematicBox = CGRect(x: 0, y: 0, width: 60, height: 40)
     private static let schematicExtension: Double = 7
 
-    private let margin: CGFloat = 34
+    /// Room around the drawing for the checkboxes, which sit on the edges of the widest area.
+    private let margin: CGFloat = 22
 
     /// The box around all the shapes, `nil` when there are none.
     static func selectionBox(of shapes: [CGPath]) -> CGRect? {
@@ -182,7 +187,7 @@ struct FacingSidesDiagram: View {
 
                 // The selection's bounding box, the edge the sides are measured from
                 Path(boxView)
-                    .stroke(Color.secondary.opacity(0.5), lineWidth: 1)
+                    .stroke(Color.secondary.opacity(0.5), lineWidth: 1.5)
 
                 // The shapes
                 if hasShapes {
@@ -198,30 +203,19 @@ struct FacingSidesDiagram: View {
                     path.stroke(Color.primary.opacity(0.75), lineWidth: 1.5)
                 }
 
-                // One handle per side, on the box's edge
+                // One line and checkbox per side, on the box's edge
                 ForEach(FacingSides.Side.allCases) { side in
                     handle(for: side, on: boxView)
                 }
-
-                // Which way is which
-                edgeLabel("Back").position(x: proxy.size.width / 2, y: 10)
-                edgeLabel("Front").position(x: proxy.size.width / 2, y: proxy.size.height - 10)
-                edgeLabel("Left").position(x: 18, y: proxy.size.height / 2)
-                edgeLabel("Right").position(x: proxy.size.width - 20, y: proxy.size.height / 2)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .accessibilityLabel("Sides the facing extends past")
     }
 
-    private func edgeLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium))
-            .foregroundStyle(.secondary)
-    }
-
-    /// A thick segment on the box's edge: accent while the side is extended, grey when not.
-    /// The clickable area is wider than what is drawn.
+    /// A thin line on the box's edge, as thick as the dotted contour: accent while the side is
+    /// extended, grey when not. A checkbox sits on the middle of the line. The clickable area is
+    /// wider than what is drawn, and clicking the line toggles the side like the checkbox does.
     private func handle(for side: FacingSides.Side, on box: CGRect) -> some View {
         let horizontal = side == .front || side == .back
         let minLength: CGFloat = 24
@@ -235,22 +229,34 @@ struct FacingSidesDiagram: View {
         }
         let isOn = sides[side]
 
-        return Capsule()
-            .fill(isOn ? Color.accentColor : Color.secondary.opacity(0.35))
-            .frame(width: horizontal ? length : 5, height: horizontal ? 5 : length)
-            .frame(width: horizontal ? length : 24, height: horizontal ? 24 : length)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                sides[side].toggle()
-            }
-            .position(center)
-            .help("\(side.title): \(isOn ? "extended, click to stop at the selection" : "not extended, click to extend")")
+        return ZStack {
+            Rectangle()
+                .fill(isOn ? Color.accentColor : Color.secondary.opacity(0.35))
+                .frame(width: horizontal ? length : 1.5, height: horizontal ? 1.5 : length)
+
+            // The background keeps the line and the shape from showing through the checkbox.
+            Toggle("", isOn: Binding(get: { sides[side] },
+                                     set: { sides[side] = $0 }))
+                .labelsHidden()
+                .stCheckboxToggleStyle()
+                .controlSize(.small)
+                .padding(2)
+                .background(.background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+        }
+        .frame(width: horizontal ? length : 24, height: horizontal ? 24 : length)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            sides[side].toggle()
+        }
+        .position(center)
+        .help("\(side.title): \(isOn ? "extended, click to stop at the selection" : "not extended, click to extend")")
     }
 }
 
 #Preview {
     @Previewable @State var sides = FacingSides(left: true, right: false, front: true, back: true)
-    FacingSidesEditor(sides: $sides, extensionLength: 3) {
+    @Previewable @State var length = 3.0
+    FacingSidesEditor(sides: $sides, extensionLength: $length) {
         [CGPath(ellipseIn: CGRect(x: 10, y: 5, width: 50, height: 30), transform: nil)]
     }
 }
