@@ -35,7 +35,8 @@ struct PanelToolpathDetails: View {
     var showsRestAreas: Binding<Bool> = .constant(true)
     /// Adds a rest toolpath after this pocket and opens it.
     var onCreateRest: () -> Void = {}
-    /// Builds the toolpaths from the selected shapes.
+    /// Rebuilds the toolpath from the selected shapes. Opening the panel already does it (see
+    /// `CAMModel.generateIfNeeded`), so this is for refreshing the result after an edit.
     var onGenerate: () -> Void = {}
     var onScrub: (Int) -> Void = { _ in }
     var onDone: () -> Void = {}

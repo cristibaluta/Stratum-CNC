@@ -375,19 +375,25 @@ struct OperationOptionsView: View {
             if let direction = cutDirectionBinding {
                 DirectionPicker(direction: direction, isCompact: true)
             }
-            InspectorCompactNumberField(tag: "Feed", value: $toolpath.feedRate,
+            InspectorCompactNumberField(tag: "Feed",
+                                        value: $toolpath.feedRate,
                                         help: "Feed rate: how fast the tool moves while cutting in the XY plane (mm/min).")
             FeedCalculatorButton(toolpath: $toolpath,
                                  direction: cutDirectionBinding?.wrappedValue ?? .climb,
                                  usesStepover: usesStepover,
                                  stockMaterial: stockMaterial)
             if usesStepover {
-                InspectorCompactNumberField(tag: "Stepover", value: stepOverPercent, suffix: "%",
-                                            secondary: stepOverMMBinding, secondarySuffix: "mm",
+                InspectorCompactNumberField(tag: "Stepover",
+                                            value: stepOverPercent,
+                                            suffix: "%",
+                                            secondary: stepOverMMBinding,
+                                            secondarySuffix: "mm",
                                             help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter and in mm. Changing one updates the other. \(stepOverNote)")
             }
             if kind == .facing {
-                InspectorCompactNumberField(tag: "Extend", value: facingExtension, suffix: "mm",
+                InspectorCompactNumberField(tag: "Extend",
+                                            value: facingExtension,
+                                            suffix: "mm",
                                             help: "Extension length (mm): how far the passes run past the selection. "
                                                 + "The icon's blue sides are the ones it applies to.")
                 if !toolpath.operation.facingWholeStock {
@@ -395,7 +401,8 @@ struct OperationOptionsView: View {
                 }
             }
             if requirements.usesAllowance, !isRest {
-                InspectorCompactNumberField(tag: "Leave", value: stockToLeave,
+                InspectorCompactNumberField(tag: "Leave",
+                                            value: stockToLeave,
                                             help: toolpath.operation.stockToLeave > 0
                                                 ? "Stock to leave (mm). \(stockToLeaveNote)"
                                                 : "Stock to leave (mm): material left standing by the roughing. 0 cuts straight to size.")

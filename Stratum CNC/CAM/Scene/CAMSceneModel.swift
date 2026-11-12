@@ -54,19 +54,14 @@ final class CAMSceneModel: ObservableObject {
 
         static let rulerColor = SIMD4<Float>(0.55, 0.55, 0.55, 1)
 
-        /// The toolpaths of each face, so they can be told apart in the 3D view. Top keeps the
-        /// canvas's usual blue.
-        static func toolpathColor(for face: SetupFace?) -> SIMD4<Float> {
-            switch face {
-                case .top?:    return SIMD4<Float>(0.2, 0.5, 1.0, 1)
-                case .front?:  return SIMD4<Float>(0.25, 0.8, 0.4, 1)
-                case .bottom?: return SIMD4<Float>(1.0, 0.6, 0.15, 1)
-                case .back?:   return SIMD4<Float>(0.75, 0.4, 1.0, 1)
-                case .left?:   return SIMD4<Float>(0.2, 0.8, 0.85, 1)
-                case .right?:  return SIMD4<Float>(1.0, 0.4, 0.6, 1)
-                case nil:      return SIMD4<Float>(0.9, 0.85, 0.2, 1)
-            }
-        }
+        /// Every toolpath on the canvas, whatever face it is cut from: the orange the bottom
+        /// face's toolpaths used to have. Only the open toolpath is drawn (see
+        /// `CAMModel.updateToolpathPreview`), so there is nothing to tell apart by color.
+        static let toolpathColor = SIMD4<Float>(1.0, 0.35, 0.2, 1)
+
+        /// How strong the toolpaths of a setup that is not the active one are drawn, when all the
+        /// toolpaths are shown (`CAMModel.showsAllToolpaths`): 30% orange over the background.
+        static let inactiveSetupToolpathOpacity: Float = 0.3
     }
 
     /// `renderObjects` as the canvas should draw it: the flat scene with its ruler (which
@@ -316,7 +311,13 @@ final class CAMSceneModel: ObservableObject {
 
         planarToolpathID = toolpath?.id
         faceToolpathObjects = (showsToolpaths ? canvasState.faceToolpaths : []).compactMap { group -> RenderObject? in
-            let color = Style.toolpathColor(for: group.face)
+            // The line renderer ignores alpha, so a faded toolpath is mixed toward the canvas
+            // background instead, and stays opaque
+            var color = Style.toolpathColor
+            if group.opacity < 1 {
+                let mixed = Style.toolpathColor * group.opacity + background * (1 - group.opacity)
+                color = SIMD4<Float>(mixed.x, mixed.y, mixed.z, 1)
+            }
             if let object = D2_RenderObjectBuilder.toolpathRenderObject(lines: group.lines, z: Float(group.z), color: color) {
                 return object
             }

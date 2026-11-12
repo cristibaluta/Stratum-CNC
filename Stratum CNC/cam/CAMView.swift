@@ -23,7 +23,7 @@ import SwiftUI
     - CAM_Metal_View                           <- canvas (Metal), always the free 3D camera; shapes sit flat at z0
         - CAMSceneModel (D2_CanvasState -> [RenderObject] via D2_RenderObjectBuilder)
         - MetalCanvasView
-    - CAMLayersOverlay                         <- legend over the canvas, bottom-left (shapes, model, stock, toolpaths, anchor, axes): show / hide, plus Z0 projections
+    - CAMLayersOverlay                         <- legend over the canvas, bottom-left (shapes, model, stock, toolpaths, anchor, axes): show / hide, plus Z0 projections; the toolpaths row is the All toolpaths switch
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
     - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
     - ToolpathListView                         <- left, under the objects panel: select / show-hide / delete toolpaths
@@ -158,7 +158,9 @@ struct CAMView: View {
                     HStack {
                         CAMLayersOverlay(canvasState: camModel.canvasState,
                                          workspace: camModel.stepWorkspace,
-                                         isStockVisible: stockVisibleBinding)
+                                         isStockVisible: stockVisibleBinding,
+                                         showsAllToolpaths: $camModel.showsAllToolpaths,
+                                         hasToolpaths: !camModel.toolpaths.isEmpty)
                         Spacer()
                     }
                 }
@@ -433,7 +435,6 @@ struct CAMView: View {
         PanelToolpaths(
             toolpaths: camModel.toolpaths,
             selectedID: camModel.selectedToolpathID,
-            hiddenIDs: camModel.hiddenToolpathIDs,
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
             // Front, back, left and right need a 3D model: flat shapes only have a top and a bottom
@@ -442,9 +443,6 @@ struct CAMView: View {
                 withAnimation(.easeOut(duration: 0.15)) {
                     camModel.toggleToolpathSelection(id)
                 }
-            },
-            onToggleVisibility: { id in
-                camModel.toggleToolpathVisibility(id)
             },
             onDelete: { id in
                 withAnimation(.easeOut(duration: 0.15)) {

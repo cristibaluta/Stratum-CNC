@@ -128,8 +128,8 @@ enum CAMSelectionOverlay {
 /// so far, and the cutter where it is.
 enum CAMToolpathScrubOverlay {
 
-    /// Same blue as the all-toolpaths preview (`D2_RenderObjectBuilder.toolpathRenderObject`).
-    private static let pathColor = SIMD4<Float>(0.2, 0.5, 1.0, 1.0)
+    /// Same orange as every other toolpath on the canvas (`CAMSceneModel.Style.toolpathColor`).
+    private static let pathColor = CAMSceneModel.Style.toolpathColor
     /// Same red as the controller's cutter.
     private static let markerColor = SIMD4<Float>(0.9, 0.1, 0.1, 1.0)
     private static let markerSegments = 32

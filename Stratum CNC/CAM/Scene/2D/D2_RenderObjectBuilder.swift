@@ -133,7 +133,7 @@ enum D2_RenderObjectBuilder {
     /// flatten; `flattenedSubpaths` is still run for uniformity, but it's a
     /// no-op pass-through on path data that's already all `moveTo`/`lineTo`.
     static func toolpathRenderObject(for state: D2_CanvasState,
-                                     color: SIMD4<Float> = SIMD4<Float>(0.2, 0.5, 1.0, 1.0)) -> RenderObject? {
+                                     color: SIMD4<Float> = CAMSceneModel.Style.toolpathColor) -> RenderObject? {
         guard let path = state.toolpathsPath else {
             return nil
         }

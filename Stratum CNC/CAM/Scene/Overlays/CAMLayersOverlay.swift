@@ -24,6 +24,10 @@ struct CAMLayersOverlay: View {
     @ObservedObject var workspace: STEPWorkspace
     /// The screen's single funnel for stock visibility (`CAMView.stockVisibleBinding`).
     let isStockVisible: Binding<Bool>
+    /// The Toolpaths row (`CAMModel.showsAllToolpaths`): checked, every toolpath is shown while
+    /// none is open; the open toolpath is always shown. The row is there while the project has toolpaths.
+    var showsAllToolpaths: Binding<Bool> = .constant(false)
+    var hasToolpaths = false
 
     var body: some View {
         if let stepScene = workspace.activeScene {
@@ -57,7 +61,7 @@ struct CAMLayersOverlay: View {
         if canvasState.stock != nil {
             layers.append(.stock)
         }
-        if canvasState.toolpathsPath != nil || !canvasState.faceToolpaths.isEmpty {
+        if hasToolpaths {
             layers.append(.toolpaths)
         }
         layers.append(.anchor)
@@ -69,6 +73,7 @@ struct CAMLayersOverlay: View {
         switch layer {
             case .model: return stepScene?.isModelVisible ?? false
             case .stock: return canvasState.isStockVisible
+            case .toolpaths: return showsAllToolpaths.wrappedValue
             default:     return !canvasState.hiddenLayers.contains(layer)
         }
     }
@@ -79,6 +84,8 @@ struct CAMLayersOverlay: View {
                 stepScene?.isModelVisible = visible
             case .stock:
                 isStockVisible.wrappedValue = visible
+            case .toolpaths:
+                showsAllToolpaths.wrappedValue = visible
             default:
                 if visible {
                     canvasState.hiddenLayers.remove(layer)
@@ -90,7 +97,11 @@ struct CAMLayersOverlay: View {
 
     /// CAM calls the anchor its ruler (the controller's canvas keeps "Anchor").
     private func label(for layer: CanvasLayer) -> String {
-        layer == .anchor ? "Ruler" : layer.label
+        switch layer {
+            case .anchor:    return "Ruler"
+            case .toolpaths: return "All toolpaths"
+            default:         return layer.label
+        }
     }
 
     /// The canvas draws the stock in its material's color and the ruler gray, not in the
@@ -102,8 +113,7 @@ struct CAMLayersOverlay: View {
             case .anchor:
                 return Color(canvasColor: CAMSceneModel.Style.rulerColor)
             case .toolpaths:
-                // The top face's toolpath color, the canvas's usual blue
-                return Color(canvasColor: CAMSceneModel.Style.toolpathColor(for: .top))
+                return Color(canvasColor: CAMSceneModel.Style.toolpathColor)
             default:
                 return layer.tint
         }

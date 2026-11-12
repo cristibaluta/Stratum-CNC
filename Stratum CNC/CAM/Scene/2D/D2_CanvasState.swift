@@ -89,10 +89,12 @@ final class D2_CanvasState: ObservableObject, Equatable {
         var lines: [SIMD3<Float>] = []
         /// Which generations `lines` come from, to compare without walking the points
         var linesKey: [UUID] = []
+        /// 1 for the active setup's toolpaths; less for another setup's when all are shown
+        var opacity: Float = 1
 
         static func == (a: FaceToolpaths, b: FaceToolpaths) -> Bool {
             a.setupID == b.setupID && a.face == b.face && a.path === b.path && a.z == b.z
-                && a.linesKey == b.linesKey
+                && a.linesKey == b.linesKey && a.opacity == b.opacity
         }
     }
 

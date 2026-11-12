@@ -55,7 +55,8 @@ PanelToolpathDetails
       │  └─ LeadInOutRow ×2 (Lead-In, Lead-Out) ← contour: switch + summary + gear → LeadInOutEditor popover
       │
       ├─ InspectorSection "Preview"
-      │  ├─ rowPreview: generationStatus + "Preview" button   (disabled without shapes, and on a lead-in/entry conflict)
+      │  ├─ rowPreview: generationStatus + "Preview" button   (disabled without shapes, and on a lead-in/entry conflict). Opening the panel generates the toolpath by itself
+      │  │                                      when it has shapes and no current result; the button refreshes it after an edit
       │  └─ rowScrub: slider through the generated moves
       │
       └─ rowBottomBar: Delete · Next toolpath · Done (Esc)
@@ -120,7 +121,8 @@ A setup is one way the stock is held (`Setup`): a name, an **angle** and an **ax
 - **Frame:** `SetupFrame.make(setup:stock:)` rotates the part by −angle about the stock's centre line (along X or Y) and puts z0 on the surface that faces up. STEP edges are mapped through it before they become contours (`STEPWorkspace.contours(for:frame:)`), so the engine sees what the machine sees and every Z field stays "depth below this setup's z0".
 - **Link:** `ToolpathData.setupID` (nil only in old projects: `CAMModel` puts those in the first setup). `CAMModel.setups` is never empty, and `toolpaths` is kept in setup order, so a setup's toolpaths are one contiguous run.
 - **Results:** a toolpath's setup is part of its settings, so moving it outdates its result; turning a setup or changing the stock discards all results.
-- **Preview:** drawn in the part's frame for Top and Bottom (Bottom is mirrored back in Y, or in X when flipped about Y); nothing for the side faces and no scrub for turned setups yet. Only the active setup's toolpaths are drawn.
+- **Preview:** drawn in the part's frame for Top and Bottom (Bottom is mirrored back in Y, or in X when flipped about Y); nothing for the side faces and no scrub for turned setups yet. Only the open toolpath is on the canvas (drawn in the one toolpath orange, `CAMSceneModel.Style.toolpathColor`): selecting a toolpath shows it, closing the panel removes it. The results of the other toolpaths are kept, for G-code, just not drawn.
+- **All toolpaths:** the legend's Toolpaths row, labelled "All toolpaths" (`CAMModel.showsAllToolpaths`, session-only; the old hide-the-layer switch is gone). With none open it calculates every toolpath that has no current result (`generateAllIfNeeded`; the rest come from the cache) and draws all of them, from every setup; a setup that isn't the active one is drawn at 30% (`FaceToolpaths.opacity`: the orange mixed toward the background color, because the line renderer ignores alpha). Opening a toolpath still shows only that one. Results discarded by an edit are recalculated after a short pause (`scheduleAllToolpathsRefresh`).
 - **Limits for now:** 2D shapes (SVG/DXF/Gerber) are cut from the Top only; whole-stock facing is not offered on the side faces; the side faces need rectangular stock. Stock is assumed to sit with its front-left corner at X = 0, Y = 0 (`StockMaterial.setupExtents`).
 - **G-code:** one program per setup. `ToolpathGCodeBuilder.plan(…, setup:)` takes the setup to post; with several setups and no `setup` it refuses everything rather than merge them, because the stock has to be turned between setups.
 - **Panel:** with one setup `PanelToolpaths` is the plain list; with several, one collapsible section per setup (face glyph, name, status, count, menu). Drag reorders inside a section; "Move to setup" is in the row's menu.

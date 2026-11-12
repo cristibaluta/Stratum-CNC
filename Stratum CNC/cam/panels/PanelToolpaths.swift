@@ -12,7 +12,6 @@ struct PanelToolpaths: View {
 
     let toolpaths: [ToolpathData]
     let selectedID: UUID?
-    var hiddenIDs: Set<UUID> = []
 
     // Faces (setups). A segmented control named after each face, always visible (it scrolls
     // sideways when the faces don't fit), picks which one's toolpaths the list shows; a "…" menu
@@ -24,7 +23,6 @@ struct PanelToolpaths: View {
     var sideFacesAvailable = true
 
     var onSelect: ((UUID) -> Void)?
-    var onToggleVisibility: ((UUID) -> Void)?
     var onDelete: ((UUID) -> Void)?
     /// The header's "+": adds a toolpath to the active face.
     var onAdd: (() -> Void)?
@@ -269,13 +267,11 @@ struct PanelToolpaths: View {
 
     private func toolpathRow(_ toolpath: ToolpathData, at index: Int, count: Int) -> some View {
         let isSelected = toolpath.id == selectedID
-        let isHidden = hiddenIDs.contains(toolpath.id)
 
         return HStack(spacing: 6) {
             OperationIcon(kind: toolpath.operation.kind, isRest: toolpath.operation.isRest, size: 13)
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
-                .opacity(isHidden ? 0.5 : 1)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(toolpath.name)
@@ -283,14 +279,7 @@ struct PanelToolpaths: View {
                     .lineLimit(1)
                 subtitle(for: toolpath)
             }
-            .opacity(isHidden ? 0.5 : 1)
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            InspectorVisibilityButton(isVisible: !isHidden,
-                                      showHelp: "Show on canvas",
-                                      hideHelp: "Hide from canvas") {
-                onToggleVisibility?(toolpath.id)
-            }
         }
         .inspectorListRow(isSelected: isSelected)
         // The whole cell is the drag target and the select target. A tap and a drag on the

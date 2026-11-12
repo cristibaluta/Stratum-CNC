@@ -46,7 +46,7 @@ final class D2_Object {
     /// untouched, and a hidden object simply drops out of
     /// `D2_RenderObjectBuilder.renderPaths`, which also takes it out of
     /// hit-testing — a hidden shape can't be clicked back into the canvas
-    /// by accident. Session-only, like `CAMModel.hiddenToolpathIDs`; not
+    /// by accident. Session-only, like the generated toolpath results; not
     /// persisted to `ProjectData`.
     var isVisible: Bool = true
 

@@ -110,16 +110,18 @@ class CAMModel: ObservableObject {
                 canvasState.clearSelection()
             }
             syncPickingWithSelection()
-            syncScrub()
+            syncScrub(refreshPreview: false)
             syncHoldingTabs()
-            updateRestRegions()
+            // While one is open it is the only toolpath on the canvas; with none open the canvas
+            // shows none, or all of them (`showsAllToolpaths`). Also refreshes the rest areas.
+            updateToolpathPreview()
+            if let id = selectedToolpathID {
+                generateIfNeeded(id)
+            } else {
+                generateAllIfNeeded()
+            }
         }
     }
-
-    /// Toolpaths whose generated result is hidden on the canvas (the eye toggle
-    /// in the toolpath list). Session-only, like the generated results themselves.
-    /// Deliberately no didSet: callers decide whether the overlay needs a rebuild.
-    @Published private(set) var hiddenToolpathIDs: Set<UUID> = []
 
     /// The toolpath currently in "select shapes" mode, if any. While this is
     /// non-nil the canvas is in picking mode (canvasState.isPickingPaths) and
@@ -149,6 +151,24 @@ class CAMModel: ObservableObject {
     /// first pass first. Read when a generation starts, so a change
     /// applies from the next Generate, not to results already on screen.
     var previewOptions: ToolpathPreviewOptions = .canvas2D
+
+    /// The legend's "All toolpaths": with no toolpath open, every toolpath of every setup is
+    /// calculated (what has no current result yet) and drawn; the ones of a setup that is not
+    /// the active one are faded. An open toolpath always wins: then only that one is shown.
+    /// Session-only, like the results.
+    @Published var showsAllToolpaths = false {
+        didSet {
+            guard oldValue != showsAllToolpaths else {
+                return
+            }
+            if showsAllToolpaths {
+                // Asking for them while their layer is switched off would show nothing
+                canvasState.hiddenLayers.remove(.toolpaths)
+            }
+            updateToolpathPreview()
+            generateAllIfNeeded()
+        }
+    }
 
     /// Draw the corners the open pocket's tool couldn't reach (see `updateRestRegions`).
     @Published var showsRestAreas = true {
@@ -387,7 +407,6 @@ class CAMModel: ObservableObject {
         // Abandon a generation still running for it
         generationTokens[id] = nil
         generatingIDs.remove(id)
-        hiddenToolpathIDs.remove(id)
 
         toolpaths.removeAll { $0.id == id }
         // Removing the result also refreshes the canvas overlay (see `generations`)
@@ -618,19 +637,6 @@ class CAMModel: ObservableObject {
         }.map(\.element)
     }
 
-    /// Shows or hides one toolpath's generated result on the canvas.
-    func toggleToolpathVisibility(_ id: UUID) {
-        if hiddenToolpathIDs.contains(id) {
-            hiddenToolpathIDs.remove(id)
-        } else {
-            hiddenToolpathIDs.insert(id)
-        }
-        // Nothing generated means nothing on the canvas to add or remove
-        if generations[id]?.previewPath != nil {
-            updateToolpathPreview()
-        }
-    }
-
     private static func defaultToolpath() -> ToolpathData {
         var toolpath = ToolpathData(id: UUID(),
                                     name: "Contour 1",
@@ -758,6 +764,61 @@ class CAMModel: ObservableObject {
 
     // MARK: Toolpath generation
 
+    /// Opening a toolpath calculates it, so its preview is there without pressing Generate (which
+    /// stays for refreshing it after an edit). Skipped when the toolpath can't be generated yet
+    /// (no shapes, a tool that can't do the operation: the same conditions that disable the
+    /// button, so opening one doesn't open on an error) and when its result is still current.
+    private func generateIfNeeded(_ id: UUID?) {
+        guard let id,
+              let toolpath = toolpaths.first(where: { $0.id == id }),
+              toolpath.hasGeometry,
+              toolpath.toolCompatibilityWarning == nil else {
+            return
+        }
+        if let generation = generations[id], generation.isCurrent(for: toolpath) {
+            return
+        }
+        generateToolpaths(for: id)
+    }
+
+    /// "All toolpaths" is on and none is open: calculates every toolpath that has no current
+    /// result (the others come from the cache). Each one is generated in its own setup's frame.
+    private func generateAllIfNeeded() {
+        guard showsAllToolpaths, selectedToolpathID == nil else {
+            return
+        }
+        for toolpath in toolpaths {
+            generateIfNeeded(toolpath.id)
+        }
+    }
+
+    private var refreshAllTask: Task<Void, Never>?
+
+    /// Same as `generateAllIfNeeded`, a moment later and once for a burst of changes: dragging an
+    /// object discards every result over and over, and they should be calculated after it settles.
+    private func scheduleAllToolpathsRefresh() {
+        guard showsAllToolpaths else {
+            return
+        }
+        refreshAllTask?.cancel()
+        refreshAllTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            self?.generateAllIfNeeded()
+        }
+    }
+
+    /// Whether `toolpath`'s result is on the canvas now: the open toolpath, or every one when none
+    /// is open and `showsAllToolpaths` is on.
+    private func isShownOnCanvas(_ toolpath: ToolpathData) -> Bool {
+        if let selectedToolpathID {
+            return toolpath.id == selectedToolpathID
+        }
+        return showsAllToolpaths
+    }
+
     /// Runs StratumCAM for the toolpath `id` and stores the outcome (result or
     /// error) in `generations`, where the toolpath's cell reads it from.
     ///
@@ -845,9 +906,7 @@ class CAMModel: ObservableObject {
 
         PerfLog.log("gen", "applying result on main thread — \(PerfLog.fmt(PerfLog.ms(since: requestedAt))) after the click")
         let applyStart = PerfLog.now()
-        // Generating a hidden toolpath means the user wants to see it. No preview
-        // rebuild needed here: setting `generations` below does it.
-        hiddenToolpathIDs.remove(id)
+        // No preview rebuild needed here: setting `generations` below does it.
         generations[id] = ToolpathGeneration(source: source,
                                              outcome: computed.outcome,
                                              previewPath: computed.previewPath,
@@ -916,22 +975,22 @@ class CAMModel: ObservableObject {
         if !generations.isEmpty {
             generations.removeAll()
         }
+        scheduleAllToolpathsRefresh()
     }
 
-    /// Redraws the canvas's toolpath overlay from the current results, in the
-    /// same order as the toolpath list. Also runs when results are cleared
+    /// Redraws the canvas's toolpath overlay: the open toolpath's result and nothing else, or,
+    /// with none open and `showsAllToolpaths` on, every toolpath's. With neither the canvas shows none. Also runs when results are cleared
     /// (object edited, project cleared), which removes the overlay.
     private func updateToolpathPreview() {
         let t0 = PerfLog.now()
         defer {
             PerfLog.log("gen", "updateToolpathPreview took \(PerfLog.fmt(PerfLog.ms(since: t0)))")
         }
-        // While one toolpath is being scrubbed, it is the only one on the canvas
-        // (the scrubber draws it); the rest come back when the panel closes.
-        // Only the active setup's toolpaths: another setup is cut with the stock turned, so its
-        // overlay would sit on the wrong side of the part.
+        // While the open toolpath is being scrubbed, the scrubber draws it instead.
+        // Only the active setup's: another setup is cut with the stock turned, so its overlay
+        // would sit on the wrong side of the part (opening a toolpath makes its setup the active one).
         let paths = canvasState.toolpathScrub != nil ? [] : toolpaths
-            .filter { !hiddenToolpathIDs.contains($0.id) && isInActiveSetup($0) }
+            .filter { isShownOnCanvas($0) && isInActiveSetup($0) }
             .compactMap { generations[$0.id]?.previewPath }
 
         updateRestRegions()
@@ -949,9 +1008,10 @@ class CAMModel: ObservableObject {
         }
     }
 
-    /// Every setup's generated toolpaths, one group per face, for the 3D view: it shows them
-    /// all whichever face is up. Each group carries the height of its face's z0 in the part's
-    /// frame, so the canvas puts it on that face and the turn to the active face does the rest.
+    /// The shown toolpaths' results for the 3D view (the open toolpath's, or all of them), as one
+    /// group per setup's face, faded when that setup is not the active one. A group carries the
+    /// height of its face's z0 in the part's frame, so the canvas puts it on that face and the
+    /// turn to the active face does the rest.
     private func updateFaceToolpaths() {
         guard canvasState.toolpathScrub == nil else {
             canvasState.setFaceToolpaths([])
@@ -960,7 +1020,7 @@ class CAMModel: ObservableObject {
         var faces: [D2_CanvasState.FaceToolpaths] = []
         for setup in setups {
             let results = toolpaths
-                .filter { !hiddenToolpathIDs.contains($0.id) && self.setup(for: $0).id == setup.id }
+                .filter { isShownOnCanvas($0) && self.setup(for: $0).id == setup.id }
                 .compactMap { generations[$0.id] }
             let paths = results.compactMap(\.previewPath)
             guard !paths.isEmpty else {
@@ -973,7 +1033,8 @@ class CAMModel: ObservableObject {
             let frame = try? SetupFrame.make(setup: setup, stock: selectedStockMaterial)
             faces.append(.init(setupID: setup.id, face: setup.face, path: combined,
                                z: CGFloat(frame?.z0InPartFrame ?? 0),
-                               lines: lines, linesKey: results.map(\.id)))
+                               lines: lines, linesKey: results.map(\.id),
+                               opacity: setup.id == activeSetupID ? 1 : CAMSceneModel.Style.inactiveSetupToolpathOpacity))
         }
         canvasState.setFaceToolpaths(faces)
     }
@@ -1078,7 +1139,6 @@ class CAMModel: ObservableObject {
         discardGenerations()
         canvasState.removeAll()
         selectedToolpathID = nil
-        hiddenToolpathIDs.removeAll()
         toolpaths.removeAll()
         // Back to a lone top setup (the next project restores its own, see `restoreSetups`)
         setups = [Setup(face: .top)]
