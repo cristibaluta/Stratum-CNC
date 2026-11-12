@@ -54,7 +54,7 @@ extension ToolpathData {
                 operation.contourLeadIn = leadIn
                 operation.contourLeadOut = leadOut
 
-            case .pocket(_, let pattern, _):
+            case .pocket(_, let pattern, _), .pocket3D(_, let pattern, _):
                 switch pattern {
                     case .offset:
                         operation.pocketPattern = .offset
@@ -78,9 +78,6 @@ extension ToolpathData {
                             operation.pocketAdaptiveLoadPercent = Self.clampedAdaptiveLoad(settings.optimalLoad / diameter * 100)
                         }
                 }
-
-            case .pocket3D(direction: let direction, pattern: let pattern, entry: let entry):
-                break
 
             case .drilling(let peckDepth):
                 operation.drillUsesPecking = peckDepth != nil

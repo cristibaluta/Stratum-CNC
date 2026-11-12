@@ -23,7 +23,7 @@ extension SC.MachiningOperation.Kind {
     /// (see `OperationSettings.isRest`).
     static let groups: [[SC.MachiningOperation.Kind]] = [
         [.facing],
-        [.pocket, .contour, .slotting],
+        [.pocket, .pocket3D, .contour, .slotting],
         [.drilling, .counterbore, .boring, .threadMilling],
         [.engrave, .chamfer]
     ]
@@ -49,7 +49,7 @@ extension SC.MachiningOperation.Kind {
         switch self {
             case .contour:       return "square.dashed"
             case .pocket:        return "square.inset.filled"
-            case .pocket3D:      return "square.inset.filled"
+            case .pocket3D:      return "square.3.layers.3d.down.right"
             case .facing:        return "rectangle.compress.vertical"
             case .slotting:      return "capsule"
             case .engrave:       return "scribble"

@@ -560,15 +560,13 @@ struct OperationOptionsView: View {
     }
 
     /// Stepover, typed as a percentage of the tool diameter; what that comes to in mm is in
-    /// the same field (a third of its width) and spelled out underneath, since that's what the
-    /// machine actually steps. Editing either value updates the other.
+    /// the same field, since that's what the machine actually steps. Editing either value
+    /// updates the other. What it comes to for the picked tool is in the help.
     /// The only clamp is `ToolpathData.stepOverRange`.
-    @ViewBuilder
     private var stepOverRow: some View {
         InspectorNumberField(title: "Stepover", value: stepOverPercent, suffix: "% of tool Ø",
                              secondary: stepOverMMBinding, secondarySuffix: "mm")
-            .help("Distance between neighbouring passes, as a percentage of the tool diameter (and in mm). Changing one updates the other. Smaller means a smoother finish and more passes.")
-        InspectorNote(text: stepOverNote)
+            .help("Distance between neighbouring passes, as a percentage of the tool diameter (and in mm). Changing one updates the other. Smaller means a smoother finish and more passes.\n\(stepOverNote)")
     }
 
     /// The stepover in mm. It is the same value as the percentage (`stepOverPercent` is what
@@ -804,7 +802,7 @@ private extension SC.MachiningOperation.Kind {
             // `LeadInOutRow` + popover (stored on `OperationSettings.contourLeadIn/Out`). Holding tabs
             // have their own row and popover (`HoldingTabsEditor`) on `OperationSettings.contourTabs`.
             return ["entry", "contour.side", "contour.tabs", "contour.leadIn", "contour.leadOut"]
-        case .pocket:
+        case .pocket, .pocket3D:
             // The clearing pattern gets its own dedicated picker in the Operation section with icon
             // glyphs, so the generic text-only field is hidden entirely, spiral direction
             // and trochoidal pitch included.

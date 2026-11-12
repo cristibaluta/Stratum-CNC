@@ -203,13 +203,14 @@ extension SC.MachiningOperation {
                 ]
 
             case .pocket3D(let direction, let pattern, let entry):
-                // TODO: not implemented for 3d
+                // Same fields as a pocket (same ids, so the app lays them out the same way),
+                // but every change stays a `.pocket3D`.
                 return [
                     .choice(SC.cutDirectionChoice(id: "pocket.direction", current: direction, onChange: {
-                        onChange(.pocket(direction: $0, pattern: pattern, entry: entry))
+                        onChange(.pocket3D(direction: $0, pattern: pattern, entry: entry))
                     })),
-                    pattern.formField(onChange: { onChange(.pocket(direction: direction, pattern: $0, entry: entry)) }),
-                    entry.formField(onChange: { onChange(.pocket(direction: direction, pattern: pattern, entry: $0)) })
+                    pattern.formField(onChange: { onChange(.pocket3D(direction: direction, pattern: $0, entry: entry)) }),
+                    entry.formField(onChange: { onChange(.pocket3D(direction: direction, pattern: pattern, entry: $0)) })
                 ]
 
             case .drilling(let peckDepth):

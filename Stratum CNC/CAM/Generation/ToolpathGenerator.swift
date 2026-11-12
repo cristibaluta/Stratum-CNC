@@ -504,7 +504,7 @@ extension ToolpathGenerator {
                                entry: entry)
 
             case .pocket3D:
-                // TODO: rest not implemented
+                // No rest pass for a 3D pocket (a rest toolpath is made from a `.pocket`).
                 return .pocket3D(direction: direction,
                                  pattern: makePocketPattern(from: options, toolDiameter: Double(toolpath.tool.toolDiameter)),
                                  entry: entry)

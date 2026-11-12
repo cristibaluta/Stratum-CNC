@@ -381,26 +381,30 @@ struct InspectorValueTextField: View {
     }
 }
 
-/// Two parts of one number field side by side, the second taking a third of the width and
-/// the first the rest, with a thin divider between them. For one quantity in two units
-/// (stepover in % and in mm).
+/// Two parts of one number field side by side, the second taking 40 % of the width and
+/// the first the rest, with a thin divider between them and some air around it. For one
+/// quantity in two units (stepover in % and in mm).
 struct InspectorSplitPair<Primary: View, Secondary: View>: View {
     @ViewBuilder var primary: Primary
     @ViewBuilder var secondary: Secondary
 
-    private let spacing: CGFloat = 6
+    /// Gap between the divider and the second field (the first one gets the same on its side).
+    private let spacing: CGFloat = 12
+    /// The share of the width the second part gets.
+    private let secondaryShare: CGFloat = 0.4
 
     var body: some View {
         GeometryReader { geo in
             HStack(spacing: 0) {
                 primary
-                    .frame(width: geo.size.width * 2 / 3, alignment: .leading)
+                    .padding(.trailing, spacing)
+                    .frame(width: geo.size.width * (1 - secondaryShare), alignment: .leading)
                 HStack(spacing: spacing) {
                     Divider()
                         .frame(height: 14)
                     secondary
                 }
-                .frame(width: geo.size.width / 3, alignment: .leading)
+                .frame(width: geo.size.width * secondaryShare, alignment: .leading)
             }
             .frame(maxHeight: .infinity)
         }
