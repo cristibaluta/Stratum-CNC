@@ -251,7 +251,7 @@ extension ToolpathData {
                     return String(format: "The counterbore diameter (%.2f mm) must be larger than the tool (Ø%.2f mm).",
                                   operation.counterboreDiameter, diameter)
                 }
-            case .drilling, .boring, .contour, .pocket, .facing, .slotting, .engrave:
+            case .drilling, .boring, .contour, .pocket, .pocket3D, .facing, .slotting, .engrave:
                 break
         }
         return nil
@@ -278,6 +278,7 @@ extension ToolpathData {
             case .threadMilling: return "Thread milling requires a thread mill bit."
             case .facing:        return "Facing requires an end mill."
             case .pocket:        return "A pocket requires an end mill."
+            case .pocket3D:      return "A pocket requires an end mill."
             case .counterbore:   return "A counterbore requires an end mill."
             case .boring:        return "Boring requires an end mill."
             case .contour:       return "A contour requires an end mill."

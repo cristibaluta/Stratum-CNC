@@ -202,6 +202,16 @@ extension SC.MachiningOperation {
                     entry.formField(onChange: { onChange(.pocket(direction: direction, pattern: pattern, entry: $0)) })
                 ]
 
+            case .pocket3D(let direction, let pattern, let entry):
+                // TODO: not implemented for 3d
+                return [
+                    .choice(SC.cutDirectionChoice(id: "pocket.direction", current: direction, onChange: {
+                        onChange(.pocket(direction: $0, pattern: pattern, entry: entry))
+                    })),
+                    pattern.formField(onChange: { onChange(.pocket(direction: direction, pattern: $0, entry: entry)) }),
+                    entry.formField(onChange: { onChange(.pocket(direction: direction, pattern: pattern, entry: $0)) })
+                ]
+
             case .drilling(let peckDepth):
                 return [
                     .optionalDouble(.init(id: "drilling.peckDepth",

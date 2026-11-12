@@ -79,6 +79,9 @@ extension ToolpathData {
                         }
                 }
 
+            case .pocket3D(direction: let direction, pattern: let pattern, entry: let entry):
+                break
+
             case .drilling(let peckDepth):
                 operation.drillUsesPecking = peckDepth != nil
                 if let peckDepth {

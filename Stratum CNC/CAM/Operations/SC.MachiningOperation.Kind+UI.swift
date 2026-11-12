@@ -32,6 +32,7 @@ extension SC.MachiningOperation.Kind {
         switch self {
             case .contour:       return "Contour"
             case .pocket:        return "Pocket"
+            case .pocket3D:      return "Pocket 3D"
             case .facing:        return "Facing"
             case .slotting:      return "Slot"
             case .engrave:       return "Engrave"
@@ -48,6 +49,7 @@ extension SC.MachiningOperation.Kind {
         switch self {
             case .contour:       return "square.dashed"
             case .pocket:        return "square.inset.filled"
+            case .pocket3D:      return "square.inset.filled"
             case .facing:        return "rectangle.compress.vertical"
             case .slotting:      return "capsule"
             case .engrave:       return "scribble"
@@ -67,6 +69,8 @@ extension SC.MachiningOperation.Kind {
                 return "Cuts along the edge of a shape, inside, outside or on the line. Select the contour to detach the part from the stock."
             case .pocket:
                 return "Clears the material inside a closed shape. Select closed shapes."
+            case .pocket3D:
+                return "Clears the material inside a closed shape from top to bottom by avoiding obstacles as they appear."
             case .facing:
                 return "Levels the top of the stock over the bounding box of the selection, or over the whole stock."
             case .slotting:
@@ -93,6 +97,8 @@ extension SC.MachiningOperation.Kind {
                 return "Select contour to detach the part from the stock material."
             case .pocket:
                 return "Select closed shapes to clear inside."
+            case .pocket3D:
+                return "Select closed outer shape."
             case .facing:
                 return "Covers the bounding box of the selection, or the whole stock."
             case .slotting:

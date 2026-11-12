@@ -334,6 +334,10 @@ enum ToolpathGenerator {
                 return count == 1
                     ? "1 corner was skipped: this tool can't improve on what the pocket's tool left there."
                     : "\(count) corners were skipped: this tool can't improve on what the pocket's tool left there."
+            case .islandBelowFloor(topZ: let topZ, floorZ: let floorZ):
+                return "TODO"
+            case .depthExceedsFluteLength(depth: let depth, fluteLength: let fluteLength):
+                return "TODO"
         }
     }
 
@@ -478,6 +482,12 @@ extension ToolpathGenerator {
                 return .pocket(direction: direction,
                                pattern: makePocketPattern(from: options, toolDiameter: Double(toolpath.tool.toolDiameter)),
                                entry: entry)
+
+            case .pocket3D:
+                // TODO: rest not implemented
+                return .pocket3D(direction: direction,
+                                 pattern: makePocketPattern(from: options, toolDiameter: Double(toolpath.tool.toolDiameter)),
+                                 entry: entry)
 
             case .facing:
                 return .facing(direction: direction,

@@ -41,6 +41,8 @@ extension SC.MachiningOperation.Kind {
                 return OperationDefaults(endZ: -1, stepDown: 0.5)
             case .pocket:
                 return OperationDefaults(endZ: -1, stepDown: 0.5, stepOverFraction: 0.4)
+            case .pocket3D:
+                return OperationDefaults(endZ: -1, stepDown: 0.5, stepOverFraction: 0.4)
             case .facing:
                 return OperationDefaults(endZ: -0.3, stepDown: 0.3, stepOverFraction: 0.8)
             case .slotting:
