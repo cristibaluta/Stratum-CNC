@@ -62,6 +62,9 @@ struct PanelObjectsInspector: View {
     /// when the pins would not fit the stock; nothing changes then.
     var onAlignmentPinsChanged: ((UUID, Double, Double) -> String?)?
 
+    /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
+    @State private var isExpanded = true
+
     @State private var pinsMessage: String?
     /// Bumped after each edit of the pins' fields, so a field shows what was really applied.
     @State private var pinsRefresh = 0
@@ -85,34 +88,40 @@ struct PanelObjectsInspector: View {
 
     /// Narrow, left-aligned label column: leaves the width to the fields.
     private static let labelWidth: CGFloat = 56
+    /// The horizontal padding of a list row (`inspectorListRow`).
+    private static let rowInset: CGFloat = 6
 
     // MARK: - Body
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-                .padding(.bottom, 8)
 
-            Divider()
-                .padding(.bottom, 8)
+            if isExpanded {
+                Divider()
+                    .padding(.vertical, 8)
 
-            objectsSection
+                objectsSection
 
-            let selected = elements.filter { selectedIDs.contains($0.id) }
-            if selected.isEmpty, let model = stepModels.first(where: { $0.id == selectedStepModelID }) {
-                stepModelPropertiesSection(for: model)
-                    .padding(.top, 10)
-            } else if selected.count == 1, let object = selected.first {
-                if let spec = object.alignmentPins {
-                    alignmentPinsSection(for: object, spec: spec)
+                let selected = elements.filter { selectedIDs.contains($0.id) }
+                if selected.isEmpty, let model = stepModels.first(where: { $0.id == selectedStepModelID }) {
+                    stepModelPropertiesSection(for: model)
                         .padding(.top, 10)
-                } else {
-                    propertiesSection(for: object)
+                } else if selected.count == 1, let object = selected.first {
+                    if let spec = object.alignmentPins {
+                        alignmentPinsSection(for: object, spec: spec)
+                            .padding(.top, 10)
+                    } else {
+                        propertiesSection(for: object)
+                            .padding(.top, 10)
+                    }
+                } else if selected.count > 1, let bounds = selectionBounds {
+                    groupPropertiesSection(count: selected.count, bounds: bounds)
                         .padding(.top, 10)
                 }
-            } else if selected.count > 1, let bounds = selectionBounds {
-                groupPropertiesSection(count: selected.count, bounds: bounds)
-                    .padding(.top, 10)
+
+                footer
+                    .padding(.top, 8)
             }
         }
         .padding(12)
@@ -123,15 +132,40 @@ struct PanelObjectsInspector: View {
 
     // MARK: - Header
 
-    /// Same look as `InspectorHeader`, but the + opens a menu instead of acting at once.
+    /// The title, how many objects there are, and the chevron. The whole line toggles the panel.
     private var header: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("Objects")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                let count = elements.count + stepModels.count
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                }
+
+                Spacer(minLength: 4)
+
+                InspectorChevron(isExpanded: isExpanded)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isExpanded ? "Hide objects" : "Show objects")
+    }
+
+    // MARK: - Footer
+
+    /// The + at the bottom left; it opens a menu instead of acting at once.
+    private var footer: some View {
         HStack {
-            Text("Objects")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
             Menu {
                 Button {
                     onAddNew?()
@@ -153,6 +187,8 @@ struct PanelObjectsInspector: View {
             .fixedSize()
             .foregroundStyle(.secondary)
             .help("Add objects")
+
+            Spacer()
         }
     }
 
@@ -174,6 +210,9 @@ struct PanelObjectsInspector: View {
                         stepModelRow(model)
                     }
                 }
+                // Rows pad their content by 6: grow them outward by as much, so the icons
+                // line up with the header and the other elements
+                .padding(.horizontal, -Self.rowInset)
             }
         }
     }

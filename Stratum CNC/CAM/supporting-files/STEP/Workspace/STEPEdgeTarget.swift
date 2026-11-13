@@ -89,8 +89,10 @@ extension STEPWorkspace {
     ///   heights) the one the toolpath follows is the rail that is the bevel's `.bottom` edge (where
     ///   the chamfer meets its wall, the lower rail) or its `.top` edge (the upper rail). With edges
     ///   at one height (a single edge picked as it is) nothing changes.
-    func contours(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity,
+    func contours(for targets: [STEPEdgeTarget],
+                  frame: SetupFrame = .identity,
                   chamferEdge: SC.ChamferEdge? = nil) throws -> [SC.Contour] {
+
         var polylines = try polylines(for: targets, frame: frame)
         if let chamferEdge, let rails = Self.chamferRails(of: polylines) {
             polylines = (chamferEdge == .bottom) ? rails.lower : rails.upper
@@ -100,6 +102,7 @@ extension STEPWorkspace {
 
     /// The sampled edges as polylines in the toolpath's frame.
     private func polylines(for targets: [STEPEdgeTarget], frame: SetupFrame) throws -> [[SIMD3<Double>]] {
+
         var polylines: [[SIMD3<Double>]] = []
         for importID in importIDs(in: targets) {
             guard let scene = documents[importID] else {

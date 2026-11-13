@@ -863,14 +863,20 @@ class CAMModel: ObservableObject {
         do {
             // The stock as the machine holds it in this toolpath's setup
             let frame = try setupFrame(for: toolpath)
-            job = try ToolpathGenerator.prepare(for: toolpath, source: linkedSource, canvasState: canvasState,
+            job = try ToolpathGenerator.prepare(for: toolpath,
+                                                source: linkedSource,
+                                                canvasState: canvasState,
                                                 frame: frame,
                                                 stepContours: { [workspace = stepWorkspace] in
-                                                    try workspace.contours(for: $0.stepTargets, frame: frame,
-                                                                           chamferEdge: $0.operation.kind == .chamfer
-                                                                               ? ($0.operation.chamferUsesBottomEdge ? .bottom : .top)
-                                                                               : nil)
-                                                })
+
+                let chamferEdge: SC.ChamferEdge? = $0.operation.kind == .chamfer
+                    ? ($0.operation.chamferUsesBottomEdge ? .bottom : .top)
+                    : nil
+
+                return try workspace.contours(for: $0.stepTargets,
+                                              frame: frame,
+                                              chamferEdge: chamferEdge)
+            })
         } catch {
             // Bad input (no shapes, invalid depth…): report it right away.
             PerfLog.log("gen", "prepare failed: \(ToolpathGenerator.message(for: error))")
@@ -900,25 +906,39 @@ class CAMModel: ObservableObject {
                     let scrub = frame.isIdentity ? flat : nil
                     let previewLines = flat.flatMap { frame.previewLines($0.points) }
                     let restPath = frame.previewInPartFrame(ToolpathPathBuilder.restPath(for: outputs.flatMap(\.restCorners)))
+
                     PerfLog.log("gen", "background work finished; preview path + scrub data took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
+
                     return ComputedGeneration(outcome: .success(outputs),
                                               previewPath: previewPath,
                                               scrub: scrub,
                                               previewLines: previewLines,
                                               restPath: restPath)
                 } catch {
-                    return ComputedGeneration(outcome: .failure(error), previewPath: nil, scrub: nil,
-                                              previewLines: nil, restPath: nil)
+                    return ComputedGeneration(outcome: .failure(error),
+                                              previewPath: nil,
+                                              scrub: nil,
+                                              previewLines: nil,
+                                              restPath: nil)
                 }
             }.value
 
-            self?.finishGeneration(id: id, token: token, source: toolpath, linkedSource: linkedSource,
-                                   computed: computed, requestedAt: requestedAt)
+            self?.finishGeneration(id: id,
+                                   token: token,
+                                   source: toolpath,
+                                   linkedSource: linkedSource,
+                                   computed: computed,
+                                   requestedAt: requestedAt)
         }
     }
 
-    private func finishGeneration(id: UUID, token: UUID, source: ToolpathData, linkedSource: ToolpathData?,
-                                  computed: ComputedGeneration, requestedAt: UInt64) {
+    private func finishGeneration(id: UUID,
+                                  token: UUID,
+                                  source: ToolpathData,
+                                  linkedSource: ToolpathData?,
+                                  computed: ComputedGeneration,
+                                  requestedAt: UInt64) {
+
         guard generationTokens[id] == token else {
             PerfLog.log("gen", "result for '\(source.name)' discarded (superseded, or canvas objects changed while it ran) "
                         + "after \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
@@ -954,6 +974,7 @@ class CAMModel: ObservableObject {
               !toolpath.operation.isRest,
               let generation = generations[id],
               generation.isCurrent(for: toolpath) else {
+
             canvasState.setRestRegionsPath(nil)
             return
         }

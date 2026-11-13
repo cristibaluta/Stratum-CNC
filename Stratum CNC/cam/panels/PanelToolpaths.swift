@@ -39,6 +39,8 @@ struct PanelToolpaths: View {
 
     @StateObject private var reorder = ToolpathReorderModel()
     @State private var setupToDelete: Setup?
+    /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
+    @State private var isExpanded = true
 
     /// The faces the "…" menu offers to add.
     private var addableFaces: [SetupFace] {
@@ -62,17 +64,24 @@ struct PanelToolpaths: View {
         VStack(alignment: .leading, spacing: 8) {
             header
 
-            Divider()
+            if isExpanded {
+                Divider()
 
-            facePicker
+                facePicker
 
-            if visibleToolpaths.isEmpty {
-                Text("No toolpaths")
-                    .foregroundStyle(.secondary)
-                    .font(.system(size: 12))
-                    .padding(.vertical, 2)
-            } else {
-                rows(visibleToolpaths)
+                if visibleToolpaths.isEmpty {
+                    Text("No toolpaths")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                        .padding(.vertical, 2)
+                } else {
+                    rows(visibleToolpaths)
+                        // Rows pad their content by 6: grow them outward by as much, so the
+                        // icons line up with the header and the other elements
+                        .padding(.horizontal, -6)
+                }
+
+                footer
             }
         }
         .padding(12)
@@ -93,14 +102,37 @@ struct PanelToolpaths: View {
 
     // MARK: - Header
 
+    /// The title, how many toolpaths there are, and the chevron. The whole line toggles the panel.
     private var header: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("Toolpaths")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                if !toolpaths.isEmpty {
+                    Text("\(toolpaths.count)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                }
+
+                Spacer(minLength: 4)
+
+                InspectorChevron(isExpanded: isExpanded)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(isExpanded ? "Hide toolpaths" : "Show toolpaths")
+    }
+
+    /// The + at the bottom left.
+    private var footer: some View {
         HStack {
-            Text("Toolpaths")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
             Button {
                 onAdd?()
             } label: {
@@ -113,6 +145,8 @@ struct PanelToolpaths: View {
             .foregroundStyle(.secondary)
             .disabled(onAdd == nil)
             .help("Add a toolpath")
+
+            Spacer()
         }
     }
 

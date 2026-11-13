@@ -169,7 +169,9 @@ enum ToolpathGenerator {
 
     /// A rest toolpath: checks the link to its pocket and the tool, and captures the pocket's own
     /// job so `run` can find the corners it leaves.
-    private static func prepareRest(for toolpath: ToolpathData, source: ToolpathData?, canvasState: D2_CanvasState,
+    private static func prepareRest(for toolpath: ToolpathData,
+                                    source: ToolpathData?,
+                                    canvasState: D2_CanvasState,
                                     frame: SetupFrame,
                                     stepContours: (ToolpathData) throws -> [SC.Contour]) throws -> Job {
 
