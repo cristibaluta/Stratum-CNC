@@ -275,6 +275,45 @@ enum STEPFacePicker {
         let holes = Set(votes.filter { $0.value.down > $0.value.up }.keys)
         return outline.filter { !holes.contains(loopOf[$0.edge] ?? outer) }
     }
+
+    /// Chords turning by more than this (radians, 35°) at a vertex meet at a corner of the outline,
+    /// not along a curve.
+    private static let maxCurveTurn: Float = 0.61
+    /// A chord is never allowed to lie further than this (mm) from the curve it stands for.
+    private static let maxChordAllowance: Float = 0.5
+
+    /// For each segment of `boundary`, how far (mm) the true outline may lie from it. A straight
+    /// outline lies on its segments (`base`, the matching tolerance). A curve does not: the mesh
+    /// replaces it with chords, and the STEP edge's points, which are on the curve, are off the
+    /// chord by up to its sagitta, about `length * turn / 8` where `turn` is the angle the outline
+    /// turns by at the chord's ends. A coarse mesh of a round chamfer or a disc needs that.
+    static func chordAllowances(_ boundary: [(SIMD3<Float>, SIMD3<Float>)], base: Float) -> [Float] {
+        var incident: [Key: [Int]] = [:]
+        for (i, segment) in boundary.enumerated() {
+            incident[key(segment.0), default: []].append(i)
+            incident[key(segment.1), default: []].append(i)
+        }
+        /// The angle the outline turns by where segment `i` meets the next one at `k`; 0 for a
+        /// straight continuation, a corner, or an end that meets nothing (or more than one).
+        func turn(_ i: Int, at k: Key) -> Float {
+            guard let meeting = incident[k], meeting.count == 2, let j = meeting.first(where: { $0 != i }) else {
+                return 0
+            }
+            // Directions leaving the shared vertex along each segment
+            func away(_ segment: (SIMD3<Float>, SIMD3<Float>)) -> SIMD3<Float> {
+                let d = key(segment.0) == k ? segment.1 - segment.0 : segment.0 - segment.1
+                let length = simd_length(d)
+                return length > 1e-9 ? d / length : .zero
+            }
+            let angle = acos(max(-1, min(1, -simd_dot(away(boundary[i]), away(boundary[j])))))
+            return angle <= maxCurveTurn ? angle : 0
+        }
+        return boundary.enumerated().map { i, segment in
+            let length = simd_distance(segment.0, segment.1)
+            let curve = max(turn(i, at: key(segment.0)), turn(i, at: key(segment.1)))
+            return max(base, min(maxChordAllowance, 1.25 * length * curve / 8))
+        }
+    }
 }
 
 extension STEPDisplayGeometry {
@@ -300,6 +339,7 @@ extension STEPDisplayGeometry {
             high = simd_max(high, simd_max(a, b))
         }
         let tolerance = max(0.05, simd_length(high - low) * 0.0015)
+        let allowance = STEPFacePicker.chordAllowances(region.boundary, base: tolerance)
 
         func distance(_ p: SIMD3<Float>, toSegment a: SIMD3<Float>, _ b: SIMD3<Float>) -> Float {
             let ab = b - a
@@ -315,9 +355,14 @@ extension STEPDisplayGeometry {
                 continue
             }
             let onOutline = points.filter { point in
-                region.boundary.contains { distance(point, toSegment: $0.0, $0.1) <= tolerance }
+                region.boundary.indices.contains { i in
+                    distance(point, toSegment: region.boundary[i].0, region.boundary[i].1) <= allowance[i]
+                }
             }.count
-            if Float(onOutline) >= coverage * Float(points.count) {
+            // A straight edge has two points. One that only meets the outline at an end (a neighbour
+            // at a corner of the face) has one of them on it, which is half: both are needed.
+            let needed = points.count <= 2 ? 1 : coverage
+            if Float(onOutline) >= needed * Float(points.count) {
                 result.insert(edge.id)
             }
         }

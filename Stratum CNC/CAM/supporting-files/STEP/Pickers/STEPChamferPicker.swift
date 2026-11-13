@@ -8,6 +8,10 @@
 //  and for a cone alike. A chamfer is such a face that is tilted and whose boundary has horizontal
 //  edges at two heights: the two rails. Those are what gets selected.
 //
+//  The mesh may be tessellated in any way: smooth or flat shading, coarse or fine, and its faces
+//  need not share vertices along the rails (`STEPDisplayGeometry.edges(onBoundaryOf:)` allows for the
+//  chords of a curve lying off it).
+//
 //  The toolpath does not cut the rails, it cuts the sharp edge the chamfer replaced (see
 //  `STEPWorkspace.contours(for:frame:sharpEdgeOfChamfer:)`).
 //
@@ -35,12 +39,24 @@ enum STEPChamferPicker {
     private static let normalZRange: ClosedRange<Float> = 0.17...0.985
     /// A chamfer is not taller than this (mm); a taller sloped face is a ramp or a draft.
     private static let maxHeight: Float = 8
+    /// The most distinct heights of horizontal boundary edges a chamfer may have. Two is the plain
+    /// chamfer. A chamfer whose lower edge steps (two cones of a slightly different depth that
+    /// continue into each other, or a hole whose wall has a small step) has three: the upper rail
+    /// and a lower one at each depth.
+    private static let maxHeights = 4
     /// Faces with more triangles than this are not chamfers.
     private static let maxTriangles = 60_000
     /// Normals closer than this (cosine, about 6°) continue into each other. Loose on purpose:
     /// along the seam of a cone the two sides' normals can differ by half a tessellation step,
     /// and a chamfer meets its neighbours at far more than this.
     private static let sameNormal: Float = 0.995
+    /// A mesh whose triangles have flat shading (each vertex normal is its triangle's normal) has
+    /// no normals that "continue": a cone is a strip of flat facets, each tilted a little against
+    /// the next. Such triangles are judged by their geometry instead: neighbours within this angle
+    /// (cosine, 25°) of each other, and still tilted like a chamfer, are the same face.
+    private static let facetContinuity: Float = 0.9063
+    /// The three vertex normals of a triangle closer than this (cosine) to each other: flat shading.
+    private static let flatShading: Float = 0.9995
 
     private static func log(_ message: String) {
         PerfLog.log("pick", "chamfer: \(message)")
@@ -99,7 +115,32 @@ enum STEPChamferPicker {
             return nil
         }
 
-        // The face: neighbours whose normals continue across the shared edge, at both its ends.
+        func geometricNormal(_ t: Int) -> SIMD3<Float> {
+            let cross = simd_cross(corner(t, 1) - corner(t, 0), corner(t, 2) - corner(t, 0))
+            let length = simd_length(cross)
+            return length > 1e-12 ? cross / length : .zero
+        }
+        func isFlatShaded(_ t: Int) -> Bool {
+            let n = (0..<3).map { normals[indices[3 * t + $0]] }
+            guard n.allSatisfy({ simd_length($0) > 1e-6 }) else { return false }
+            let first = simd_normalize(n[0])
+            return simd_dot(first, simd_normalize(n[1])) > flatShading && simd_dot(first, simd_normalize(n[2])) > flatShading
+        }
+        /// `next` continues the face `t` is part of, across their shared edge `ku`-`kv`.
+        func continues(_ t: Int, into next: Int, _ ku: Key, _ kv: Key) -> Bool {
+            if let a1 = normal(of: t, at: ku), let b1 = normal(of: next, at: ku),
+               let a2 = normal(of: t, at: kv), let b2 = normal(of: next, at: kv),
+               simd_dot(a1, b1) > sameNormal, simd_dot(a2, b2) > sameNormal {
+                return true
+            }
+            guard isFlatShaded(t), isFlatShaded(next) else {
+                return false
+            }
+            return abs(simd_dot(geometricNormal(t), geometricNormal(next))) > facetContinuity
+                && normalZRange.contains(abs(geometricNormal(next).z))
+        }
+
+        // The face: neighbours that continue it across the shared edge.
         var face: Set<Int> = [triangle]
         var queue = [triangle]
         while let t = queue.popLast() {
@@ -108,9 +149,7 @@ enum STEPChamferPicker {
                 guard ku != kv else { continue }
                 for next in neighbors[EdgeKey(a: min(ku, kv), b: max(ku, kv))] ?? []
                 where next != t && !face.contains(next) {
-                    guard let a1 = normal(of: t, at: ku), let b1 = normal(of: next, at: ku),
-                          let a2 = normal(of: t, at: kv), let b2 = normal(of: next, at: kv),
-                          simd_dot(a1, b1) > sameNormal, simd_dot(a2, b2) > sameNormal else { continue }
+                    guard continues(t, into: next, ku, kv) else { continue }
                     face.insert(next)
                     queue.append(next)
                 }
@@ -130,6 +169,7 @@ enum STEPChamferPicker {
             var level: Float { (a.z + b.z) / 2 }
         }
         var rails: [Segment] = []
+        var sloped = 0
         for t in face {
             for i in 0..<3 {
                 let (ku, kv) = (keys[t][i], keys[t][(i + 1) % 3])
@@ -139,11 +179,13 @@ enum STEPChamferPicker {
                 let (p, q) = (corner(t, i), corner(t, (i + 1) % 3))
                 if abs(p.z - q.z) <= levelTolerance {
                     rails.append(Segment(a: p, b: q, edge: edge, triangle: t))
+                } else {
+                    sloped += 1
                 }
             }
         }
 
-        // Exactly two heights.
+        // Two heights, or a few more when the lower edge steps (`maxHeights`).
         let levels = rails.map(\.level).sorted()
         var groups: [[Float]] = []
         for level in levels {
@@ -153,13 +195,16 @@ enum STEPChamferPicker {
                 groups.append([level])
             }
         }
-        log("boundary: \(rails.count) horizontal segment(s) at \(groups.count) height(s) "
-            + groups.map { String(format: "%.3f…%.3f", $0.first ?? 0, $0.last ?? 0) }.joined(separator: ", "))
-        guard groups.count == 2, let low = groups[0].first, let high = groups[1].last,
+        log("boundary: \(rails.count) horizontal segment(s) at \(groups.count) height(s): "
+            + groups.map { String(format: "%.3f…%.3f", $0.first ?? 0, $0.last ?? 0) + " (\($0.count))" }.joined(separator: ", "))
+        log("boundary: \(sloped) sloped segment(s) besides")
+        guard groups.count >= 2, groups.count <= maxHeights, let low = groups.first?.first, let high = groups.last?.last,
               high - low > 2 * levelTolerance, high - low <= maxHeight else {
-            log("rejected: a chamfer has horizontal edges at exactly two heights, at most \(maxHeight) mm apart")
+            log("rejected: a chamfer has horizontal edges at two heights (up to \(maxHeights)), at most \(maxHeight) mm apart")
             return nil
         }
+        // Upper and lower rails are told apart the way `STEPDisplayGeometry.chamferRails` does later:
+        // by the middle of the highest and the lowest edge.
         let lower = rails.filter { $0.level < (low + high) / 2 }
         let upper = rails.filter { $0.level >= (low + high) / 2 }
         guard !lower.isEmpty, !upper.isEmpty else {
@@ -185,7 +230,10 @@ enum STEPChamferPicker {
             }
         }
         log("below the lower rail: \(down) triangle(s) going down, \(level) level with it")
-        guard down > level else {
+        // Nothing found on the other side of the rail at all (0 and 0): the faces are tessellated
+        // separately and their meshes don't meet along the rail, so there is nothing to tell a wall
+        // from a floor by. That is not a reason to reject; only a floor level with the rail is.
+        guard down > level || (down == 0 && level == 0) else {
             log("rejected: no wall below the lower rail, this one fills a corner")
             return nil
         }
@@ -195,8 +243,13 @@ enum STEPChamferPicker {
                                                                    normal: SIMD3<Float>(0, 0, 1)),
                                   boundary: segments.map { ($0.a, $0.b) })
         }
-        let lowerLevel = lower.reduce(0) { $0 + $1.level } / Float(lower.count)
-        let upperLevel = upper.reduce(0) { $0 + $1.level } / Float(upper.count)
-        return [region(upper, at: upperLevel), region(lower, at: lowerLevel)]
+        // One region per height: each is matched in its own plane (a lower rail with a step is
+        // two or more STEP edges at different heights)
+        return groups.compactMap { group -> STEPFacePicker.Region? in
+            guard let first = group.first, let last = group.last else { return nil }
+            let segments = rails.filter { $0.level >= first - levelTolerance && $0.level <= last + levelTolerance }
+            guard !segments.isEmpty else { return nil }
+            return region(segments, at: segments.reduce(0) { $0 + $1.level } / Float(segments.count))
+        }
     }
 }

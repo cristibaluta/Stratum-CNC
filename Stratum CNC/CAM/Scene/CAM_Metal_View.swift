@@ -213,6 +213,15 @@ struct CAM_Metal_View: View {
             }
             return
         }
+        // A chamfer before the edges: it is so thin that a click on it is always near one of its rails
+        if let step, let edges = step.faceEdges(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix,
+                                                chamfersOnly: true) {
+            step.selectFace(edges, extend: extend)
+            if !picking {
+                shapes.clearSelection()
+            }
+            return
+        }
         if let step, let edge = step.edge(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
             if click.isDoubleClick, !extend {
                 // Shortcut for the tooltip's "Select similar" / "Select linked"

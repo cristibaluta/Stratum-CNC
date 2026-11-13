@@ -583,7 +583,11 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// The edges around the flat face under `point`, if there is one: the nearest triangle of the
     /// shaded model there, the flat patch around it, and the edges along that patch's outline
     /// (see `STEPFacePicker`). Only while the faces are drawn with their edges.
-    func faceEdges(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> Set<STEP.EdgeID>? {
+    /// - Parameter chamfersOnly: only a chamfer is looked for (nothing for a flat face). A chamfer is
+    ///   a thin strip, so every point on it is within the edge tolerance of one of its rails: the
+    ///   click routing asks for it before the edges, or a click on it would always pick a rail.
+    func faceEdges(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
+                   chamfersOnly: Bool = false) -> Set<STEP.EdgeID>? {
         guard isModelVisible, displayMode == .shadedEdges else {
             PerfLog.log("pick", "face: ignored, model visible \(isModelVisible), display mode \(displayMode.rawValue)")
             return nil
@@ -629,6 +633,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                 chamferEdges.formUnion(edges)
                 return edges
             }
+        }
+        if chamfersOnly {
+            return nil
         }
         guard let region = STEPFacePicker.flatRegion(positions: best.positions, indices: best.indices,
                                                      triangle: best.triangle,
