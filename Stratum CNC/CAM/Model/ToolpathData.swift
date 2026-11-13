@@ -199,17 +199,33 @@ extension ToolpathData {
         return angle
     }
 
-    /// How deep a chamfer cuts, mm: the fixed depth when one is set, otherwise what the V-bit's
-    /// angle gives for the width (the flank runs `width` sideways for `width / tan(angle / 2)`
-    /// down). `nil` when the tool has no tip angle, so the depth can't be worked out.
+    /// How deep a chamfer cuts, mm: what the V-bit's angle gives for the width (the flank runs
+    /// `width` sideways for `width / tan(angle / 2)` down). `nil` when the tool has no tip angle,
+    /// so the depth can't be worked out.
     var chamferResolvedDepth: Double? {
-        if operation.chamferUsesDepth {
-            return operation.chamferDepth
-        }
         guard let angle = toolTipAngle else {
             return nil
         }
         return operation.chamferWidth / tan(angle / 2 * .pi / 180)
+    }
+
+    /// The Z range a chamfer works in, calculated (a chamfer has no Start Z or End Z of its own).
+    /// It starts from the Z of the selected edge, read from the geometry (`chamferEdgeZ`): for a
+    /// top edge that is the bevel's top and the bevel goes down from it by its depth, for a bottom
+    /// edge it is the bevel's bottom and the bevel goes up from it. `start` is the bevel's top,
+    /// `bevelBottom` its lowest point and `end` the tool TIP at the last pass, which is `tipOffset`
+    /// below `bevelBottom`, so with a tip offset it is lower than the finished edge. `nil` for other operations or
+    /// when the tool has no tip angle (the depth can't be worked out).
+    var chamferZRange: (start: Double, bevelBottom: Double, end: Double)? {
+        guard operation.kind == .chamfer, let depth = chamferResolvedDepth else {
+            return nil
+        }
+        let params = SC.ChamferParams(width: operation.chamferWidth,
+                                      edge: operation.chamferUsesBottomEdge ? .bottom : .top,
+                                      edgeZ: operation.chamferEdgeZ,
+                                      tipOffset: operation.chamferTipOffset)
+        let range = params.bevelZRange(depth: depth)
+        return (start: range.top, bevelBottom: range.bottom, end: range.bottom - operation.chamferTipOffset)
     }
 
     /// An internal thread the cutter is not smaller than: the library refuses it (as
@@ -253,8 +269,8 @@ extension ToolpathData {
             case .threadMilling:
                 return threadToolProblem
             case .chamfer:
-                if toolTipAngle == nil && !operation.chamferUsesDepth {
-                    return "A chamfer needs a V-bit: this tool has no tip angle. Pick a V-bit, or turn on Depth Override."
+                if toolTipAngle == nil {
+                    return "A chamfer needs a V-bit: this tool has no tip angle."
                 }
             case .counterbore:
                 if diameter > 0 && operation.counterboreDiameter <= diameter {

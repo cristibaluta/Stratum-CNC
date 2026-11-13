@@ -157,7 +157,10 @@ enum ToolpathGenerator {
                    tool: makeTool(from: toolpath.tool, for: toolpath.operation.kind),
                    settings: makeSettings(from: toolpath),
                    operation: operation,
-                   startZ: toolpath.startZ,
+                   // A chamfer's start is the top of its bevel (from the edge's Z, which the library
+                   // already uses); the Start Z field is not editable for it, so a stale value is
+                   // not applied.
+                   startZ: toolpath.operation.kind == .chamfer ? 0 : toolpath.startZ,
                    restSource: nil,
                    derivesSlotCenterline: toolpath.operation.kind == .slotting
                        && toolpath.operation.slotSource == .outline,
@@ -321,7 +324,7 @@ enum ToolpathGenerator {
             case .toolIncompatible:
                 switch operation {
                     case .chamfer:
-                        return "A chamfer needs a V-bit: pick a tool with a tip angle, or turn on Fixed depth."
+                        return "A chamfer needs a V-bit: pick a tool with a tip angle."
                     case .counterbore:
                         return "The counterbore diameter must be larger than the tool."
                     case .threadMilling:
@@ -396,8 +399,10 @@ enum ToolpathGenerator {
                 return "The thread needs between 1 and 10 radial passes."
             case "chamfer.params.width":
                 return "The chamfer width must be greater than 0."
-            case "chamfer.params.depth":
-                return "The chamfer depth must be greater than 0."
+            case "chamfer.params.tipOffset":
+                return "The tip offset can't be negative."
+            case "tool.tipWidth":
+                return "The tool's tip diameter must be smaller than its cutting diameter."
             default:
                 return "Invalid parameter: \(parameter)."
         }
@@ -436,6 +441,9 @@ extension ToolpathGenerator {
                              type: type,
                              diameter: Double(tool.toolDiameter),
                              vAngle: vAngle,
+                             // The flat at the tip of a V-bit: it moves the tool centre and
+                             // shortens the flank the chamfer can use.
+                             tipWidth: tool.type.hasTipDiameter ? Double(tool.tipDiameter ?? 0) : 0,
                              fluteLength: Double(tool.cuttingHeight ?? 0))
     }
 
@@ -551,10 +559,14 @@ extension ToolpathGenerator {
                     case .inside:    side = .inside
                     case .onContour: side = .onContour
                 }
+                // The depth always comes from the width and the V-bit's angle.
                 let params = SC.ChamferParams(width: options.chamferWidth,
-                                              depth: options.chamferUsesDepth ? options.chamferDepth : nil,
                                               side: side,
-                                              direction: direction)
+                                              direction: direction,
+                                              edge: options.chamferUsesBottomEdge ? .bottom : .top,
+                                              // Where the selected edge really is (nil: the stock's top).
+                                              edgeZ: options.chamferEdgeZ,
+                                              tipOffset: options.chamferTipOffset)
                 return .chamfer(params: params)
         }
     }

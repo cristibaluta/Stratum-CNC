@@ -61,7 +61,7 @@ struct OperationOptionsView: View {
         /// What the operation is, shown in the header under the operation picker: the side of a
         /// contour or chamfer, a pocket's clearing pattern, and the library's fields that are
         /// neither a direction nor a depth (a thread's standard, pitch and diameter, the diameter
-        /// of a bore or a counterbore, a chamfer's width).
+        /// of a bore or a counterbore, a chamfer's width, edge and tip offset).
         case operation
         /// The title section's collapsed form of `operation`: its controls on one line, to
         /// follow the operation picker. A thread mill keeps its standard thread and radial passes.
@@ -69,8 +69,8 @@ struct OperationOptionsView: View {
         /// How the tool moves in the plane: cut direction, feed rate, stepover, a facing's extension
         /// and its sides, stock to leave.
         case xyMovement
-        /// The operation's own depth settings (dwell, shift before retract, a chamfer's depth
-        /// override). Shown in "Z axis".
+        /// The operation's own depth settings (a bore's dwell and shift before retract).
+        /// Shown in "Z axis".
         case depth
         /// How the tool descends into the material (ramp / helix / plunge). Shown in "Entry".
         case entry
@@ -95,15 +95,16 @@ struct OperationOptionsView: View {
         "counterbore.direction", "chamfer.params.direction"
     ]
 
-    /// The library's fields that are about the depth: the bottom of a bore and its retract, how
-    /// deep a chamfer goes. They are shown in the Z axis section, the rest in the operation's own.
+    /// The library's fields that are about the depth: the bottom of a bore and its retract.
+    /// They are shown in the Z axis section, the rest in the operation's own. (A chamfer's depth
+    /// isn't a field: it follows from its width and the V-bit's angle, see `chamferDepthNote`.)
     private static let zFieldIDs: Set<String> = [
-        "boring.dwellTime", "boring.shiftRetract", "chamfer.params.depth"
+        "boring.dwellTime", "boring.shiftRetract"
     ]
 
     /// Whether the "Z axis" section has fields of the operation's own (see `zFieldIDs`).
     static func hasDepthFields(for toolpath: ToolpathData) -> Bool {
-        toolpath.operation.kind == .boring || toolpath.operation.kind == .chamfer
+        toolpath.operation.kind == .boring
     }
 
     /// Whether the "Z axis" section has a holding tabs row for this toolpath.
@@ -212,6 +213,9 @@ struct OperationOptionsView: View {
                                     hiddenFieldIDs: hiddenIDs,
                                     hiddenCaseIDs: SC.MachiningOperation.Kind.hiddenCaseIDs)
             }
+            if kind == .chamfer {
+                chamferDepthNote
+            }
 
             // The clearing pattern keeps its own dedicated picker (icon glyphs, same as
             // `ContourTypeGlyph`), followed by its one extra control: it shapes how the area is cleared.
@@ -275,7 +279,8 @@ struct OperationOptionsView: View {
                                                            set: { f.onChange(min(max($0, f.range.lowerBound), f.range.upperBound)) }),
                                             suffix: f.unit ?? "",
                                             decimalKey: ParameterFieldsView.decimalEntryFieldIDs.contains(f.id) ? f.label : nil,
-                                            help: f.unit.map { "\(f.label) (\($0))" } ?? f.label)
+                                            help: ParameterFieldsView.helpTexts[f.id]
+                                                ?? f.unit.map { "\(f.label) (\($0))" } ?? f.label)
                     .disabled(!f.isEnabled)
                     .opacity(f.isEnabled ? 1 : 0.5)
             case .int(let f):
@@ -285,6 +290,19 @@ struct OperationOptionsView: View {
                                   suffix: "",
                                   isCompact: true,
                                   tag: f.label)
+            case .bool(let f) where f.id == "chamfer.params.edge":
+                // The one switch the compact row keeps: which end of the bevel the edge is.
+                HStack(spacing: 4) {
+                    Toggle("", isOn: Binding(get: { f.value }, set: { f.onChange($0) }))
+                        .labelsHidden()
+                        .stCheckboxToggleStyle()
+                        .controlSize(.small)
+                    Text("Bottom")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .fixedSize()
+                .help(ParameterFieldsView.helpTexts[f.id] ?? f.label)
             case .choice(let f):
                 Menu {
                     ForEach(f.options) { option in
@@ -471,9 +489,6 @@ struct OperationOptionsView: View {
             if !depthFields.isEmpty {
                 ParameterFieldsView(fields: depthFields)
             }
-            if kind == .chamfer {
-                chamferDepthNote
-            }
         }
     }
 
@@ -528,16 +543,12 @@ struct OperationOptionsView: View {
         }
     }
 
-    /// How deep the chamfer goes: the fixed depth, or what the V-bit's angle gives for the width.
+    /// How deep the chamfer goes: what the V-bit's angle gives for the width.
     /// A tool without a tip angle is flagged under the tool instead (`toolCompatibilityWarning`).
     @ViewBuilder
     private var chamferDepthNote: some View {
-        if let depth = toolpath.chamferResolvedDepth {
-            if toolpath.operation.chamferUsesDepth {
-                InspectorNote(text: String(format: "Depth = %.2f mm (fixed).", depth))
-            } else if let angle = toolpath.toolTipAngle {
-                InspectorNote(text: String(format: "Depth = %.2f mm for a %.0f° bit.", depth, angle))
-            }
+        if let depth = toolpath.chamferResolvedDepth, let angle = toolpath.toolTipAngle {
+            InspectorNote(text: String(format: "Depth = %.2f mm for a %.0f° bit.", depth, angle))
         }
     }
 

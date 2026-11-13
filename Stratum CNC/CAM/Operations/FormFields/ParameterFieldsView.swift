@@ -36,13 +36,14 @@ struct ParameterFieldsView: View {
 
     /// Number fields that are often a fraction of a millimetre, so they get the "0." checkbox
     /// (type just the decimals). By field id.
-    static let decimalEntryFieldIDs: Set<String> = ["chamfer.params.width"]
+    static let decimalEntryFieldIDs: Set<String> = ["chamfer.params.width", "chamfer.params.tipOffset"]
 
     /// Tooltips for the on/off fields whose label alone doesn't say what they do, by field id.
-    private static let helpTexts: [String: String] = [
+    static let helpTexts: [String: String] = [
         "boring.shiftRetract": "Before pulling the tool out, move it sideways off the bore wall, so the retract doesn't drag along the finished surface and leave a mark.",
         "boring.dwellTime": "Pause at the bottom of the bore before retracting, so the tool finishes cutting a full circle.",
-        "chamfer.params.depth": "Cut to this depth instead of the one the V-bit's angle gives for the width."
+        "chamfer.params.edge": "Tick when the selected edge is the bottom of the bevel (the part's wall) instead of its top. A single edge is a top edge by default; a chamfer picked by its face is cut from its bottom edge.",
+        "chamfer.params.tipOffset": "Cut the bevel with a higher part of the V-bit's flank instead of its tip, to spread the wear over the tool. The tool moves away from the edge to compensate, so the bevel stays the same. The offset plus the bevel's depth can't be taller than the V-bit's flank."
     ]
 
     // MARK: Simple fields
@@ -56,6 +57,7 @@ struct ParameterFieldsView: View {
                                                     set: { f.onChange(clamp($0, to: f.range)) }),
                                      suffix: f.unit ?? "",
                                      offersDecimalsOnly: Self.decimalEntryFieldIDs.contains(f.id))
+                    .help(Self.helpTexts[f.id] ?? "")
                     .disabled(!f.isEnabled)
                     .opacity(f.isEnabled ? 1 : 0.5)
             case .int(let f):

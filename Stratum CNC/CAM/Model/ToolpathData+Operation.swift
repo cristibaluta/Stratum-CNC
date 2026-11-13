@@ -87,11 +87,11 @@ extension ToolpathData {
 
             case .chamfer(let params):
                 operation.chamferWidth = params.width
-                operation.chamferUsesDepth = params.depth != nil
-                if let depth = params.depth {
-                    operation.chamferDepth = depth
-                }
                 operation.chamferSide = params.side
+                operation.chamferUsesBottomEdge = params.edge == .bottom
+                operation.chamferTipOffset = params.tipOffset
+                operation.chamferUpperEdgeZ = params.edgeZ
+                operation.chamferLowerEdgeZ = params.edgeZ
 
             case .boring(let targetDiameter, let dwellTime, let shiftRetract):
                 operation.boreTargetDiameter = targetDiameter

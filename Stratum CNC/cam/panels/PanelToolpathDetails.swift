@@ -221,9 +221,15 @@ struct PanelToolpathDetails: View {
     @ViewBuilder
     private var rowDepth: some View {
         // Z range (a counterbore has its own depth instead of an End Z; it is shown as one)
-        InspectorNumberField(title: "Start Z", value: $toolpath.startZ, suffix: "mm")
-            .help("The height where cutting starts. 0 is the top of the stock; passes above it are skipped.")
-        if toolpath.operation.kind == .counterbore {
+        if toolpath.operation.kind == .chamfer {
+            chamferZRows
+        } else {
+            InspectorNumberField(title: "Start Z", value: $toolpath.startZ, suffix: "mm")
+                .help("The height where cutting starts. 0 is the top of the stock; passes above it are skipped.")
+        }
+        if toolpath.operation.kind == .chamfer {
+            // Shown above (calculated): a chamfer has no End Z of its own.
+        } else if toolpath.operation.kind == .counterbore {
             InspectorNumberField(title: "End Z", value: model.counterboreEndDepth($toolpath), suffix: "mm", prefix: "−")
                 .help("How deep the counterbore goes below the top of the stock.")
         } else if requirements.usesEndZ {
@@ -270,6 +276,26 @@ struct PanelToolpathDetails: View {
             .help("The height the tool lifts to between passes. Not higher than Safe Z.")
     }
 
+    /// A chamfer's Start Z and End Z, calculated and not editable. Start Z is the top of the bevel
+    /// (the top edge). End Z is where the tool TIP ends, which is the bevel's bottom minus the tip
+    /// offset, so with an offset it is lower than the finished edge.
+    @ViewBuilder
+    private var chamferZRows: some View {
+        if let range = toolpath.chamferZRange {
+            InspectorNumberField(title: "Start Z", value: .constant(range.start), suffix: "mm")
+                .help(Self.chamferStartZHelp)
+                .disabled(true)
+                .opacity(0.5)
+            InspectorNumberField(title: "End Z", value: .constant(-range.end), suffix: "mm", prefix: "\u{2212}")
+                .help(Self.chamferEndZHelp)
+                .disabled(true)
+                .opacity(0.5)
+        }
+    }
+
+    private static let chamferStartZHelp = "Calculated, not editable: the top of the bevel, where the cut starts. It follows the Z of the selected edge, read from the model (the edge itself for a top edge, the edge plus the bevel's depth for a bottom edge)."
+    private static let chamferEndZHelp = "Calculated, not editable: where the tool tip ends. For a bottom edge the bevel's bottom is the edge's Z from the model, for a top edge it is that Z minus the bevel's depth; the tip offset goes lower still, so with an offset the tip ends below the finished edge."
+
     /// The Z axis section's collapsed form: where the cut starts and ends and how deep each
     /// pass goes, then the Safe Z. Retract Z, the holding tabs and the operation's own
     /// depth settings are in the full section only.
@@ -280,10 +306,28 @@ struct PanelToolpathDetails: View {
         let passes = model.passesNote(for: toolpath, stepdown: stepdown)
 
         HStack(spacing: 6) {
-            InspectorCompactNumberField(tag: "Start",
-                                        value: $toolpath.startZ,
-                                        help: "Start Z (mm): the height where cutting starts. 0 is the top of the stock.")
-            if toolpath.operation.kind == .counterbore {
+            if toolpath.operation.kind == .chamfer {
+                if let range = toolpath.chamferZRange {
+                    InspectorCompactNumberField(tag: "Start",
+                                                value: .constant(range.start),
+                                                help: "Start Z (mm). \(Self.chamferStartZHelp)")
+                        .disabled(true)
+                        .opacity(0.5)
+                    InspectorCompactNumberField(tag: "End",
+                                                value: .constant(-range.end),
+                                                prefix: "\u{2212}",
+                                                help: "End Z (mm). \(Self.chamferEndZHelp)")
+                        .disabled(true)
+                        .opacity(0.5)
+                }
+            } else {
+                InspectorCompactNumberField(tag: "Start",
+                                            value: $toolpath.startZ,
+                                            help: "Start Z (mm): the height where cutting starts. 0 is the top of the stock.")
+            }
+            if toolpath.operation.kind == .chamfer {
+                // End Z is shown above (calculated).
+            } else if toolpath.operation.kind == .counterbore {
                 InspectorCompactNumberField(tag: "End",
                                             value: model.counterboreEndDepth($toolpath),
                                             prefix: "−",

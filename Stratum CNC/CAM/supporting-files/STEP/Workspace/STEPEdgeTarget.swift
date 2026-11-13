@@ -85,14 +85,15 @@ extension STEPWorkspace {
     /// is gone (the source was removed, or replaced by a different file).
     /// - Parameter frame: the setup the toolpath is cut in. The edges are mapped into it first,
     ///   so the contours are what the machine sees when the stock is turned that way.
-    /// - Parameter sharpEdgeOfChamfer: the edges are a chamfer's two rails (at two heights): the
-    ///   engine chamfers a sharp edge, which seen from above is where the chamfer meets its wall,
-    ///   the lower rail. With edges at one height (a sharp edge picked as it is) nothing changes.
+    /// - Parameter chamferEdge: set for a chamfer. When the edges are a chamfer's two rails (at two
+    ///   heights) the one the toolpath follows is the rail that is the bevel's `.bottom` edge (where
+    ///   the chamfer meets its wall, the lower rail) or its `.top` edge (the upper rail). With edges
+    ///   at one height (a single edge picked as it is) nothing changes.
     func contours(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity,
-                  sharpEdgeOfChamfer: Bool = false) throws -> [SC.Contour] {
+                  chamferEdge: SC.ChamferEdge? = nil) throws -> [SC.Contour] {
         var polylines = try polylines(for: targets, frame: frame)
-        if sharpEdgeOfChamfer, let rails = Self.chamferRails(of: polylines) {
-            polylines = rails.lower
+        if let chamferEdge, let rails = Self.chamferRails(of: polylines) {
+            polylines = (chamferEdge == .bottom) ? rails.lower : rails.upper
         }
         return STEPContourBuilder.contours(from: polylines)
     }
@@ -128,6 +129,26 @@ extension STEPWorkspace {
             if height < middle { lower.append(polyline) } else { upper.append(polyline) }
         }
         return (upper, lower)
+    }
+
+    /// The Z of the picked edges, read from the geometry in the toolpath's frame (0 = the top of
+    /// the stock): a chamfer's selected edge sits at this height, wherever it is on the part.
+    /// For a chamfer's two rails `upper` and `lower` are the heights of the two rails, so the
+    /// bevel can be cut from either; for edges at one height (a single edge) they are the same.
+    /// `nil` when there are no edges.
+    func chamferEdgeHeights(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity) -> (upper: Double, lower: Double)? {
+        guard let all = try? polylines(for: targets, frame: frame), !all.isEmpty else {
+            return nil
+        }
+        func height(_ polylines: [[SIMD3<Double>]]) -> Double {
+            let points = polylines.flatMap { $0 }
+            return points.reduce(0.0) { $0 + $1.z } / Double(max(points.count, 1))
+        }
+        if let rails = Self.chamferRails(of: all), !rails.upper.isEmpty, !rails.lower.isEmpty {
+            return (height(rails.upper).rounded(toPlaces: 3), height(rails.lower).rounded(toPlaces: 3))
+        }
+        let z = height(all).rounded(toPlaces: 3)
+        return (z, z)
     }
 
     /// What picking a chamfer through its rails says about the chamfer, to start the toolpath's

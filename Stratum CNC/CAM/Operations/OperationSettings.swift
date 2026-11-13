@@ -111,10 +111,20 @@ struct OperationSettings: Codable, Hashable {
     // Chamfer
     /// Horizontal width of the bevel, mm.
     var chamferWidth: Double = 0.5
-    /// Cut to a fixed depth instead of the one the V-bit's angle gives for `chamferWidth`.
-    var chamferUsesDepth: Bool = false
-    var chamferDepth: Double = 0.5
     var chamferSide: SC.CutSide = .outside
+    /// The selected edge is the bevel's lower edge (the part's wall) instead of its upper one.
+    /// A single picked edge is a top edge; a picked chamfer face (both of its rails) is cut from
+    /// its bottom edge.
+    var chamferUsesBottomEdge: Bool = false
+    /// The Z of the picked STEP edge, read from the geometry (0 = the top of the stock). `upper` and
+    /// `lower` differ when a chamfer was picked by its face (its two rails); a single edge has the
+    /// same height for both. `nil` when the shapes aren't from a STEP model: the library's default
+    /// then applies (the bevel's top at the top of the stock).
+    var chamferUpperEdgeZ: Double? = nil
+    var chamferLowerEdgeZ: Double? = nil
+    /// Height above the tool's tip at which the bevel's lowest point is cut, mm. 0 uses the tip;
+    /// more cuts with a higher part of the flank (wear compensation).
+    var chamferTipOffset: Double = 0
 
     // Thread mill
     var threadTargetDiameter: Double = 3
@@ -138,7 +148,7 @@ struct OperationSettings: Codable, Hashable {
         case contourTabs, contourLeadIn, contourLeadOut
         case facingExtension, facingWholeStock, facingSides
         case slotSource, slotDepthPerPass
-        case chamferWidth, chamferUsesDepth, chamferDepth, chamferSide
+        case chamferWidth, chamferSide, chamferUsesBottomEdge, chamferTipOffset, chamferUpperEdgeZ, chamferLowerEdgeZ
         case drillUsesPecking, drillPeckDepth
         case counterboreDiameter, counterboreDepth
         case boreTargetDiameter, boreUsesDwell, boreDwellTime, boreShiftRetract
@@ -184,9 +194,11 @@ extension OperationSettings {
         facingSides = try c.decodeIfPresent(FacingSides.self, forKey: .facingSides) ?? d.facingSides
         slotSource = try c.decodeIfPresent(SlotSource.self, forKey: .slotSource) ?? d.slotSource
         chamferWidth = try c.decodeIfPresent(Double.self, forKey: .chamferWidth) ?? d.chamferWidth
-        chamferUsesDepth = try c.decodeIfPresent(Bool.self, forKey: .chamferUsesDepth) ?? d.chamferUsesDepth
-        chamferDepth = try c.decodeIfPresent(Double.self, forKey: .chamferDepth) ?? d.chamferDepth
         chamferSide = try c.decodeIfPresent(SC.CutSide.self, forKey: .chamferSide) ?? d.chamferSide
+        chamferUsesBottomEdge = try c.decodeIfPresent(Bool.self, forKey: .chamferUsesBottomEdge) ?? d.chamferUsesBottomEdge
+        chamferTipOffset = try c.decodeIfPresent(Double.self, forKey: .chamferTipOffset) ?? d.chamferTipOffset
+        chamferUpperEdgeZ = try c.decodeIfPresent(Double.self, forKey: .chamferUpperEdgeZ)
+        chamferLowerEdgeZ = try c.decodeIfPresent(Double.self, forKey: .chamferLowerEdgeZ)
         slotDepthPerPass = try c.decodeIfPresent(Double.self, forKey: .slotDepthPerPass) ?? d.slotDepthPerPass
         drillUsesPecking = try c.decodeIfPresent(Bool.self, forKey: .drillUsesPecking) ?? d.drillUsesPecking
         drillPeckDepth = try c.decodeIfPresent(Double.self, forKey: .drillPeckDepth) ?? d.drillPeckDepth
@@ -222,5 +234,14 @@ private extension KeyedDecodingContainer {
             text.filter { $0.isLetter || $0.isNumber }.lowercased()
         }
         return T.allCases.first { normalized($0.rawValue) == normalized(stored) }
+    }
+}
+
+extension OperationSettings {
+
+    /// The Z of the selected chamfer edge: the lower rail's height for a bottom edge, the upper
+    /// one's for a top edge. `nil` when it isn't read from geometry.
+    var chamferEdgeZ: Double? {
+        chamferUsesBottomEdge ? chamferLowerEdgeZ : chamferUpperEdgeZ
     }
 }

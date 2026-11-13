@@ -16,3 +16,6 @@ Features not in the app yet. Each builds on something that already exists.
 
 - **Collision and gouge checks.** Check the tool and holder against the model, clamps and fixtures, and flag cuts into the part.
 - **Cutting-time estimate and a feed/speed advisor.** Show time per toolpath and total, and warn when chip load or spindle load looks wrong for the tool and material.
+
+
+- Add spring passes, that will rerun the previous operation to mill and compensate for the tool deflections from the previous run. Or is this called finishing pass?

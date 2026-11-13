@@ -228,10 +228,27 @@ final class ToolpathDetailsModel: ObservableObject {
         guard stepdown > 0 else {
             return nil
         }
-        let top = min(toolpath.startZ, 0)
-        let bottom = toolpath.operation.kind == .counterbore
-            ? -toolpath.operation.counterboreDepth
-            : toolpath.endZ
+        var top = min(toolpath.startZ, 0)
+        let bottom: Double
+        // The Z the last pass reaches, named in the note. Differs from `bottom` only for a chamfer
+        // with a tip offset: the tool tip goes below the bevel's bottom.
+        var reached: Double?
+        switch toolpath.operation.kind {
+            case .counterbore:
+                bottom = -toolpath.operation.counterboreDepth
+            case .chamfer:
+                // A chamfer has no Start Z or End Z: the passes step down the bevel, from its top
+                // to its bottom, and the tool tip ends `tipOffset` below that. Without a tip
+                // angle the depth is unknown (the tool is flagged instead).
+                guard let range = toolpath.chamferZRange else {
+                    return nil
+                }
+                top = range.start
+                bottom = range.bevelBottom
+                reached = range.end
+            default:
+                bottom = toolpath.endZ
+        }
         let depth = top - bottom
         guard depth > 1e-9 else {
             return PassesNote(text: "End Z is not below Start Z: nothing to cut.", isWarning: true)
@@ -242,7 +259,7 @@ final class ToolpathDetailsModel: ObservableObject {
         let format = FloatingPointFormatStyle<Double>.number
             .precision(.fractionLength(0...2))
             .locale(Locale(identifier: "en_US"))
-        var text = "\(count) pass\(count == 1 ? "" : "es") to Z \u{2212}\(abs(bottom).formatted(format))"
+        var text = "\(count) pass\(count == 1 ? "" : "es") to Z \u{2212}\(abs(reached ?? bottom).formatted(format))"
 
         let last = depth - Double(count - 1) * stepdown
         if count > 1, abs(last - stepdown) > 1e-6 {

@@ -13,7 +13,7 @@
 //  chords of a curve lying off it).
 //
 //  The toolpath does not cut the rails, it cuts the sharp edge the chamfer replaced (see
-//  `STEPWorkspace.contours(for:frame:sharpEdgeOfChamfer:)`).
+//  `STEPWorkspace.contours(for:frame:chamferEdge:)`).
 //
 
 import Foundation

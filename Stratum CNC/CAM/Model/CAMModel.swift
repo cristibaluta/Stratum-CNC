@@ -300,19 +300,17 @@ class CAMModel: ObservableObject {
             toolpath.endZ = endZ
             toolpath.editedFields.insert(.endZ)
         }
-        // A chamfer picked through its two rails: its size and side are measured off the face.
-        if toolpath.operation.kind == .chamfer, !stepTargets.isEmpty,
-           let chamfer = stepWorkspace.chamferSuggestion(for: stepTargets, frame: frameOrIdentity(for: toolpath)) {
-            toolpath.operation.chamferWidth = chamfer.width
-            if let side = chamfer.side { toolpath.operation.chamferSide = side }
-            // The V-bit's angle gives a depth for the width. When the face is not at that angle
-            // (or the bit has no angle) the measured depth is set, so the cut follows the face.
-            let fromTool = toolpath.toolTipAngle.map { chamfer.width / tan($0 / 2 * .pi / 180) }
-            if let fromTool, abs(fromTool - chamfer.depth) <= 0.05 * chamfer.depth {
-                toolpath.operation.chamferUsesDepth = false
+        // A chamfer picked through its two rails (a face): its size and side are measured off the
+        // face, and it is cut from its bottom edge (the lower rail, where it meets the wall).
+        // Any other selection is single edges, which are top edges (the default).
+        refreshChamferEdgeZ(&toolpath)
+        if toolpath.operation.kind == .chamfer, !stepTargets.isEmpty {
+            if let chamfer = stepWorkspace.chamferSuggestion(for: stepTargets, frame: frameOrIdentity(for: toolpath)) {
+                toolpath.operation.chamferWidth = chamfer.width
+                if let side = chamfer.side { toolpath.operation.chamferSide = side }
+                toolpath.operation.chamferUsesBottomEdge = true
             } else {
-                toolpath.operation.chamferUsesDepth = true
-                toolpath.operation.chamferDepth = chamfer.depth
+                toolpath.operation.chamferUsesBottomEdge = false
             }
         }
         // At the end of its setup's run, not of the whole list
@@ -504,6 +502,20 @@ class CAMModel: ObservableObject {
     /// stock or angle can't be handled (see `SetupFrame.make`).
     func setupFrame(for toolpath: ToolpathData) throws -> SetupFrame {
         try SetupFrame.make(setup: setup(for: toolpath), stock: selectedStockMaterial)
+    }
+
+    /// Reads the Z of a chamfer's picked STEP edges from the geometry, in the toolpath's setup frame
+    /// (0 = the top of the stock), into its settings. Without STEP edges the Z is cleared, and the
+    /// library's default applies (the bevel's top at the top of the stock).
+    private func refreshChamferEdgeZ(_ toolpath: inout ToolpathData) {
+        guard toolpath.operation.kind == .chamfer else {
+            return
+        }
+        let heights = toolpath.stepTargets.isEmpty
+            ? nil
+            : stepWorkspace.chamferEdgeHeights(for: toolpath.stepTargets, frame: frameOrIdentity(for: toolpath))
+        toolpath.operation.chamferUpperEdgeZ = heights?.upper
+        toolpath.operation.chamferLowerEdgeZ = heights?.lower
     }
 
     /// For the places that only need a best guess (the suggested depth): identity when the
@@ -748,6 +760,7 @@ class CAMModel: ObservableObject {
 
         var toolpath = toolpaths[index]
         toolpath.stepTargets = updated
+        refreshChamferEdgeZ(&toolpath)
         // End Z follows the selection until it is set by hand: it still equals the depth of
         // the previous selection, or was never set.
         let frame = frameOrIdentity(for: toolpath)
@@ -826,9 +839,17 @@ class CAMModel: ObservableObject {
     /// overlay path building happen in the background; the UI stays responsive
     /// and the cell shows a spinner until `finishGeneration` applies the result.
     func generateToolpaths(for id: UUID) {
-        guard let toolpath = toolpaths.first(where: { $0.id == id }), !generatingIDs.contains(id) else {
+        guard let index = toolpaths.firstIndex(where: { $0.id == id }), !generatingIDs.contains(id) else {
             return
         }
+        // The edge's Z is read from the geometry in the setup's current frame, which may have
+        // changed since the edges were picked.
+        var refreshed = toolpaths[index]
+        refreshChamferEdgeZ(&refreshed)
+        if refreshed.operation != toolpaths[index].operation {
+            toolpaths[index] = refreshed
+        }
+        let toolpath = toolpaths[index]
 
         let requestedAt = PerfLog.now()
         PerfLog.log("gen", "▶ Generate requested for '\(toolpath.name)' (\(canvasState.objects.count) object(s) on canvas)")
@@ -846,7 +867,9 @@ class CAMModel: ObservableObject {
                                                 frame: frame,
                                                 stepContours: { [workspace = stepWorkspace] in
                                                     try workspace.contours(for: $0.stepTargets, frame: frame,
-                                                                           sharpEdgeOfChamfer: $0.operation.kind == .chamfer)
+                                                                           chamferEdge: $0.operation.kind == .chamfer
+                                                                               ? ($0.operation.chamferUsesBottomEdge ? .bottom : .top)
+                                                                               : nil)
                                                 })
         } catch {
             // Bad input (no shapes, invalid depth…): report it right away.
