@@ -175,6 +175,13 @@ struct CAMView: View {
         } message: {
             Text(fileError ?? "")
         }
+        .alert("Model changed", isPresented: Binding(
+            get: { camModel.stepRelinkNotice != nil },
+            set: { if !$0 { camModel.stepRelinkNotice = nil } })) {
+            Button("OK", role: .cancel) { camModel.stepRelinkNotice = nil }
+        } message: {
+            Text(camModel.stepRelinkNotice ?? "")
+        }
         .sheet(isPresented: $showingAlignmentPins) {
             AlignmentPinsSheet(stock: camModel.canvasState.stock,
                                onCreate: { diameter, offset in

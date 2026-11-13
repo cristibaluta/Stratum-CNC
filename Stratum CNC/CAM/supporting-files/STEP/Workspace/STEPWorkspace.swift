@@ -184,9 +184,18 @@ struct STEPViewerContent: Sendable {
     static func load(url: URL, importID: UUID) async throws -> STEPViewerContent {
         let worker = Task.detached(priority: .userInitiated) {
             try Task.checkCancellation()
-            // `readAssembly`, not `readGeometry`: one `Body` per solid, and an assembly's parts placed.
-            let assembly = try STEP.readAssembly(data: Data(contentsOf: url, options: .mappedIfSafe),
+            let assembly: STEP.Assembly
+            if url.pathExtension.lowercased() == "stl" {
+                // A mesh file: one body. STL has no edges of its own, so the library derives them
+                // (creases sharper than 30° and open boundaries), which is also what the body is
+                // measured and drawn from. No units either: the library's default (mm) applies.
+                assembly = try await STL.loadAssembly(contentsOf: url, importID: importID,
+                                                      stl: STL.Options(featureAngleDegrees: 30, smoothShading: true))
+            } else {
+                // `readAssembly`, not `readGeometry`: one `Body` per solid, and an assembly's parts placed.
+                assembly = try STEP.readAssembly(data: Data(contentsOf: url, options: .mappedIfSafe),
                                                  importID: importID)
+            }
             return try STEPViewerContent(assembly: assembly)
         }
         return try await withTaskCancellationHandler {
@@ -892,6 +901,9 @@ final class STEPWorkspace: ObservableObject {
     var onBodyStateChanged: (@MainActor (UUID, String, STEPBodyState) -> Void)?
     /// The open toolpath's edges and where edits go; set while a toolpath is open.
     private var picking: (targets: [STEPEdgeTarget], onChange: (UUID, Set<STEP.EdgeID>) -> Void)?
+    /// Called when a file has finished loading, before picking is attached: the place to fix up
+    /// anything saved against the previous contents of the file (see `CAMModel.relinkSTEPTargets`).
+    var onSceneLoaded: ((UUID, STEPDocumentScene) -> Void)?
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var tokens: [UUID: UUID] = [:]
     private let loader: Loader
@@ -1152,6 +1164,7 @@ final class STEPWorkspace: ObservableObject {
                 guard let self, self.tokens[source.id] == token else { return }
                 let scene = self.makeScene(for: source.id, content: content)
                 self.documents[source.id] = scene
+                self.onSceneLoaded?(source.id, scene)
                 self.attachPicking(to: scene)
                 self.finish(source.id)
                 Self.logImport(of: source, content: content)

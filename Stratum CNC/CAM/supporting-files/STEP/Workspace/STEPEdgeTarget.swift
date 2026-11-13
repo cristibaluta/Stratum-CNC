@@ -20,6 +20,10 @@ struct STEPEdgeTarget: Codable, Hashable, Sendable {
     /// is not an assembly's repeated part, and for projects saved before the field existed.
     let bodyInstance: Int
     let edgeEntityID: Int
+    /// What the edge looks like, to find it again when the file is re-exported and the ids change
+    /// (see `CAMModel.relinkSTEPTargets`). `nil` on projects saved before it existed: it is filled
+    /// in the first time their file loads.
+    var fingerprint: STEPEdgeFingerprint?
 
     init(_ id: STEP.EdgeID) {
         importID = id.importID
@@ -29,9 +33,20 @@ struct STEPEdgeTarget: Codable, Hashable, Sendable {
         edgeEntityID = id.entityID
     }
 
-    private enum CodingKeys: String, CodingKey {
-        case importID, representationID, bodyEntityID, bodyInstance, edgeEntityID
+    /// The same, with the edge's fingerprint read from the scene it was picked in.
+    @MainActor
+    init(_ id: STEP.EdgeID, in scene: STEPDocumentScene?) {
+        self.init(id)
+        fingerprint = scene?.edgeFingerprint(of: id)
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case importID, representationID, bodyEntityID, bodyInstance, edgeEntityID, fingerprint
+    }
+
+    // Identity is the ids only: a fingerprint being added or refreshed doesn't make it another edge.
+    static func == (a: STEPEdgeTarget, b: STEPEdgeTarget) -> Bool { a.edgeID == b.edgeID }
+    func hash(into hasher: inout Hasher) { hasher.combine(edgeID) }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -40,6 +55,7 @@ struct STEPEdgeTarget: Codable, Hashable, Sendable {
         bodyEntityID = try container.decode(Int.self, forKey: .bodyEntityID)
         bodyInstance = try container.decodeIfPresent(Int.self, forKey: .bodyInstance) ?? 0
         edgeEntityID = try container.decode(Int.self, forKey: .edgeEntityID)
+        fingerprint = try container.decodeIfPresent(STEPEdgeFingerprint.self, forKey: .fingerprint)
     }
 
     var edgeID: STEP.EdgeID {

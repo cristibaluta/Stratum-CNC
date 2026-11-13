@@ -267,9 +267,9 @@ struct PanelObjectsInspector: View {
                 onSelectStepModel?(model.id)
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "cube")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+//                    Image(systemName: "cube")
+//                        .font(.system(size: 11))
+//                        .foregroundStyle(.secondary)
                     Text(model.name)
                         .font(.system(size: 12))
                         .lineLimit(1)

@@ -70,6 +70,20 @@ struct STEPDisplayGeometry: Sendable {
                 }
                 ranges.append(EdgeRange(id: edge.id, vertices: start..<points.count))
             }
+            // A body with a mesh but no edges (a smooth STL with no creases and no open boundary)
+            // would vanish, and with it its size and position. Its bounding box stands in for edges.
+            if points.isEmpty, body.mesh != nil {
+                let low = SIMD3<Float>(bounds.min - anchor), high = SIMD3<Float>(bounds.max - anchor)
+                let corner = { (i: Int) -> SIMD3<Float> in
+                    SIMD3<Float>(i & 1 == 0 ? low.x : high.x, i & 2 == 0 ? low.y : high.y, i & 4 == 0 ? low.z : high.z)
+                }
+                for a in 0..<8 {
+                    for bit in [1, 2, 4] where a & bit == 0 {
+                        points.append(corner(a))
+                        points.append(corner(a | bit))
+                    }
+                }
+            }
             if !points.isEmpty { bodies.append(Body(id: body.id, points: points, edges: ranges, origin: anchor)) }
         }
         self.origin = origin
