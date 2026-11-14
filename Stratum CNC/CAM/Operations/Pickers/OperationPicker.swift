@@ -42,16 +42,21 @@ struct OperationPicker: View {
               ? [kind.summary, kind.selectionHint].compactMap { $0 }.joined(separator: "\n")
               : (kind.selectionHint ?? "What this toolpath does"))
         .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-            OperationGridPicker(kind: $kind, isPresented: $isPresented)
+            OperationGridPicker(selected: kind) { option in
+                kind = option
+                isPresented = false
+            }
         }
     }
 }
 
 /// The tooltip-style popover content: every operation, laid out as a grid of
 /// 3D icon + label tiles instead of `Menu`'s single vertical list.
-private struct OperationGridPicker: View {
-    @Binding var kind: SC.MachiningOperation.Kind
-    @Binding var isPresented: Bool
+/// Used by the operation field (`selected` is the current one) and by the toolpath list's "+"
+/// (nothing is selected there, the choice makes a new toolpath). The owner closes its popover in `onSelect`.
+struct OperationGridPicker: View {
+    var selected: SC.MachiningOperation.Kind?
+    var onSelect: (SC.MachiningOperation.Kind) -> Void
 
     @State private var hovered: SC.MachiningOperation.Kind?
 
@@ -77,11 +82,10 @@ private struct OperationGridPicker: View {
     }
 
     private func row(for option: SC.MachiningOperation.Kind) -> some View {
-        let isSelected = option == kind
+        let isSelected = option == selected
 
         return Button {
-            kind = option
-            isPresented = false
+            onSelect(option)
         } label: {
             HStack(alignment: .center, spacing: 12) {
                 // As tall as the three lines of text beside it (title and a two-line summary).

@@ -24,8 +24,8 @@ struct PanelToolpaths: View {
 
     var onSelect: ((UUID) -> Void)?
     var onDelete: ((UUID) -> Void)?
-    /// The header's "+": adds a toolpath to the active face.
-    var onAdd: (() -> Void)?
+    /// The "+": adds a toolpath of the chosen operation to the active face.
+    var onAdd: ((SC.MachiningOperation.Kind) -> Void)?
     /// Called once when a drag ends. The index is within the toolpath's own face.
     var onMove: ((UUID, Int) -> Void)?
     /// (toolpath, setup): "Move to" in a row's menu.
@@ -41,6 +41,8 @@ struct PanelToolpaths: View {
     @State private var setupToDelete: Setup?
     /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
     @State private var isExpanded = true
+    /// The "+" opens the operations to choose what the new toolpath does.
+    @State private var isChoosingOperation = false
 
     /// The faces the "…" menu offers to add.
     private var addableFaces: [SetupFace] {
@@ -134,7 +136,7 @@ struct PanelToolpaths: View {
     private var footer: some View {
         HStack {
             Button {
-                onAdd?()
+                isChoosingOperation.toggle()
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .medium))
@@ -145,6 +147,12 @@ struct PanelToolpaths: View {
             .foregroundStyle(.secondary)
             .disabled(onAdd == nil)
             .help("Add a toolpath")
+            .popover(isPresented: $isChoosingOperation, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                OperationGridPicker(selected: nil) { kind in
+                    isChoosingOperation = false
+                    onAdd?(kind)
+                }
+            }
 
             Spacer()
         }

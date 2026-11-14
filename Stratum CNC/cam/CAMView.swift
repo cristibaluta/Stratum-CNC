@@ -456,9 +456,9 @@ struct CAMView: View {
                     camModel.deleteToolpath(id)
                 }
             },
-            onAdd: {
+            onAdd: { kind in
                 withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.addToolpath()
+                    camModel.addToolpath(operation: kind)
                 }
             },
             onMove: { id, index in
