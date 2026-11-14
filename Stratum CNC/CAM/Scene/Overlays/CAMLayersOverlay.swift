@@ -30,23 +30,20 @@ struct CAMLayersOverlay: View {
     var hasToolpaths = false
 
     var body: some View {
-        if let stepScene = workspace.activeScene {
-            // `isModelVisible` is the scene's own, so the row has to watch the scene
-            ObservedSTEPScene(scene: stepScene) { scene in
-                list(stepScene: scene)
-            }
-        } else {
-            list(stepScene: nil)
+        // `isModelVisible` is each scene's own, so the row has to watch all of them
+        ObservedSceneChanges(changes: workspace.sceneChanges) {
+            list(stepScenes: workspace.loadedScenes)
         }
     }
 
-    private func list(stepScene: STEPDocumentScene?) -> some View {
-        CanvasLayersList(layers: layers(hasModel: stepScene != nil),
-                         isVisible: { isVisible($0, stepScene: stepScene) },
-                         setVisible: { setVisible($0, $1, stepScene: stepScene) },
+    /// The Model row and the projection option stand for every file on the canvas at once.
+    private func list(stepScenes: [STEPDocumentScene]) -> some View {
+        CanvasLayersList(layers: layers(hasModel: !stepScenes.isEmpty),
+                         isVisible: { isVisible($0, stepScenes: stepScenes) },
+                         setVisible: { setVisible($0, $1, stepScenes: stepScenes) },
                          tint: { tint(for: $0) },
                          label: { label(for: $0) },
-                         footer: stepScene.map { AnyView(ProjectionToggle(scene: $0)) })
+                         footer: stepScenes.isEmpty ? nil : AnyView(ProjectionToggle(scenes: stepScenes)))
     }
 
     /// Only the layers the canvas has content for, in the order they sit in the scene.
@@ -69,19 +66,19 @@ struct CAMLayersOverlay: View {
         return layers
     }
 
-    private func isVisible(_ layer: CanvasLayer, stepScene: STEPDocumentScene?) -> Bool {
+    private func isVisible(_ layer: CanvasLayer, stepScenes: [STEPDocumentScene]) -> Bool {
         switch layer {
-            case .model: return stepScene?.isModelVisible ?? false
+            case .model: return stepScenes.contains { $0.isModelVisible }
             case .stock: return canvasState.isStockVisible
             case .toolpaths: return showsAllToolpaths.wrappedValue
             default:     return !canvasState.hiddenLayers.contains(layer)
         }
     }
 
-    private func setVisible(_ layer: CanvasLayer, _ visible: Bool, stepScene: STEPDocumentScene?) {
+    private func setVisible(_ layer: CanvasLayer, _ visible: Bool, stepScenes: [STEPDocumentScene]) {
         switch layer {
             case .model:
-                stepScene?.isModelVisible = visible
+                stepScenes.forEach { $0.isModelVisible = visible }
             case .stock:
                 isStockVisible.wrappedValue = visible
             case .toolpaths:
@@ -121,17 +118,21 @@ struct CAMLayersOverlay: View {
 }
 
 /// "Z0 projections" checkbox, styled like the layer rows above it. Only there while there is
-/// a STEP model; it is the scene's own `showsProjection` (the orange projection of the edges).
+/// a STEP model; it sets the scenes' own `showsProjection` (the orange projection of the edges),
+/// in every file on the canvas.
 private struct ProjectionToggle: View {
 
-    @ObservedObject var scene: STEPDocumentScene
+    let scenes: [STEPDocumentScene]
+
+    private var isOn: Bool { scenes.allSatisfy(\.showsProjection) }
 
     var body: some View {
         Button {
-            scene.showsProjection.toggle()
+            let on = !isOn
+            scenes.forEach { $0.showsProjection = on }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: scene.showsProjection ? "checkmark.square.fill" : "square")
+                Image(systemName: isOn ? "checkmark.square.fill" : "square")
                 Text("Z0 projections")
                     .font(.caption)
             }
@@ -144,18 +145,18 @@ private struct ProjectionToggle: View {
     }
 }
 
-/// Re-renders its content when the scene changes (`@ObservedObject` can't hold an optional).
-private struct ObservedSTEPScene<Content: View>: View {
+/// Re-renders its content whenever any scene of the workspace changes.
+private struct ObservedSceneChanges<Content: View>: View {
 
-    @ObservedObject var scene: STEPDocumentScene
-    let content: (STEPDocumentScene) -> Content
+    @ObservedObject var changes: STEPSceneChanges
+    let content: () -> Content
 
-    init(scene: STEPDocumentScene, @ViewBuilder content: @escaping (STEPDocumentScene) -> Content) {
-        self.scene = scene
+    init(changes: STEPSceneChanges, @ViewBuilder content: @escaping () -> Content) {
+        self.changes = changes
         self.content = content
     }
 
     var body: some View {
-        content(scene)
+        content()
     }
 }

@@ -56,7 +56,7 @@ struct CAMView: View {
                 // from a top view; with a STEP model it starts from the orbited 3D view.
                 CAM_Metal_View(canvasState: camModel.canvasState,
                                zoomModel: camModel.canvasZoomModel,
-                               stepScene: camModel.stepWorkspace.activeScene,
+                               stepWorkspace: camModel.stepWorkspace,
                                startsTopDown: !hasSTEP,
                                partFrame: camModel.activeSetupFrame,
                                addToolpathShapeCount: camModel.shapesForNewToolpath.count,
@@ -103,8 +103,11 @@ struct CAMView: View {
 
                         CanvasZoomButton(zoomModel: camModel.canvasZoomModel)
 
-                        if let stepScene = camModel.stepWorkspace.activeScene {
-                            STEPDisplayOptionsButton(scene: stepScene)
+                        // The options are shared by every file on the canvas
+                        let stepScenes = camModel.stepWorkspace.loadedScenes
+                        if let primary = stepScenes.first(where: \.hasSurfaces) ?? stepScenes.first {
+                            STEPDisplayOptionsButton(scene: primary,
+                                                     others: stepScenes.filter { $0 !== primary })
                         }
 
                         Button {
@@ -174,13 +177,6 @@ struct CAMView: View {
             Button("OK", role: .cancel) { fileError = nil }
         } message: {
             Text(fileError ?? "")
-        }
-        .alert("Model changed", isPresented: Binding(
-            get: { camModel.stepRelinkNotice != nil },
-            set: { if !$0 { camModel.stepRelinkNotice = nil } })) {
-            Button("OK", role: .cancel) { camModel.stepRelinkNotice = nil }
-        } message: {
-            Text(camModel.stepRelinkNotice ?? "")
         }
         .sheet(isPresented: $showingAlignmentPins) {
             AlignmentPinsSheet(stock: camModel.canvasState.stock,

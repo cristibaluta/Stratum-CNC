@@ -19,9 +19,9 @@ struct CAM_Metal_View: View {
     /// Turns the stock and model over when the active setup's face changes.
     @StateObject private var flip: SetupFlipAnimator
     let zoomModel: CanvasZoomModel
-    /// The STEP scene drawn with the shapes. `nil` without a STEP model, or while it is still
-    /// loading or failed to load.
-    let stepScene: STEPDocumentScene?
+    /// The imported STEP/STL files. Every one that has finished loading is drawn with the shapes,
+    /// all at once; there is no STEP layer on the canvas until the first one has.
+    @ObservedObject var stepWorkspace: STEPWorkspace
     /// Flat work only (no STEP model): the camera starts straight above, as a 2D view would.
     /// With a STEP model it starts at the orbited 3D view instead. Only read when the canvas is created.
     let startsTopDown: Bool
@@ -39,10 +39,10 @@ struct CAM_Metal_View: View {
     let onAddToolpath: () -> Void
     /// An operation was picked in the STEP edges' "Add toolpath" list.
     let onAddStepToolpath: (SC.MachiningOperation.Kind) -> Void
-    /// The STEP model selected in the objects list, if it is the one on the canvas. It gets a box
+    /// The STEP model selected in the objects list. It gets a box
     /// and a handle like a selected shape, and dragging the handle moves it.
     let selectedStepModelID: UUID?
-    /// The body of `stepScene` that row stands for; `nil` when no body is selected.
+    /// The body, in its file's scene, that row stands for; `nil` when no body is selected.
     let selectedStepBody: STEP.BodyID?
     /// The model was dragged by this much (canvas mm).
     let onMoveStepModel: (UUID, CGFloat, CGFloat) -> Void
@@ -52,7 +52,7 @@ struct CAM_Metal_View: View {
 
     init(canvasState: D2_CanvasState,
          zoomModel: CanvasZoomModel,
-         stepScene: STEPDocumentScene? = nil,
+         stepWorkspace: STEPWorkspace,
          startsTopDown: Bool = true,
          partFrame: SetupFrame = .identity,
          addToolpathShapeCount: Int = 0,
@@ -69,7 +69,7 @@ struct CAM_Metal_View: View {
         _flip = StateObject(wrappedValue: SetupFlipAnimator(initial: partFrame))
 
         self.zoomModel = zoomModel
-        self.stepScene = stepScene
+        _stepWorkspace = ObservedObject(wrappedValue: stepWorkspace)
         self.startsTopDown = startsTopDown
         self.partFrame = partFrame
         self.addToolpathShapeCount = addToolpathShapeCount
@@ -107,7 +107,8 @@ struct CAM_Metal_View: View {
     /// Where the selected STEP model's footprint is on the canvas (its corner and size, in mm),
     /// or `nil` when it isn't the one drawn, isn't selected or is hidden.
     private var stepFootprint: (origin: SIMD2<Float>, size: SIMD2<Float>)? {
-        guard let stepScene, selectedStepModelID != nil, let body = selectedStepBody,
+        guard let modelID = selectedStepModelID, let body = selectedStepBody,
+              let stepScene = stepWorkspace.scene(ofModel: modelID),
               stepScene.isBodyVisible(body), let size = stepScene.content.size(of: body) else {
             return nil
         }
@@ -153,12 +154,14 @@ struct CAM_Metal_View: View {
 
     /// The CAM scene (shapes, toolpaths, stock, selection overlays; the ruler on the stock's
     /// bottom face and the XYZ origin axes — see `CAMSceneModel.renderObjects3D`), plus the STEP
-    /// wireframe when there is one. A different branch for STEP means a fresh `MetalCanvasView`
-    /// (the camera starts over, at the orbited view). `scene` lives in this view, so nothing is lost.
+    /// wireframe of every loaded STEP/STL file. The first file to load switches to another branch,
+    /// hence a fresh `MetalCanvasView` (the camera starts over, at the orbited view); later files
+    /// stay in the same canvas. `scene` lives in this view, so nothing is lost.
     @ViewBuilder
     private var canvas: some View {
-        if let stepScene {
-            STEP3DCanvas(scene: stepScene, shapes: scene,
+        let stepScenes = stepWorkspace.loadedScenes
+        if !stepScenes.isEmpty {
+            STEP3DCanvas(scenes: stepScenes, sceneChanges: stepWorkspace.sceneChanges, shapes: scene,
                          sceneObjects: sceneObjects3D + stepModelOverlay,
                          partTransform: partMatrix,
                          previewTransform: partFrame.previewMatrix,
@@ -177,7 +180,7 @@ struct CAM_Metal_View: View {
                             pointerHandler: scene.interaction,
                             zoomModel: zoomModel,
                             onClick: { click in
-                                Self.route(click, shapes: scene.interaction, step: nil, onEmptyClick: onDeselectStepModel)
+                                Self.route(click, shapes: scene.interaction, steps: [], onEmptyClick: onDeselectStepModel)
                             },
                             partTransform: partMatrix,
                             previewTransform: partFrame.previewMatrix,
@@ -197,47 +200,76 @@ struct CAM_Metal_View: View {
     /// front of the model's edges), then a STEP edge, then a flat face of the shaded model (its
     /// edges), then empty space. Shapes and edges are never
     /// selected together, except as the picks of an open toolpath.
+    /// With several files on the canvas (`steps`), the nearest chamfer or face wins across all of
+    /// them, and a pick selects in the file it landed on and clears the selection in the others
+    /// (an open toolpath keeps collecting picks from every file).
     /// A double click on a STEP edge also expands the selection (see `expandSelection(from:)`).
     static func route(_ click: CanvasClick,
                       shapes: CAMCanvasInteraction,
-                      step: STEPDocumentScene?,
+                      steps: [STEPDocumentScene],
                       onEmptyClick: () -> Void = {}) {
 
         let extend = click.extendsSelection
         let picking = shapes.isPicking
 
+        func clearSteps(except keep: STEPDocumentScene? = nil) {
+            for other in steps where other !== keep && !other.selectedEdges.isEmpty {
+                other.clearSelection()
+            }
+        }
+
+        /// The face (or chamfer) under the cursor that is nearest to the viewer, over all files
+        func nearestFace(chamfersOnly: Bool) -> (scene: STEPDocumentScene, edges: Set<STEP.EdgeID>)? {
+            var best: (scene: STEPDocumentScene, edges: Set<STEP.EdgeID>, depth: Float)?
+            for step in steps {
+                guard let hit = step.faceHit(at: click.viewPoint, viewport: click.viewSize,
+                                             matrix: click.matrix, chamfersOnly: chamfersOnly) else {
+                    continue
+                }
+                if best == nil || hit.depth < best!.depth {
+                    best = (step, hit.edges, hit.depth)
+                }
+            }
+            return best.map { ($0.scene, $0.edges) }
+        }
+
         if let pointer = click.pointer, let hit = shapes.shapeHit(at: pointer) {
             shapes.select(hit, extend: extend)
             if !picking {
-                step?.clearSelection()
+                clearSteps()
             }
             return
         }
         // A chamfer before the edges: it is so thin that a click on it is always near one of its rails
-        if let step, let edges = step.faceEdges(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix,
-                                                chamfersOnly: true) {
+        if let (step, edges) = nearestFace(chamfersOnly: true) {
             step.selectFace(edges, extend: extend)
             if !picking {
                 shapes.clearSelection()
+                clearSteps(except: step)
             }
             return
         }
-        if let step, let edge = step.edge(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
+        for step in steps {
+            guard let edge = step.edge(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) else {
+                continue
+            }
             if click.isDoubleClick, !extend {
-                // Shortcut for the tooltip's "Select similar" / "Select linked"
+                // Shortcut for the tooltip's "Select linked" / "Select similar"
                 step.expandSelection(from: edge)
             } else {
                 step.select(edge, extend: extend)
             }
             if !picking {
                 shapes.clearSelection()
+                clearSteps(except: step)
             }
             return
         }
-        if let step, let edges = step.faceEdges(at: click.viewPoint, viewport: click.viewSize, matrix: click.matrix) {
+        if let (step, edges) = nearestFace(chamfersOnly: false) {
             step.selectFace(edges, extend: extend)
             if !picking {
                 shapes.clearSelection()
+                clearSteps(except: step)
             }
             return
         }
@@ -246,8 +278,8 @@ struct CAM_Metal_View: View {
             return
         }
         shapes.select(nil, extend: false)
-        step?.clearSelection()
-        
+        clearSteps()
+
         onEmptyClick()
     }
 }

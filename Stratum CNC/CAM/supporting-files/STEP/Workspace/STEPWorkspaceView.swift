@@ -181,6 +181,8 @@ private struct STEPSceneDetails: View {
 /// wireframe or shaded faces, and how edges behind the part are drawn.
 struct STEPDisplayOptionsButton: View {
     @ObservedObject var scene: STEPDocumentScene
+    /// The other files on the canvas: they follow `scene`'s options so every file is drawn alike.
+    var others: [STEPDocumentScene] = []
     @State private var isPresented = false
 
     var body: some View {
@@ -191,6 +193,25 @@ struct STEPDisplayOptionsButton: View {
         .help("Display options")
         .popover(isPresented: $isPresented, arrowEdge: .top) {
             STEPDisplayOptionsView(scene: scene)
+        }
+        .onChange(of: scene.displayMode, initial: true) { _, mode in
+            // A file that cannot be shaded (too many triangles) stays as it is
+            for other in others where mode == .wireframe || other.canShade {
+                other.displayMode = mode
+            }
+        }
+        .onChange(of: scene.hiddenEdgeMode, initial: true) { _, mode in
+            for other in others where other.hasSurfaces {
+                other.hiddenEdgeMode = mode
+            }
+        }
+        .onChange(of: others.map { ObjectIdentifier($0) }) { _, _ in
+            // A file that has just loaded takes the options already chosen
+            for other in others {
+                if scene.displayMode == .wireframe || other.canShade { other.displayMode = scene.displayMode }
+                if other.hasSurfaces { other.hiddenEdgeMode = scene.hiddenEdgeMode }
+                other.showsProjection = scene.showsProjection
+            }
         }
     }
 }

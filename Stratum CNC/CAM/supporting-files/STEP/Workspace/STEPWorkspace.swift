@@ -10,6 +10,15 @@ struct STEPSourceReference: Identifiable, Sendable {
     let url: URL
 }
 
+/// Fires whenever any scene of the workspace changes (edges, faces, selection, visibility, display
+/// options), so a view that draws every loaded scene watches this one object instead of one scene.
+/// It is separate from the workspace's own `objectWillChange` on purpose: a selection must repaint
+/// the canvas without also re-rendering everything that observes the workspace (the CAM model forwards it).
+@MainActor
+final class STEPSceneChanges: ObservableObject {
+    func send() { objectWillChange.send() }
+}
+
 /// One body of a STEP file, as the objects list shows it.
 struct STEPBodyInfo: Sendable, Identifiable {
     let id: STEP.BodyID
@@ -597,6 +606,13 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     ///   click routing asks for it before the edges, or a click on it would always pick a rail.
     func faceEdges(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
                    chamfersOnly: Bool = false) -> Set<STEP.EdgeID>? {
+        faceHit(at: point, viewport: viewport, matrix: matrix, chamfersOnly: chamfersOnly)?.edges
+    }
+
+    /// `faceEdges` and how far the picked triangle is from the viewer (the same depth for every scene
+    /// drawn with the same `matrix`), so that with several scenes on the canvas the nearest face wins.
+    func faceHit(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
+                 chamfersOnly: Bool = false) -> (edges: Set<STEP.EdgeID>, depth: Float)? {
         guard isModelVisible, displayMode == .shadedEdges else {
             PerfLog.log("pick", "face: ignored, model visible \(isModelVisible), display mode \(displayMode.rawValue)")
             return nil
@@ -640,7 +656,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                         + " (boundary segments \(rails.map { $0.boundary.count }))")
             if !edges.isEmpty {
                 chamferEdges.formUnion(edges)
-                return edges
+                return (edges, best.depth)
             }
         }
         if chamfersOnly {
@@ -654,7 +670,7 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         }
         let edges = content.geometry.edges(onBoundaryOf: region, in: best.body)
         PerfLog.log("pick", "face: flat, \(region.boundary.count) outline segment(s), \(edges.count) STEP edge(s) matched")
-        return edges.isEmpty ? nil : edges
+        return edges.isEmpty ? nil : (edges, best.depth)
     }
 
     /// A click on a face: its edges become the selection. Extending (Shift or Cmd, or the picks
@@ -877,6 +893,9 @@ final class STEPWorkspace: ObservableObject {
     @Published private(set) var loadingIDs: Set<UUID> = []
     @Published private(set) var errors: [UUID: String] = [:]
     @Published var activeID: UUID?
+    /// Changes inside any loaded scene (see `STEPSceneChanges`).
+    let sceneChanges = STEPSceneChanges()
+    private var sceneObservers: [UUID: AnyCancellable] = [:]
     /// The model selected in the objects list, whose position the inspector edits.
     @Published var selectedModelID: UUID?
     /// Where a file as a whole sat in projects saved before the bodies could be moved one by one. A body
@@ -901,15 +920,21 @@ final class STEPWorkspace: ObservableObject {
     var onBodyStateChanged: (@MainActor (UUID, String, STEPBodyState) -> Void)?
     /// The open toolpath's edges and where edits go; set while a toolpath is open.
     private var picking: (targets: [STEPEdgeTarget], onChange: (UUID, Set<STEP.EdgeID>) -> Void)?
-    /// Called when a file has finished loading, before picking is attached: the place to fix up
-    /// anything saved against the previous contents of the file (see `CAMModel.relinkSTEPTargets`).
-    var onSceneLoaded: ((UUID, STEPDocumentScene) -> Void)?
     private var tasks: [UUID: Task<Void, Never>] = [:]
     private var tokens: [UUID: UUID] = [:]
     private let loader: Loader
 
     /// The scene of the active source, once it has finished loading.
     var activeScene: STEPDocumentScene? { activeID.flatMap { documents[$0] } }
+
+    /// Every file that has finished loading, in the order they were added. The canvas draws all of
+    /// them at once: selecting a row only chooses what is selected, never what is shown.
+    var loadedScenes: [STEPDocumentScene] { sources.compactMap { documents[$0.id] } }
+
+    private func observe(_ scene: STEPDocumentScene, for source: UUID) {
+        sceneObservers[source] = scene.objectWillChange
+            .sink { [weak self] _ in self?.sceneChanges.send() }
+    }
 
     init(loader: @escaping Loader = { try await STEPViewerContent.load(url: $0, importID: $1) }) {
         self.loader = loader
@@ -969,6 +994,9 @@ final class STEPWorkspace: ObservableObject {
         if let key = modelKeys[id] { return key.source }
         return sources.contains(where: { $0.id == id }) ? id : nil
     }
+
+    /// The scene that holds a row's body; `nil` for a file that has not loaded.
+    func scene(ofModel id: UUID) -> STEPDocumentScene? { sourceID(ofModel: id).flatMap { documents[$0] } }
 
     /// How many bodies the file still shows; 0 while it has not loaded.
     func remainingBodies(inSource id: UUID) -> Int { documents[id]?.content.infos.count ?? 0 }
@@ -1151,6 +1179,7 @@ final class STEPWorkspace: ObservableObject {
         tokens[source.id] = token
         if !sources.contains(where: { $0.id == source.id }) { sources.append(source) }
         documents.removeValue(forKey: source.id) // invalidates selection on reload
+        sceneObservers.removeValue(forKey: source.id)
         errors.removeValue(forKey: source.id)
         loadingIDs.insert(source.id)
         activeID = source.id
@@ -1164,7 +1193,7 @@ final class STEPWorkspace: ObservableObject {
                 guard let self, self.tokens[source.id] == token else { return }
                 let scene = self.makeScene(for: source.id, content: content)
                 self.documents[source.id] = scene
-                self.onSceneLoaded?(source.id, scene)
+                self.observe(scene, for: source.id)
                 self.attachPicking(to: scene)
                 self.finish(source.id)
                 Self.logImport(of: source, content: content)
@@ -1212,6 +1241,7 @@ final class STEPWorkspace: ObservableObject {
         finish(source.id)
         if !sources.contains(where: { $0.id == source.id }) { sources.append(source) }
         documents.removeValue(forKey: source.id)
+        sceneObservers.removeValue(forKey: source.id)
         errors[source.id] = message
         activeID = source.id
     }
@@ -1226,6 +1256,7 @@ final class STEPWorkspace: ObservableObject {
         tasks[id]?.cancel()
         finish(id)
         documents.removeValue(forKey: id)
+        sceneObservers.removeValue(forKey: id)
         errors.removeValue(forKey: id)
         sources.removeAll { $0.id == id }
         if let selected = selectedModelID, sourceID(ofModel: selected) == id { selectedModelID = nil }
@@ -1246,6 +1277,7 @@ final class STEPWorkspace: ObservableObject {
         tokens.removeAll()
         loadingIDs.removeAll()
         documents.removeAll()
+        sceneObservers.removeAll()
         errors.removeAll()
         sources.removeAll()
         legacyOffsets.removeAll()

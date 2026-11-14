@@ -9,10 +9,14 @@ import SwiftUI
 import simd
 import StratumCAM
 
-/// The CAM scene plus the STEP wireframe in one canvas, with edge picking next to shape picking.
+/// The CAM scene plus every loaded STEP/STL file in one canvas, with edge picking next to shape
+/// picking. All the files are drawn at once; which row is selected never hides another file.
 struct STEP3DCanvas: View {
 
-    @ObservedObject var scene: STEPDocumentScene
+    /// Every file that has finished loading, in the order they were added.
+    let scenes: [STEPDocumentScene]
+    /// Fires when any of `scenes` changes (selection, visibility, display options), to repaint.
+    @ObservedObject var sceneChanges: STEPSceneChanges
     let shapes: CAMSceneModel
     let sceneObjects: [RenderObject]
     let partTransform: simd_float4x4
@@ -30,31 +34,27 @@ struct STEP3DCanvas: View {
     let onEmptyClick: () -> Void
 
     var body: some View {
-        MetalCanvasView(objects: .constant(sceneObjects + scene.visibleObjects),
+        MetalCanvasView(objects: .constant(sceneObjects + scenes.flatMap(\.visibleObjects)),
                         clearColor: clearColor,
                         pointerHandler: shapes.interaction,
                         zoomModel: zoomModel,
                         onClick: { click in
                             CAM_Metal_View.route(click,
                                                  shapes: shapes.interaction,
-                                                 step: scene,
+                                                 steps: scenes,
                                                  onEmptyClick: onEmptyClick)
                         },
                         partTransform: partTransform,
                         previewTransform: previewTransform,
                         adaptiveModelFit: true,
-                        fitRequest: scene.fitRequest &+ fitRequest)
-            .id(ObjectIdentifier(scene))
-            .onAppear {
-                scene.setAppearance(isDark: isDark)
-            }
-            .onChange(of: isDark) { _, dark in
-                scene.setAppearance(isDark: dark)
-            }
+                        // Frames everything again when a file is added or removed, or one asks for it
+                        fitRequest: scenes.reduce(0) { $0 &+ $1.fitRequest } &+ scenes.count &+ fitRequest)
+            .onAppear { syncSceneSettings() }
+            .onChange(of: isDark) { _, _ in syncSceneSettings() }
             // The projection lands on the setup's z0, which is the part's underside when flipped
-            .onChange(of: projectionZ, initial: true) { _, z in
-                scene.setProjectionZ(z)
-            }
+            .onChange(of: projectionZ, initial: true) { _, _ in syncSceneSettings() }
+            // A file that has just loaded gets the same appearance and projection as the others
+            .onChange(of: scenes.map { ObjectIdentifier($0) }) { _, _ in syncSceneSettings() }
             .overlay {
                 AddToolpathTooltipLayer(scene: shapes,
                                         zoomModel: zoomModel,
@@ -64,11 +64,21 @@ struct STEP3DCanvas: View {
             .overlay {
                 // No callout while a toolpath is open (its details panel is showing)
                 if canAddToolpath {
-                    STEPAddToolpathTooltipLayer(scene: scene,
-                                                zoomModel: zoomModel,
-                                                canAdd: canAddToolpath,
-                                                onChoose: onAddStepToolpath)
+                    // Only the file with selected edges shows its callout
+                    ForEach(scenes) { scene in
+                        STEPAddToolpathTooltipLayer(scene: scene,
+                                                    zoomModel: zoomModel,
+                                                    canAdd: canAddToolpath,
+                                                    onChoose: onAddStepToolpath)
+                    }
                 }
             }
+    }
+
+    private func syncSceneSettings() {
+        for scene in scenes {
+            scene.setAppearance(isDark: isDark)
+            scene.setProjectionZ(projectionZ)
+        }
     }
 }

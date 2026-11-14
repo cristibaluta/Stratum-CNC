@@ -239,9 +239,6 @@ class CAMModel: ObservableObject {
         stepWorkspace.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
-        stepWorkspace.onSceneLoaded = { [weak self] importID, scene in
-            self?.relinkSTEPTargets(importID: importID, in: scene)
-        }
         // Toolpaths cut from a STEP model's edges follow its position, like an object's
 //        stepWorkspace.onModelMoved = { [weak self] in self?.discardGenerations() }
 
@@ -372,10 +369,12 @@ class CAMModel: ObservableObject {
     /// The STEP edges selected in the 3D canvas that a new toolpath could be built from.
     /// Empty while a toolpath is open (clicks edit that toolpath's edges then).
     var stepEdgesForNewToolpath: [STEPEdgeTarget] {
-        guard selectedToolpathID == nil,
-              let scene = stepWorkspace.activeScene else { return [] }
-        return scene.selectedEdges.sorted { ($0.bodyID.entityID, $0.entityID) < ($1.bodyID.entityID, $1.entityID) }
-            .map { STEPEdgeTarget($0, in: scene) }
+        guard selectedToolpathID == nil else { return [] }
+        // Every file on the canvas can hold the selection (a click clears the others, but not an open toolpath's picks)
+        return stepWorkspace.loadedScenes.flatMap { scene in
+            scene.selectedEdges.sorted { ($0.bodyID.entityID, $0.entityID) < ($1.bodyID.entityID, $1.entityID) }
+                .map(STEPEdgeTarget.init)
+        }
     }
 
     /// "Add toolpath" from the canvas tooltip: a new toolpath that cuts the selected shapes
@@ -752,12 +751,11 @@ class CAMModel: ObservableObject {
             return
         }
         let old = toolpaths[index].stepTargets
-        let scene = stepWorkspace.documents[importID]
         let oldOfModel = Set(old.filter { $0.importID == importID }.map(\.edgeID))
         var updated = old.filter { $0.importID != importID || edges.contains($0.edgeID) }
         updated += edges.subtracting(oldOfModel)
             .sorted { ($0.bodyID.entityID, $0.entityID) < ($1.bodyID.entityID, $1.entityID) }
-            .map { STEPEdgeTarget($0, in: scene) }
+            .map(STEPEdgeTarget.init)
         guard updated != old else {
             return
         }
@@ -777,91 +775,6 @@ class CAMModel: ObservableObject {
             }
         }
         toolpaths[index] = toolpath
-    }
-
-    // MARK: Re-linking STEP edges after the model file changed
-
-    /// Set after a model was re-exported and some picked edges could not be found; the view shows it.
-    @Published var stepRelinkNotice: String?
-
-    /// A STEP file has loaded. The ids saved with the toolpaths are the file's own entity numbers,
-    /// which a re-export renumbers, so each saved edge is checked against what it looked like
-    /// (its fingerprint) and, when it no longer matches, found again by geometry. Edges with no
-    /// home in the new file are removed from their toolpath and reported.
-    /// Projects saved before fingerprints existed get them here, when their ids still resolve.
-    func relinkSTEPTargets(importID: UUID, in scene: STEPDocumentScene) {
-        let all = toolpaths.flatMap(\.stepTargets).filter { $0.importID == importID }
-        guard !all.isEmpty else {
-            return
-        }
-        let candidates = scene.edgeFingerprints()
-        let current = Dictionary(candidates.map { ($0.id, $0.print) }, uniquingKeysWith: { first, _ in first })
-
-        // 1. A target whose id still points at the same edge stays; an old one gets its fingerprint.
-        var replacement: [STEP.EdgeID: STEPEdgeTarget] = [:]
-        var saved: [STEP.EdgeID: STEPEdgeFingerprint] = [:]
-        for target in all where replacement[target.edgeID] == nil {
-            let now = current[target.edgeID]
-            if let fingerprint = target.fingerprint {
-                saved[target.edgeID] = fingerprint
-                if let now, fingerprint.deviation(to: now) != nil {
-                    replacement[target.edgeID] = target
-                }
-            } else if let now {
-                var filled = target
-                filled.fingerprint = now
-                replacement[target.edgeID] = filled
-            }
-        }
-
-        // 2. The rest, by geometry. The ones that stayed take part too, so look-alikes can't take their edge.
-        let moved = STEPEdgeRelinker.relink(saved.map { (id: $0.key, print: $0.value) }, among: candidates)
-        for (old, new) in moved where replacement[old] == nil {
-            var target = STEPEdgeTarget(new)
-            target.fingerprint = current[new]
-            replacement[old] = target
-        }
-
-        // 3. Written back once.
-        var updated = toolpaths
-        var changed = false
-        var relinked = 0
-        var lost: [String: Int] = [:]
-        for i in updated.indices where updated[i].stepTargets.contains(where: { $0.importID == importID }) {
-            var kept: [STEPEdgeTarget] = []
-            for target in updated[i].stepTargets {
-                guard target.importID == importID else {
-                    kept.append(target)
-                    continue
-                }
-                guard let new = replacement[target.edgeID] else {
-                    lost[updated[i].name, default: 0] += 1
-                    changed = true
-                    continue
-                }
-                if new.edgeID != target.edgeID {
-                    relinked += 1
-                    changed = true
-                }
-                if target.fingerprint == nil, new.fingerprint != nil {
-                    changed = true
-                }
-                kept.append(new)
-            }
-            updated[i].stepTargets = kept
-        }
-        guard changed else {
-            return
-        }
-        toolpaths = updated
-        if relinked > 0 || !lost.isEmpty {
-            discardGenerations()
-        }
-        if !lost.isEmpty {
-            let list = lost.sorted { $0.key < $1.key }.map { "\($0.key) (\($0.value))" }.joined(separator: ", ")
-            stepRelinkNotice = "\(relinked) edge\(relinked == 1 ? "" : "s") re-linked to the new model. "
-                + "These no longer exist and were removed, pick them again: \(list)."
-        }
     }
 
     // MARK: Toolpath generation
