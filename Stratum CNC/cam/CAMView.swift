@@ -181,7 +181,11 @@ struct CAMView: View {
                                          isStockVisible: stockVisibleBinding,
                                          showsAllToolpaths: $camModel.showsAllToolpaths,
                                          hasToolpaths: !camModel.toolpaths.isEmpty)
-                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { legendHeight = $0 }
+                        .onGeometryChange(for: CGFloat.self) {
+                            $0.size.height
+                        } action: {
+                            legendHeight = $0
+                        }
                         Spacer()
                     }
                 }
@@ -302,10 +306,7 @@ struct CAMView: View {
                 .frame(width: 320)
             // Only while a toolpath is selected in the list
             if let toolpath = selectedToolpath {
-                VStack(alignment: .trailing, spacing: 10) {
-                    toolpathSettingsPanel(for: toolpath)
-                    toolpathActionsBar
-                }
+                toolpathSettingsPanel(for: toolpath)
                 .transition(.opacity)
                 .frame(width: 320)
             }
@@ -459,6 +460,7 @@ struct CAMView: View {
 
     private var toolpathListPanel: some View {
         PanelToolpaths(
+            projectModel: projectModel,
             toolpaths: camModel.toolpaths,
             selectedID: camModel.selectedToolpathID,
             setups: camModel.setups,
@@ -503,31 +505,6 @@ struct CAMView: View {
                 }
             }
         )
-    }
-
-    /// Under the toolpath panel: add the next toolpath, or build the program from all the
-    /// toolpaths and open it in the Controller.
-    private var toolpathActionsBar: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
-
-            Button {
-                projectModel.saveIfNeeded()
-                withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.addToolpath()
-                }
-            } label: {
-                Label("Next toolpath", systemImage: "plus")
-                    .font(.system(size: 12))
-            }
-            .buttonStyle(.bordered)
-            .help("Add another toolpath")
-
-            PreviewInControllerButton(gCodeStore: projectModel.gCodeStore) {
-                projectModel.saveIfNeeded()
-                projectModel.previewInController()
-            }
-        }
     }
 
     private func toolpathSettingsPanel(for toolpath: ToolpathData) -> some View {
@@ -590,26 +567,4 @@ struct CAMView: View {
         )
     }
 
-}
-
-/// Same look as the Controller's "Refresh from CAM" button: prominent, with the refresh
-/// icon, and a spinner while the program is being generated.
-private struct PreviewInControllerButton: View {
-
-    @ObservedObject var gCodeStore: GCodeStore
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            if gCodeStore.isGeneratingFromCAM {
-                ProgressView().controlSize(.small)
-            } else {
-                Label("Preview in Controller", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.system(size: 12))
-            }
-        }
-        .buttonStyle(.borderedProminent)
-        .disabled(gCodeStore.isGeneratingFromCAM)
-        .help("Generate all toolpaths and open them in the Controller")
-    }
 }

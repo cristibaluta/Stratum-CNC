@@ -10,6 +10,7 @@ import StratumCAM
 
 struct PanelToolpaths: View {
 
+    @ObservedObject var projectModel: ProjectModel
     let toolpaths: [ToolpathData]
     let selectedID: UUID?
 
@@ -83,6 +84,8 @@ struct PanelToolpaths: View {
                         .padding(.horizontal, -6)
                 }
 
+                Divider()
+
                 footer
             }
         }
@@ -155,6 +158,10 @@ struct PanelToolpaths: View {
             }
 
             Spacer()
+            PreviewInControllerButton(gCodeStore: projectModel.gCodeStore) {
+                projectModel.saveIfNeeded()
+                projectModel.previewInController()
+            }
         }
     }
 
@@ -515,5 +522,27 @@ struct SetupGlyph: View {
             bar.addLine(to: CGPoint(x: rim.x + along.x * half * 0.7, y: rim.y + along.y * half * 0.7))
             context.stroke(bar, with: .color(.accentColor), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
         }
+    }
+}
+
+/// Same look as the Controller's "Refresh from CAM" button: prominent, with the refresh
+/// icon, and a spinner while the program is being generated.
+private struct PreviewInControllerButton: View {
+
+    @ObservedObject var gCodeStore: GCodeStore
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            if gCodeStore.isGeneratingFromCAM {
+                ProgressView().controlSize(.small)
+            } else {
+                Label("Preview in Controller", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 12))
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(gCodeStore.isGeneratingFromCAM)
+        .help("Generate all toolpaths and open them in the Controller")
     }
 }
