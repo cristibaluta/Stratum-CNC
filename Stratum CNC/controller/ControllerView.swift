@@ -56,6 +56,14 @@ struct ControllerView: View {
     /// the stock chip's icon opens the stock editor instead.
     var onOpenStocksLib: (() -> Void)? = nil
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Same color the Metal viewport clears to (see `CanvasSection.viewportClearColor`),
+    /// so the window and the canvas read as one surface; only the canvas outline separates them.
+    private var viewBackground: Color {
+        colorScheme == .dark ? Color(red: 0.1, green: 0.1, blue: 0.1) : .white
+    }
+
     @State private var isShowingEmptyStateRemoteFiles = false
     @State private var isShowingToolbarRemoteFiles = false
 
@@ -110,17 +118,17 @@ struct ControllerView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
-            column1
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
             column2
                 .frame(width: 300)
+
+            column1
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             column3
                 .frame(width: 300)
         }
         .padding(16)
-        .background(Color.stWindowBackground)
+        .background(viewBackground)
         .onAppear {
             if let machine = model.selectedMachine {
                 model.connection.connect(to: machine)
@@ -358,7 +366,6 @@ struct ControllerView: View {
                           macroDocument: model.macros.document,
                           showsMacroPreview: model.gcodePanelMode == .macros,
                           isStockVisible: stockVisibleBinding,
-                          onOpenStocksLib: onOpenStocksLib,
                           onImportFile: canImportGCode && !importsFromNavBar ? { model.isGCodeImporterPresented = true } : nil,
                           session: model.session,
                           onLoadRemoteFile: loadRemoteFile)
@@ -368,14 +375,6 @@ struct ControllerView: View {
     @ViewBuilder
     private var column2: some View {
         VStack(spacing: 16) {
-            PanelJog(model: model,
-                     joystick: joystickStore,
-                     holdFeed: $model.holdJogFeed,
-                     onJog: { model.jog($0) },
-                     onHold: { direction, pressed in model.holdJog(direction, pressed: pressed) },
-                     onStopHold: { model.stopHoldJog() })
-//            .frame(height: 180)
-
             gcodeAndMacrosPanel
         }
 //            .disabled(!model.connection.isConnected)
@@ -386,6 +385,13 @@ struct ControllerView: View {
         // Right panel with controller and console
         VStack(spacing: 16) {
             PanelPosition(connection: model.connection, model: model, scene: model.scene)
+
+            PanelJog(model: model,
+                     joystick: joystickStore,
+                     holdFeed: $model.holdJogFeed,
+                     onJog: { model.jog($0) },
+                     onHold: { direction, pressed in model.holdJog(direction, pressed: pressed) },
+                     onStopHold: { model.stopHoldJog() })
 
             PanelSpindle(model: model)
 
@@ -607,7 +613,6 @@ private struct CanvasSection: View {
     let showsMacroPreview: Bool
     let isStockVisible: Binding<Bool>
     @Environment(\.stOpenSettings) private var openSettings
-    let onOpenStocksLib: (() -> Void)?
     /// `nil` hides the import buttons (the program comes from elsewhere).
     let onImportFile: (() -> Void)?
     let session: SL.Session
@@ -781,30 +786,6 @@ private struct CanvasSection: View {
 
     var body: some View {
         VStack {
-            // One slim line: the program's file (reload / import / name), then
-            // the stock summary, with the program's tools pushed to the right
-            // in a scrolling row. Editing happens in popovers/menus on demand.
-            HStack(spacing: 10) {
-                StockChip(stock: $camModel.selectedStockMaterial,
-                          isStockVisible: isStockVisible,
-                          onOpenLibrary: onOpenStocksLib)
-
-                if !gCodeModel.tools.isEmpty {
-                    ToolChipsView(tools: gCodeModel.tools,
-                                  assignments: $gCodeModel.toolAssignments,
-                                  fileTools: gCodeModel.headerTools,
-                                  library: gCodeModel.toolLibrary,
-                                  activeTool: gCodeModel.activeToolNumber,
-                                  alignment: .trailing)
-                } else {
-                    Spacer(minLength: 0)
-                }
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 38)
-            .background(.regularMaterial)
-            .cornerRadius(8)
-
             MetalCanvasView(objects: .constant(scene.visibleRenderObjects),
                             renderMode: scene.renderMode,
                             xyOffset: scene.xyOffset,
@@ -921,6 +902,21 @@ private struct CanvasSection: View {
                     CanvasZoomButton(zoomModel: scene.zoomModel)
                 }
                 .padding(8)
+            }
+
+            // The tools the program calls, centered under the canvas.
+            if !gCodeModel.tools.isEmpty {
+                ToolChipsView(tools: gCodeModel.tools,
+                              assignments: $gCodeModel.toolAssignments,
+                              fileTools: gCodeModel.headerTools,
+                              library: gCodeModel.toolLibrary,
+                              activeTool: gCodeModel.activeToolNumber,
+                              alignment: .center)
+                    .padding(.horizontal, 10)
+                    .frame(height: 44)
+                    .frame(maxWidth: .infinity)
+                    .background(.regularMaterial)
+                    .cornerRadius(8)
             }
 
             ScrubberOrJobProgress(connection: connection) {

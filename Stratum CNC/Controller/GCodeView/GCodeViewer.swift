@@ -263,6 +263,21 @@ struct GCodeViewer: View {
                 jobControls
             } else {
                 Button {
+                    onExport?()
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .buttonStyle(.plain)
+                .disabled(!canExport)
+                .help("Export the G-code shown here to a file")
+                Spacer()
+                Spacer()
+
+                if canChangeBit {
+                    changeBitButton
+                }
+
+                Button {
                     onPlay?()
                 } label: {
                     Label("Review & Start...", systemImage: "play.fill")
@@ -272,22 +287,6 @@ struct GCodeViewer: View {
                 .help(connection.isConnected
                       ? "Review and upload the loaded program to the machine's SD card"
                       : "Connect a machine, then review and upload the loaded program")
-
-                Spacer()
-                Spacer()
-
-                if canChangeBit {
-                    changeBitButton
-                }
-
-                Button {
-                    onExport?()
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .buttonStyle(.plain)
-                .disabled(!canExport)
-                .help("Export the G-code shown here to a file")
             }
 
             if let progressText {
