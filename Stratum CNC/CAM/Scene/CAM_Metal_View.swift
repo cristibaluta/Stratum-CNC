@@ -48,6 +48,8 @@ struct CAM_Metal_View: View {
     let onMoveStepModel: (UUID, CGFloat, CGFloat) -> Void
     /// A click on empty canvas: the selected STEP model is deselected, like a selected shape.
     let onDeselectStepModel: () -> Void
+    /// A double click on empty canvas: closes the open toolpath's details (the selection is cleared too).
+    let onEmptyDoubleClick: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
     init(canvasState: D2_CanvasState,
@@ -62,6 +64,7 @@ struct CAM_Metal_View: View {
          selectedStepBody: STEP.BodyID? = nil,
          onMoveStepModel: @escaping (UUID, CGFloat, CGFloat) -> Void = { _, _, _ in },
          onDeselectStepModel: @escaping () -> Void = {},
+         onEmptyDoubleClick: @escaping () -> Void = {},
          onAddToolpath: @escaping () -> Void = {},
          onAddStepToolpath: @escaping (SC.MachiningOperation.Kind) -> Void = { _ in }) {
 
@@ -79,6 +82,7 @@ struct CAM_Metal_View: View {
         self.selectedStepBody = selectedStepBody
         self.onMoveStepModel = onMoveStepModel
         self.onDeselectStepModel = onDeselectStepModel
+        self.onEmptyDoubleClick = onEmptyDoubleClick
         self.onAddToolpath = onAddToolpath
         self.onAddStepToolpath = onAddStepToolpath
     }
@@ -134,8 +138,8 @@ struct CAM_Metal_View: View {
         STAppearance.perform(as: colorScheme) {
             objects = CAMSelectionOverlay.renderObjects(forSTEPModelAt: footprint.origin,
                                                         size: footprint.size,
-                                                        boxColor: CAMSceneModel.rgba(STColor.systemRed),
-                                                        handleColor: CAMSceneModel.rgba(STColor.systemOrange))
+                                                        boxColor: STColor.systemRed.simdRGBA,
+                                                        handleColor: STColor.systemOrange.simdRGBA)
         }
         return objects
     }
@@ -149,7 +153,9 @@ struct CAM_Metal_View: View {
     /// that is up, so they sit out the flip and come back when the new face has landed.
     private var sceneObjects3D: [RenderObject] {
         let objects = scene.renderObjects3D(frame: partFrame)
-        return flip.isFlipping(to: partFrame) ? objects.filter { $0.role != .faceOverlay } : objects
+        return flip.isFlipping(to: partFrame)
+            ? objects.filter { $0.role != .faceOverlay }
+            : objects
     }
 
     /// The CAM scene (shapes, toolpaths, stock, selection overlays; the ruler on the stock's
@@ -173,14 +179,17 @@ struct CAM_Metal_View: View {
                          fitRequest: fitRequest,
                          onAddToolpath: onAddToolpath,
                          onAddStepToolpath: onAddStepToolpath,
-                         onEmptyClick: onDeselectStepModel)
+                         onEmptyClick: onDeselectStepModel,
+                         onEmptyDoubleClick: onEmptyDoubleClick)
         } else {
             MetalCanvasView(objects: .constant(sceneObjects3D),
                             clearColor: scene.backgroundColor,
                             pointerHandler: scene.interaction,
                             zoomModel: zoomModel,
                             onClick: { click in
-                                Self.route(click, shapes: scene.interaction, steps: [], onEmptyClick: onDeselectStepModel)
+                                Self.route(click, shapes: scene.interaction, steps: [],
+                                           onEmptyClick: onDeselectStepModel,
+                                           onEmptyDoubleClick: onEmptyDoubleClick)
                             },
                             partTransform: partMatrix,
                             previewTransform: partFrame.previewMatrix,
@@ -207,7 +216,8 @@ struct CAM_Metal_View: View {
     static func route(_ click: CanvasClick,
                       shapes: CAMCanvasInteraction,
                       steps: [STEPDocumentScene],
-                      onEmptyClick: () -> Void = {}) {
+                      onEmptyClick: () -> Void = {},
+                      onEmptyDoubleClick: () -> Void = {}) {
 
         let extend = click.extendsSelection
         let picking = shapes.isPicking
@@ -222,8 +232,10 @@ struct CAM_Metal_View: View {
         func nearestFace(chamfersOnly: Bool) -> (scene: STEPDocumentScene, edges: Set<STEP.EdgeID>)? {
             var best: (scene: STEPDocumentScene, edges: Set<STEP.EdgeID>, depth: Float)?
             for step in steps {
-                guard let hit = step.faceHit(at: click.viewPoint, viewport: click.viewSize,
-                                             matrix: click.matrix, chamfersOnly: chamfersOnly) else {
+                guard let hit = step.faceHit(at: click.viewPoint,
+                                             viewport: click.viewSize,
+                                             matrix: click.matrix,
+                                             chamfersOnly: chamfersOnly) else {
                     continue
                 }
                 if best == nil || hit.depth < best!.depth {
@@ -271,6 +283,17 @@ struct CAM_Metal_View: View {
                 shapes.clearSelection()
                 clearSteps(except: step)
             }
+            return
+        }
+        // A double click on empty space leaves whatever is open: the selected object, and the
+        // toolpath's details (which a single click keeps, since its picks are worth keeping)
+        if click.isDoubleClick, !extend {
+            if !picking {
+                shapes.select(nil, extend: false)
+                clearSteps()
+                onEmptyClick()
+            }
+            onEmptyDoubleClick()
             return
         }
         // Empty space: keeps a toolpath's picks, and a multi-select's selection

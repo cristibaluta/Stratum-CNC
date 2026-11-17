@@ -36,12 +36,11 @@ extension STColor {
 
     /// sRGB components, for baking into vertex data. A dynamic color resolves
     /// against the appearance that is current when this runs.
-    var stRGBA: SIMD4<Float> {
+    var simdRGBA: SIMD4<Float> {
         guard let c = usingColorSpace(.sRGB) else {
             return SIMD4<Float>(0.2, 0.2, 0.2, 1)
         }
-        return SIMD4<Float>(Float(c.redComponent), Float(c.greenComponent),
-                            Float(c.blueComponent), Float(c.alphaComponent))
+        return SIMD4<Float>(Float(c.redComponent), Float(c.greenComponent), Float(c.blueComponent), Float(c.alphaComponent))
     }
 }
 

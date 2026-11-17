@@ -32,6 +32,7 @@ struct STEP3DCanvas: View {
     let onAddToolpath: () -> Void
     let onAddStepToolpath: (SC.MachiningOperation.Kind) -> Void
     let onEmptyClick: () -> Void
+    var onEmptyDoubleClick: () -> Void = {}
 
     var body: some View {
         MetalCanvasView(objects: .constant(sceneObjects + scenes.flatMap(\.visibleObjects)),
@@ -42,7 +43,8 @@ struct STEP3DCanvas: View {
                             CAM_Metal_View.route(click,
                                                  shapes: shapes.interaction,
                                                  steps: scenes,
-                                                 onEmptyClick: onEmptyClick)
+                                                 onEmptyClick: onEmptyClick,
+                                                 onEmptyDoubleClick: onEmptyDoubleClick)
                         },
                         partTransform: partTransform,
                         previewTransform: previewTransform,

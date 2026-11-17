@@ -38,6 +38,8 @@ struct CAMView: View {
     @State private var showingAlignmentPins = false
     /// Bumped by the fit button to frame the whole scene again.
     @State private var fitRequest = 0
+    /// How tall the legend (bottom-left) is right now; the left panels' scroll stops above it.
+    @State private var legendHeight: CGFloat = 0
 
     /// The mouse-icon button opens the Settings window on its Canvas tab, which
     /// edits the same `CanvasInputSettings.shared` as the controller's canvas —
@@ -76,6 +78,14 @@ struct CAMView: View {
                                },
                                onDeselectStepModel: {
                                    camModel.stepWorkspace.selectedModelID = nil
+                               },
+                               onEmptyDoubleClick: {
+                                   // Closes the open toolpath's details, like its Done button
+                                   guard camModel.selectedToolpathID != nil else { return }
+                                   projectModel.saveIfNeeded()
+                                   withAnimation(.easeOut(duration: 0.15)) {
+                                       camModel.selectedToolpathID = nil
+                                   }
                                },
                                onAddToolpath: {
                                    withAnimation(.easeOut(duration: 0.15)) {
@@ -125,13 +135,20 @@ struct CAMView: View {
                 // Align inspector to top-left
                 // Align materials and toolpaths to top-right
                 HStack(alignment: .top) {
-                    VStack(spacing: 12) {
-                        inspectorPanel
-                        toolpathListPanel
-                        Spacer()
+                    // Scrolls when the two panels are taller than the room above the legend, which
+                    // stays where it is (bottom-left): the scroll view ends right over it.
+                    FittingScrollView {
+                        VStack(spacing: 12) {
+                            inspectorPanel
+                            toolpathListPanel
+                        }
+                        .frame(minWidth: 200, maxWidth: 260)
+                        .padding(16)
                     }
-                    .frame(minWidth: 200, maxWidth: 260)
-                    .padding(16)
+                    .frame(minWidth: 232, maxWidth: 292)
+                    // The legend's own bottom margin (16) and its height
+                    .padding(.bottom, legendHeight + 16)
+                    .frame(maxHeight: .infinity, alignment: .top)
                     Spacer()
 //                    VStack {
 //                        CanvasZoomToolbar(viewModel: camModel)
@@ -164,6 +181,7 @@ struct CAMView: View {
                                          isStockVisible: stockVisibleBinding,
                                          showsAllToolpaths: $camModel.showsAllToolpaths,
                                          hasToolpaths: !camModel.toolpaths.isEmpty)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { legendHeight = $0 }
                         Spacer()
                     }
                 }
@@ -362,7 +380,12 @@ struct CAMView: View {
                 ? camModel.stepWorkspace.selectedModelID : nil,
             onSelectStepModel: { id in
                 camModel.canvasState.clearSelection()
-                camModel.stepWorkspace.select(model: id)
+                if camModel.stepWorkspace.selectedModelID == id {
+                    // Clicking the selected model again deselects it
+                    camModel.stepWorkspace.selectedModelID = nil
+                } else {
+                    camModel.stepWorkspace.select(model: id)
+                }
             },
             onToggleStepModelVisibility: { id in
                 camModel.stepWorkspace.toggleVisibility(of: id)

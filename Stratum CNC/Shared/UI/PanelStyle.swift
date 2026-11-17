@@ -74,6 +74,23 @@ struct PanelRowLabel: View {
     }
 }
 
+/// A vertical scroll view that is only as tall as its content, up to the room it is given. Past
+/// that it scrolls (with a scroller), and short of it the empty space under the content is not part
+/// of the view, so clicks and scrolls there still reach the canvas behind.
+struct FittingScrollView<Content: View>: View {
+
+    @ViewBuilder let content: Content
+    @State private var contentHeight: CGFloat?
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            content
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        }
+        .frame(maxHeight: contentHeight)
+    }
+}
+
 /// The look behind `canvasChrome()`. In dark mode the material barely differs from the canvas, so
 /// it gets a light veil and a stronger edge to set the panel apart; light mode is left as it is.
 private struct CanvasChrome: ViewModifier {

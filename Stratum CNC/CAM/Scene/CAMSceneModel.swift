@@ -39,28 +39,22 @@ final class CAMSceneModel: ObservableObject {
     /// (`StockMaterialType.surfaceColor`), rather than one fixed tint no
     /// matter what material is picked.
     enum Style {
-        /// Ruler length when there is no stock; `D2_CanvasRenderer` gives its `RulerShapeLayer` the same.
         static let defaultRulerLength: Float = 200
-
-        /// The ruler's X and Y lengths: the stock's own width and height, so it ends at the stock's
-        /// edges. Never shorter than 10 mm; 200 mm when there is no stock.
         static func rulerLengths(for stock: StockMaterial?) -> SIMD2<Float> {
-            guard let stock else { return SIMD2<Float>(repeating: defaultRulerLength) }
+            guard let stock else {
+                return SIMD2<Float>(repeating: defaultRulerLength)
+            }
             let size = stock.footprintSize
-            let x = Float(size.width), y = Float(size.height)
-            guard x.isFinite, y.isFinite, x > 0, y > 0 else { return SIMD2<Float>(repeating: defaultRulerLength) }
+            let x = Float(size.width)
+            let y = Float(size.height)
+
+            guard x.isFinite, y.isFinite, x > 0, y > 0 else {
+                return SIMD2<Float>(repeating: defaultRulerLength)
+            }
             return SIMD2<Float>(max(10, x), max(10, y))
         }
-
         static let rulerColor = SIMD4<Float>(0.55, 0.55, 0.55, 1)
-
-        /// Every toolpath on the canvas, whatever face it is cut from: the orange the bottom
-        /// face's toolpaths used to have. Only the open toolpath is drawn (see
-        /// `CAMModel.updateToolpathPreview`), so there is nothing to tell apart by color.
-        static let toolpathColor = SIMD4<Float>(1.0, 0.35, 0.2, 1)
-
-        /// How strong the toolpaths of a setup that is not the active one are drawn, when all the
-        /// toolpaths are shown (`CAMModel.showsAllToolpaths`): 30% orange over the background.
+        static let toolpathColor = SIMD4<Float>(1.0, 0.8, 0.0, 1.0)// blue (0.1, 0.4, 1.0, 1) red (1.0, 0.35, 0.2, 1)
         static let inactiveSetupToolpathOpacity: Float = 0.3
     }
 
@@ -228,6 +222,7 @@ final class CAMSceneModel: ObservableObject {
         var restRegions: RenderObject?
         var background = SIMD4<Float>(0.2, 0.2, 0.2, 1)
         var overlay: [RenderObject] = []
+
         STAppearance.perform(as: colorScheme) {
             paths = D2_RenderObjectBuilder.renderPaths(for: canvasState)
             if showsToolpaths {
@@ -237,13 +232,14 @@ final class CAMSceneModel: ObservableObject {
             // Flat 2D content is tagged (see `.faceOverlay`) so the 3D canvas projects it onto the
             // face that is up instead of carrying it along with the stock
             restRegions?.role = .faceOverlay
-            background = Self.rgba(STColor.stTextBackground)
+            background = STColor.stTextBackground.simdRGBA
 
             // Dashed box + rotation-center handle for whichever objects
             // are selected as a whole (a selected *path* gets neither, same
             // as `D2_ObjectNode`).
-            let boxColor = Self.rgba(STColor.systemRed)
-            let handleColor = Self.rgba(STColor.systemOrange)
+            let boxColor = STColor.systemRed.simdRGBA
+            let handleColor = STColor.systemOrange.simdRGBA
+
             for object in canvasState.objects
                 where showsShapes && canvasState.selectedObjectIDs.contains(object.id) && object.isVisible {
                 overlay.append(contentsOf: CAMSelectionOverlay.renderObjects(for: object,
@@ -255,13 +251,14 @@ final class CAMSceneModel: ObservableObject {
             if showsToolpaths, let tabs = canvasState.holdingTabs {
                 overlay.append(contentsOf: CAMHoldingTabsOverlay.renderObjects(for: tabs,
                                                                                paths: paths,
-                                                                               color: Self.rgba(STColor.systemPurple)))
+                                                                               color: STColor.systemPurple.simdRGBA))
             }
         }
 
         // The toolpath being scrubbed, if any: its cut-so-far line and the cutter marker.
         var scrubPath: RenderObject?
         var scrubMarker: RenderObject?
+
         if showsToolpaths, let scrub = canvasState.toolpathScrub {
             var object: RenderObject
             if let cached = scrubPathCache, cached.id == scrub.id {
@@ -288,9 +285,11 @@ final class CAMSceneModel: ObservableObject {
             tagged.role = tagged.role ?? .faceOverlay
             return tagged
         }
+        
         var objects: [RenderObject] = scrubMarker.map { [$0] } ?? []
         objects.append(contentsOf: overlay.map(flat))
         objects.reserveCapacity(objects.count + paths.count + 4)
+
         for path in paths where showsShapes && !path.renderObject.points.isEmpty {
             objects.append(flat(path.renderObject))
         }
@@ -305,6 +304,7 @@ final class CAMSceneModel: ObservableObject {
         }
         let rulerLengths = Style.rulerLengths(for: canvasState.stock)
         objects.append(.ruler(z: 0, length: rulerLengths.x, lengthY: rulerLengths.y, color: Style.rulerColor))
+
         if canvasState.isStockVisible, let stock = canvasState.stock {
             objects.append(.stockBox(for: stock, color: stock.material.surfaceColor))
         }
@@ -342,9 +342,5 @@ final class CAMSceneModel: ObservableObject {
         backgroundColor = background
 
         PerfLog.log("metal-cam", "rebuild: \(paths.count) path(s) → \(objects.count) object(s) in \(PerfLog.fmt(PerfLog.ms(since: t0)))")
-    }
-
-    static func rgba(_ color: STColor) -> SIMD4<Float> {
-        color.stRGBA
     }
 }
