@@ -1119,7 +1119,7 @@ class CAMModel: ObservableObject {
         if let generation, let data = generation.scrub {
             canvasState.setToolpathScrub(D2_CanvasState.ToolpathScrub(id: generation.id,
                                                                       data: data,
-                                                                      toolDiameter: generation.source.tool.toolDiameter,
+                                                                      tool: generation.source.tool,
                                                                       step: data.stepCount))
         } else {
             canvasState.setToolpathScrub(nil)

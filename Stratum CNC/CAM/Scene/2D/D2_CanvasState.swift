@@ -152,7 +152,8 @@ final class D2_CanvasState: ObservableObject, Equatable {
         /// The generation it comes from; the scene caches its GPU geometry by it.
         let id: UUID
         let data: ToolpathScrubData
-        let toolDiameter: Double
+        /// The tool that cuts it: the cutter on the canvas takes its diameter and shape from it.
+        let tool: Tool
         var step: Int
 
         var visibleVertexCount: Int {

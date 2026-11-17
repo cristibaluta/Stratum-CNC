@@ -741,12 +741,18 @@ extension RenderObject {
     /// to `length` above the tip. Triangles wind counter-clockwise seen from
     /// outside and carry analytic normals (smooth on the ball nose, hard
     /// edges everywhere else).
+    ///
+    /// `open` leaves the top cap off and turns the normals to face the axis, so the tool is
+    /// a shell lit from the inside as well as the outside. Seen from above (the CAM canvas's
+    /// usual view) a closed tool would show only its flat top, a uniform disc; the open one
+    /// shows the inside of the cone or dome, shaded all around, so its shape reads from any angle.
     static func tool(at tipPosition: SIMD3<Float>,
                      diameter: Double,
                      length: Double,
                      shape: ToolShape = .flat,
                      tipAngleDegrees: Double? = nil,
                      segments: Int = 48,
+                     open: Bool = false,
                      color: SIMD4<Float> = CanvasPalette.tool) -> RenderObject {
 
         let sides = max(3, segments)
@@ -818,7 +824,9 @@ extension RenderObject {
         if topZ > tipHeight {
             addFlat(radius, tipHeight, radius, topZ)
         }
-        addFlat(radius, topZ, 0, topZ)
+        if !open {
+            addFlat(radius, topZ, 0, topZ)
+        }
 
         // Spin the profile around the tool axis.
         var cosines: [Float] = []
@@ -831,11 +839,13 @@ extension RenderObject {
             sines.append(sin(angle))
         }
 
+        let normalSign: Float = open ? -1 : 1
+
         func vertex(_ p: ProfilePoint, _ j: Int) -> SolidVertex {
             SolidVertex(position: SIMD3<Float>(tipPosition.x + p.r * cosines[j],
                                                tipPosition.y + p.r * sines[j],
                                                tipPosition.z + p.z),
-                        normal: SIMD3<Float>(p.nr * cosines[j], p.nr * sines[j], p.nz))
+                        normal: normalSign * SIMD3<Float>(p.nr * cosines[j], p.nr * sines[j], p.nz))
         }
 
         var triangles: [SolidVertex] = []
