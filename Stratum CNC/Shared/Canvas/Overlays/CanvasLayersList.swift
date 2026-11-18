@@ -50,6 +50,7 @@ struct CanvasLayersList: View {
          settingsLayers: Set<CanvasLayer> = [],
          settings: @escaping (CanvasLayer) -> AnyView = { _ in AnyView(EmptyView()) },
          footer: AnyView? = nil) {
+
         self.layers = layers
         self.isVisible = isVisible
         self.setVisible = setVisible

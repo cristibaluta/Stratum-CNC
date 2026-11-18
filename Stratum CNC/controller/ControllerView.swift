@@ -891,10 +891,9 @@ private struct CanvasSection: View {
                                              return AnyView(
                                                  PanelStockMaterial(stock: $camModel.selectedStockMaterial,
                                                                     isStockVisible: isStockVisible,
-                                                                    isCompact: true,
+                                                                    isCompact: false,
                                                                     onOpenStocksLib: nil)
-                                                     .frame(width: 300)
-                                                     .padding(12)
+                                                     .frame(width: 320)
                                              )
                                          case .boundingBox:
                                              return AnyView(JobAreaSettingsView(scene: scene))
