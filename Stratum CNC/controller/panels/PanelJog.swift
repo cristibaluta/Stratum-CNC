@@ -37,6 +37,8 @@ struct PanelJog: View {
     /// Directions the mouse is currently holding down on screen — so the
     /// drag gesture, which reports continuously, only starts each hold once.
     @State private var mouseHeld: Set<JogDirection> = []
+    /// The same for the diagonal buttons, which hold two directions at once (keyed by name).
+    @State private var diagonalHeld: Set<String> = []
 
     var onJog: ((ControllerModel.JogRequest) -> Void)?
     /// Hold mode: a direction went down (`true`) or came back up (`false`).
@@ -86,10 +88,12 @@ struct PanelJog: View {
         .onChange(of: jogMode) { _, _ in
             // Whatever was held belongs to the mode that's just been left.
             mouseHeld.removeAll()
+            diagonalHeld.removeAll()
             onStopHold?()
         }
         .onDisappear {
             mouseHeld.removeAll()
+            diagonalHeld.removeAll()
             onStopHold?()
         }
         .task {
@@ -200,14 +204,13 @@ struct PanelJog: View {
     }
 
     private var joystickView: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 5) {
-                Spacer()
+        Grid(horizontalSpacing: 5, verticalSpacing: 8) {
+            GridRow {
+                diagonalButton("arrow.up.left", help: "X- Y+", directions: [.xMinus, .yPlus])
                 jogButton("arrow.up", help: "Y+", direction: .yPlus, isHighlighted: $topHighlighted)
-                Spacer()
+                diagonalButton("arrow.up.right", help: "X+ Y+", directions: [.xPlus, .yPlus])
             }
-
-            HStack(spacing: 5) {
+            GridRow {
                 jogButton("arrow.left", help: "X-", direction: .xMinus, isHighlighted: $leftHighlighted)
                 Button {
                     onJog?(.absolute(x: 0, y: 0, z: nil, a: nil))
@@ -218,13 +221,46 @@ struct PanelJog: View {
                 .help("Go to the work's XY zero")
                 jogButton("arrow.right", help: "X+", direction: .xPlus, isHighlighted: $rightHighlighted)
             }
-
-            HStack(spacing: 5) {
-                Spacer()
+            GridRow {
+                diagonalButton("arrow.down.left", help: "X- Y-", directions: [.xMinus, .yMinus])
                 jogButton("arrow.down", help: "Y-", direction: .yMinus, isHighlighted: $bottomHighlighted)
-                Spacer()
+                diagonalButton("arrow.down.right", help: "X+ Y-", directions: [.xPlus, .yMinus])
             }
         }
+    }
+
+    /// A corner of the pad: moves X and Y at the same time. Just the arrow, no button chrome.
+    /// Step mode makes one move on both axes; hold mode holds both directions together.
+    private func diagonalButton(_ systemName: String,
+                                help: String,
+                                directions: [JogDirection]) -> some View {
+        Button {
+            if jogMode == .step {
+                step(directions)
+            }
+        } label: {
+            Image(systemName: systemName)
+                .frame(width: 36, height: 30)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(ArrowOnlyButtonStyle())
+        .help(help)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard jogMode == .hold, !diagonalHeld.contains(help) else {
+                        return
+                    }
+                    diagonalHeld.insert(help)
+                    directions.forEach { onHold?($0, true) }
+                }
+                .onEnded { _ in
+                    guard diagonalHeld.remove(help) != nil else {
+                        return
+                    }
+                    directions.forEach { onHold?($0, false) }
+                }
+        )
     }
 
     private var zAxisView: some View {
@@ -289,11 +325,19 @@ struct PanelJog: View {
     /// One relative step of `selectedJogStep` in `direction` — see
     /// `ControllerModel.JogRequest`.
     private func step(_ direction: JogDirection) {
-        let unit = direction.unit
-        onJog?(.relative(x: unit.x == 0 ? nil : unit.x * selectedJogStep,
-                         y: unit.y == 0 ? nil : unit.y * selectedJogStep,
-                         z: unit.z == 0 ? nil : unit.z * selectedJogStep,
-                         a: unit.a == 0 ? nil : unit.a * selectedJogStep))
+        step([direction])
+    }
+
+    /// One relative move combining several directions (the diagonals: X and Y at once).
+    private func step(_ directions: [JogDirection]) {
+        let x = directions.reduce(0) { $0 + $1.unit.x }
+        let y = directions.reduce(0) { $0 + $1.unit.y }
+        let z = directions.reduce(0) { $0 + $1.unit.z }
+        let a = directions.reduce(0) { $0 + $1.unit.a }
+        onJog?(.relative(x: x == 0 ? nil : x * selectedJogStep,
+                         y: y == 0 ? nil : y * selectedJogStep,
+                         z: z == 0 ? nil : z * selectedJogStep,
+                         a: a == 0 ? nil : a * selectedJogStep))
     }
 
     private var homingAction: some View {
@@ -332,5 +376,14 @@ private struct HighlightModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// Just the glyph: no contour or background; accent-tinted while pressed.
+private struct ArrowOnlyButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(configuration.isPressed ? Color.accentColor : Color.secondary)
+            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }

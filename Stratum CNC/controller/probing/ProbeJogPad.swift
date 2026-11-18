@@ -26,9 +26,9 @@ struct ProbeJogPad: View {
                 HStack(alignment: .center, spacing: 16) {
                     Grid(horizontalSpacing: 4, verticalSpacing: 4) {
                         GridRow {
-                            Color.clear.frame(width: 1, height: 1)
+                            diagonalButton("arrow.up.left", help: "X− Y+", x: -1, y: 1)
                             jogButton("arrow.up", help: "Y+ (away from you)", y: 1)
-                            Color.clear.frame(width: 1, height: 1)
+                            diagonalButton("arrow.up.right", help: "X+ Y+", x: 1, y: 1)
                         }
                         GridRow {
                             jogButton("arrow.left", help: "X−", x: -1)
@@ -36,9 +36,9 @@ struct ProbeJogPad: View {
                             jogButton("arrow.right", help: "X+", x: 1)
                         }
                         GridRow {
-                            Color.clear.frame(width: 1, height: 1)
+                            diagonalButton("arrow.down.left", help: "X− Y−", x: -1, y: -1)
                             jogButton("arrow.down", help: "Y− (toward you)", y: -1)
-                            Color.clear.frame(width: 1, height: 1)
+                            diagonalButton("arrow.down.right", help: "X+ Y−", x: 1, y: -1)
                         }
                     }
 
@@ -72,6 +72,20 @@ struct ProbeJogPad: View {
             .frame(maxWidth: .infinity)
         }
         .disabled(!connection.isConnected)
+    }
+
+    /// A corner of the pad: X and Y in one move. Just the arrow, no button chrome.
+    private func diagonalButton(_ symbol: String, help: String, x: Double, y: Double) -> some View {
+        Button {
+            model.jog(.relative(x: x * step, y: y * step, z: nil, a: nil))
+        } label: {
+            Image(systemName: symbol)
+                .frame(width: 36, height: 26)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help(help)
     }
 
     private func jogButton(_ symbol: String, help: String, x: Double = 0, y: Double = 0, z: Double = 0) -> some View {

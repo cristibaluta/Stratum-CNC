@@ -87,24 +87,25 @@ struct ProbeFeatureDrawing: View {
             let line = GraphicsContext.Shading.color(.secondary)
             let accent = GraphicsContext.Shading.color(.accentColor)
 
-            // The same colors for all four: a dark plate and a lighter shape.
-            // A boss also gets a drop shadow to stand on the plate.
+            // No plate of its own: the glyph sits straight on the container, like the probes.
+            // A boss is filled like a probe body and gets a drop shadow to stand up; a pocket is
+            // a slightly darker hole with an inner shadow.
             let plate = Path(layout.plate)
-            context.fill(plate, with: .color(Color.secondary.opacity(0.45)))
-
             let outline = layout.isRound
                 ? Path(ellipseIn: layout.shape)
                 : Path(roundedRect: layout.shape, cornerRadius: 2)
             if !feature.isInside {
                 context.fill(outline.offsetBy(dx: 4, dy: 4), with: .color(Color.black.opacity(0.22)))
+                context.fill(outline, with: .color(Color.secondary.opacity(0.45)))
+            } else {
+                context.fill(outline, with: .color(Color.primary.opacity(0.10)))
             }
-            context.fill(outline, with: .color(Color.white.opacity(0.6)))
             if feature.isInside {
                 // An inner shadow, only inside the pocket: the outline shifted
                 // down and right leaves a strip along its top and left walls.
                 context.drawLayer { layer in
                     layer.clip(to: outline)
-                    var strip = Path(layout.plate)
+                    var strip = plate
                     strip.addPath(outline.offsetBy(dx: 4, dy: 4))
                     layer.fill(strip, with: .color(Color.black.opacity(0.22)), style: FillStyle(eoFill: true))
                 }

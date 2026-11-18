@@ -38,6 +38,8 @@ struct ProbeSheet: View {
         _sequencer = StateObject(wrappedValue: ProbeSequencer(model: model))
     }
 
+    static let dialogSize = CGSize(width: 780, height: 560)
+
     // MARK: Body
 
     var body: some View {
@@ -57,13 +59,14 @@ struct ProbeSheet: View {
                     case .result: resultStep
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(16)
 
             Divider()
             footer
         }
-        .frame(width: flow.step == .what || flow.step == .tool ? 560 : 780)
+        // One size for every step, so the dialog doesn't jump between them.
+        .frame(width: Self.dialogSize.width, height: Self.dialogSize.height)
         .onChange(of: flow.step) { _, step in
             if step == .probe {
                 checks = []
@@ -258,7 +261,7 @@ struct ProbeSheet: View {
         HStack(alignment: .top, spacing: 16) {
             VStack(spacing: 8) {
                 ProbeStockDiagram(flow: $flow)
-                    .frame(minWidth: 360, maxWidth: .infinity, minHeight: 380)
+                    .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
 
                 HStack(spacing: 6) {
                     Image(systemName: "circle.circle.fill")
@@ -270,11 +273,13 @@ struct ProbeSheet: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 12) {
-                livePosition
-                instructionList
-                settingsRow
-                ProbeJogPad(model: model, connection: connection)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    livePosition
+                    instructionList
+                    settingsRow
+                    ProbeJogPad(model: model, connection: connection)
+                }
             }
             .frame(width: 280)
         }
@@ -420,7 +425,7 @@ struct ProbeSheet: View {
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(height: 400)
+            .frame(maxHeight: .infinity)
             .probeContainer()
         }
     }
