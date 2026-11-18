@@ -60,58 +60,6 @@ private extension ToolEditorView {
     }
 }
 
-// MARK: - Diagram
-
-private extension ToolEditorView {
-
-    /// Live preview of the bit, redrawn as the geometry fields change —
-    /// this is the CoreGraphics/Canvas piece standing in for the reference
-    /// app's illustration with DS / LS / LC / DC callouts.
-    var diagramSection: some View {
-        ToolDiagramView(
-            shankDiameter: tool.shankDiameter,
-            toolDiameter: tool.toolDiameter,
-            shoulderLength: shoulderLengthForDiagram,
-            fluteLength: fluteLengthForDiagram,
-            tipStyle: tipStyle(for: tool.type)
-        )
-        .frame(width: 100, height: 240)
-        .listRowInsets(EdgeInsets())
-    }
-
-    /// The flute (LC) is the cutting height.
-    var fluteLengthForDiagram: Double {
-        guard let height = tool.cuttingHeight, height > 0 else { return 8 }
-        return height
-    }
-
-    /// The shoulder (LS) is what is left of the tool length above the flute. Without a tool
-    /// length to measure it from, it is drawn at two thirds of the flute, so the picture still
-    /// looks like a tool.
-    var shoulderLengthForDiagram: Double {
-        let flute = fluteLengthForDiagram
-        if let length = tool.toolLength, length > flute {
-            return length - flute
-        }
-        return max(flute * 0.67, 3)
-    }
-
-    /// Maps your `ToolType` to how the tip should be drawn. Adjust the
-    /// case names to whatever `ToolType` actually declares — these mirror
-    /// the groups shown in the reference sidebar (Flat End, Ball Nose,
-    /// Drill, Engraving/chamfer bits use the tool's tip angle).
-    func tipStyle(for type: ToolType) -> ToolTipStyle {
-        switch type {
-        case .drill, .vBit, .chamfer, .engraving:
-            return .conical(angleDegrees: tool.tipAngle ?? 90)
-        case .ballNose:
-            return .ball
-        default:
-            return .flat
-        }
-    }
-}
-
 // MARK: - Geometry
 
 private extension ToolEditorView {
@@ -119,7 +67,7 @@ private extension ToolEditorView {
     var geometrySection: some View {
         Section("Geometry") {
             HStack {
-                Form {
+                VStack {
                     Picker("Type", selection: $tool.type) {
                         ForEach(ToolType.allCases, id: \.self) { type in
                             Text(type.displayName)
@@ -139,7 +87,7 @@ private extension ToolEditorView {
 //                    .frame(minWidth: 100, maxWidth: 220)
 
                     OptionalCountField(title: "Number of Flutes", value: $tool.numberOfFlutes)
-
+//
                     MeasurementField(title: "Shank Diameter (DS)", value: $tool.shankDiameter, unit: "mm")
                     MeasurementField(title: "Tool Diameter (DC)", value: $tool.toolDiameter, unit: "mm")
                     OptionalMeasurementField(title: "Cutting Height (H)", value: $tool.cuttingHeight, unit: "mm")
@@ -153,6 +101,45 @@ private extension ToolEditorView {
 
                 diagramSection
             }
+        }
+    }
+
+    var diagramSection: some View {
+        ToolDiagramView(
+            shankDiameter: tool.shankDiameter,
+            toolDiameter: tool.toolDiameter,
+            shoulderLength: shoulderLengthForDiagram,
+            fluteLength: fluteLengthForDiagram,
+            tipStyle: tipStyle(for: tool.type)
+        )
+        .frame(width: 100, height: 240)
+        .listRowInsets(EdgeInsets())
+    }
+
+    /// The flute (LC) is the cutting height.
+    var fluteLengthForDiagram: Double {
+        guard let height = tool.cuttingHeight, height > 0 else {
+            return 8
+        }
+        return height
+    }
+
+    var shoulderLengthForDiagram: Double {
+        let flute = fluteLengthForDiagram
+        if let length = tool.toolLength, length > flute {
+            return length - flute
+        }
+        return max(flute * 0.67, 3)
+    }
+
+    func tipStyle(for type: ToolType) -> ToolTipStyle {
+        switch type {
+        case .drill, .vBit, .chamfer, .engraving:
+            return .conical(angleDegrees: tool.tipAngle ?? 90)
+        case .ballNose:
+            return .ball
+        default:
+            return .flat
         }
     }
 }

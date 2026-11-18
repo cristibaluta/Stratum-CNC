@@ -13,6 +13,7 @@ struct MeasurementField: View {
     let unit: String
 
     var body: some View {
+        let _ = Self._printChanges()
         LabeledContent(title) {
             HStack(spacing: 6) {
                 TextField(
@@ -37,6 +38,7 @@ struct OptionalMeasurementField: View {
     let unit: String
 
     var body: some View {
+        let _ = Self._printChanges()
         LabeledContent(title) {
             HStack(spacing: 6) {
                 TextField(
@@ -72,6 +74,7 @@ struct OptionalCountField: View {
     }
 
     var body: some View {
+        let _ = Self._printChanges()
         LabeledContent(title) {
             HStack(spacing: 6) {
                 TextField("", value: count, format: .number)

@@ -89,14 +89,13 @@ struct ToolsLib_Sheet: View {
                 .onChange(of: store.sources) {
                     resetSourceFilterIfMissing()
                 }
-                .confirmationDialog(
-                    "Delete \"\(toolPendingDeletion?.name ?? "")\"?",
-                    isPresented: Binding(
-                        get: { toolPendingDeletion != nil },
-                        set: { if !$0 { toolPendingDeletion = nil } }
-                    ),
-                    titleVisibility: .visible,
-                    presenting: toolPendingDeletion
+                .confirmationDialog("Delete \"\(toolPendingDeletion?.name ?? "")\"?",
+                                    isPresented: Binding(
+                                        get: { toolPendingDeletion != nil },
+                                        set: { if !$0 { toolPendingDeletion = nil } }
+                                    ),
+                                    titleVisibility: .visible,
+                                    presenting: toolPendingDeletion
                 ) { tool in
                     Button("Delete", role: .destructive) {
                         deleteTool(tool)
@@ -109,10 +108,8 @@ struct ToolsLib_Sheet: View {
             bottomBar
         }
         .background(Color.stockColumnBackground)
-        .fileImporter(
-            isPresented: $isImporting,
-            allowedContentTypes: [UTType(filenameExtension: "tools") ?? .data, .zip, .json]
-        ) { result in
+        .fileImporter(isPresented: $isImporting,
+                      allowedContentTypes: [UTType(filenameExtension: "tools") ?? .data, .zip, .json]) { result in
             handleImport(result)
         }
         .fileDialogMessage(Self.importDialogMessage)
@@ -176,9 +173,6 @@ struct ToolsLib_Sheet: View {
     private var detailColumn: some View {
         if let selectedToolID,
            let current = store.tools.first(where: { $0.id == selectedToolID }) {
-            // Bound by id, not by index: when tools are removed (a deleted import
-            // batch, Revert) SwiftUI can still call these closures once before the
-            // view is rebuilt, and a captured index would then be out of range.
             ToolEditorView(
                 tool: Binding(
                     get: { store.tools.first(where: { $0.id == selectedToolID }) ?? current },
@@ -275,7 +269,11 @@ struct ToolsLib_Sheet: View {
         do {
             let url = try result.get()
             let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
 
             let imported = try FusionToolsImporter.importTools(from: url)
             let counts = try store.importTools(imported.tools, fileName: url.lastPathComponent)
@@ -311,27 +309,39 @@ struct ToolsLib_Sheet: View {
     /// If the source being filtered on is gone (its batch was removed), go back to all sources.
     private func resetSourceFilterIfMissing() {
         guard case .source(let id) = filter.source,
-              !store.sources.contains(where: { $0.id == id }) else { return }
+              !store.sources.contains(where: { $0.id == id }) else {
+            return
+        }
         filter.source = .any
     }
 
     /// Selects the first item as displayed in the list.
     private func selectFirstIfNeeded() {
-        guard selectedToolID == nil else { return }
+        guard selectedToolID == nil else {
+            return
+        }
         selectedToolID = visibleTools.first?.id
     }
 
     /// After adding or duplicating, make sure the new tool isn't hidden by the current filters
     /// (a new tool has no stock, and its name may not match the search).
     private func ensureVisible(_ id: Tool.ID) {
-        func isVisible() -> Bool { visibleTools.contains { $0.id == id } }
-        if isVisible() { return }
+        func isVisible() -> Bool {
+            visibleTools.contains { $0.id == id }
+        }
+        if isVisible() {
+            return
+        }
         // Widen step by step: search/material/source, then stock (a new tool has none),
         // then the type and shank selections.
         filter.clearRefinements()
-        if isVisible() { return }
+        if isVisible() {
+            return
+        }
         filter.stockOnly = false
-        if isVisible() { return }
+        if isVisible() {
+            return
+        }
         filter.clearAll()
     }
 
@@ -357,7 +367,9 @@ struct ToolsLib_Sheet: View {
             return
         }
 
-        guard selectedToolID == tool.id else { return }
+        guard selectedToolID == tool.id else {
+            return
+        }
         let remaining = visibleTools
         if let position, !remaining.isEmpty {
             selectedToolID = remaining[min(position, remaining.count - 1)].id
