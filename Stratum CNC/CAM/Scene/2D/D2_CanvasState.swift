@@ -92,9 +92,14 @@ final class D2_CanvasState: ObservableObject, Equatable {
         /// 1 for the active setup's toolpaths; less for another setup's when all are shown
         var opacity: Float = 1
 
+        /// `path` and `lines` are both derived from the generations in `linesKey`, so the key tells
+        /// whether they changed. Comparing `path` by identity never matched: `updateFaceToolpaths`
+        /// built a new `CGMutablePath` on every call, so every call published and the whole canvas
+        /// scene was rebuilt (and the toolpath re-uploaded to the GPU) for nothing.
         static func == (a: FaceToolpaths, b: FaceToolpaths) -> Bool {
-            a.setupID == b.setupID && a.face == b.face && a.path === b.path && a.z == b.z
+            a.setupID == b.setupID && a.face == b.face && a.z == b.z
                 && a.linesKey == b.linesKey && a.opacity == b.opacity
+                && a.lines.count == b.lines.count
         }
     }
 

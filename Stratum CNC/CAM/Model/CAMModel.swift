@@ -1054,6 +1054,11 @@ class CAMModel: ObservableObject {
         }
     }
 
+    /// Per setup: the combined preview path and 3D lines built from the generations in `key`.
+    /// `updateToolpathPreview` runs after many kinds of edits; without this each run re-flattened
+    /// every result's lines (a multi-MB copy for a big pocket).
+    private var faceGeometryCache: [UUID: (key: [UUID], path: CGPath, lines: [SIMD3<Float>])] = [:]
+
     /// The shown toolpaths' results for the 3D view (the open toolpath's, or all of them), as one
     /// group per setup's face, faded when that setup is not the active one. A group carries the
     /// height of its face's z0 in the part's frame, so the canvas puts it on that face and the
@@ -1064,18 +1069,37 @@ class CAMModel: ObservableObject {
             return
         }
         var faces: [D2_CanvasState.FaceToolpaths] = []
+        var seenSetups = Set<UUID>()
+        defer {
+            if faceGeometryCache.count != seenSetups.count {
+                faceGeometryCache = faceGeometryCache.filter { seenSetups.contains($0.key) }
+            }
+        }
         for setup in setups {
             let results = toolpaths
                 .filter { isShownOnCanvas($0) && self.setup(for: $0).id == setup.id }
                 .compactMap { generations[$0.id] }
-            let paths = results.compactMap(\.previewPath)
-            guard !paths.isEmpty else {
-                continue
+            let key = results.map(\.id)
+            let cached: (key: [UUID], path: CGPath, lines: [SIMD3<Float>])
+            if let hit = faceGeometryCache[setup.id], hit.key == key {
+                // Same generations as last time: reuse the combined path and the (large) line
+                // array instead of copying hundreds of thousands of points again
+                cached = hit
+            } else {
+                let paths = results.compactMap(\.previewPath)
+                guard !paths.isEmpty else {
+                    continue
+                }
+                // The 3D view draws the lines with their Z, so every pass shows at its own depth
+                let lines = results.compactMap(\.previewLines).flatMap { $0 }
+                let combined = CGMutablePath()
+                paths.forEach { combined.addPath($0) }
+                cached = (key: key, path: combined, lines: lines)
+                faceGeometryCache[setup.id] = cached
             }
-            // The 3D view draws the lines with their Z, so every pass shows at its own depth
-            let lines = results.compactMap(\.previewLines).flatMap { $0 }
-            let combined = CGMutablePath()
-            paths.forEach { combined.addPath($0) }
+            seenSetups.insert(setup.id)
+            let combined = cached.path
+            let lines = cached.lines
             let frame = try? SetupFrame.make(setup: setup, stock: selectedStockMaterial)
             faces.append(.init(setupID: setup.id, face: setup.face, path: combined,
                                z: CGFloat(frame?.z0InPartFrame ?? 0),

@@ -343,6 +343,13 @@ class MetalRenderer: NSObject {
 
     /// The only place a `RenderObject` gets turned into a GPU-backed `RenderBatch`.
     private func buildRenderBatch(from object: RenderObject) -> RenderBatch? {
+        let perfStart = PerfLog.now()
+        defer {
+            let took = PerfLog.ms(since: perfStart)
+            if took > 3 {
+                PerfLog.log("canvas", "buildRenderBatch role=\(String(describing: object.role)) points=\(object.points.count) solid=\(object.solidTriangles.count) occluder=\(object.occluderFaces.count): \(PerfLog.fmt(took))")
+            }
+        }
         let vertices = buildVertices(for: object)
         let hasSolid = !object.solidTriangles.isEmpty
         // An object needs lines, a solid, or both — nothing at all means
@@ -605,6 +612,14 @@ class MetalRenderer: NSObject {
     /// scrub tick is fine.
     func updateGeometry(objects: [RenderObject]) {
         lastObjects = objects
+        let perfStart = PerfLog.now()
+        var rebuilt = 0
+        defer {
+            let took = PerfLog.ms(since: perfStart)
+            if rebuilt > 0 || took > 5 {
+                PerfLog.log("canvas", "updateGeometry: \(objects.count) objects, \(rebuilt) GPU buffers (re)built, \(PerfLog.fmt(took))")
+            }
+        }
 
         var updated: [RenderBatch] = []
         updated.reserveCapacity(objects.count)
@@ -625,6 +640,7 @@ class MetalRenderer: NSObject {
                 batchesByID[object.id] = batch
                 updated.append(batch)
             } else if let batch = buildRenderBatch(from: object) {
+                rebuilt += 1
                 batchesByID[object.id] = batch
                 updated.append(batch)
             }
@@ -941,6 +957,13 @@ extension MetalRenderer: MTKViewDelegate {
 
     func draw(in view: MTKView) {
 
+        let perfStart = PerfLog.now()
+        defer {
+            let took = PerfLog.ms(since: perfStart)
+            if took > 20 {
+                PerfLog.log("canvas", "draw(in:) took \(PerfLog.fmt(took)) (\(renderBatches.count) batches)")
+            }
+        }
         guard view.drawableSize.width > 0, view.drawableSize.height > 0 else { return }
         camera.aspectRatio = Float(view.drawableSize.width / view.drawableSize.height)
         viewportPixels = SIMD2<Float>(Float(view.drawableSize.width), Float(view.drawableSize.height))

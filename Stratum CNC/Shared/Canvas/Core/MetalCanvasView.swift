@@ -261,12 +261,19 @@ struct MetalCanvasView: STViewRepresentable {
             guard let coordinator else {
                 return
             }
-            if coordinator.isInsideSwiftUIUpdate {
-                DispatchQueue.main.async { [weak coordinator] in
-                    coordinator?.updateZoomPercent()
-                    coordinator?.zoomModel?.frameRendered.send()
+            // Always one hop later, and one per burst of frames. A frame can be drawn while
+            // SwiftUI is updating views for other reasons than `updateCanvasView` (layout, a
+            // resize), and publishing then is the "Publishing changes from within view updates"
+            // warning; it also means the zoom and the overlays catch up once, not per frame.
+            guard !coordinator.frameReportScheduled else {
+                return
+            }
+            coordinator.frameReportScheduled = true
+            DispatchQueue.main.async { [weak coordinator] in
+                guard let coordinator else {
+                    return
                 }
-            } else {
+                coordinator.frameReportScheduled = false
                 coordinator.updateZoomPercent()
                 coordinator.zoomModel?.frameRendered.send()
             }
@@ -327,6 +334,18 @@ struct MetalCanvasView: STViewRepresentable {
         context.coordinator.isInsideSwiftUIUpdate = true
         defer { context.coordinator.isInsideSwiftUIUpdate = false }
 
+        // Diagnostics: how often SwiftUI calls this and how long it takes. A feedback loop
+        // (a published change made while drawing, which updates the view again) shows up as
+        // a huge rate; a slow call shows up as a long time.
+        let perfStart = PerfLog.now()
+        context.coordinator.noteUpdateCall(objectCount: objects.count)
+        defer {
+            let took = PerfLog.ms(since: perfStart)
+            if took > 8 {
+                PerfLog.log("canvas", "updateCanvasView took \(PerfLog.fmt(took)) (\(objects.count) objects)")
+            }
+        }
+
         if let clearColor {
             nsView.clearColor = MTLClearColor(red: Double(clearColor.x), green: Double(clearColor.y),
                                               blue: Double(clearColor.z), alpha: Double(clearColor.w))
@@ -360,7 +379,12 @@ struct MetalCanvasView: STViewRepresentable {
         // behind — geometry updates (see `updateGeometry` above) land
         // instantly, same as the G-code table's row highlight, but without
         // this the pixels on screen don't catch up until the drag ends.
+        let drawStart = PerfLog.now()
         nsView.draw()
+        let drawTook = PerfLog.ms(since: drawStart)
+        if drawTook > 16 {
+            PerfLog.log("canvas", "draw() inside updateCanvasView took \(PerfLog.fmt(drawTook))")
+        }
     }
 
     @MainActor
@@ -370,11 +394,34 @@ struct MetalCanvasView: STViewRepresentable {
         /// True while `updateNSView` runs. See `onFrameRendered` in
         /// `makeNSView`.
         var isInsideSwiftUIUpdate = false
+        /// A frame report is already queued for the next main-queue turn (see `onFrameRendered`).
+        var frameReportScheduled = false
         /// M4: id of the last `HeightmapMesh` actually uploaded to the GPU
         /// (see `updateNSView`). `nil` alongside `heightmapMesh == nil`
         /// means nothing's been uploaded yet.
         var lastHeightmapMeshID: UUID?
         var lastFitRequest = 0
+
+        private var updateWindowStart = PerfLog.now()
+        private var updateCallsInWindow = 0
+        private var lastObjectCount = -1
+
+        /// Logs a line when the view is updated more than 20 times in a second, or the scene's
+        /// object count changes. Cheap: one counter per call.
+        func noteUpdateCall(objectCount: Int) {
+            updateCallsInWindow += 1
+            if objectCount != lastObjectCount {
+                PerfLog.log("canvas", "scene now has \(objectCount) objects (was \(lastObjectCount))")
+                lastObjectCount = objectCount
+            }
+            if PerfLog.ms(since: updateWindowStart) >= 1000 {
+                if updateCallsInWindow > 20 {
+                    PerfLog.log("canvas", "updateCanvasView called \(updateCallsInWindow)× in the last second")
+                }
+                updateWindowStart = PerfLog.now()
+                updateCallsInWindow = 0
+            }
+        }
         private var clickTracker = CanvasClickTracker()
         /// Weak: so the view — which owns the coordinator via AppKit's
         /// retain graph, not the other way around — can be requested to

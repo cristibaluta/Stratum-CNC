@@ -101,6 +101,8 @@ final class CAMSceneModel: ObservableObject {
 
     /// Every face's toolpaths for the 3D view, built with the scene (see `rebuild`).
     private var faceToolpathObjects: [RenderObject] = []
+    /// The object built for each setup's face, reused while its generations, height and color stay.
+    private var faceObjectCache: [UUID: (key: [UUID], z: Float, color: SIMD4<Float>, object: RenderObject?)] = [:]
     /// The 2D scene's own toolpath object, which the 3D view leaves out.
     private var planarToolpathID: UUID?
 
@@ -285,7 +287,7 @@ final class CAMSceneModel: ObservableObject {
             tagged.role = tagged.role ?? .faceOverlay
             return tagged
         }
-        
+
         var objects: [RenderObject] = scrubMarker.map { [$0] } ?? []
         objects.append(contentsOf: overlay.map(flat))
         objects.reserveCapacity(objects.count + paths.count + 4)
@@ -310,6 +312,12 @@ final class CAMSceneModel: ObservableObject {
         }
 
         planarToolpathID = toolpath?.id
+        var seenFaces = Set<UUID>()
+        defer {
+            if faceObjectCache.count != seenFaces.count {
+                faceObjectCache = faceObjectCache.filter { seenFaces.contains($0.key) }
+            }
+        }
         faceToolpathObjects = (showsToolpaths ? canvasState.faceToolpaths : []).compactMap { group -> RenderObject? in
             // The line renderer ignores alpha, so a faded toolpath is mixed toward the canvas
             // background instead, and stays opaque
@@ -318,10 +326,19 @@ final class CAMSceneModel: ObservableObject {
                 let mixed = Style.toolpathColor * group.opacity + background * (1 - group.opacity)
                 color = SIMD4<Float>(mixed.x, mixed.y, mixed.z, 1)
             }
-            if let object = D2_RenderObjectBuilder.toolpathRenderObject(lines: group.lines, z: Float(group.z), color: color) {
-                return object
+            // Keep the object (and so its `RenderObject.id` and GPU buffer) while the same
+            // generations are drawn at the same height and color: a new object per rebuild
+            // re-uploaded the whole toolpath every time the scene changed.
+            seenFaces.insert(group.setupID)
+            let z = Float(group.z)
+            if let cached = faceObjectCache[group.setupID],
+               cached.key == group.linesKey, cached.z == z, cached.color == color {
+                return cached.object
             }
-            return D2_RenderObjectBuilder.toolpathRenderObject(path: group.path, z: Float(group.z), color: color)
+            let object = D2_RenderObjectBuilder.toolpathRenderObject(lines: group.lines, z: z, color: color)
+                ?? D2_RenderObjectBuilder.toolpathRenderObject(path: group.path, z: z, color: color)
+            faceObjectCache[group.setupID] = (key: group.linesKey, z: z, color: color, object: object)
+            return object
         }
 
         // Hidden shapes can't be clicked, and the "Add toolpath" tooltip has nothing to point at
