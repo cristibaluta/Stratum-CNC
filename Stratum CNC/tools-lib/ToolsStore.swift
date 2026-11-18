@@ -112,24 +112,13 @@ final class ToolsStore: ObservableObject {
 
         let data = try Data(contentsOf: toolsFileURL)
 
-        var library = try Self.makeDecoder().decode(ToolLibrary.self, from: data)
-
-        // An older file (or the bundled default_tools.json) decodes with every tool on the
-        // bundled source. Write it back once in the current format.
-        let needsMigration = library.schemaVersion < ToolLibrary.currentSchemaVersion
-        if needsMigration {
-            library.schemaVersion = ToolLibrary.currentSchemaVersion
-        }
+        let library = try Self.makeDecoder().decode(ToolLibrary.self, from: data)
 
         self.library = library
         tools = library.tools
         sources = library.sources
         savedTools = tools
         savedSources = sources
-
-        if needsMigration {
-            try save()
-        }
     }
 
     /// The source a tool belongs to.

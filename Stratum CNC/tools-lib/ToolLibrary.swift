@@ -21,9 +21,6 @@ struct ToolLibrary: Codable {
     var laserSettings: LaserSettings?
     var threadMilling: ThreadMillingSettings?
 
-    /// Version written by this build. 2 added `sources` and `Tool.sourceID`.
-    static let currentSchemaVersion = 2
-
     enum CodingKeys: String, CodingKey {
         case schemaVersion, source, tools, sources, laserSettings, threadMilling
     }
@@ -35,17 +32,7 @@ struct ToolLibrary: Codable {
         tools = try c.decode([Tool].self, forKey: .tools)
         laserSettings = try c.decodeIfPresent(LaserSettings.self, forKey: .laserSettings)
         threadMilling = try c.decodeIfPresent(ThreadMillingSettings.self, forKey: .threadMilling)
-
-        // A file from before sources existed has no `sources`. The bundled and custom sources
-        // always exist, so add them if they are missing; imports keep their order after them.
-        var decoded = try c.decodeIfPresent([ToolSourceInfo].self, forKey: .sources) ?? []
-        if !decoded.contains(where: { $0.id == ToolSourceInfo.customID }) {
-            decoded.insert(.custom, at: 0)
-        }
-        if !decoded.contains(where: { $0.id == ToolSourceInfo.bundledID }) {
-            decoded.insert(.bundled, at: 0)
-        }
-        sources = decoded
+        sources = try c.decode([ToolSourceInfo].self, forKey: .sources)
     }
 }
 

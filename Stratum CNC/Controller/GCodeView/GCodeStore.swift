@@ -45,6 +45,17 @@ class GCodeStore: ObservableObject {
     // @Published properties mutate. Forwarding its publisher closes that gap.
     private var documentCancellable: AnyCancellable?
     private var headerCancellable: AnyCancellable?
+    private var linesCancellable: AnyCancellable?
+
+    /// Feed and Z in effect at every line of the loaded program (index 0 is line 1), rebuilt
+    /// whenever the lines change so reading it at the scrub position is O(1).
+    private(set) var liveValues: [GCodeLiveValues] = []
+
+    /// Feed and Z at the line the scrub slider (or the running job) is on.
+    var currentLiveValues: GCodeLiveValues? {
+        let index = scrubLine - 1
+        return liveValues.indices.contains(index) ? liveValues[index] : nil
+    }
 
     init() {
         bindDocument()
@@ -56,6 +67,10 @@ class GCodeStore: ObservableObject {
         }
         // Fires once per load (not per line edit) — see
         // `NCFileDocument.loadedHeader`.
+        // `$lines` hands over the new array before it is stored, so use the argument.
+        linesCancellable = document.$lines.sink { [weak self] lines in
+            self?.liveValues = GCodeLiveValues.parse(lines.map(\.text))
+        }
         headerCancellable = document.$loadedHeader.sink { [weak self] header in
             self?.applyHeaderTools(header)
         }

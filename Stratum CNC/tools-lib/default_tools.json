@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "source": {
     "name": "Makera Wiki — Speeds & Feeds",
     "url": "https://wiki.makera.com/en/speeds-and-feeds",
@@ -13,18 +13,32 @@
       "spindleRPM": "RPM"
     }
   },
+  "sources": [
+    {
+      "id": "00000000-0000-0000-0000-00000000B001",
+      "name": "Makera defaults",
+      "kind": "bundled"
+    },
+    {
+      "id": "00000000-0000-0000-0000-00000000C001",
+      "name": "My tools",
+      "kind": "custom"
+    }
+  ],
   "tools": [
     {
       "id": "91d8c0d2-27c2-47fd-9cb9-3f49431faa59",
       "name": "1*3mm Flat End(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-for-metal-1-8-shank?variant=43974664749281",
       "shankDiameter": 3.175,
       "toolDiameter": 1.0,
       "cuttingHeight": 3.0,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "89F603E2-235C-5803-BDCC-22238EEA81C9",
@@ -80,13 +94,15 @@
       "id": "12b5a4c8-5a2e-4b5e-823e-0ba5fa69cad2",
       "name": "1.5*6mm Flat End(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-for-metal-1-8-shank?variant=43974664716513",
       "shankDiameter": 3.175,
       "toolDiameter": 1.5,
       "cuttingHeight": 6.0,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "EA40E902-29A5-5F40-992E-82B3CD2F9032",
@@ -142,13 +158,15 @@
       "id": "05ba905f-a907-4555-a312-2c0c46d74fd1",
       "name": "2*8mm Flat End(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-for-metal-1-8-shank?variant=43974664683745",
       "shankDiameter": 3.175,
       "toolDiameter": 2.0,
       "cuttingHeight": 8.0,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "2D325325-A69D-5A3C-BC6C-6BBC3E284FBE",
@@ -204,13 +222,15 @@
       "id": "4691dbca-216f-4585-ad00-fa281e8b2576",
       "name": "2.5*12mm Flat End(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-for-metal-1-8-shank?variant=43974664650977",
       "shankDiameter": 3.175,
       "toolDiameter": 2.5,
       "cuttingHeight": 12.0,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "DA00DA44-30CB-55AA-A2E2-157BE88BA5AC",
@@ -266,13 +286,15 @@
       "id": "ee6c6633-17b8-4ab4-88d0-acc18b0f7618",
       "name": "3.175*12mm Flat End(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-for-metal-1-8-shank?variant=43974664618209",
       "shankDiameter": 3.175,
       "toolDiameter": 3.175,
       "cuttingHeight": 12.0,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "7AAD21BE-AD27-5864-8107-BDB657CD78AC",
@@ -328,13 +350,15 @@
       "id": "97d0db3e-3750-42b5-9310-5b6bc4ca8026",
       "name": "1*3mm Flat End",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-1-8-shank?variant=43974709477601",
       "shankDiameter": 3.175,
       "toolDiameter": 1,
       "cuttingHeight": 3,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Non Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "36A8902E-4104-5735-B1F8-251846CC60EF",
@@ -366,13 +390,15 @@
       "id": "8b65464e-f0dd-49e8-9f63-7941cfc3df49",
       "name": "1.5*8mm Flat End",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-1-8-shank?variant=43974709444833",
       "shankDiameter": 3.175,
       "toolDiameter": 1.5,
       "cuttingHeight": 8,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Non Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "8F908B6C-B27F-543B-843C-5D56B0DD5C91",
@@ -404,13 +430,15 @@
       "id": "fb9ba8c6-8e2e-4cbb-a660-5313315cc1d3",
       "name": "2*12mm Flat End",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-1-8-shank?variant=43974709412065",
       "shankDiameter": 3.175,
       "toolDiameter": 2,
       "cuttingHeight": 12,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Non Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "F180ED27-8B26-568B-83F2-45902EFD3594",
@@ -442,13 +470,15 @@
       "id": "a6f0cacd-118c-4d35-b342-3f5b6dfca0ca",
       "name": "2.5*15mm Flat End",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-1-8-shank?variant=43974709379297",
       "shankDiameter": 3.175,
       "toolDiameter": 2.5,
       "cuttingHeight": 15,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Non Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "D9D50A81-FD54-546D-A19B-D8B8A9D4CA52",
@@ -480,13 +510,15 @@
       "id": "456a9828-4ac8-47c4-baee-ff90fa72409a",
       "name": "3.175*17mm Flat End",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-1-8-shank?variant=43974709346529",
       "shankDiameter": 3.175,
       "toolDiameter": 3.175,
       "cuttingHeight": 17,
+      "toolLength": 38,
       "type": "endMill",
       "group": "Single Flute Non Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "A933FEBB-3226-5C6D-942F-0ED1EB05B701",
@@ -518,13 +550,15 @@
       "id": "cf7653b8-8b8b-4536-8bd4-3844cb458618",
       "name": "3.175*25mm Flat End",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-1-8-shank?variant=43974709313761",
       "shankDiameter": 3.175,
       "toolDiameter": 3.175,
       "cuttingHeight": 25,
+      "toolLength": 42,
       "type": "endMill",
       "group": "Single Flute Non Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "D23067FD-3298-5A16-9750-69DF95070A26",
@@ -556,13 +590,15 @@
       "id": "dbfc37be-5a5c-493d-b4ef-3ee3f8e53f25",
       "name": "3.175*32mm Flat End",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-1-8-shank?variant=43974709280993",
       "shankDiameter": 3.175,
       "toolDiameter": 3.175,
       "cuttingHeight": 32,
+      "toolLength": 45,
       "type": "endMill",
       "group": "Single Flute Non Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "6D19FB16-00C5-5C3F-BE43-66A22D699D42",
@@ -594,13 +630,15 @@
       "id": "9e8d859c-82b1-47a1-8f24-e19e2a06c3e0",
       "name": "3.175*42mm Flat End",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/spiral-o-single-flute-bit-1-8-shank?variant=43974709248225",
       "shankDiameter": 3.175,
       "toolDiameter": 3.175,
       "cuttingHeight": 42,
+      "toolLength": 60,
       "type": "endMill",
       "group": "Single Flute Non Metal",
       "numberOfFlutes": 1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "25F3DD62-AEC8-5B26-8B5F-0503D31385CA",
@@ -632,12 +670,17 @@
       "id": "84c14b5a-ca47-49f2-adf2-c561484790db",
       "name": "0.1mm*60° Engraving(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-for-metal-1-8-shank?variant=43974732185825",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.1,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 8,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 60,
+      "tipDiameter": 0.1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "1D98F874-4763-5E5C-9F33-9C9797B65C84",
@@ -701,12 +744,17 @@
       "id": "061f9bba-cba4-4f0d-b743-1832caef8aa8",
       "name": "0.2mm*30° Engraving(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-for-metal-1-8-shank?variant=43974732218593",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.2,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.2,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "54FCF367-F391-5A48-8782-99B12C556AB0",
@@ -770,12 +818,17 @@
       "id": "bfd01a1d-d1d2-4839-8ca9-164d517385c2",
       "name": "0.3mm*30° Engraving(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-for-metal-1-8-shank?variant=43974732251361",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.3,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.3,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "7FBAFEF5-DB5F-58A4-81BA-C32494812476",
@@ -839,12 +892,17 @@
       "id": "3dac755e-eb50-4d5a-9c8b-fafecad27f52",
       "name": "0.4mm*30° Engraving(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-for-metal-1-8-shank?variant=43974732284129",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.4,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.4,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "E1C0CC71-18FE-5F66-B436-6FAEF7D05855",
@@ -908,12 +966,17 @@
       "id": "2a2fbd33-59a5-4690-a99a-465e6647b460",
       "name": "0.5mm*30° Engraving(Metal)",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-for-metal-1-8-shank?variant=43974732316897",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.5,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.5,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "8A0A91DF-B287-53C2-AB1A-5E79495D2886",
@@ -977,12 +1040,17 @@
       "id": "0e73218a-0dfe-42a9-b832-a70d05c3e5ad",
       "name": "0.1mm*30° Engraving",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-1-8-shank?variant=43974777831649",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.1,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Non Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "0A95DD07-F6B8-5815-8857-06D5151D0AE4",
@@ -1014,12 +1082,17 @@
       "id": "cf174c63-7e9d-4639-8967-70ca8f419bb6",
       "name": "0.2mm*30° Engraving",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-1-8-shank?variant=43974777864417",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.2,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Non Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.2,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "C2736A31-69EA-5D77-90ED-CCF80C04B43F",
@@ -1051,12 +1124,17 @@
       "id": "d7f86f74-6e37-4b77-9e2e-29339640e367",
       "name": "0.3mm*30° Engraving",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-1-8-shank?variant=43974777897185",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.3,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Non Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.3,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "FE3ED7B1-BE6D-59A3-9289-DDDBACF7CA4E",
@@ -1088,12 +1166,17 @@
       "id": "7150c7e5-bd99-4cae-9aea-bb99b6621c4e",
       "name": "0.4mm*30° Engraving",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-1-8-shank?variant=43974777929953",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.4,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Non Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.4,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "6764CA2B-B79A-5098-AC7F-7F51ABB58DD3",
@@ -1125,12 +1208,17 @@
       "id": "019cb420-910b-4dff-8930-8b09cadbb9b3",
       "name": "0.5mm*30° Engraving",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/single-flute-engraving-bit-1-8-shank?variant=43974777962721",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.5,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 9,
+      "toolLength": 38,
       "type": "engraving",
       "group": "Engraving Non Metal",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.5,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "AB003567-98D6-54FF-991C-E49E18FCE2AA",
@@ -1168,6 +1256,7 @@
       "cuttingHeight": 3,
       "type": "ballNose",
       "group": "Ball Nose Metal",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "87F43150-5EBB-5E70-97EF-7780F97686CB",
@@ -1229,6 +1318,7 @@
       "cuttingHeight": 4.5,
       "type": "ballNose",
       "group": "Ball Nose Metal",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "19C4F2E3-A284-5089-B6F1-6BE78C13A701",
@@ -1290,6 +1380,7 @@
       "cuttingHeight": 6,
       "type": "ballNose",
       "group": "Ball Nose Metal",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "796B3066-64EA-5967-B7B1-57BD67AADAE1",
@@ -1351,6 +1442,7 @@
       "cuttingHeight": 7.5,
       "type": "ballNose",
       "group": "Ball Nose Metal",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "AEB7D037-2BBC-5391-BBF7-2E2C1456EA81",
@@ -1412,6 +1504,7 @@
       "cuttingHeight": 10,
       "type": "ballNose",
       "group": "Ball Nose Metal",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "B79E5DEB-64B8-5247-B6CE-0505B7A53763",
@@ -1473,6 +1566,7 @@
       "cuttingHeight": 4,
       "type": "ballNose",
       "group": "Ball Nose Non Metal",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "1D5B7F2F-115C-5209-A0B0-EA7739C92273",
@@ -1510,6 +1604,7 @@
       "cuttingHeight": 8,
       "type": "ballNose",
       "group": "Ball Nose Non Metal",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "58210B58-39E6-5636-92D6-667B2EC3A7B7",
@@ -1547,6 +1642,7 @@
       "cuttingHeight": 12,
       "type": "ballNose",
       "group": "Ball Nose Non Metal",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "0A7F4B70-88F0-5DE4-9079-A0F092ED452D",
@@ -1583,6 +1679,7 @@
       "toolDiameter": 1.0,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "87E194C6-1D24-5A06-863D-19DBF950A2B5",
@@ -1611,6 +1708,7 @@
       "toolDiameter": 1.6,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "997EAD60-4BA5-5849-A5D3-F830E0E85A94",
@@ -1639,6 +1737,7 @@
       "toolDiameter": 1.7,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "6E5E4913-1802-5A43-809E-779B5D99A557",
@@ -1667,6 +1766,7 @@
       "toolDiameter": 1.8,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "FDC038E9-9ADF-5673-BCC7-8CA398C864C2",
@@ -1695,6 +1795,7 @@
       "toolDiameter": 1.9,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "99FD30B7-F577-5C4A-BF69-F8FFA78AF590",
@@ -1723,6 +1824,7 @@
       "toolDiameter": 2.0,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "29B7A86F-2BF3-55FA-9145-3CD621264440",
@@ -1751,6 +1853,7 @@
       "toolDiameter": 2.1,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "23FB55DA-CA43-591F-BF13-0E4A9DAC2788",
@@ -1779,6 +1882,7 @@
       "toolDiameter": 2.4,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "656D01B7-A326-5912-910B-4EDA94166123",
@@ -1807,6 +1911,7 @@
       "toolDiameter": 2.5,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "4E860A82-A2CA-5FFD-BFFC-70498B29C093",
@@ -1835,6 +1940,7 @@
       "toolDiameter": 3.0,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "247A1691-3AB9-5D3B-8CB8-74548B05BE0A",
@@ -1863,6 +1969,7 @@
       "toolDiameter": 3.175,
       "type": "corn",
       "group": "Corn",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "01E3174B-A4E6-5238-9558-DFE556318AF7",
@@ -1892,6 +1999,7 @@
       "cuttingHeight": 3.5,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "C6E1FE12-0AB7-5546-973E-5B07D800A8A4",
@@ -1969,6 +2077,7 @@
       "cuttingHeight": 5.5,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "0E4B3944-9891-583E-B1E3-B0ED0519E567",
@@ -2046,6 +2155,7 @@
       "cuttingHeight": 7.0,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "42F9B7D1-14A4-55D4-8E44-3B0CABF2AD63",
@@ -2123,6 +2233,7 @@
       "cuttingHeight": 8.5,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "59F169DE-AEC3-5B16-B215-0DF3804E4E3D",
@@ -2200,6 +2311,7 @@
       "cuttingHeight": 9.5,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "3ECECB5B-A258-57C1-BD0E-057F50702462",
@@ -2277,6 +2389,7 @@
       "cuttingHeight": 10,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "4D01D07F-2BA2-5570-AF93-C265BFA1C9E4",
@@ -2354,6 +2467,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "E7D0509E-9463-5A70-9E2F-193B5AD320A4",
@@ -2431,6 +2545,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "7971EBDA-F9E0-5114-815F-3A53B6C153B3",
@@ -2508,6 +2623,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "4F36CF2C-8924-5FF6-9B43-30F0EAA2A310",
@@ -2585,6 +2701,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "DD81650F-423B-5B46-8634-EF566038395C",
@@ -2662,6 +2779,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "A8382635-6A16-51D6-A69F-3C35B63A0FC2",
@@ -2739,6 +2857,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "C7A07D9A-E6F3-5240-8EE1-699F3F889F8B",
@@ -2816,6 +2935,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "52129925-10C3-5262-987F-3B02C78614CA",
@@ -2893,6 +3013,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "54EAED6F-CA20-5192-B561-E394D4939257",
@@ -2970,6 +3091,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "02968DDF-ED5C-5BB5-B265-87ACAFAC01EC",
@@ -3047,6 +3169,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "2022DF49-FD71-547D-BB31-111F0E7738CE",
@@ -3124,6 +3247,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "AD3491E6-6E53-586B-AF04-4B16172B57E7",
@@ -3201,6 +3325,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "349FDC72-73B7-52BD-8A6F-53688D13A377",
@@ -3278,6 +3403,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "C9AFAC8F-3559-5952-8CA4-2A44C5CAECF1",
@@ -3355,6 +3481,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "CB14C9C4-4592-59B4-8FDB-C0A40F05B444",
@@ -3432,6 +3559,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "D11303FA-85D0-5FAF-9C40-8891A2CE2EE0",
@@ -3509,6 +3637,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "5F0F85F1-8AD7-5EE4-87D9-07A5960B1541",
@@ -3586,6 +3715,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "598E2B1E-23D5-5152-A0BA-F08DABF68772",
@@ -3663,6 +3793,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "8646FCA5-FC05-5B87-8947-874022976078",
@@ -3740,6 +3871,7 @@
       "cuttingHeight": 12,
       "type": "drill",
       "group": "Drill",
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "C243F96D-C731-5655-B117-588FE16D4E3B",
@@ -3811,12 +3943,17 @@
       "id": "97d001a3-b1bd-456f-9e49-984e1ce0e3a8",
       "name": "0.1mm*90° Chamfering",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/chamfering-bit-1-8-shank",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.1,
+      "toolDiameter": 3.175,
+      "cuttingHeight": 3,
+      "toolLength": 38,
       "type": "chamfer",
       "group": "Chamfering Bits",
+      "numberOfFlutes": 2,
       "tipAngle": 90,
+      "tipDiameter": 0.1,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "7397ABE5-AA7C-5CE5-90F0-0DFB03379766",
@@ -3888,12 +4025,17 @@
       "id": "420aec1f-19e3-4ba1-a72b-20d648e389fc",
       "name": "0.3mm*30° Solder Mask Removal",
       "quantity": 0,
-      "link": "",
+      "link": "https://www.makera.com/products/uv-solder-mask-removal-tool-1-8-shank",
       "shankDiameter": 3.175,
-      "toolDiameter": 0.3,
+      "toolDiameter": 2,
+      "cuttingHeight": 3,
+      "toolLength": 46,
       "type": "engraving",
       "group": "Solder Mask Remover",
+      "numberOfFlutes": 1,
       "tipAngle": 30,
+      "tipDiameter": 0.3,
+      "sourceID": "00000000-0000-0000-0000-00000000B001",
       "presets": [
         {
           "id": "7FB6F432-D33D-5819-9799-0C8420DAAB2F",

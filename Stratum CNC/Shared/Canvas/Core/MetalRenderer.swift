@@ -138,6 +138,13 @@ class MetalRenderer: NSObject {
     /// only ever draw lines (or, for the occluder pre-pass, invisible
     /// depth-only faces). See `setupHeightmapPipeline`.
     private var heightmapPipelineState: MTLRenderPipelineState!
+    /// The same solid-shaded pipeline with alpha blending, for the see-through tool.
+    private var heightmapBlendedPipelineState: MTLRenderPipelineState?
+    /// The same pipeline with color writes off: stamps the tool's depth before the blended pass.
+    private var heightmapDepthOnlyPipelineState: MTLRenderPipelineState?
+
+    /// How opaque the tool is drawn (0...1); less than 1 lets the toolpaths under it show through.
+    private let toolAlpha: Float = 0.45
 
     // Depth states for the two-pass hidden-line render (see `draw(in:)`):
     // `depthStateVisible` is the normal pass, `depthStateHidden` is the
@@ -148,6 +155,9 @@ class MetalRenderer: NSObject {
     /// Always passes and writes depth. Only used to reset the depth buffer
     /// inside the orientation cube's viewport (see `drawOrientationCube`).
     private var depthStateAlways: MTLDepthStencilState!
+    /// `.lessEqual`, no depth write: the colour pass of the see-through tool, which keeps only the
+    /// surface nearest the camera (the one its depth pre-pass wrote).
+    private var depthStateLessEqual: MTLDepthStencilState!
 
     /// Draw the small orientation cube in a corner of the canvas (see
     /// `OrientationCube`). Static GPU buffers, built once in `init`.
@@ -515,6 +525,23 @@ class MetalRenderer: NSObject {
         pipelineDescriptor.rasterSampleCount = metalView.sampleCount
 
         heightmapPipelineState = try? device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+
+        // Variants for the see-through tool (`drawToolOnTop`).
+        if let depthOnly = pipelineDescriptor.copy() as? MTLRenderPipelineDescriptor {
+            depthOnly.colorAttachments[0].writeMask = []
+            heightmapDepthOnlyPipelineState = try? device.makeRenderPipelineState(descriptor: depthOnly)
+        }
+        if let blended = pipelineDescriptor.copy() as? MTLRenderPipelineDescriptor,
+           let color = blended.colorAttachments[0] {
+            color.isBlendingEnabled = true
+            color.rgbBlendOperation = .add
+            color.alphaBlendOperation = .add
+            color.sourceRGBBlendFactor = .sourceAlpha
+            color.sourceAlphaBlendFactor = .sourceAlpha
+            color.destinationRGBBlendFactor = .oneMinusSourceAlpha
+            color.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            heightmapBlendedPipelineState = try? device.makeRenderPipelineState(descriptor: blended)
+        }
     }
 
     /// Two depth-stencil states, one per pass of the hidden-line render:
@@ -548,6 +575,11 @@ class MetalRenderer: NSObject {
         alwaysDescriptor.depthCompareFunction = .always
         alwaysDescriptor.isDepthWriteEnabled = true
         depthStateAlways = device.makeDepthStencilState(descriptor: alwaysDescriptor)
+
+        let lessEqualDescriptor = MTLDepthStencilDescriptor()
+        lessEqualDescriptor.depthCompareFunction = .lessEqual
+        lessEqualDescriptor.isDepthWriteEnabled = false
+        depthStateLessEqual = device.makeDepthStencilState(descriptor: lessEqualDescriptor)
     }
 
     /// Uploads the orientation cube's (static) triangles and the quad used
@@ -801,19 +833,26 @@ private extension MetalRenderer {
     /// on the winding matching whichever convention the encoder is in.
     /// Depth shading is disabled (`depthDarkening: 0`) — it's a stock-depth
     /// effect and means nothing for the tool.
-    func drawSolids(mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+    func drawSolids(mvp: matrix_float4x4,
+                    encoder: MTLRenderCommandEncoder,
+                    where include: (RenderRole?) -> Bool = { _ in true },
+                    pipeline: MTLRenderPipelineState? = nil,
+                    depthState: MTLDepthStencilState? = nil,
+                    alpha: Float = 1,
+                    depthBias: Float = 0) {
         guard let heightmapPipelineState else {
             return
         }
         var pipelineBound = false
 
         for batch in renderBatches {
-            guard let solidBuffer = batch.solidBuffer, batch.solidVertexCount > 0 else {
+            guard include(batch.role),
+                  let solidBuffer = batch.solidBuffer, batch.solidVertexCount > 0 else {
                 continue
             }
             if !pipelineBound {
-                encoder.setRenderPipelineState(heightmapPipelineState)
-                encoder.setDepthStencilState(depthStateVisible)
+                encoder.setRenderPipelineState(pipeline ?? heightmapPipelineState)
+                encoder.setDepthStencilState(depthState ?? depthStateVisible)
                 encoder.setCullMode(.none)
                 pipelineBound = true
             }
@@ -823,10 +862,14 @@ private extension MetalRenderer {
             // A STEP model's faces are lit by a headlight and pushed a hair back, so the edges
             // that lie exactly on them win the depth test instead of z-fighting with them.
             let isModel = batch.role == .model
-            encoder.setDepthBias(isModel ? occluderDepthBias : 0, slopeScale: isModel ? occluderDepthBiasSlope : 0, clamp: 0)
+            encoder.setDepthBias(isModel ? occluderDepthBias : depthBias,
+                                 slopeScale: isModel ? occluderDepthBiasSlope : depthBias,
+                                 clamp: 0)
+            var color = batch.solidColor
+            color.w *= alpha
             var uniforms = HeightmapUniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role),
                                              lightDirection: isModel ? headlight(for: batch.role) : heightmapLightDirection,
-                                             baseColor: batch.solidColor,
+                                             baseColor: color,
                                              ambient: isModel ? modelAmbient : heightmapAmbient,
                                              topZ: 1,
                                              bottomZ: 0,
@@ -949,7 +992,8 @@ private extension MetalRenderer {
         // the whole tool should be visible. Their depth still lands in the
         // buffer, so edges behind the tool are hidden/dashed like any other
         // occluded edge.
-        drawSolids(mvp: mvp, encoder: encoder)
+        // The tool is not among them: it is drawn last, on top of everything (`drawToolOnTop`).
+        drawSolids(mvp: mvp, encoder: encoder, where: { $0 != .tool })
 
         // Edges are drawn in two groups, because an object's occluder faces may hide only its
         // own edges (`OccluderScope.ownEdges`, the stock). The scene's group goes first and its
@@ -965,6 +1009,47 @@ private extension MetalRenderer {
         for batch in renderBatches where batch.role == .modelSelection {
             drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0, encoder: encoder)
         }
+
+        drawToolOnTop(mvp: mvp, encoder: encoder)
+    }
+
+    /// The tool is the one thing that must never be hidden: it is drawn after everything else,
+    /// over a cleared depth buffer, so the stock, the toolpath, the anchor, the heightmap surface
+    /// and the model can't cover any part of it. Its own faces still sort against each other.
+    func drawToolOnTop(mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+        guard let resetBuffer = depthResetBuffer,
+              renderBatches.contains(where: { $0.role == .tool && $0.solidVertexCount > 0 }) else {
+            return
+        }
+
+        // Reset depth over the whole canvas with the same quad the orientation cube uses
+        // (it is in clip space, so it covers whatever viewport is set; the default is the full one).
+        var resetUniforms = Uniforms(modelViewProjectionMatrix: matrix_identity_float4x4, dashLength: 0)
+        encoder.setRenderPipelineState(depthOnlyPipelineState)
+        encoder.setDepthStencilState(depthStateAlways)
+        encoder.setCullMode(.none)
+        encoder.setDepthBias(0, slopeScale: 0, clamp: 0)
+        encoder.setVertexBytes(&resetUniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        encoder.setFragmentBytes(&resetUniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
+        encoder.setVertexBuffer(resetBuffer, offset: 0, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 6)
+
+        // Without the blending variants (shader library problem) fall back to an opaque tool.
+        guard let blended = heightmapBlendedPipelineState,
+              let depthOnly = heightmapDepthOnlyPipelineState else {
+            drawSolids(mvp: mvp, encoder: encoder, where: { $0 == .tool })
+            return
+        }
+
+        // See-through: first the tool's depth alone, so only the surface nearest the camera is
+        // left; then that surface blended over what is already on screen (the toolpaths it
+        // covers), once per pixel instead of once per overlapping face. The small negative bias
+        // keeps the colour pass from losing to its own pre-pass by rounding.
+        drawSolids(mvp: mvp, encoder: encoder, where: { $0 == .tool },
+                   pipeline: depthOnly, depthState: depthStateVisible)
+        drawSolids(mvp: mvp, encoder: encoder, where: { $0 == .tool },
+                   pipeline: blended, depthState: depthStateLessEqual,
+                   alpha: toolAlpha, depthBias: -1)
     }
 
     /// The three passes of the hidden-line render for `batches`: occluder faces (depth only),
@@ -1128,12 +1213,11 @@ private extension MetalRenderer {
             drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : 0.0, encoder: encoder)
         }
 
-        // The tool (solid). Depth-tested against the surface drawn right
-        // after, so the part of the tool below the stock top is correctly
-        // hidden by the uncut material and visible inside carved pockets.
-        drawSolids(mvp: mvp, encoder: encoder)
+        // Solid objects other than the tool (a STEP model). The tool is drawn last, on top.
+        drawSolids(mvp: mvp, encoder: encoder, where: { $0 != .tool })
 
         guard let heightmapBatch, let heightmapPipelineState else {
+            drawToolOnTop(mvp: mvp, encoder: encoder)
             return
         }
 
@@ -1162,5 +1246,7 @@ private extension MetalRenderer {
                                       indexType: .uint32,
                                       indexBuffer: heightmapBatch.indexBuffer,
                                       indexBufferOffset: 0)
+
+        drawToolOnTop(mvp: mvp, encoder: encoder)
     }
 }

@@ -11,12 +11,15 @@ import simd
 /// what is actually on the canvas.
 enum CanvasPalette {
     static let stock       = SIMD4<Float>(0.6, 0.2, 0.85, 1.0)
-    static let rapid       = SIMD4<Float>(1.0, 0.85, 0.2, 1.0)
-    static let cutting     = SIMD4<Float>(0.2, 0.8, 1.0, 1.0)
+    /// Rapid (non-cutting) moves: between orange and red, so they read as "careful" next to the
+    /// yellow cutting moves.
+    static let rapid       = SIMD4<Float>(1.0, 0.35, 0.1, 1.0)
+    static let cutting     = SIMD4<Float>(1.0, 0.82, 0.1, 1.0)
     static let boundingBox = SIMD4<Float>(0.2, 0.75, 0.35, 1.0)
     static let tool        = SIMD4<Float>(0.6, 0.62, 0.66, 1.0)
     static let workbed     = SIMD4<Float>(0.55, 0.6, 0.65, 1.0)
-    static let anchor      = SIMD4<Float>(0.95, 0.55, 0.15, 1.0)
+    /// The L-bracket and its ruler: a neutral gray, so the fixture stays in the background.
+    static let anchor      = SIMD4<Float>(0.5, 0.5, 0.5, 1.0)
     static let ruler       = anchor
     static let model       = SIMD4<Float>(0.78, 0.84, 0.92, 1)
     static let modelSelection = SIMD4<Float>(1, 0.65, 0.12, 1)

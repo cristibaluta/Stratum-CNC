@@ -64,8 +64,12 @@ struct ControllerView: View {
         colorScheme == .dark ? Color(red: 0.1, green: 0.1, blue: 0.1) : .white
     }
 
+    /// Width of the G-code / macros column; dragged from its right edge, remembered between launches.
+    @AppStorage("controller.gcodePanelWidth") private var gcodePanelWidth = 260.0
+
     @State private var isShowingEmptyStateRemoteFiles = false
     @State private var isShowingToolbarRemoteFiles = false
+    @State private var isShowingPanelRemoteFiles = false
 
     /// Without CAM (Controller-only sessions) there is nothing to generate from.
     private var hasCAM: Bool { !projectModel.hidesCAM }
@@ -119,7 +123,9 @@ struct ControllerView: View {
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             column2
-                .frame(width: 300)
+                .resizableSidePanel(width: $gcodePanelWidth,
+                                    range: 230...360,
+                                    defaultWidth: 260)
 
             column1
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -417,6 +423,11 @@ struct ControllerView: View {
                 .labelsHidden()
                 .padding(8)
 
+                // Loading another program, under the G-code tab only (not for macros).
+                if model.gcodePanelMode == .gcode && canImportGCode {
+                    gcodeImportRow
+                }
+
             GCodeViewer(model: gCodeModel,
                         uploader: model.uploader,
                         connection: model.connection,
@@ -443,6 +454,47 @@ struct ControllerView: View {
                         onStop: model.stopJob)
             }
         }
+    }
+
+    /// The loaded file's name and the button to replace it: from a file on disk or from the machine.
+    private var gcodeImportRow: some View {
+        HStack(spacing: 8) {
+            Text(gCodeModel.document.fileName)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(gCodeModel.document.lines.isEmpty ? .secondary : .primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(gCodeModel.document.fileName)
+
+            Spacer(minLength: 0)
+
+            Menu {
+                Button {
+                    model.isGCodeImporterPresented = true
+                } label: {
+                    Label("Import from File…", systemImage: "folder")
+                }
+                Button {
+                    isShowingPanelRemoteFiles = true
+                } label: {
+                    Label("Load from Machine…", systemImage: "externaldrive.badge.wifi")
+                }
+            } label: {
+                Label("Load G-code", systemImage: "square.and.arrow.down")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Import G-code from a file or the machine")
+            .disabled(gCodeModel.document.isLoading)
+            .popover(isPresented: $isShowingPanelRemoteFiles, arrowEdge: .bottom) {
+                RemoteFilesPopover(info: model.session.info,
+                                   downloader: model.session.downloader,
+                                   isConnected: model.connection.isConnected) { file in
+                    loadRemoteFile(file)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
     }
 
     // MARK: - Loading state
@@ -904,19 +956,33 @@ private struct CanvasSection: View {
                 .padding(8)
             }
 
-            // The tools the program calls, centered under the canvas.
-            if !gCodeModel.tools.isEmpty {
-                ToolChipsView(tools: gCodeModel.tools,
-                              assignments: $gCodeModel.toolAssignments,
-                              fileTools: gCodeModel.headerTools,
-                              library: gCodeModel.toolLibrary,
-                              activeTool: gCodeModel.activeToolNumber,
-                              alignment: .center)
-                    .padding(.horizontal, 10)
-                    .frame(height: 44)
-                    .frame(maxWidth: .infinity)
-                    .background(.regularMaterial)
-                    .cornerRadius(8)
+            // Feed and Z at the current line on the left, then the tools the program calls.
+            let showsLiveValues = !gCodeModel.document.lines.isEmpty && !showsMacroPreview
+            if showsLiveValues || !gCodeModel.tools.isEmpty {
+                HStack(spacing: 10) {
+                    if showsLiveValues {
+                        LiveValuesChip(values: gCodeModel.currentLiveValues)
+
+                        Divider()
+                            .frame(height: 24)
+                    }
+
+                    if gCodeModel.tools.isEmpty {
+                        Spacer(minLength: 0)
+                    } else {
+                        ToolChipsView(tools: gCodeModel.tools,
+                                      assignments: $gCodeModel.toolAssignments,
+                                      fileTools: gCodeModel.headerTools,
+                                      library: gCodeModel.toolLibrary,
+                                      activeTool: gCodeModel.activeToolNumber,
+                                      alignment: .center)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 44)
+                .frame(maxWidth: .infinity)
+                .background(.regularMaterial)
+                .cornerRadius(8)
             }
 
             ScrubberOrJobProgress(connection: connection) {

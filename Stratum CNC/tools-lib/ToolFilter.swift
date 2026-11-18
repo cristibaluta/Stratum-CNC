@@ -200,7 +200,8 @@ struct ToolFilter: Equatable {
         [
             tool.name,
             tool.type.displayName,
-            String(format: "%g", tool.toolDiameter)
+            String(format: "%g", tool.toolDiameter),
+            tool.tipDiameter.map { String(format: "%g", $0) } ?? ""
         ]
         .joined(separator: " ")
         .lowercased()
@@ -220,6 +221,12 @@ struct ToolFilter: Equatable {
         if typeA != typeB { return typeA < typeB }
 
         if a.toolDiameter != b.toolDiameter { return a.toolDiameter < b.toolDiameter }
+
+        // V-shaped bits of one family share a diameter; order them by tip, then angle.
+        let tipA = a.tipDiameter ?? 0, tipB = b.tipDiameter ?? 0
+        if tipA != tipB { return tipA < tipB }
+        let angleA = a.tipAngle ?? 0, angleB = b.tipAngle ?? 0
+        if angleA != angleB { return angleA < angleB }
 
         let heightA = a.cuttingHeight ?? 0
         let heightB = b.cuttingHeight ?? 0

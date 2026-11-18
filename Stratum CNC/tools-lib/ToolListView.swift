@@ -167,7 +167,8 @@ private struct ToolRow: View, Equatable {
 
     /// Second line: the cutting height, the flutes, then the shank diameter
     /// ("Cut 10 mm · 2 flutes · Shank Ø3.175"). Engraving bits show their tip angle instead of
-    /// the cutting height ("TA 30° · Shank Ø3.175"), since the angle is what tells them apart.
+    /// the cutting height, and V-shaped tools their tip width ("TA 30° · Tip 0.3 · Shank Ø3.175"):
+    /// their diameter is the same across a family, the angle and tip are what tell them apart.
     /// Anything the tool doesn't have is left out.
     private var detail: String {
         var parts: [String] = []
@@ -175,6 +176,9 @@ private struct ToolRow: View, Equatable {
             parts.append("TA \(Self.number(tipAngle))°")
         } else if let cuttingHeight = tool.cuttingHeight, cuttingHeight > 0 {
             parts.append("Cut \(Self.number(cuttingHeight)) mm")
+        }
+        if tool.type.hasTipDiameter, let tip = tool.tipDiameter, tip > 0 {
+            parts.append("Tip \(Self.number(tip))")
         }
         if let flutes = tool.numberOfFlutes, flutes > 0 {
             parts.append(flutes == 1 ? "1 flute" : "\(flutes) flutes")
