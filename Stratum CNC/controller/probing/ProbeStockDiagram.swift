@@ -36,7 +36,9 @@ struct ProbeSchematic {
     let corners: [ProbePoint: CGPoint]
 
     init(feature: ProbeFeature, corner: ProbePoint, in size: CGSize) {
-        plate = CGRect(origin: .zero, size: size).insetBy(dx: 6, dy: 6)
+        // The plate is the tile itself: it fills it edge to edge, so the container's one
+        // border is the only outline. The shapes keep clear of the edge by their own size.
+        plate = CGRect(origin: .zero, size: size)
         isRound = feature.isCenter
 
         if feature.isCenter {
@@ -87,9 +89,8 @@ struct ProbeFeatureDrawing: View {
 
             // The same colors for all four: a dark plate and a lighter shape.
             // A boss also gets a drop shadow to stand on the plate.
-            let plate = Path(roundedRect: layout.plate, cornerRadius: 5)
+            let plate = Path(layout.plate)
             context.fill(plate, with: .color(Color.secondary.opacity(0.45)))
-            context.stroke(plate, with: .color(Color.secondary.opacity(0.6)), lineWidth: 1)
 
             let outline = layout.isRound
                 ? Path(ellipseIn: layout.shape)
@@ -217,13 +218,16 @@ struct ProbeHardwareDrawing: View {
             // Stylus.
             var stylus = Path()
             stylus.move(to: CGPoint(x: midX, y: body.maxY))
-            stylus.addLine(to: CGPoint(x: midX, y: ballY - ballRadius))
+            stylus.addLine(to: CGPoint(x: midX, y: hardware == .ruby ? ballY - ballRadius : ballY + ballRadius))
             context.stroke(stylus, with: .color(Color.secondary), lineWidth: 3)
 
-            // Ball: silver for the metal probe, red for the ruby.
+            // The metal probe is a straight pin: no ball. Only the ruby has one.
+            guard hardware == .ruby else { return }
+
+            // Ball: red for the ruby.
             let ball = Path(ellipseIn: CGRect(x: midX - ballRadius, y: ballY - ballRadius,
                                               width: ballRadius * 2, height: ballRadius * 2))
-            let color: Color = hardware == .ruby ? Color(red: 0.8, green: 0.1, blue: 0.2) : Color(white: 0.78)
+            let color = Color(red: 0.8, green: 0.1, blue: 0.2)
             context.fill(ball, with: .color(color))
             context.stroke(ball, with: .color(Color.black.opacity(0.35)), lineWidth: 1)
             let shine = Path(ellipseIn: CGRect(x: midX - 7, y: ballY - 8, width: 6, height: 6))
@@ -259,8 +263,7 @@ struct ProbeStockDiagram: View {
                 }
             }
         }
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+        .probeContainer()
     }
 
     // MARK: Choosing a corner
@@ -349,5 +352,22 @@ private struct PulsingDot: View {
         .onAppear { isPulsing = true }
         .allowsHitTesting(false)
         .help("Jog the probe tip above this point")
+    }
+}
+
+// MARK: - Container
+
+extension View {
+    /// The one container of the probing dialog: a faint fill and a single hairline border
+    /// (accent and thicker while selected), clipped to a rounded rectangle. Drawings that
+    /// paint their own plate (boss and pocket) fill it edge to edge, so there is only one
+    /// border and no lighter frame around them.
+    func probeContainer(isSelected: Bool = false, cornerRadius: CGFloat = 10) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+        return self
+            .background(shape.fill(Color.primary.opacity(0.05)))
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(isSelected ? Color.accentColor : Color.primary.opacity(0.12),
+                                        lineWidth: isSelected ? 2 : 1))
     }
 }

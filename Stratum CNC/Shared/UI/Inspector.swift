@@ -33,6 +33,20 @@ extension EnvironmentValues {
     }
 }
 
+private struct ForcesInspectorSectionsOpenKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Keeps every `InspectorSection` below open, ignoring the collapsed state remembered per
+    /// title (shared with the inspector, where the same section may have been collapsed).
+    /// Used by popovers that must show the full form.
+    var forcesInspectorSectionsOpen: Bool {
+        get { self[ForcesInspectorSectionsOpenKey.self] }
+        set { self[ForcesInspectorSectionsOpenKey.self] = newValue }
+    }
+}
+
 /// The orange triangle of a compact row. The message is its help; clicking it opens the
 /// full section, where the same problem is spelled out next to the setting it is about.
 struct InspectorWarningButton: View {
@@ -73,6 +87,7 @@ struct InspectorSection<Content: View, Compact: View>: View {
     let compact: Compact?
 
     @AppStorage private var isCollapsed: Bool
+    @Environment(\.forcesInspectorSectionsOpen) private var forcesOpen
 
     init(title: String? = nil,
          showsDivider: Bool = true,
@@ -88,7 +103,7 @@ struct InspectorSection<Content: View, Compact: View>: View {
     }
 
     private var isOpen: Bool {
-        !(collapsible && isCollapsed)
+        forcesOpen || !(collapsible && isCollapsed)
     }
 
     var body: some View {
@@ -134,7 +149,7 @@ struct InspectorSection<Content: View, Compact: View>: View {
 
             Spacer(minLength: 0)
 
-            if collapsible {
+            if collapsible && !forcesOpen {
                 InspectorDisclosureButton(title: title, isExpanded: isOpen) {
                     withAnimation(.easeInOut(duration: 0.15)) {
                         isCollapsed.toggle()

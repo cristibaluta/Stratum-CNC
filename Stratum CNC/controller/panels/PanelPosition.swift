@@ -17,7 +17,7 @@ import StratumLink
 ///     JOB      …      …                   the job offset: where the job's origin sits (mm), read-only
 ///     ───────
 ///     ZERO     X Y Z                XYZ   set the work origin here
-///     PROBE    Z X Y  Auto Z        ⚙     find the surface, then set the origin
+///     PROBE    Probe…                     opens the probe dialog
 ///
 /// The first two rows are live readouts of the machine; JOB OFFSET shows a setting
 /// for the job (`CanvasSceneModel.xyOffset`, which Fusion's X/Y Offset header

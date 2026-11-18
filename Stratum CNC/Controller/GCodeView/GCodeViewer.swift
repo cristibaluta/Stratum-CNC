@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 import StratumLink
 
 struct GCodeViewer: View {
@@ -33,6 +36,14 @@ struct GCodeViewer: View {
     var canChangeBit: Bool = false
     var onStop: (() -> Void)? = nil
 
+    /// Height of the toolpaths / macros list above the divider; the table takes the rest.
+    @AppStorage("controller.gcodeListHeight") private var listHeight = Self.defaultListHeight
+    @State private var listHeightAtDragStart: Double?
+    @State private var isHoveringDivider = false
+
+    private static let defaultListHeight = 200.0
+    private static let listHeightRange = 80.0...600.0
+
     @State private var toolpaths: [GCodeToolpath] = []
     /// Finds a clean line to resume from; rebuilt with the toolpaths.
     @State private var resumeResolver: ResumePointResolver?
@@ -42,20 +53,23 @@ struct GCodeViewer: View {
             switch mode {
                 case .gcode:
                     toolpathsView
-                        .frame(height: 200)
+                        .frame(height: listHeight)
                 case .macros:
                     MacrosListView(store: macros)
-                        .frame(height: 200)
+                        .frame(height: listHeight)
             }
+
+            // Separates the two scrollable sections and resizes them.
+            resizeHandle
+
             if mode == .macros, let macro = macros.selectedMacro {
                 MacroDetailView(store: macros,
                                 macro: macro,
                                 canRun: canRunMacro,
                                 onRun: { onRunMacro?($0) })
+                Divider()
+                    .frame(height: 1)
             }
-
-            Divider()
-                .frame(height: 1)
 
             switch mode {
                 case .gcode:
@@ -87,6 +101,58 @@ struct GCodeViewer: View {
         .onChange(of: model.document.toolpathSegments.count) { _, _ in
             refreshToolpaths()
         }
+    }
+
+    // MARK: - Divider
+
+    private var isDraggingDivider: Bool { listHeightAtDragStart != nil }
+
+    /// A hairline with three dots in its middle. Dragging it up or down gives the list more or
+    /// less room; double-click resets the height.
+    private var resizeHandle: some View {
+        let isActive = isHoveringDivider || isDraggingDivider
+        return ZStack {
+            Divider()
+            HStack(spacing: 3) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .frame(width: 3.5, height: 3.5)
+                }
+            }
+            .foregroundStyle(isActive ? Color.accentColor : Color.secondary.opacity(0.55))
+            .padding(.horizontal, 6)
+            .background(.background)
+        }
+        .frame(height: 14)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            isHoveringDivider = inside
+            #if os(macOS)
+            if inside {
+                NSCursor.resizeUpDown.push()
+            } else {
+                NSCursor.pop()
+            }
+            #endif
+        }
+        .gesture(
+            // Global coordinates: the handle moves while dragging, so local ones would feed back.
+            DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { value in
+                    let start = listHeightAtDragStart ?? listHeight
+                    listHeightAtDragStart = start
+                    listHeight = min(max(start + value.translation.height,
+                                         Self.listHeightRange.lowerBound),
+                                     Self.listHeightRange.upperBound)
+                }
+                .onEnded { _ in
+                    listHeightAtDragStart = nil
+                }
+        )
+        .onTapGesture(count: 2) {
+            listHeight = Self.defaultListHeight
+        }
+        .help("Drag to resize. Double-click to reset.")
     }
 
     private func refreshToolpaths() {

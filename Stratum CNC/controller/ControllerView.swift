@@ -69,7 +69,6 @@ struct ControllerView: View {
 
     @State private var isShowingEmptyStateRemoteFiles = false
     @State private var isShowingToolbarRemoteFiles = false
-    @State private var isShowingPanelRemoteFiles = false
 
     /// Without CAM (Controller-only sessions) there is nothing to generate from.
     private var hasCAM: Bool { !projectModel.hidesCAM }
@@ -372,7 +371,7 @@ struct ControllerView: View {
                           macroDocument: model.macros.document,
                           showsMacroPreview: model.gcodePanelMode == .macros,
                           isStockVisible: stockVisibleBinding,
-                          onImportFile: canImportGCode && !importsFromNavBar ? { model.isGCodeImporterPresented = true } : nil,
+                          onImportFile: canImportGCode ? { model.isGCodeImporterPresented = true } : nil,
                           session: model.session,
                           onLoadRemoteFile: loadRemoteFile)
         }
@@ -423,11 +422,6 @@ struct ControllerView: View {
                 .labelsHidden()
                 .padding(8)
 
-                // Loading another program, under the G-code tab only (not for macros).
-                if model.gcodePanelMode == .gcode && canImportGCode {
-                    gcodeImportRow
-                }
-
             GCodeViewer(model: gCodeModel,
                         uploader: model.uploader,
                         connection: model.connection,
@@ -454,47 +448,6 @@ struct ControllerView: View {
                         onStop: model.stopJob)
             }
         }
-    }
-
-    /// The loaded file's name and the button to replace it: from a file on disk or from the machine.
-    private var gcodeImportRow: some View {
-        HStack(spacing: 8) {
-            Text(gCodeModel.document.fileName)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(gCodeModel.document.lines.isEmpty ? .secondary : .primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(gCodeModel.document.fileName)
-
-            Spacer(minLength: 0)
-
-            Menu {
-                Button {
-                    model.isGCodeImporterPresented = true
-                } label: {
-                    Label("Import from File…", systemImage: "folder")
-                }
-                Button {
-                    isShowingPanelRemoteFiles = true
-                } label: {
-                    Label("Load from Machine…", systemImage: "externaldrive.badge.wifi")
-                }
-            } label: {
-                Label("Load G-code", systemImage: "square.and.arrow.down")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Import G-code from a file or the machine")
-            .disabled(gCodeModel.document.isLoading)
-            .popover(isPresented: $isShowingPanelRemoteFiles, arrowEdge: .bottom) {
-                RemoteFilesPopover(info: model.session.info,
-                                   downloader: model.session.downloader,
-                                   isConnected: model.connection.isConnected) { file in
-                    loadRemoteFile(file)
-                }
-            }
-        }
-        .padding(.horizontal, 10)
     }
 
     // MARK: - Loading state
@@ -795,46 +748,50 @@ private struct CanvasSection: View {
         ControllerView.scrubTo(line: max(0, min(totalLines, newLine)), gCodeModel: gCodeModel, camModel: camModel, scene: scene, forceHeightmap: false)
     }
 
-    /// Where the program came from, at the left of the bar above the canvas:
-    /// import from a file or the machine, and the loaded file's name.
-//    private var fileControls: some View {
-//        HStack(spacing: 6) {
-//            if let onImportFile {
-//            Button(action: onImportFile) {
-//                Image(systemName: "folder")
-//                    .frame(width: 22, height: 22)
-//            }
-//            .help("Import from file")
-//            .disabled(gCodeModel.document.isLoading)
-//
-//            Button {
-//                isShowingRemoteFiles = true
-//            } label: {
-//                Image(systemName: "externaldrive.badge.wifi")
-//                    .frame(width: 22, height: 22)
-//            }
-//            .help("Load from machine")
-//            .disabled(gCodeModel.document.isLoading)
-//            .popover(isPresented: $isShowingRemoteFiles, arrowEdge: .bottom) {
-//                RemoteFilesPopover(info: session.info,
-//                                   downloader: session.downloader,
-//                                   isConnected: connection.isConnected) { file in
-//                    onLoadRemoteFile(file)
-//                }
-//            }
-//            }
-//
-//            Text(gCodeModel.document.fileName)
-//                .font(.caption.weight(.medium))
-//                .foregroundStyle(gCodeModel.document.lines.isEmpty ? .secondary : .primary)
-//                .lineLimit(1)
-//                .truncationMode(.middle)
-//                .frame(maxWidth: 180, alignment: .leading)
-//                .help(gCodeModel.document.fileName)
-//        }
-//        .buttonStyle(.plain)
-//        .fixedSize()
-//    }
+    /// The loaded file's name and the menu to replace it (from a file on disk or from the
+    /// machine), at the top middle of the canvas. Only shown once a program is loaded: until
+    /// then the empty state has its own import buttons.
+    @ViewBuilder
+    private var fileControls: some View {
+        if let onImportFile, !gCodeModel.document.lines.isEmpty, !showsMacroPreview {
+            HStack(spacing: 8) {
+                Text(gCodeModel.document.fileName)
+                    .font(.caption.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 220, alignment: .leading)
+                    .help(gCodeModel.document.fileName)
+
+                Menu {
+                    Button(action: onImportFile) {
+                        Label("Import from File…", systemImage: "folder")
+                    }
+                    Button {
+                        isShowingRemoteFiles = true
+                    } label: {
+                        Label("Load from Machine…", systemImage: "externaldrive.badge.wifi")
+                    }
+                } label: {
+                    Label("Load G-code", systemImage: "square.and.arrow.down")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Import G-code from a file or the machine")
+                .disabled(gCodeModel.document.isLoading)
+                .popover(isPresented: $isShowingRemoteFiles, arrowEdge: .bottom) {
+                    RemoteFilesPopover(info: session.info,
+                                       downloader: session.downloader,
+                                       isConnected: connection.isConnected) { file in
+                        onLoadRemoteFile(file)
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .canvasChrome()
+            .padding(8)
+        }
+    }
 
     var body: some View {
         VStack {
@@ -879,6 +836,9 @@ private struct CanvasSection: View {
             .overlay {
                 CanvasCoordinateLabels(scene: scene)
             }
+            .overlay(alignment: .top) {
+                fileControls
+            }
             .overlay(alignment: .topLeading) {
                 CanvasLayersList(layers: CanvasLayer.controllerLayers,
                                  isVisible: { scene.isVisible($0) },
@@ -894,6 +854,7 @@ private struct CanvasSection: View {
                                                                     isCompact: false,
                                                                     onOpenStocksLib: nil)
                                                      .frame(width: 320)
+                                                     .environment(\.forcesInspectorSectionsOpen, true)
                                              )
                                          case .boundingBox:
                                              return AnyView(JobAreaSettingsView(scene: scene))

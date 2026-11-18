@@ -172,8 +172,6 @@ struct ProbeSheet: View {
         }
     }
 
-    private static let tileShape = RoundedRectangle(cornerRadius: 10)
-
     // MARK: Step 2: probe
 
     private var toolStep: some View {
@@ -207,9 +205,7 @@ struct ProbeSheet: View {
             VStack(spacing: 8) {
                 ProbeHardwareDrawing(hardware: hardware)
                     .frame(height: 130)
-                    .background(Self.tileShape.fill(Color.primary.opacity(0.05)))
-                    .overlay(Self.tileShape.strokeBorder(isSelected ? Color.accentColor : Color.primary.opacity(0.12),
-                                                         lineWidth: isSelected ? 2 : 1))
+                    .probeContainer(isSelected: isSelected)
                 VStack(spacing: 2) {
                     Text(hardware.title)
                         .font(.callout.weight(isSelected ? .semibold : .medium))
@@ -230,8 +226,7 @@ struct ProbeSheet: View {
         VStack(spacing: 8) {
             ProbeZDrawing()
                 .frame(height: 150)
-                .background(Self.tileShape.fill(Color.primary.opacity(0.05)))
-                .overlay(Self.tileShape.strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+                .probeContainer()
             Text("Find Z Surface")
                 .font(.callout.weight(.medium))
         }
@@ -247,9 +242,7 @@ struct ProbeSheet: View {
             VStack(spacing: 8) {
                 ProbeFeatureDrawing(feature: feature, corner: .bottomLeft)
                     .frame(height: 130)
-                    .background(Self.tileShape.fill(Color.primary.opacity(0.05)))
-                    .overlay(Self.tileShape.strokeBorder(isSelected ? Color.accentColor : Color.primary.opacity(0.12),
-                                                         lineWidth: isSelected ? 2 : 1))
+                    .probeContainer(isSelected: isSelected)
                 Text(feature.title)
                     .font(.callout.weight(isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
@@ -428,8 +421,7 @@ struct ProbeSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(height: 400)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+            .probeContainer()
         }
     }
 
@@ -601,8 +593,7 @@ struct ProbeSheet: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.primary.opacity(0.12), lineWidth: 1))
+        .probeContainer()
     }
 
     private func originBox(_ result: ProbeResult) -> some View {
