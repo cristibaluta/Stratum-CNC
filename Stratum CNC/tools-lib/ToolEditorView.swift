@@ -35,7 +35,7 @@ struct ToolEditorView: View {
             availabilitySection
         }
         .formStyle(.grouped)
-        .navigationTitle(tool.displayName)
+        .libraryNavigationTitle(tool.displayName)
     }
 }
 
@@ -216,16 +216,7 @@ private extension ToolEditorView {
 
     var availabilitySection: some View {
         Section("Availability") {
-            Stepper(value: $tool.quantity, in: 0...9999) {
-                HStack {
-                    Text("Quantity")
-                    Spacer()
-                    TextField("Quantity", value: $tool.quantity, format: .number)
-                        .labelsHidden()
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 60)
-                }
-            }
+            QuantityField(title: "Quantity", value: $tool.quantity, range: 0...9999)
 
             HStack {
                 TextField("Link", text: linkBinding)

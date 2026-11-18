@@ -10,6 +10,8 @@ import SwiftUI
 struct ProjectView: View {
 
     @ObservedObject var appModel: AppModel
+    @Environment(\.stOpenToolLibrary) private var openToolLibrary
+    @Environment(\.stOpenStockLibrary) private var openStockLibrary
     @ObservedObject var projectModel: ProjectModel
     @ObservedObject private var gCodeStore: GCodeStore
 
@@ -85,7 +87,7 @@ struct ProjectView: View {
                 ToolbarItem(placement: .primaryAction) {
                     ControlGroup {
                         Button(action: {
-                            appModel.showingToolsSheet.toggle()
+                            openToolLibrary()
                         }) {
                             Label {
                                 Text("Tools")
@@ -96,7 +98,7 @@ struct ProjectView: View {
                         .help("Tools library")
 
                         Button(action: {
-                            appModel.showingStocksSheet.toggle()
+                            openStockLibrary()
                         }) {
                             Label("Stock", systemImage: "cube")
                         }

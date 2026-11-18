@@ -21,7 +21,7 @@ struct StockEditorView: View {
             availabilitySection
         }
         .formStyle(.grouped)
-        .navigationTitle(draft.name)
+        .libraryNavigationTitle(draft.name)
     }
 }
 
@@ -39,16 +39,7 @@ private extension StockEditorView {
 
     var availabilitySection: some View {
         Section("Availability") {
-            Stepper(value: $draft.quantity, in: 0...999) {
-                HStack {
-                    Text("Quantity")
-                    Spacer()
-                    TextField("Quantity", value: $draft.quantity, format: .number)
-                        .labelsHidden()
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 60)
-                }
-            }
+            QuantityField(title: "Quantity", value: $draft.quantity, range: 0...999)
 
             HStack {
                 TextField("Link", text: linkBinding)

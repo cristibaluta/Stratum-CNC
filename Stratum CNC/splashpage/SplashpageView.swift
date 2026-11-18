@@ -15,6 +15,8 @@ struct SplashpageView: View {
     @ObservedObject var projectsStore: ProjectsStore
 
     @Environment(\.stOpenSettings) private var openSettings
+    @Environment(\.stOpenToolLibrary) private var openToolLibrary
+    @Environment(\.stOpenStockLibrary) private var openStockLibrary
 
     private enum PickerKind { case projectFolder, gcode }
 
@@ -190,13 +192,13 @@ struct SplashpageView: View {
                                subtitle: "Your cutting tools",
                                systemImage: "pencil.tip.crop.circle.fill",
                                glyph: AnyView(EndMillGlyph(size: 20))) {
-                    appModel.showingToolsSheet = true
+                    openToolLibrary()
                 }
                 QuickActionRow(usageID: .stockLibrary,
                                title: "Stock Library",
                                subtitle: "Your stock materials",
                                systemImage: "cube") {
-                    appModel.showingStocksSheet = true
+                    openStockLibrary()
                 }
             }
         }

@@ -31,6 +31,16 @@ struct Stratum_CNC_App: App {
                     openWindow(id: AboutView.windowID)
                 }
             }
+            CommandGroup(after: .windowArrangement) {
+                Button("Tool Library") {
+                    openWindow(id: LibraryWindow.toolsID)
+                }
+                .keyboardShortcut("T", modifiers: [.command, .option])
+                Button("Stock Library") {
+                    openWindow(id: LibraryWindow.stocksID)
+                }
+                .keyboardShortcut("S", modifiers: [.command, .option])
+            }
             #endif
             CommandGroup(replacing: .newItem) {
                 Button("New Project") {
@@ -52,6 +62,24 @@ struct Stratum_CNC_App: App {
         }
         .windowResizability(.contentSize)
         .windowStyle(.hiddenTitleBar)
+        .restorationBehavior(.disabled)
+
+        // Browse/edit workspaces: non-modal, resizable, and the canvas stays usable next to them.
+        // Picking a tool or stock still happens in the popovers of the toolpath panels.
+        Window("Tool Library", id: LibraryWindow.toolsID) {
+            ToolLibraryWindowContent(appModel: model)
+        }
+        .windowToolbarStyle(.unified)
+        .defaultSize(width: 1080, height: 700)
+        .windowResizability(.contentMinSize)
+        .restorationBehavior(.disabled)
+
+        Window("Stock Library", id: LibraryWindow.stocksID) {
+            StockLibraryWindowContent(appModel: model)
+        }
+        .windowToolbarStyle(.unified)
+        .defaultSize(width: 960, height: 700)
+        .windowResizability(.contentMinSize)
         .restorationBehavior(.disabled)
 
         Settings {

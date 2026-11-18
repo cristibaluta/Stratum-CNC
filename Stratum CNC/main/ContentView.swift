@@ -63,5 +63,6 @@ struct ContentView: View {
             projectsStore.saveActiveProject()
         }
         .settingsPresenter(appModel)
+        .libraryPresenter(appModel)
     }
 }

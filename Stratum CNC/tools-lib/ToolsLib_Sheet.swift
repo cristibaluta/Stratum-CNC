@@ -15,6 +15,8 @@ struct ToolsLib_Sheet: View {
     /// When set, the sheet shows a "Pick" button. Tapping it returns the selected
     /// tool through this closure and dismisses the sheet. Leave `nil` to browse/edit only.
     var onPick: ((Tool) -> Void)?
+    /// In a window the height follows the window; as a sheet or popover it is fixed.
+    var isResizable = false
     @State private var selectedToolID: Tool.ID?
     @State private var toolPendingDeletion: Tool?
     /// The filters live in the store, so they are still there when the sheet is reopened.
@@ -48,7 +50,11 @@ struct ToolsLib_Sheet: View {
     var body: some View {
         let _ = Self._printChanges()
         VStack(spacing: 0) {
-            titleBar
+            // In a window the header is in the window bar (see `libraryWindowChrome`);
+            // the divider keeps it apart from the content.
+            if !isResizable {
+                titleBar
+            }
             Divider()
             HStack(spacing: 0) {
                 // Sidebar
@@ -69,40 +75,8 @@ struct ToolsLib_Sheet: View {
                 Divider()
 
                 // Tools list and editor
-                NavigationSplitView {
-                    ToolListView(
-                        tools: visibleTools,
-                        selectedToolID: $selectedToolID,
-                        filter: $store.filter,
-                        sources: store.sources,
-                        onDuplicate: duplicateTool,
-                        onDelete: { toolPendingDeletion = $0 }
-                    )
-                    .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
-                } detail: {
-                    if let selectedToolID,
-                       let current = store.tools.first(where: { $0.id == selectedToolID }) {
-                        // Bound by id, not by index: when tools are removed (a deleted import
-                        // batch, Revert) SwiftUI can still call these closures once before the
-                        // view is rebuilt, and a captured index would then be out of range.
-                        ToolEditorView(
-                            tool: Binding(
-                                get: { store.tools.first(where: { $0.id == selectedToolID }) ?? current },
-                                set: { newValue in
-                                    if let index = store.tools.firstIndex(where: { $0.id == selectedToolID }) {
-                                        store.tools[index] = newValue
-                                    }
-                                }
-                            ),
-                            source: store.source(for: current)
-                        )
-                    } else {
-                        ContentUnavailableView("No Tool Selected",
-                                               systemImage: "wrench.and.screwdriver",
-                                               description: Text("Select a tool from the list."))
-                    }
-                }
-                .navigationTitle("Tools")
+                splitContent
+                .libraryNavigationTitle("Tools")
                 .onAppear(perform: selectFirstIfNeeded)
                 .onChange(of: store.filter) {
                     reselectIfHidden()
@@ -154,7 +128,73 @@ struct ToolsLib_Sheet: View {
         } message: {
             Text(importMessage ?? "")
         }
-        .frame(minWidth: Self.minSheetWidth, minHeight: Self.sheetHeight, maxHeight: Self.sheetHeight)
+        .frame(minWidth: Self.minSheetWidth, minHeight: Self.sheetHeight, maxHeight: isResizable ? .infinity : Self.sheetHeight)
+        .libraryWindowChrome(isWindow: isResizable, title: "Tool Library") {
+            ToolSearchField(query: $store.filter.query)
+        }
+    }
+
+    /// List and editor. A plain two-column layout in a window; a split view elsewhere.
+    @ViewBuilder
+    private var splitContent: some View {
+        if isResizable {
+            // No NavigationSplitView in a window: it brings its own sidebar button, title and
+            // system background, none of which belong in this window.
+            HStack(spacing: 0) {
+                listColumn
+                    .frame(width: 300)
+                Divider()
+                detailColumn
+                    // The grouped form would paint its own gray behind the editor.
+                    .scrollContentBackground(.hidden)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.stockColumnBackground)
+            }
+        } else {
+            NavigationSplitView {
+                listColumn
+                    .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
+            } detail: {
+                detailColumn
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var listColumn: some View {
+        ToolListView(
+            tools: visibleTools,
+            selectedToolID: $selectedToolID,
+            filter: $store.filter,
+            sources: store.sources,
+            onDuplicate: duplicateTool,
+            onDelete: { toolPendingDeletion = $0 }
+        )
+    }
+
+    @ViewBuilder
+    private var detailColumn: some View {
+        if let selectedToolID,
+           let current = store.tools.first(where: { $0.id == selectedToolID }) {
+            // Bound by id, not by index: when tools are removed (a deleted import
+            // batch, Revert) SwiftUI can still call these closures once before the
+            // view is rebuilt, and a captured index would then be out of range.
+            ToolEditorView(
+                tool: Binding(
+                    get: { store.tools.first(where: { $0.id == selectedToolID }) ?? current },
+                    set: { newValue in
+                        if let index = store.tools.firstIndex(where: { $0.id == selectedToolID }) {
+                            store.tools[index] = newValue
+                        }
+                    }
+                ),
+                source: store.source(for: current)
+            )
+        } else {
+            ContentUnavailableView("No Tool Selected",
+                                   systemImage: "wrench.and.screwdriver",
+                                   description: Text("Select a tool from the list."))
+        }
     }
 
     private var selectedTool: Tool? {

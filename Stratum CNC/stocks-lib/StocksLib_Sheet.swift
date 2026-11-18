@@ -14,6 +14,8 @@ struct StocksLib_Sheet: View {
     /// When set, the sheet shows a "Pick" button. Tapping it returns the selected
     /// stock through this closure and dismisses the sheet. Leave `nil` to browse/edit only.
     var onPick: ((StockMaterial) -> Void)?
+    /// In a window the height follows the window; as a sheet or popover it is fixed.
+    var isResizable = false
 
     @State private var selectedStockID: StockMaterial.ID?
     @State private var draft: StockMaterial?
@@ -40,7 +42,11 @@ struct StocksLib_Sheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            titleBar
+            // In a window the header is in the window bar (see `libraryWindowChrome`);
+            // the divider keeps it apart from the content.
+            if !isResizable {
+                titleBar
+            }
             Divider()
             HStack(spacing: 0) {
                 StockMaterialRail(
@@ -51,37 +57,9 @@ struct StocksLib_Sheet: View {
                 )
                 .frame(width: Self.railWidth)
                 Divider()
-                NavigationSplitView {
-                    StockListView(
-                        stocks: visibleStocks,
-                        selectedStockID: $selectedStockID,
-                        filter: $store.filter,
-                        onDuplicate: duplicateStock,
-                        onDelete: { stockPendingDeletion = $0 }
-                    )
-                    .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
-                } detail: {
-                    if let selectedStockID,
-                       store.stocks.contains(where: { $0.id == selectedStockID }),
-                       draft?.id == selectedStockID {
-
-                        StockEditorView(
-                            draft: Binding(
-                                get: { draft ?? store.stocks.first { $0.id == selectedStockID }! },
-                                set: { draft = $0 }
-                            )
-                        )
-
-                    } else {
-                        ContentUnavailableView(
-                            "No Stock Selected",
-                            systemImage: "cube",
-                            description: Text("Select a stock material from the list.")
-                        )
-                    }
-                }
+                splitContent
                 .background(Color.stockColumnBackground)
-                .navigationTitle("Stock Materials")
+                .libraryNavigationTitle("Stock Materials")
                 .onAppear(perform: selectFirstIfNeeded)
                 .onChange(of: selectedStockID) { _ in draft = selectedStock }
                 .onChange(of: store.filter) { _ in reselectIfHidden() }
@@ -107,7 +85,72 @@ struct StocksLib_Sheet: View {
         .background(Color.stockColumnBackground)
         // The sheet owns its minimum size so the editor column keeps its width:
         // rail + list (ideal 300) + editor (>= 600) = 1080.
-        .frame(minWidth: Self.minSheetWidth, minHeight: Self.sheetHeight, maxHeight: Self.sheetHeight)
+        .frame(minWidth: Self.minSheetWidth, minHeight: Self.sheetHeight, maxHeight: isResizable ? .infinity : Self.sheetHeight)
+        .libraryWindowChrome(isWindow: isResizable,
+                             title: "Stock Library",
+                             subtitle: store.stocks.count == 1 ? "1 stock" : "\(store.stocks.count) stocks") {
+            StockSearchField(query: $store.filter.query)
+        }
+    }
+
+    /// List and editor. A plain two-column layout in a window; a split view elsewhere.
+    @ViewBuilder
+    private var splitContent: some View {
+        if isResizable {
+            // No NavigationSplitView in a window: it brings its own sidebar button, title and
+            // system background, none of which belong in this window.
+            HStack(spacing: 0) {
+                listColumn
+                    .frame(width: 300)
+                Divider()
+                detailColumn
+                    // The grouped form would paint its own gray behind the editor.
+                    .scrollContentBackground(.hidden)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.stockColumnBackground)
+            }
+        } else {
+            NavigationSplitView {
+                listColumn
+                    .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
+            } detail: {
+                detailColumn
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var listColumn: some View {
+        StockListView(
+            stocks: visibleStocks,
+            selectedStockID: $selectedStockID,
+            filter: $store.filter,
+            showsSearch: !isResizable,
+            onDuplicate: duplicateStock,
+            onDelete: { stockPendingDeletion = $0 }
+        )
+    }
+
+    @ViewBuilder
+    private var detailColumn: some View {
+        if let selectedStockID,
+           store.stocks.contains(where: { $0.id == selectedStockID }),
+           draft?.id == selectedStockID {
+
+            StockEditorView(
+                draft: Binding(
+                    get: { draft ?? store.stocks.first { $0.id == selectedStockID }! },
+                    set: { draft = $0 }
+                )
+            )
+
+        } else {
+            ContentUnavailableView(
+                "No Stock Selected",
+                systemImage: "cube",
+                description: Text("Select a stock material from the list.")
+            )
+        }
     }
 
     private var selectedStock: StockMaterial? {

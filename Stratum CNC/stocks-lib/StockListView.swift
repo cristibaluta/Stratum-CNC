@@ -15,6 +15,9 @@ struct StockListView: View {
     @Binding var selectedStockID: StockMaterial.ID?
     @Binding var filter: StockFilter
 
+    /// Off in the library window, where the search is in the window bar.
+    var showsSearch = true
+
     let onDuplicate: (StockMaterial) -> Void
     let onDelete: (StockMaterial) -> Void
 
@@ -40,7 +43,9 @@ struct StockListView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            topBar
+            if showsSearch {
+                topBar
+            }
         }
         .navigationTitle("Stock Library")
     }
@@ -90,36 +95,12 @@ struct StockListView: View {
     /// Search only. The material and stock filters are in the rail.
     private var topBar: some View {
         VStack(spacing: 0) {
-            searchField
+            StockSearchField(query: $filter.query)
                 .padding(10)
 
             Divider()
         }
         .background(Color.stockColumnBackground)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-
-            TextField("Search name, material or size", text: $filter.query)
-                .textFieldStyle(.plain)
-
-            if !filter.query.isEmpty {
-                Button {
-                    filter.query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: Empty state
@@ -140,5 +121,39 @@ struct StockListView: View {
                 }
             }
         }
+    }
+}
+
+
+// MARK: - Search field
+
+/// Search box for the stock library. In the library window it sits in the window bar,
+/// otherwise at the top of the list.
+struct StockSearchField: View {
+
+    @Binding var query: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("Search name, material or size", text: $query)
+                .textFieldStyle(.plain)
+
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
     }
 }
