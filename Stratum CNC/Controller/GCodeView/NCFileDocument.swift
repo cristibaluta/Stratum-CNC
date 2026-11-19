@@ -15,11 +15,12 @@ import simd
 struct ProgramAnalysis: Sendable {
 
     let toolpaths: [GCodeToolpath]
+    let toolChanges: [GCodeToolpathAnalyzer.ToolChange]
     let tools: [Int]
     let resumeResolver: ResumePointResolver
 
     nonisolated static func make(lines: [GCodeLine]) -> ProgramAnalysis {
-        let toolpaths = GCodeToolpathAnalyzer.analyze(lines.map { (id: $0.id, text: $0.text) })
+        let (toolpaths, toolChanges) = GCodeToolpathAnalyzer.analyzeAll(lines.map { (id: $0.id, text: $0.text) })
 
         var seen = Set<Int>()
         var tools: [Int] = []
@@ -28,6 +29,7 @@ struct ProgramAnalysis: Sendable {
             tools.append(tool)
         }
         return ProgramAnalysis(toolpaths: toolpaths,
+                               toolChanges: toolChanges,
                                tools: tools,
                                resumeResolver: ResumePointResolver(lines: lines.map(\.text), toolpaths: toolpaths))
     }
@@ -60,6 +62,10 @@ final class NCFileDocument: ObservableObject {
     /// `toolpath(containingLine:)`). Recomputed alongside `tools`, never on
     /// scrub.
     @Published private(set) var toolpaths: [GCodeToolpath] = []
+
+    /// Every `T<n> M6` in file order, so the tool in the spindle is known on any line, not only
+    /// inside a section (see `toolNumber(atLine:)`).
+    private(set) var toolChanges: [GCodeToolpathAnalyzer.ToolChange] = []
 
     /// Finds a clean line to resume the loaded program from. Built together with `toolpaths`
     /// (see `ProgramAnalysis`), so views read it instead of scanning the program again.
@@ -130,6 +136,7 @@ final class NCFileDocument: ObservableObject {
     }
 
     private func apply(_ analysis: ProgramAnalysis) {
+        toolChanges = analysis.toolChanges
         toolpaths = analysis.toolpaths
         tools = analysis.tools
         resumeResolver = analysis.resumeResolver
@@ -385,6 +392,13 @@ final class NCFileDocument: ObservableObject {
         toolpaths.first { line >= $0.startLine && line <= $0.endLine }
     }
 
+    /// The tool in the spindle at `line`: the one called by the last `T<n> M6` at or before it,
+    /// so it changes on the tool-change line itself, not at the next cutting move. `nil` before
+    /// the first tool change.
+    func toolNumber(atLine line: Int) -> Int? {
+        toolChanges.last { $0.line <= line }?.tool
+    }
+
     /// The last section that started at or before `line`. Unlike `toolpath(containingLine:)`
     /// this still answers for lines between sections — a rapid move, a tool-change block,
     /// the lines after the final cut — because rapid-only sections aren't kept in `toolpaths`.
@@ -425,6 +439,7 @@ final class NCFileDocument: ObservableObject {
         cuttingVertexPrefix = [0]
         tools.removeAll()
         toolpaths.removeAll()
+        toolChanges.removeAll()
         resumeResolver = nil
         loadedHeader = nil
 

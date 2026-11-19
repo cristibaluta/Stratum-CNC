@@ -15,8 +15,22 @@ struct GCodeToolpathAnalyzer {
     private static let codeRegex = try! NSRegularExpression(pattern: #"(?i)(?<![A-Za-z])([GMT])\s*([0-9]+(?:\.[0-9]+)?)"#)
     private static let toolRegex = try! NSRegularExpression(pattern: #"(?i)(?<![A-Za-z])T\s*([0-9]+)"#)
 
+    /// A `T<n> M6` tool change: from `line` on, tool `tool` is in the spindle.
+    struct ToolChange: Sendable, Equatable {
+        let line: Int
+        let tool: Int
+    }
+
     static func analyze(_ lines: [(id: Int, text: String)]) -> [GCodeToolpath] {
+        analyzeAll(lines).toolpaths
+    }
+
+    /// The toolpath sections plus where each tool change happens, from one pass over the lines.
+    /// Sections only start at the first cutting move after a tool change, so the changes are
+    /// what says which tool is in the spindle on the lines in between (the rapids to the start).
+    static func analyzeAll(_ lines: [(id: Int, text: String)]) -> (toolpaths: [GCodeToolpath], toolChanges: [ToolChange]) {
         var result: [GCodeToolpath] = []
+        var toolChanges: [ToolChange] = []
         var currentTool: Int?
         var pendingTool: Int?
         var modalMotion: Int?
@@ -62,6 +76,7 @@ struct GCodeToolpathAnalyzer {
             if containsM6(codes), let tool = pendingTool {
                 finishCurrent()
                 currentTool = tool
+                toolChanges.append(ToolChange(line: line.id, tool: tool))
                 currentOperation = "Tool \(tool)"
             }
 
@@ -99,7 +114,7 @@ struct GCodeToolpathAnalyzer {
         // Rapid-only sections are generally setup/repositioning rather than
         // toolpaths. Keep them only when there is no cutting/drilling result.
         let machining = result.filter { $0.operation != "Rapid" }
-        return machining.isEmpty ? result : machining
+        return (machining.isEmpty ? result : machining, toolChanges)
     }
 
     private enum MoveKind: Equatable {

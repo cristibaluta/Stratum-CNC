@@ -184,12 +184,13 @@ class GCodeStore: ObservableObject {
     /// The `T` number whose section owns `scrubLine` — i.e. whichever tool
     /// is "in the spindle" at the point the canvas is currently scrubbed to
     /// (or, once a running job drives `scrubLine`, at the line actually
-    /// executing). Between sections (a G0 rapid, past the last cut) the last
-    /// tool used stays in the spindle. `nil` only before the first section
-    /// starts, or when nothing is loaded.
+    /// executing). It changes on the `T<n> M6` line itself and stays until the next one, so
+    /// rapids and setup moves keep the tool they run with. `nil` before the first tool change,
+    /// or when nothing is loaded.
     /// `ToolChipsView` uses this to highlight the matching chip.
     var activeToolNumber: Int? {
-        document.lastToolpath(startingAtOrBefore: scrubLine)?.toolNumber
+        document.toolNumber(atLine: scrubLine)
+            ?? document.lastToolpath(startingAtOrBefore: scrubLine)?.toolNumber
     }
 
     /// The tool to draw on the canvas: the tool actually in the spindle
