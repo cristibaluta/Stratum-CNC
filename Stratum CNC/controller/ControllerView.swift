@@ -118,7 +118,7 @@ struct ControllerView: View {
         scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
                              document: gCodeModel.document,
                              line: line,
-                             tool: gCodeModel.activeTool?.geometry,
+                             tools: gCodeModel.toolSchedule(),
                              force: forceHeightmap)
     }
 
@@ -716,7 +716,7 @@ private struct CanvasSection: View {
         scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
                              document: gCodeModel.document,
                              line: gCodeModel.scrubLine,
-                             tool: gCodeModel.activeTool?.geometry,
+                             tools: gCodeModel.toolSchedule(),
                              force: true)
     }
 

@@ -461,12 +461,11 @@ class CanvasSceneModel: ObservableObject {
     /// inputs. `false` (throttled scrub ticks) lets it finish and keeps this
     /// request as the one to run next, replacing any older waiting one.
     ///
-    /// `tool` is `nil` when the file's `T` number hasn't been assigned a
-    /// tool yet (see `GCodeStore.toolAssignments`/`ToolChipsView`)
-    /// — there's no footprint to carve with, so this just clears the surface
-    /// rather than guessing a tool size. Only ever carves with one tool for
-    /// the whole file; per-segment tool switching for multi-tool programs is
-    /// the M6 follow-up `HeightmapGrid.carve(segments:tool:)` already flags.
+    /// `tools` says which tool is in the spindle on each line (see `GCodeStore.toolSchedule()`),
+    /// so every segment is carved with the tool that cut it. When no line has a tool assigned
+    /// yet (see `GCodeStore.toolAssignments`/`ToolChipsView`) there's no footprint to carve
+    /// with, so this just clears the surface rather than guessing a tool size; a single
+    /// unassigned tool in a multi-tool program just carves nothing for its lines.
     ///
     /// Always carves with the current `xyOffset` — same value the GPU line
     /// draws are shifted by (see `MetalRenderer.xyOffset`), so the shaded
@@ -479,7 +478,7 @@ class CanvasSceneModel: ObservableObject {
     /// again while it runs.
     func updateHeightmap(stock: StockMaterial,
                          segments: ArraySlice<ToolpathSegment>,
-                         tool: ToolGeometry?,
+                         tools: ToolSchedule,
                          supersedesRunning: Bool = true) {
         // Nothing draws the surface outside `.heightmap` mode (see
         // `MetalRenderer.draw`), so carving and meshing here would be pure
@@ -495,7 +494,7 @@ class CanvasSceneModel: ObservableObject {
 
         heightmapScrubTickCount = 0
 
-        guard let tool else {
+        guard !tools.isEmpty else {
             stopHeightmapWork()
             heightmapMesh = nil
             heightmapCarveCache = nil
@@ -504,7 +503,7 @@ class CanvasSceneModel: ObservableObject {
 
         let request = HeightmapRequest(stock: UncheckedSendable(stock),
                                        segments: segments,
-                                       tool: tool,
+                                       tools: tools,
                                        cellSize: heightmapCellSize,
                                        offset: xyOffset,
                                        cache: UncheckedSendable(heightmapCarveCache),
@@ -533,7 +532,7 @@ class CanvasSceneModel: ObservableObject {
     ///
     /// A forced call cancels any carve still running; an unforced one waits
     /// its turn behind it (see `updateHeightmap`'s `supersedesRunning`).
-    func scrubHeightmap(stock: StockMaterial, document: NCFileDocument, line: Int, tool: ToolGeometry?, force: Bool = false) {
+    func scrubHeightmap(stock: StockMaterial, document: NCFileDocument, line: Int, tools: ToolSchedule, force: Bool = false) {
         // See `updateHeightmap`: no surface is drawn in wireframe mode, so a
         // scrub there shouldn't touch the heightmap at all.
         guard renderMode == .heightmap else {
@@ -541,7 +540,7 @@ class CanvasSceneModel: ObservableObject {
             return
         }
 
-        guard let tool else {
+        guard !tools.isEmpty else {
             stopHeightmapWork()
             heightmapMesh = nil
             heightmapCarveCache = nil
@@ -556,7 +555,7 @@ class CanvasSceneModel: ObservableObject {
 
         updateHeightmap(stock: stock,
                         segments: document.toolpathSegments(upTo: line),
-                        tool: tool,
+                        tools: tools,
                         supersedesRunning: force)
     }
 
@@ -653,7 +652,7 @@ class CanvasSceneModel: ObservableObject {
     /// `finishHeightmapCarve` for why that's still useful on cancellation.
     private nonisolated static func carveMesh(for request: HeightmapRequest) -> (mesh: HeightmapMesh?, cache: HeightmapCarveCache) {
         let emptyGrid = HeightmapGrid(stock: request.stock.value, cellSize: request.cellSize)
-        let setup = HeightmapCarveCache.Setup(grid: emptyGrid, tool: request.tool, offset: request.offset)
+        let setup = HeightmapCarveCache.Setup(grid: emptyGrid, tools: request.tools, offset: request.offset)
 
         // Reuse the cached grid only if it was carved with the same shape,
         // mask, tool, and offset — anything else and there's no valid
@@ -683,7 +682,7 @@ class CanvasSceneModel: ObservableObject {
 private struct HeightmapRequest: Sendable {
     let stock: UncheckedSendable<StockMaterial>
     let segments: ArraySlice<ToolpathSegment>
-    let tool: ToolGeometry
+    let tools: ToolSchedule
     let cellSize: Float
     let offset: SIMD2<Float>
     /// The incremental-carve cache as last committed by

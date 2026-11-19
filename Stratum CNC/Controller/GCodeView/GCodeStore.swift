@@ -234,6 +234,17 @@ class GCodeStore: ObservableObject {
         return radii
     }
 
+    /// Which tool's footprint the heightmap carves each line with: the one called by the last
+    /// `T<n> M6` before it, so a V-bit pass leaves a V-bit's cut and not the end mill's. Lines
+    /// ahead of the first tool change (or a program with none) use `activeTool`. A tool with no
+    /// assignment yet carves nothing, the same "don't guess a size" as `toolRadiiByLine()`.
+    func toolSchedule() -> ToolSchedule {
+        ToolSchedule(initial: activeTool?.geometry,
+                     entries: document.toolChanges.map {
+                         ToolSchedule.Entry(fromLine: UInt32($0.line), tool: toolAssignments[$0.tool]?.geometry)
+                     })
+    }
+
     var activeTool: Tool? {
         for toolNumber in tools {
             if let tool = toolAssignments[toolNumber] {

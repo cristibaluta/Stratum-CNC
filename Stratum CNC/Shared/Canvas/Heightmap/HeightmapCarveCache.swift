@@ -62,14 +62,14 @@ struct HeightmapCarveCache {
         let topZ: Float
         let bottomZ: Float
         let mask: [Bool]?
-        let tool: ToolGeometry
+        let tools: ToolSchedule
         let offsetX: Float
         let offsetY: Float
 
         /// `grid` should be a freshly-built, uncarved grid (see
         /// `HeightmapGrid(stock:cellSize:)`) — only its shape fields are
         /// read, not its heights.
-        init(grid: HeightmapGrid, tool: ToolGeometry, offset: SIMD2<Float>) {
+        init(grid: HeightmapGrid, tools: ToolSchedule, offset: SIMD2<Float>) {
             originX = grid.originX
             originY = grid.originY
             cellSize = grid.cellSize
@@ -78,7 +78,7 @@ struct HeightmapCarveCache {
             topZ = grid.topZ
             bottomZ = grid.bottomZ
             mask = grid.mask
-            self.tool = tool
+            self.tools = tools
             offsetX = offset.x
             offsetY = offset.y
         }
@@ -185,7 +185,11 @@ struct HeightmapCarveCache {
             }
 
             let segment = segments[segments.index(segments.startIndex, offsetBy: carvedSegmentCount)]
-            grid.carve(segment: segment, tool: setup.tool, offsetX: setup.offsetX, offsetY: setup.offsetY)
+            // The tool in the spindle on the line that made this segment; an unassigned tool
+            // carves nothing.
+            if let tool = setup.tools.tool(atLine: segment.lineNumber) {
+                grid.carve(segment: segment, tool: tool, offsetX: setup.offsetX, offsetY: setup.offsetY)
+            }
             carvedSegmentCount += 1
 
             if carvedSegmentCount % snapshotInterval == 0 {
