@@ -206,13 +206,6 @@ struct MachiningRunSheet: View {
                     .lineLimit(1)
             }
             Spacer()
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
         }
         .padding(16)
     }

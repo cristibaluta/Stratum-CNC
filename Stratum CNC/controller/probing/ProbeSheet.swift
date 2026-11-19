@@ -83,13 +83,6 @@ struct ProbeSheet: View {
             Text("3D Probe")
                 .font(.headline)
             Spacer()
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
         }
         .padding(16)
     }

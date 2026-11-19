@@ -184,17 +184,18 @@ class GCodeStore: ObservableObject {
     /// The `T` number whose section owns `scrubLine` — i.e. whichever tool
     /// is "in the spindle" at the point the canvas is currently scrubbed to
     /// (or, once a running job drives `scrubLine`, at the line actually
-    /// executing). `nil` before anything is loaded, past the end of the
-    /// file, or during a rapid-only stretch with no tool change yet.
+    /// executing). Between sections (a G0 rapid, past the last cut) the last
+    /// tool used stays in the spindle. `nil` only before the first section
+    /// starts, or when nothing is loaded.
     /// `ToolChipsView` uses this to highlight the matching chip.
     var activeToolNumber: Int? {
-        document.toolpath(containingLine: scrubLine)?.toolNumber
+        document.lastToolpath(startingAtOrBefore: scrubLine)?.toolNumber
     }
 
     /// The tool to draw on the canvas: the tool actually in the spindle
     /// at `scrubLine` when it's been assigned one, otherwise the same
     /// first-assigned tool the heightmap carves with (`activeTool`) —
-    /// e.g. past the end of the file, where no section owns the line.
+    /// e.g. before the first section starts.
     var spindleTool: Tool? {
         if let number = activeToolNumber, let tool = toolAssignments[number] {
             return tool

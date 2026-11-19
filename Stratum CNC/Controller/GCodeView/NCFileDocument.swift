@@ -385,6 +385,13 @@ final class NCFileDocument: ObservableObject {
         toolpaths.first { line >= $0.startLine && line <= $0.endLine }
     }
 
+    /// The last section that started at or before `line`. Unlike `toolpath(containingLine:)`
+    /// this still answers for lines between sections — a rapid move, a tool-change block,
+    /// the lines after the final cut — because rapid-only sections aren't kept in `toolpaths`.
+    func lastToolpath(startingAtOrBefore line: Int) -> GCodeToolpath? {
+        toolpaths.last { $0.startLine <= line }
+    }
+
     // MARK: Machine line lookup
 
     /// Returns the table row corresponding to a machine P: line number.
