@@ -133,25 +133,23 @@ struct ProbeSheet: View {
 
     private var whatStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Picker("Probe", selection: $flow.kind) {
-                ForEach(ProbeKind.allCases) { kind in
-                    Text(kind.title).tag(kind)
+            // All five things that can be probed at once: Z, and the four XY features. The two
+            // rows share whatever height the step has, so the drawings grow to fill it.
+            VStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    zTile
+                    ForEach(ProbeFeature.allCases.prefix(2)) { feature in
+                        featureTile(feature)
+                    }
+                }
+                HStack(spacing: 12) {
+                    ForEach(ProbeFeature.allCases.dropFirst(2)) { feature in
+                        featureTile(feature)
+                    }
+                    Color.clear.frame(maxWidth: .infinity)
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            switch flow.kind {
-                case .zSurface:
-                    zTile
-                case .point:
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
-                              spacing: 12) {
-                        ForEach(ProbeFeature.allCases) { feature in
-                            featureTile(feature)
-                        }
-                    }
-            }
+            .frame(maxHeight: .infinity)
 
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "info.circle")
@@ -213,32 +211,43 @@ struct ProbeSheet: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Z has nothing to choose: one drawing and a sentence.
+    /// Least height of the drawing in a "what" tile; they grow beyond it to fill the step.
+    private static let whatTileDrawingMinHeight: CGFloat = 90
+
     private var zTile: some View {
-        VStack(spacing: 8) {
-            ProbeZDrawing()
-                .frame(height: 150)
-                .probeContainer()
-            Text("Find Z Surface")
-                .font(.callout.weight(.medium))
+        let isSelected = flow.kind == .zSurface
+        return Button {
+            flow.kind = .zSurface
+        } label: {
+            VStack(spacing: 8) {
+                ProbeZDrawing()
+                    .frame(minHeight: Self.whatTileDrawingMinHeight, maxHeight: .infinity)
+                    .probeContainer(isSelected: isSelected)
+                Text("Find Z Surface")
+                    .font(.callout.weight(isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: 260)
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.plain)
     }
 
     private func featureTile(_ feature: ProbeFeature) -> some View {
-        let isSelected = feature == flow.feature
+        let isSelected = flow.kind == .point && feature == flow.feature
         return Button {
+            flow.kind = .point
             flow.feature = feature
         } label: {
             VStack(spacing: 8) {
                 ProbeFeatureDrawing(feature: feature, corner: .bottomLeft)
-                    .frame(height: 130)
+                    .frame(minHeight: Self.whatTileDrawingMinHeight, maxHeight: .infinity)
                     .probeContainer(isSelected: isSelected)
                 Text(feature.title)
                     .font(.callout.weight(isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
