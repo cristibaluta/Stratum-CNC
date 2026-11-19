@@ -43,7 +43,7 @@ struct PanelPosition: View {
 
     var body: some View {
         GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 12) {
                 Button {
                     model.connection.requestStatus()
                 } label: {
@@ -52,7 +52,7 @@ struct PanelPosition: View {
                 .help("Ask the machine for its current position and status")
                 .padding(.bottom, -16)
 
-                Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 8) {
+                Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 8) {
                     GridRow {
                         Color.clear
                             .frame(width: 1, height: 1)
@@ -79,6 +79,7 @@ struct PanelPosition: View {
                 }
 
                 Divider()
+                    .padding(.vertical, 8)
 
                 offsetRow
                 PanelCoordinate(model: model)
