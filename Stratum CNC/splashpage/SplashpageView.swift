@@ -153,12 +153,17 @@ struct SplashpageView: View {
                                systemImage: "plus") {
                     appModel.showingNewProject = true
                 }
-                QuickActionRow(usageID: .openProjectFolder,
-                               title: "Open Project Folder",
-                               subtitle: "From a folder on disk",
-                               systemImage: "folder") {
-                    picker = .projectFolder
-                    isPicking = true
+                HStack(spacing: 2) {
+                    QuickActionRow(usageID: .openProjectFolder,
+                                   title: "Open Project Folder",
+                                   subtitle: "From a folder on disk",
+                                   systemImage: "folder") {
+                        picker = .projectFolder
+                        isPicking = true
+                    }
+                    RecentHistoryButton(history: projectsStore.history, kind: .project) {
+                        projectsStore.openHistoryEntry($0)
+                    }
                 }
                 QuickActionRow(usageID: .openController,
                                title: "Open Controller",
@@ -166,12 +171,17 @@ struct SplashpageView: View {
                                systemImage: "dial.medium") {
                     projectsStore.openZombieProject(tab: .controller)
                 }
-                QuickActionRow(usageID: .importGCode,
-                               title: "Import G-code",
-                               subtitle: "Preview and run a file",
-                               systemImage: "chevron.left.forwardslash.chevron.right") {
-                    picker = .gcode
-                    isPicking = true
+                HStack(spacing: 2) {
+                    QuickActionRow(usageID: .importGCode,
+                                   title: "Import G-code",
+                                   subtitle: "Preview and run a file",
+                                   systemImage: "chevron.left.forwardslash.chevron.right") {
+                        picker = .gcode
+                        isPicking = true
+                    }
+                    RecentHistoryButton(history: projectsStore.history, kind: .gcode) {
+                        projectsStore.openHistoryEntry($0)
+                    }
                 }
                 QuickActionRow(usageID: .tryWithoutProject,
                                title: "Try Without a Project",

@@ -47,6 +47,17 @@ struct Stratum_CNC_App: App {
                     model.showingNewProject = true
                 }
                 .keyboardShortcut("N", modifiers: .command)
+
+                Menu("Open Recent Project") {
+                    RecentItemsMenuContent(history: model.projectsStore.history, kind: .project) {
+                        model.projectsStore.openHistoryEntry($0)
+                    }
+                }
+                Menu("Open Recent G-code") {
+                    RecentItemsMenuContent(history: model.projectsStore.history, kind: .gcode) {
+                        model.projectsStore.openHistoryEntry($0)
+                    }
+                }
             }
             CommandGroup(after: .saveItem) {
                 Button("Save") {

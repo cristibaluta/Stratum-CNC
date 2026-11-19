@@ -64,5 +64,12 @@ struct ContentView: View {
         }
         .settingsPresenter(appModel)
         .libraryPresenter(appModel)
+        .alert("Couldn't open",
+               isPresented: Binding(get: { projectsStore.openError != nil },
+                                    set: { if !$0 { projectsStore.openError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(projectsStore.openError ?? "")
+        }
     }
 }

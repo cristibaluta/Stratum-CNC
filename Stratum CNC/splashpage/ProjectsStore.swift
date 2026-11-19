@@ -37,6 +37,11 @@ final class ProjectsStore: ObservableObject {
     /// External projects whose folder couldn't be reached the last time
     /// bookmarks were resolved. They stay in the list.
     @Published private(set) var missingProjectIDs: Set<UUID> = []
+    /// Set when something couldn't be opened (from the history, say); the root view shows it.
+    @Published var openError: String?
+
+    /// Recently opened G-code files and projects, in `history.json`.
+    let history = OpenHistory.shared
 
     /// Resolved folder of each reachable external project.
     private var resolvedDirectories: [UUID: URL] = [:]
@@ -211,6 +216,7 @@ final class ProjectsStore: ObservableObject {
         guard saveActiveProject() else { return }
         guard !isMissing(project), beginAccess(project) else {
             print("Project folder is not reachable: \(project.name)")
+            openError = "\(project.name)'s folder can't be reached. It may have been moved, deleted, or be on a drive that isn't connected."
             return
         }
         guard let paths = try? self.paths(for: project) else {
@@ -225,6 +231,37 @@ final class ProjectsStore: ObservableObject {
                                           paths: paths,
                                           beginFolderAccess: { [weak self] in self?.beginAccess(project) ?? false },
                                           endFolderAccess: { [weak self] in self?.endAccess(project) })
+        history.recordProject(project, path: paths.projectDirectory.path)
+    }
+
+    /// Reopens an entry of the history: a G-code file in a scratch session, or a project.
+    /// Failures land in `openError`.
+    func openHistoryEntry(_ entry: OpenHistoryEntry) {
+        do {
+            let url = try history.resolveURL(for: entry)
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+
+            switch entry.kind {
+                case .gcode:
+                    guard FileManager.default.fileExists(atPath: url.path) else {
+                        openError = "\(url.lastPathComponent) can't be found. It may have been moved or deleted."
+                        return
+                    }
+                    openZombieProject(gcodeURL: url)
+                case .project:
+                    if let id = entry.projectID, let project = projects.first(where: { $0.id == id }) {
+                        open(project)
+                    } else {
+                        // Hidden from the list since: add it back from its bookmark.
+                        open(try openProjectFolder(url))
+                    }
+            }
+        } catch ProjectError.notAProjectFolder {
+            openError = "That folder doesn't contain a project.json any more, so it isn't a Stratum project."
+        } catch {
+            openError = "Couldn't open \(URL(fileURLWithPath: entry.path).lastPathComponent): the file or folder can't be reached."
+        }
     }
 
     /// Opens the scratch project. `tab` picks which screen it starts on, and
@@ -252,6 +289,7 @@ final class ProjectsStore: ObservableObject {
                 model.gCodeStore.selectedToolpathID = nil
                 model.gCodeStore.requestedLine = nil
                 model.gCodeStore.analyzedLineCount = -1
+                history.recordGCode(url: gcodeURL)
             }
             activeProject = project
             activeProjectModel = model

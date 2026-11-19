@@ -270,6 +270,7 @@ struct ControllerView: View {
             switch result {
                 case .success(let urls):
                     if let url = urls.first {
+                        OpenHistory.shared.recordGCode(url: url)
                         gCodeModel.document.load(from: url)
                         gCodeModel.selectedToolpathID = nil
                         gCodeModel.requestedLine = nil
