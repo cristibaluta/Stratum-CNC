@@ -175,7 +175,7 @@ final class CAMSceneModel: ObservableObject {
         // One assignment, so the canvas is told once per tick rather than twice
         var objects = renderObjects
         objects.settingVisibleVertexCount(scrub.visibleVertexCount, forRole: .toolpathCutting)
-        objects.updating(CAMToolpathScrubOverlay.marker(at: scrub.toolPosition, tool: scrub.tool))
+        objects.replacing(roles: [.tool], with: CAMToolpathScrubOverlay.marker(at: scrub.toolPosition, tool: scrub.tool))
         renderObjects = objects
     }
 
@@ -259,7 +259,7 @@ final class CAMSceneModel: ObservableObject {
 
         // The toolpath being scrubbed, if any: its cut-so-far line and the cutter marker.
         var scrubPath: RenderObject?
-        var scrubMarker: RenderObject?
+        var scrubMarker: [RenderObject] = []
 
         if showsToolpaths, let scrub = canvasState.toolpathScrub {
             var object: RenderObject
@@ -288,7 +288,7 @@ final class CAMSceneModel: ObservableObject {
             return tagged
         }
 
-        var objects: [RenderObject] = scrubMarker.map { [$0] } ?? []
+        var objects: [RenderObject] = scrubMarker
         objects.append(contentsOf: overlay.map(flat))
         objects.reserveCapacity(objects.count + paths.count + 4)
 

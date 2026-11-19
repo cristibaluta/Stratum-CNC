@@ -81,9 +81,10 @@ class CanvasSceneModel: ObservableObject {
     /// mill. Once a tool is known, its real diameter and shape are used
     /// instead and this is ignored.
     @Published var toolDiameter: Double = 3.175
-    /// How tall the fallback tool (none assigned) is drawn above its tip, in millimeters.
-    /// A tool is drawn at its own length (`Tool.drawnLength`).
-    @Published var toolLength: Double = Tool.fallbackDrawnLength
+    /// How tall the cutting part of the fallback tool (none assigned) is drawn above its tip, in
+    /// millimeters. A tool is drawn with its own flute length, shank and overall length
+    /// (`Tool.drawing`).
+    @Published var toolLength: Double = ToolDrawing.fallbackFluteLength
 
     /// The tool currently in the spindle, as far as the canvas knows —
     /// `nil` draws the `toolDiameter` fallback end mill. Set via `updateTool`.
@@ -429,7 +430,7 @@ class CanvasSceneModel: ObservableObject {
     func updateTool(_ tool: Tool?) {
         // Only what is drawn counts: editing a library tool's name, link or presets must not
         // redraw the marker.
-        guard tool?.geometry != currentTool?.geometry || tool?.drawnLength != currentTool?.drawnLength else {
+        guard tool?.geometry != currentTool?.geometry || tool?.drawing != currentTool?.drawing else {
             return
         }
         currentTool = tool
@@ -441,16 +442,7 @@ class CanvasSceneModel: ObservableObject {
         guard let tip = toolTipPosition else {
             return
         }
-        if let currentTool {
-            let geometry = currentTool.geometry
-            renderObjects.updating(.tool(at: tip,
-                                         diameter: geometry.diameter,
-                                         length: currentTool.drawnLength,
-                                         shape: geometry.shape,
-                                         tipAngleDegrees: geometry.tipAngle))
-        } else {
-            renderObjects.updating(.tool(at: tip, diameter: toolDiameter, length: toolLength))
-        }
+        renderObjects.replacing(roles: [.tool], with: RenderObject.tool(for: currentTool, at: tip, fallbackDiameter: toolDiameter, fallbackLength: toolLength))
     }
 
     /// Recarves the heightmap grid from scratch and rebuilds `heightmapMesh`

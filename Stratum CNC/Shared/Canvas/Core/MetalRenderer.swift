@@ -49,6 +49,9 @@ private struct RenderBatch {
     var lineWidth: Float = 0
     /// Which edges this batch's occluder faces hide (see `RenderObject.occluderScope`).
     var occluderScope: OccluderScope = .scene
+    /// Height range of the coated-tool rainbow, if this batch's solid has one (see
+    /// `RenderObject.coatingZRange`).
+    var coatingZRange: SIMD2<Float>? = nil
 }
 
 /// GPU-backed draw call for the heightmap surface — separate from
@@ -414,7 +417,8 @@ class MetalRenderer: NSObject {
                            solidColor: object.color,
                            hiddenLineStyle: object.hiddenLineStyle,
                            lineWidth: object.lineWidth,
-                           occluderScope: object.occluderScope)
+                           occluderScope: object.occluderScope,
+                           coatingZRange: object.coatingZRange)
     }
 
     /// Expands a `RenderObject`'s points into GPU vertices, accumulating
@@ -907,9 +911,10 @@ private extension MetalRenderer {
                                              lightDirection: isModel ? headlight(for: batch.role) : heightmapLightDirection,
                                              baseColor: color,
                                              ambient: isModel ? modelAmbient : heightmapAmbient,
-                                             topZ: 1,
-                                             bottomZ: 0,
-                                             depthDarkening: 0,
+                                             topZ: batch.coatingZRange?.y ?? 1,
+                                             bottomZ: batch.coatingZRange?.x ?? 0,
+                                             // Negative: the shader's coated-tool rainbow
+                                             depthDarkening: batch.coatingZRange == nil ? 0 : -1,
                                              offset: drawOffset(for: batch.role))
             encoder.setVertexBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
             encoder.setFragmentBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)

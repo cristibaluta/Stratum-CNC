@@ -17,6 +17,8 @@ enum CanvasPalette {
     static let cutting     = SIMD4<Float>(1.0, 0.82, 0.1, 1.0)
     static let boundingBox = SIMD4<Float>(0.2, 0.75, 0.35, 1.0)
     static let tool        = SIMD4<Float>(0.6, 0.62, 0.66, 1.0)
+    /// The tool's ground steel shank.
+    static let toolShank   = SIMD4<Float>(0.80, 0.82, 0.86, 1.0)
     static let workbed     = SIMD4<Float>(0.55, 0.6, 0.65, 1.0)
     /// The L-bracket and its ruler: a neutral gray, so the fixture stays in the background.
     static let anchor      = SIMD4<Float>(0.5, 0.5, 0.5, 1.0)
@@ -140,6 +142,9 @@ struct RenderObject: Identifiable {
     /// How the portions of this object's lines that lie behind an occluder are drawn.
     /// Only meaningful with `occluderFaces`; the default keeps the per-role behaviour.
     var hiddenLineStyle: HiddenLineStyle = .roleDefault
+    /// When set, `solidTriangles` are drawn in the coated-tool rainbow instead of `color`:
+    /// `x` is the height (z) where the colors start, `y` where they end. See `fragment_heightmap`.
+    var coatingZRange: SIMD2<Float>? = nil
 }
 
 /// Which edges an object's `occluderFaces` can hide.
@@ -730,40 +735,58 @@ extension RenderObject {
         return objects
     }
 
-    /// The cutter as a solid, drawn at true size with its tip at
-    /// `tipPosition`. The body is a surface of revolution around the vertical
-    /// axis, shaped by `shape` the same way `ToolFootprint` shapes the cut:
+    /// The cutter as drawn on the canvas, tip at `tip`: the tool's real shape, flutes and shank,
+    /// or a plain end mill of the fallback size when there is no tool. Shared by the controller
+    /// canvas and CAM's scrubber, so both draw the same cutter. Two objects, both role `.tool`:
+    /// the coated cutting part and the steel shank (replace them together, see
+    /// `[RenderObject].replacing(roles:with:)`).
+    static func tool(for tool: Tool?,
+                     at tip: SIMD3<Float>,
+                     fallbackDiameter: Double = 3.175,
+                     fallbackLength: Double = ToolDrawing.fallbackFluteLength) -> [RenderObject] {
+        if let tool {
+            return RenderObject.tool(at: tip, geometry: tool.geometry, drawing: tool.drawing)
+        }
+        let drawing = ToolDrawing(fluteLength: fallbackLength,
+                                  shankDiameter: fallbackDiameter,
+                                  toolDiameter: fallbackDiameter,
+                                  overallLength: nil,
+                                  coating: .carbide)
+        return RenderObject.tool(at: tip, geometry: ToolGeometry(diameter: fallbackDiameter, shape: .flat), drawing: drawing)
+    }
+
+    /// The cutter as a solid, drawn at true size with its tip at `tipPosition`, as a surface of
+    /// revolution around the vertical axis. Two objects, so each gets its own color:
     ///
-    /// - `.flat` (end mills, drills, thread mills): flat-bottomed cylinder.
-    /// - `.ball`: hemispherical tip, radius = tool radius.
-    /// - `.cone` (V-bits, engraving bits): cone from the tip up to the full diameter,
-    ///   half-angle from `tipAngleDegrees` (flat if none is on file, same
-    ///   fallback as `ToolFootprint.surfaceZ`).
+    /// - the cutting part (tip shape and flutes, up to `drawing.fluteLength`) in the coating
+    ///   (a smooth rainbow drawn by the shader, or one flat gray). The tip is shaped by `geometry.shape` the same way `ToolFootprint`
+    ///   shapes the cut: `.flat` is a flat-bottomed cylinder, `.ball` a hemisphere, `.cone` a
+    ///   cone from the tip up to the full diameter (half-angle from the tip angle; flat if
+    ///   none is on file, same fallback as `ToolFootprint.surfaceZ`);
+    /// - the shank (a 45° bevel from the flutes' diameter to the shank's, then the shank up to
+    ///   `drawing.overallLength`, then the top cap) in steel.
     ///
-    /// Above the tip shape the tool continues as a full-diameter cylinder up
-    /// to `length` above the tip. Triangles wind counter-clockwise seen from
-    /// outside and carry analytic normals (smooth on the ball nose, hard
-    /// edges everywhere else).
+    /// Triangles wind counter-clockwise seen from outside and carry analytic normals (smooth on
+    /// the ball nose, hard edges everywhere else).
     ///
     /// `open` leaves the top cap off and turns the normals to face the axis, so the tool is
-    /// a shell lit from the inside as well as the outside. Seen from above (the CAM canvas's
-    /// usual view) a closed tool would show only its flat top, a uniform disc; the open one
-    /// shows the inside of the cone or dome, shaded all around, so its shape reads from any angle.
+    /// a shell lit from the inside as well as the outside. Seen from above a closed tool would
+    /// show only its flat top, a uniform disc; the open one shows the inside of the cone or
+    /// dome, shaded all around, so its shape reads from any angle.
     static func tool(at tipPosition: SIMD3<Float>,
-                     diameter: Double,
-                     length: Double,
-                     shape: ToolShape = .flat,
-                     tipAngleDegrees: Double? = nil,
+                     geometry: ToolGeometry,
+                     drawing: ToolDrawing,
                      segments: Int = 48,
                      open: Bool = false,
-                     color: SIMD4<Float> = CanvasPalette.tool) -> RenderObject {
+                     shankColor: SIMD4<Float> = CanvasPalette.toolShank) -> [RenderObject] {
 
+        let shape = geometry.shape
+        let tipAngleDegrees = geometry.tipAngle
         let sides = max(3, segments)
-        let radius = Float(max(0, diameter) / 2)
+        let radius = Float(max(0, geometry.diameter) / 2)
         guard radius > 0 else {
-            return RenderObject(role: .tool, points: [], color: color)
+            return []
         }
-        let totalLength = Float(max(0, length))
 
         // Profile of the tool from the tip upward: (radius, height above the
         // tip) plus the outward surface normal in that same (radial, up)
@@ -779,7 +802,7 @@ extension RenderObject {
 
         /// Straight band from (r0, z0) to (r1, z1), flat-shaded. Walking the
         /// profile tip → outside → up → top center makes `(dz, -dr)` the
-        /// outward normal for every band type (bottom cap, cone, wall, top cap).
+        /// outward normal for every band type (bottom cap, cone, wall, bevel, top cap).
         func addFlat(_ r0: Float, _ z0: Float, _ r1: Float, _ z1: Float) {
             let dr = r1 - r0
             let dz = z1 - z0
@@ -820,15 +843,33 @@ extension RenderObject {
                 addFlat(0, 0, radius, 0)
         }
 
-        // Shank / flutes up to `length` above the tip, then the top cap.
-        // If `length` is shorter than the tip shape itself, the tip shape
-        // wins — better a stubby correct tip than a truncated one.
-        let topZ = max(totalLength, tipHeight)
-        if topZ > tipHeight {
-            addFlat(radius, tipHeight, radius, topZ)
+        // Flutes, then the shank. If the flutes are shorter than the tip shape itself, the tip
+        // shape wins — better a stubby correct tip than a truncated one.
+        let shankRadius = Float(drawing.shankDiameter / 2)
+        let fluteTop = max(Float(drawing.fluteLength), tipHeight)
+        let shankTop = max(Float(drawing.overallLength), fluteTop)
+
+        if fluteTop > tipHeight {
+            addFlat(radius, tipHeight, radius, fluteTop)
+        }
+        // Everything from here up is shank steel.
+        let shankStart = profile.count
+        var topRadius = radius
+        if shankTop > fluteTop {
+            // 45° bevel to the shank's diameter, no taller than half the shank
+            let bevel = min(abs(shankRadius - radius), (shankTop - fluteTop) / 2)
+            let sign: Float = shankRadius >= radius ? 1 : -1
+            if bevel > 0 {
+                addFlat(radius, fluteTop, radius + sign * bevel, fluteTop + bevel)
+            }
+            let wallStart = fluteTop + bevel
+            let wallRadius = bevel > 0 ? radius + sign * bevel : radius
+            // A bevel cut short by a stubby shank leaves the wall at the bevel's radius
+            addFlat(wallRadius, wallStart, wallRadius, shankTop)
+            topRadius = wallRadius
         }
         if !open {
-            addFlat(radius, topZ, 0, topZ)
+            addFlat(topRadius, shankTop, 0, shankTop)
         }
 
         // Spin the profile around the tool axis.
@@ -851,33 +892,54 @@ extension RenderObject {
                         normal: normalSign * SIMD3<Float>(p.nr * cosines[j], p.nr * sines[j], p.nz))
         }
 
-        var triangles: [SolidVertex] = []
-        triangles.reserveCapacity(max(0, profile.count - 1) * sides * 6)
-
-        for i in 0..<(profile.count - 1) {
-            let a = profile[i]
-            let b = profile[i + 1]
-            // Zero-length band: the seam between two hard-edged runs.
-            if a.r == b.r && a.z == b.z {
-                continue
+        /// Lathe bands for the profile points `range` (one band per consecutive pair).
+        func triangles(in range: Range<Int>) -> [SolidVertex] {
+            var triangles: [SolidVertex] = []
+            guard range.count > 1 else {
+                return triangles
             }
-            for j in 0..<sides {
-                let p00 = vertex(a, j)
-                let p01 = vertex(a, j + 1)
-                let p10 = vertex(b, j)
-                let p11 = vertex(b, j + 1)
-                // Bands that start or end on the axis collapse one triangle
-                // of the quad to a sliver; skip it.
-                if a.r > 0 {
-                    triangles.append(contentsOf: [p00, p01, p10])
+            triangles.reserveCapacity((range.count - 1) * sides * 6)
+            for i in range.lowerBound..<(range.upperBound - 1) {
+                let a = profile[i]
+                let b = profile[i + 1]
+                // Zero-length band: the seam between two hard-edged runs.
+                if a.r == b.r && a.z == b.z {
+                    continue
                 }
-                if b.r > 0 {
-                    triangles.append(contentsOf: [p01, p11, p10])
+                for j in 0..<sides {
+                    let p00 = vertex(a, j)
+                    let p01 = vertex(a, j + 1)
+                    let p10 = vertex(b, j)
+                    let p11 = vertex(b, j + 1)
+                    // Bands that start or end on the axis collapse one triangle
+                    // of the quad to a sliver; skip it.
+                    if a.r > 0 {
+                        triangles.append(contentsOf: [p00, p01, p10])
+                    }
+                    if b.r > 0 {
+                        triangles.append(contentsOf: [p01, p11, p10])
+                    }
                 }
             }
+            return triangles
         }
 
-        return RenderObject(role: .tool, points: [], color: color, solidTriangles: triangles)
+        var objects: [RenderObject] = []
+        let cutting = triangles(in: 0..<shankStart)
+        if !cutting.isEmpty {
+            var object = RenderObject(role: .tool, points: [],
+                                      color: drawing.coating.flatColor,
+                                      solidTriangles: cutting)
+            if drawing.coating == .rainbow {
+                object.coatingZRange = SIMD2<Float>(tipPosition.z, tipPosition.z + fluteTop)
+            }
+            objects.append(object)
+        }
+        let shank = triangles(in: shankStart..<profile.count)
+        if !shank.isEmpty {
+            objects.append(RenderObject(role: .tool, points: [], color: shankColor, solidTriangles: shank))
+        }
+        return objects
     }
 
     /// Small cylinder marker (e.g. current position, a probe point).

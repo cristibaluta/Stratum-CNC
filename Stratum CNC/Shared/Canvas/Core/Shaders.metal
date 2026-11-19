@@ -179,6 +179,28 @@ fragment float4 fragment_heightmap(HeightmapVertexOutput in [[stage_in]],
     float diffuse = max(dot(n, normalize(uniforms.lightDirection)), 0.0);
     float lit = uniforms.ambient + (1.0 - uniforms.ambient) * diffuse;
 
+    // A negative `depthDarkening` marks a coated tool (see `RenderObject.coatingZRange`):
+    // `bottomZ`...`topZ` is the height range of its cutting part, and the surface is colored
+    // by a smooth rainbow instead of `baseColor`. The rainbow runs up the tool, and its
+    // position is warped by the angle around the axis (taken from the normal, which on a
+    // lathe-turned tool points straight out from it), so the colors drift diagonally and
+    // unevenly like the sheen of a real coating instead of lying in flat rings.
+    if (uniforms.depthDarkening < 0.0) {
+        float span = max(uniforms.topZ - uniforms.bottomZ, 0.001);
+        float t = clamp((in.worldZ - uniforms.bottomZ) / span, 0.0, 1.0);
+        float angle = atan2(n.y, n.x);
+        float warp = 0.16 * sin(angle * 2.0 + t * 6.0)
+                   + 0.10 * sin(angle * 3.0 - t * 11.0 + 1.7)
+                   + 0.05 * sin(angle * 5.0 + t * 19.0 + 0.6);
+        float h = t * 0.75 + warp;
+        // Cosine palette: one smooth trip through the spectrum per unit of h
+        float3 rainbow = 0.5 + 0.5 * cos(6.28318 * (h + float3(0.0, 0.33, 0.67)));
+        // Pull it a little toward gray: a coating is a metal, not a highlighter
+        float gray = dot(rainbow, float3(0.299, 0.587, 0.114));
+        rainbow = mix(float3(gray), rainbow, 0.85);
+        return float4(rainbow * lit, uniforms.baseColor.a);
+    }
+
     // Depth below the original top face, 0...1 of the stock's thickness.
     // Square root so the first millimeters of depth (where most pockets
     // live) darken noticeably instead of barely registering on thick

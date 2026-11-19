@@ -130,13 +130,6 @@ enum CAMToolpathScrubOverlay {
 
     /// Same blue as every other toolpath on the canvas (`CAMSceneModel.Style.toolpathColor`).
     private static let pathColor = CAMSceneModel.Style.toolpathColor
-    /// Same red as the controller's cutter.
-    private static let markerColor = SIMD4<Float>(0.9, 0.1, 0.1, 1.0)
-    private static let markerSegments = 32
-    /// Lines running along the tool's surface (cone struts, dome arcs, tail lines), like the
-    /// struts of the axes' arrowheads.
-    private static let strutCount = 16
-    private static let domeArcSteps = 12
 
     /// The whole toolpath; the scrubber narrows what is drawn with
     /// `visibleVertexCount`, so this is built once per generation.
@@ -145,139 +138,10 @@ enum CAMToolpathScrubOverlay {
         RenderObject(role: .toolpathCutting, points: data.points, color: pathColor, primitive: .lineList)
     }
 
-    /// The cutter at `position` (its tip), as lines in the tool's shape, tip pointing down:
-    ///
-    /// - Flat cutters (end mill, corn, solder mask remover, drill, thread mill): a ring of the
-    ///   tool's diameter at the tip's height, with spokes from its center.
-    /// - Round bits (ball nose): a dome, a rim ring, rings of latitude and arcs down to the tip.
-    /// - V-bits, chamfer and engraving bits: a cone, a rim ring, two rings between and struts
-    ///   converging on the tip.
-    ///
-    /// Every one has a short tail, a cylinder of rings and lines going up from the rim.
-    /// Role `.tool`, so the scene's fast path swaps it in place as the slider moves.
-    static func marker(at position: SIMD3<Float>, tool: Tool) -> RenderObject {
-        let diameter = Double(tool.toolDiameter)
-
-        enum Tip {
-            case flat
-            case dome
-            case cone(height: Float, topRadius: Float)
-        }
-
-        var tip = Tip.flat
-        switch tool.type {
-        case .ballNose:
-            if diameter > 0 {
-                tip = .dome
-            }
-        case .vBit, .chamfer, .engraving:
-            if let cone = coneProfile(diameter: diameter,
-                                      tipAngle: tool.tipAngle.map { Double($0) },
-                                      length: tool.cuttingHeight.map { Double($0) }) {
-                // The cone's own top radius, not the tool's: a flute shorter than the full cone
-                // leaves it cut off short of the tool's diameter.
-                tip = .cone(height: Float(cone.height), topRadius: Float(cone.height * tan(cone.halfAngle)))
-            }
-        case .endMill, .corn, .solderMaskRemover, .drill, .threadMill:
-            break
-        }
-
-        // A hair-thin tool would vanish at any zoom
-        let radius = max(Float(max(diameter, 0) / 2), 0.25)
-
-        var points: [SIMD3<Float>] = []
-        points.reserveCapacity(markerSegments * 12 + strutCount * 40)
-
-        func point(_ r: Float, _ angle: Float, _ z: Float) -> SIMD3<Float> {
-            SIMD3<Float>(position.x + r * cos(angle), position.y + r * sin(angle), position.z + z)
-        }
-
-        func line(_ a: SIMD3<Float>, _ b: SIMD3<Float>) {
-            points.append(a)
-            points.append(b)
-        }
-
-        func ring(radius r: Float, z: Float) {
-            for i in 0..<markerSegments {
-                let a0 = Float(i) / Float(markerSegments) * 2 * .pi
-                let a1 = Float(i + 1) / Float(markerSegments) * 2 * .pi
-                line(point(r, a0, z), point(r, a1, z))
-            }
-        }
-
-        // The directions every spoke, arc and tail line runs along
-        let angles: [Float] = (0..<strutCount).map { Float($0) / Float(strutCount) * 2 * .pi }
-
-        var rimRadius = radius
-        var rimZ: Float = 0
-
-        switch tip {
-        case .flat:
-            for angle in angles {
-                line(point(0, 0, 0), point(radius, angle, 0))
-            }
-
-        case .dome:
-            rimZ = radius
-            for phi in [Float.pi / 6, Float.pi / 3] {
-                ring(radius: radius * sin(phi), z: radius - radius * cos(phi))
-            }
-            for angle in angles {
-                var previous = point(0, angle, 0)
-                for k in 1...domeArcSteps {
-                    let phi = Float(k) / Float(domeArcSteps) * (.pi / 2)
-                    let next = point(radius * sin(phi), angle, radius - radius * cos(phi))
-                    line(previous, next)
-                    previous = next
-                }
-            }
-
-        case .cone(let height, let topRadius):
-            rimRadius = topRadius
-            rimZ = height
-            let fractions: [Float] = [Float(1) / 3, 2 / 3]
-            for fraction in fractions {
-                ring(radius: topRadius * fraction, z: height * fraction)
-            }
-            for angle in angles {
-                line(point(0, angle, 0), point(topRadius, angle, height))
-            }
-        }
-
-        ring(radius: rimRadius, z: rimZ)
-
-        // The tail: a bit of shank, in proportion to the tool
-        let tailLength = max(rimRadius * 3, 2)
-        ring(radius: rimRadius, z: rimZ + tailLength / 2)
-        ring(radius: rimRadius, z: rimZ + tailLength)
-        for angle in angles {
-            line(point(rimRadius, angle, rimZ), point(rimRadius, angle, rimZ + tailLength))
-        }
-
-        return RenderObject(role: .tool, points: points, color: markerColor, primitive: .lineList)
-    }
-
-    /// A V-bit's cone: its half-angle (radians) and height (mm), from the tool's diameter, tip
-    /// angle and cutting length. The angle and the diameter fix how tall the cone is
-    /// (`radius / tan(half angle)`), so a missing length is worked out from them; a cutting
-    /// length shorter than that cuts the cone off short of the full diameter. With no angle but
-    /// a length, the angle is the one that takes the cone from a point to the full diameter in
-    /// that length. `nil` when there is neither, or no diameter.
-    static func coneProfile(diameter: Double, tipAngle: Double?, length: Double?) -> (halfAngle: Double, height: Double)? {
-        let radius = diameter / 2
-        guard radius > 0 else {
-            return nil
-        }
-        let cuttingLength = length.flatMap { $0 > 0 ? $0 : nil }
-
-        if let angle = tipAngle, angle > 0, angle < 180 {
-            let halfAngle = angle / 2 * .pi / 180
-            let fullHeight = radius / tan(halfAngle)
-            return (halfAngle, cuttingLength.map { min($0, fullHeight) } ?? fullHeight)
-        }
-        if let cuttingLength {
-            return (atan(radius / cuttingLength), cuttingLength)
-        }
-        return nil
+    /// The cutter at `position` (its tip): the same solids the controller draws (the tool's tip
+    /// shape and coated flutes, and the steel shank). Role `.tool`, so the scene's fast path
+    /// swaps them in place as the slider moves.
+    static func marker(at position: SIMD3<Float>, tool: Tool) -> [RenderObject] {
+        RenderObject.tool(for: tool, at: position)
     }
 }
