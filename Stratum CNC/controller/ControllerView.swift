@@ -138,9 +138,15 @@ struct ControllerView: View {
         .padding(16)
         .background(viewBackground)
         .onAppear {
+            applyHeaderStock(gCodeModel.document.loadedHeader)
             if let machine = model.selectedMachine {
                 model.connection.connect(to: machine)
             }
+        }
+        // Lives here, not on the canvas section: that one doesn't exist yet while the empty
+        // state is showing, so it would miss the header of the first file loaded.
+        .onChange(of: gCodeModel.document.loadedHeader) { _, header in
+            applyHeaderStock(header)
         }
         .onDisappear {
             model.stopHoldJog()
@@ -274,6 +280,27 @@ struct ControllerView: View {
             }
         }
         .machineAlerts(model.alerts, onResume: model.resumeJob)
+    }
+
+    /// A program that declares its own stock (`; Stock Size: 100(X) * 100(Y) * 15(Z) mm`)
+    /// replaces the stock on the canvas, so the box, the heightmap and the stock chip match
+    /// the file. Saved projects keep their own stock: their program comes from it, not the reverse.
+    /// A header that says nothing about stock leaves the current one alone.
+    private func applyHeaderStock(_ header: GCodeHeader?) {
+        guard canImportGCode, let spec = header?.stock else {
+            return
+        }
+        let current = camModel.selectedStockMaterial
+        let isAluminum = spec.material?.lowercased().hasPrefix("alumin") == true
+
+        let stock = StockMaterial(name: current.name,
+                                  material: isAluminum ? .aluminum : current.material,
+                                  geometry: .rectangular(width: spec.sizeX,
+                                                         height: spec.sizeY,
+                                                         depth: spec.sizeZ))
+        if stock != current {
+            camModel.selectedStockMaterial = stock
+        }
     }
 
     /// Downloads a program from the machine's SD card and loads it as if it
