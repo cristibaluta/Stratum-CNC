@@ -548,9 +548,29 @@ struct MetalCanvasView: STViewRepresentable {
         weak var pointerHandler: (any CanvasPointerHandler)?
         private var dragAction: CanvasPointerDragAction = .camera
 
+        /// True from a press on the orientation cube until release: the whole drag orbits the
+        /// camera, whatever the drag is assigned to in the input settings and whatever the
+        /// owner would do with a press there.
+        private var isDraggingCube = false
+
+        /// Whether `point` (view coordinates, origin bottom-left) is on the orientation cube.
+        private func isOnOrientationCube(_ point: CGPoint) -> Bool {
+            guard renderer?.showOrientationCube == true, let size = metalView?.bounds.size,
+                  let rect = OrientationCube.hitRect(in: size) else {
+                return false
+            }
+            return rect.contains(point)
+        }
+
         func handleMouseDown(_ event: CanvasMouseEvent) {
             guard let view = metalView else { return }
             lastMousePosition = event.location
+            if isOnOrientationCube(event.location) {
+                isDraggingCube = true
+                dragAction = .handled
+                view.draw()
+                return
+            }
             clickTracker.begin(at: lastMousePosition)
             dragAction = .camera
             if let pointer = pointerEvent(for: event) {
@@ -565,6 +585,12 @@ struct MetalCanvasView: STViewRepresentable {
             clickTracker.move(to: point)
             let translation = CGPoint(x: point.x - lastMousePosition.x, y: point.y - lastMousePosition.y)
             lastMousePosition = point
+
+            if isDraggingCube {
+                performOrbit(translation: translation)
+                view.draw()
+                return
+            }
 
             if dragAction == .handled {
                 if let pointer = pointerEvent(for: event) {
@@ -593,6 +619,13 @@ struct MetalCanvasView: STViewRepresentable {
 
         func handleMouseUp(_ event: CanvasMouseEvent, cancelled: Bool = false) {
             guard let view = metalView, let camera = renderer?.camera else { return }
+            if isDraggingCube {
+                // Orbiting the cube is not a click on the canvas behind it.
+                isDraggingCube = false
+                dragAction = .camera
+                view.draw()
+                return
+            }
             let point = event.location
             let pointer = pointerEvent(for: event)
             let wasHandled = dragAction == .handled

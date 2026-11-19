@@ -40,6 +40,32 @@ enum OrientationCube {
     /// 1, so its corner radius is √3 ≈ 1.73). See `Camera.orientationCubeMatrix`.
     static let halfExtent: Float = 1.9
 
+    /// Where the cube sits in a canvas of `viewSize` points, with the origin at the bottom-left
+    /// (the convention of `CanvasMouseEvent`). `nil` when the canvas is too small to show it,
+    /// the same condition `MetalRenderer.drawOrientationCube` skips it under.
+    static func hitRect(in viewSize: CGSize) -> CGRect? {
+        guard size + 2 * margin <= min(viewSize.width, viewSize.height) else {
+            return nil
+        }
+        let x: CGFloat
+        let y: CGFloat
+        switch corner {
+            case .topLeft:
+                x = margin
+                y = viewSize.height - size - margin
+            case .topRight:
+                x = viewSize.width - size - margin
+                y = viewSize.height - size - margin
+            case .bottomLeft:
+                x = margin
+                y = margin
+            case .bottomRight:
+                x = viewSize.width - size - margin
+                y = margin
+        }
+        return CGRect(x: x, y: y, width: size, height: size)
+    }
+
     // MARK: - Geometry
 
     /// Every triangle of the cube (three faces of it are visible at once;
