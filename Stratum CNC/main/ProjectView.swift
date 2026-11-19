@@ -27,14 +27,14 @@ struct ProjectView: View {
     private var title: String {
         switch projectModel.sessionKind {
             case .project: "Project: \(projectModel.project.name)"
-            case .controllerOnly: "Controller"
-            case .gcodeFile: gCodeStore.document.fileName
+            case .controllerOnly, .gcodeFile: "Stratum Controller"
         }
     }
 
     private var subtitle: String {
+        // Controller sessions show the loaded file's name; empty until one is loaded.
         guard projectModel.sessionKind == .project else {
-            return ""
+            return gCodeStore.document.lines.isEmpty ? "" : gCodeStore.document.fileName
         }
         if projectModel.hasUnsavedChanges {
             return "Unsaved…"
