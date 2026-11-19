@@ -270,6 +270,11 @@ class MetalRenderer: NSObject {
     /// `drawHeightmapScene`) rather than crashing or drawing stale geometry.
     private var heightmapBatch: HeightmapBatch?
 
+    /// The GPU carve and surface for rectangular stock (see `HeightmapGPU`). When it has a
+    /// surface (`isActive`) it is drawn instead of `heightmapBatch`, which stays for round stock.
+    /// `nil` if its shaders couldn't be built: everything then falls back to the CPU path.
+    private var gpuHeightmap: HeightmapGPU?
+
     /// Roles from the wireframe scene that heightmap mode leaves out —
     /// the shaded surface stands in for both the stock outline and the
     /// toolpath preview. Everything else in `renderBatches` (axes, the tool
@@ -335,6 +340,11 @@ class MetalRenderer: NSObject {
 
         setupPipeline(metalView: metalView)
         setupHeightmapPipeline(metalView: metalView)
+        gpuHeightmap = HeightmapGPU(device: device,
+                                    queue: commandQueue,
+                                    colorPixelFormat: metalView.colorPixelFormat,
+                                    depthPixelFormat: metalView.depthStencilPixelFormat,
+                                    sampleCount: metalView.sampleCount)
         setupDepthStates()
         setupOrientationCube()
 
@@ -652,6 +662,16 @@ class MetalRenderer: NSObject {
         }
 
         renderBatches = updated
+    }
+
+    /// Hands the GPU heightmap its new state: carves what changed and starts drawing it. `nil`
+    /// stops drawing it (the CPU mesh, if any, is drawn instead).
+    func updateHeightmapGPU(_ request: HeightmapGPURequest?) {
+        if let request {
+            gpuHeightmap?.apply(request)
+        } else {
+            gpuHeightmap?.clear()
+        }
     }
 
     /// Rebuilds the heightmap's GPU buffers from a freshly-built
@@ -1238,6 +1258,19 @@ private extension MetalRenderer {
 
         // Solid objects other than the tool (a STEP model). The tool is drawn last, on top.
         drawSolids(mvp: mvp, encoder: encoder, where: { $0 != .tool })
+
+        if let gpuHeightmap, gpuHeightmap.isActive {
+            encoder.setDepthStencilState(depthStateVisible)
+            gpuHeightmap.draw(encoder: encoder,
+                              mvp: mvp,
+                              lightDirection: heightmapLightDirection,
+                              baseColor: heightmapBaseColor,
+                              ambient: heightmapAmbient,
+                              depthDarkening: heightmapDepthDarkening,
+                              offset: anchorOrigin)
+            drawToolOnTop(mvp: mvp, encoder: encoder)
+            return
+        }
 
         guard let heightmapBatch, let heightmapPipelineState else {
             drawToolOnTop(mvp: mvp, encoder: encoder)

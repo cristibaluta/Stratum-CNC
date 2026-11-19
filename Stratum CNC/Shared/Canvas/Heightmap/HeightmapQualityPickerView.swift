@@ -24,9 +24,8 @@ import SwiftUI
 struct HeightmapQualityPickerView: View {
     @Binding var cellSize: Float
 
-    /// 0.1mm (best quality) through 0.5mm (fastest), in 0.1mm steps —
-    /// matches `CanvasSceneModel.heightmapCellSize`'s documented range.
-    private static let steps: [Float] = [0.1, 0.2, 0.3, 0.4, 0.5]
+    /// 0.05mm (finest, the GPU path only caps it at 2048 samples a side) through 0.5mm (fastest).
+    private static let steps: [Float] = [0.05, 0.1, 0.2, 0.3, 0.5]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -45,13 +44,13 @@ struct HeightmapQualityPickerView: View {
     private func label(for step: Float) -> String {
         let quality: String
         switch step {
+            case 0.05: quality = "Finest"
             case 0.1: quality = "Best"
             case 0.2: quality = "High"
             case 0.3: quality = "Medium"
-            case 0.4: quality = "Low"
             default: quality = "Fastest"
         }
-        return "\(quality) (\(step.fixed(1))mm)"
+        return "\(quality) (\(step.fixed(step < 0.1 ? 2 : 1))mm)"
     }
 }
 

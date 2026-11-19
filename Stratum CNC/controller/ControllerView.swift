@@ -778,6 +778,7 @@ private struct CanvasSection: View {
                             anchorOrigin: scene.machineLayout.activeAnchor,
                             stockColor: scene.stockColor,
                             heightmapMesh: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapMesh,
+                            heightmapGPU: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapGPURequest,
                             clearColor: viewportClearColor,
                             zoomModel: scene.zoomModel)
             .cornerRadius(8)

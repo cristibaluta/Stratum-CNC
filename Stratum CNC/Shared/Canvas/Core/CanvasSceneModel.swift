@@ -113,6 +113,18 @@ class CanvasSceneModel: ObservableObject {
     /// `update*` methods below rather than being poked at directly.
     @Published private(set) var heightmapMesh: HeightmapMesh?
 
+    /// The GPU heightmap's state, for rectangular stock: the renderer carves and draws it on
+    /// the GPU (see `HeightmapGPU`), so there is no mesh, no background task and no spinner.
+    /// `nil` when `heightmapMesh` is what to draw instead (round stock), or nothing is.
+    @Published private(set) var heightmapGPURequest: HeightmapGPURequest?
+
+    /// Bumped for every `heightmapGPURequest`, so the view can tell a new one from a re-run of its body.
+    private var heightmapGPUSerial = 0
+
+    /// Bumped when a different program is loaded (`updateToolpath`), so the GPU rebuilds what it
+    /// derived from the old one.
+    private var heightmapProgramID = 0
+
     /// Grid resolution for the heightmap carve, in millimeters — M6's
     /// user-facing quality/speed tradeoff. Smaller cells mean more samples
     /// (finer, slower carve, less visible stair-stepping); larger cells
@@ -266,6 +278,7 @@ class CanvasSceneModel: ObservableObject {
         stopHeightmapWork()
         heightmapCarveCache = nil
         heightmapMesh = nil
+        heightmapProgramID += 1
         renderObjects.replacing(roles: [.toolpathRapid, .toolpathCutting],
                                 with: RenderObject.toolpath(from: segments))
         // A program (re)loaded while a macro is being previewed stays hidden
@@ -544,8 +557,35 @@ class CanvasSceneModel: ObservableObject {
             stopHeightmapWork()
             heightmapMesh = nil
             heightmapCarveCache = nil
+            heightmapGPURequest = nil
             heightmapScrubTickCount = 0
             return
+        }
+
+        // Rectangular stock is carved and drawn on the GPU: cheap enough to follow every scrub
+        // tick, so there is no throttling and nothing to cancel.
+        if case let .rectangular(width, height, depth) = stock.geometry {
+            stopHeightmapWork()
+            if heightmapMesh != nil {
+                heightmapMesh = nil
+            }
+            heightmapCarveCache = nil
+            heightmapScrubTickCount = 0
+            heightmapGPUSerial += 1
+            heightmapGPURequest = HeightmapGPURequest(serial: heightmapGPUSerial,
+                                                      programID: heightmapProgramID,
+                                                      width: Float(width),
+                                                      height: Float(height),
+                                                      depth: Float(depth),
+                                                      segments: document.toolpathSegments,
+                                                      segmentCount: document.toolpathSegments(upTo: line).count,
+                                                      tools: tools,
+                                                      cellSize: heightmapCellSize,
+                                                      offset: xyOffset)
+            return
+        }
+        if heightmapGPURequest != nil {
+            heightmapGPURequest = nil
         }
 
         heightmapScrubTickCount += 1

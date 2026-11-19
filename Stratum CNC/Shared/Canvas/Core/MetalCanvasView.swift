@@ -169,6 +169,10 @@ struct MetalCanvasView: STViewRepresentable {
     /// when it's actually a new mesh — see `Coordinator.lastHeightmapMeshID`.
     var heightmapMesh: HeightmapMesh?
 
+    /// The GPU heightmap (rectangular stock), forwarded to `MetalRenderer.updateHeightmapGPU`
+    /// when its `serial` changes. `nil` when the mesh above is what to draw.
+    var heightmapGPU: HeightmapGPURequest?
+
     /// Overrides the renderer's default dark-gray clear color when non-nil.
     /// Both canvases pass an appearance-aware color now: CAM passes the
     /// window's own background so its path colors keep their contrast in
@@ -367,6 +371,10 @@ struct MetalCanvasView: STViewRepresentable {
         // reason" (e.g. a scrub tick touching `objects`) without diffing the
         // mesh's own vertex/index arrays — see `updateHeightmapMesh`'s doc
         // comment on why re-uploading isn't meant to happen every frame.
+        if context.coordinator.lastHeightmapGPUSerial != heightmapGPU?.serial {
+            context.coordinator.renderer?.updateHeightmapGPU(heightmapGPU)
+            context.coordinator.lastHeightmapGPUSerial = heightmapGPU?.serial
+        }
         if context.coordinator.lastHeightmapMeshID != heightmapMesh?.id {
             context.coordinator.renderer?.updateHeightmapMesh(heightmapMesh)
             context.coordinator.lastHeightmapMeshID = heightmapMesh?.id
@@ -400,6 +408,9 @@ struct MetalCanvasView: STViewRepresentable {
         /// (see `updateNSView`). `nil` alongside `heightmapMesh == nil`
         /// means nothing's been uploaded yet.
         var lastHeightmapMeshID: UUID?
+
+        /// `serial` of the last `HeightmapGPURequest` handed to the renderer.
+        var lastHeightmapGPUSerial: Int?
         var lastFitRequest = 0
 
         private var updateWindowStart = PerfLog.now()

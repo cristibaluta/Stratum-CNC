@@ -174,4 +174,9 @@ extension CanvasSceneModel {
     var visibleHeightmapMesh: HeightmapMesh? {
         hiddenLayers.contains(.stock) ? nil : heightmapMesh
     }
+
+    /// Same for the GPU heightmap.
+    var visibleHeightmapGPURequest: HeightmapGPURequest? {
+        hiddenLayers.contains(.stock) ? nil : heightmapGPURequest
+    }
 }
