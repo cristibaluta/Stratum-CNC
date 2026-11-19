@@ -101,37 +101,29 @@ struct BitChangeSheet: View {
     }
 
     private var footer: some View {
-        HStack {
-            Button("Cancel") { dismiss() }
+        SheetFooter(showsBack: flow.step != .secure) {
+            FooterButton("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
-
+        } notice: {
             if let blocker = flow.blocker(machine: machine) {
                 Text(blocker)
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .lineLimit(2)
             }
-
-            Spacer()
-
-            if flow.step != .secure {
-                Button("Back") { flow.goBack() }
-            }
+        } back: {
+            FooterButton("Back") { flow.goBack() }
+        } primary: {
             if flow.step == .restart {
-                Button {
-                    resume()
-                } label: {
-                    Label("Resume Job", systemImage: "play.fill")
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canResume)
+                FooterButton("Resume Job", systemImage: "play.fill") { resume() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canResume)
             } else {
-                Button("Next") { flow.advance(machine: machine) }
+                FooterButton("Next") { flow.advance(machine: machine) }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!flow.canAdvance(machine: machine))
             }
         }
-        .padding(16)
     }
 
     private var stepIndicator: some View {

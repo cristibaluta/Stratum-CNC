@@ -211,25 +211,17 @@ struct MachiningRunSheet: View {
     }
 
     private var footer: some View {
-        HStack {
-            Button("Cancel") {
-                dismiss()
-            }
-            .keyboardShortcut(.cancelAction)
-
-            Spacer()
-
-            Button {
+        SheetFooter {
+            FooterButton("Cancel") { dismiss() }
+                .keyboardShortcut(.cancelAction)
+        } primary: {
+            FooterButton("Start Job", systemImage: "play.fill") {
                 model.startSentJob()
                 dismiss()
-            } label: {
-                Label("Start Job", systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
             }
             .keyboardShortcut(.defaultAction)
             .disabled(!canStartJob)
         }
-        .padding(16)
     }
 
     // MARK: - Stock

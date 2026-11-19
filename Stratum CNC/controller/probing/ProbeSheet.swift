@@ -88,30 +88,26 @@ struct ProbeSheet: View {
     }
 
     private var footer: some View {
-        HStack {
-            Button(flow.step == .result ? "Done" : "Cancel") { dismiss() }
+        SheetFooter(showsBack: flow.step != .what) {
+            FooterButton(flow.step == .result ? "Done" : "Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
-
-            Spacer()
-
-            if flow.step != .what {
-                Button("Back") {
-                    sequencer.reset()
-                    flow.goBack()
-                }
-                .disabled(sequencer.isRunning)
+        } back: {
+            FooterButton("Back") {
+                sequencer.reset()
+                flow.goBack()
             }
-            Button("Next") {
+            .disabled(sequencer.isRunning)
+        } primary: {
+            FooterButton("Next") {
                 if flow.step == .tool {
                     // The ball diameter was on screen: it counts as confirmed.
                     model.probeSettings.hasConfirmedBallDiameter = true
                 }
                 flow.advance()
             }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!flow.canAdvance || (flow.step == .probe && !canLeaveProbeStep))
+            .keyboardShortcut(.defaultAction)
+            .disabled(!flow.canAdvance || (flow.step == .probe && !canLeaveProbeStep))
         }
-        .padding(16)
     }
 
     private var stepIndicator: some View {
