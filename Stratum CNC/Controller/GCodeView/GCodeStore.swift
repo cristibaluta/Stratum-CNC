@@ -51,6 +51,28 @@ class GCodeStore: ObservableObject {
     /// whenever the lines change so reading it at the scrub position is O(1).
     private(set) var liveValues: [GCodeLiveValues] = []
 
+    private var liveValuesTask: Task<Void, Never>?
+
+    /// Parses every line for its feed and Z, off the main thread (a big program took seconds), and
+    /// publishes the result when it is ready. A newer set of lines cancels the one still parsing.
+    private func refreshLiveValues(for lines: [GCodeLine]) {
+        liveValuesTask?.cancel()
+        let texts = lines.map(\.text)
+        liveValuesTask = Task.detached(priority: .userInitiated) { [weak self] in
+            let values = GCodeLiveValues.parse(texts)
+            guard !Task.isCancelled else {
+                return
+            }
+            await self?.applyLiveValues(values)
+        }
+    }
+
+    private func applyLiveValues(_ values: [GCodeLiveValues]) {
+        liveValues = values
+        // Not @Published: tell the views that read `currentLiveValues` to look again
+        objectWillChange.send()
+    }
+
     /// Feed and Z at the line the scrub slider (or the running job) is on.
     var currentLiveValues: GCodeLiveValues? {
         let index = scrubLine - 1
@@ -69,7 +91,7 @@ class GCodeStore: ObservableObject {
         // `NCFileDocument.loadedHeader`.
         // `$lines` hands over the new array before it is stored, so use the argument.
         linesCancellable = document.$lines.sink { [weak self] lines in
-            self?.liveValues = GCodeLiveValues.parse(lines.map(\.text))
+            self?.refreshLiveValues(for: lines)
         }
         headerCancellable = document.$loadedHeader.sink { [weak self] header in
             self?.applyHeaderTools(header)
@@ -329,7 +351,7 @@ class GCodeStore: ObservableObject {
             ToolpathGCodeBuilder.generate(sections, stock: stock, setup: headerSetup)
         }.value
 
-        finishGeneratingFromCAM(gcode: gcode, plan: plan, camRevision: revision)
+        await finishGeneratingFromCAM(gcode: gcode, plan: plan, camRevision: revision)
     }
 
     /// Generates `pending` one after the other, updating the popover as each one starts and ends.
@@ -409,15 +431,18 @@ class GCodeStore: ObservableObject {
         camProgress = []
     }
 
-    private func finishGeneratingFromCAM(gcode: String, plan: ToolpathGCodeBuilder.Plan, camRevision: Int?) {
-        endCAMImport()
+    private func finishGeneratingFromCAM(gcode: String, plan: ToolpathGCodeBuilder.Plan, camRevision: Int?) async {
 
         guard !gcode.isEmpty else {
+            endCAMImport()
             camImportMessage = "The G-code engine didn't produce any output for the generated toolpaths."
             return
         }
 
-        document.load(from: gcode)
+        // Parsing and analyzing a big program took ~13 s on the main thread; do it in the background
+        // while the popover keeps showing that the program is being built.
+        await document.loadProgram(gcode)
+        endCAMImport()
         generatedFromCAMRevision = camRevision
         // Same reset the file importer does when a new program replaces the old one.
         selectedToolpathID = nil

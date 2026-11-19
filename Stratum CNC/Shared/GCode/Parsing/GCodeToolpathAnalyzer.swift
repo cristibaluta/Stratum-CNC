@@ -109,6 +109,10 @@ struct GCodeToolpathAnalyzer {
     }
 
     private static func stripComments(_ text: String) -> String {
+        // Most lines have no comment: skip the copy (and the Character walk) for those
+        guard text.utf8.contains(where: { $0 == 0x3B || $0 == 0x28 }) else {
+            return text
+        }
         var output = text
 
         if let semicolon = output.firstIndex(of: ";") {

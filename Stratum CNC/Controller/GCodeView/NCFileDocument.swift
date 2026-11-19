@@ -9,6 +9,30 @@ import Foundation
 import Combine
 import simd
 
+/// Everything derived from a program's lines by reading all of them (the toolpath sections, the
+/// tool numbers, the resume-point index). Built off the main thread when a program loads: each of
+/// these is a full pass with regular expressions, which for a large program took seconds.
+struct ProgramAnalysis: Sendable {
+
+    let toolpaths: [GCodeToolpath]
+    let tools: [Int]
+    let resumeResolver: ResumePointResolver
+
+    nonisolated static func make(lines: [GCodeLine]) -> ProgramAnalysis {
+        let toolpaths = GCodeToolpathAnalyzer.analyze(lines.map { (id: $0.id, text: $0.text) })
+
+        var seen = Set<Int>()
+        var tools: [Int] = []
+        for toolpath in toolpaths {
+            guard let tool = toolpath.toolNumber, seen.insert(tool).inserted else { continue }
+            tools.append(tool)
+        }
+        return ProgramAnalysis(toolpaths: toolpaths,
+                               tools: tools,
+                               resumeResolver: ResumePointResolver(lines: lines.map(\.text), toolpaths: toolpaths))
+    }
+}
+
 @MainActor
 final class NCFileDocument: ObservableObject {
 
@@ -36,6 +60,10 @@ final class NCFileDocument: ObservableObject {
     /// `toolpath(containingLine:)`). Recomputed alongside `tools`, never on
     /// scrub.
     @Published private(set) var toolpaths: [GCodeToolpath] = []
+
+    /// Finds a clean line to resume the loaded program from. Built together with `toolpaths`
+    /// (see `ProgramAnalysis`), so views read it instead of scanning the program again.
+    @Published private(set) var resumeResolver: ResumePointResolver?
 
     /// Header metadata (tools, ...) from the most recent *load*. Set
     /// only when a file/program is loaded — not on `rebuildToolpath` — so
@@ -98,16 +126,13 @@ final class NCFileDocument: ObservableObject {
     /// `rebuildVertexPrefixSums` — everywhere `lines` is (re)assigned — never
     /// on scrub.
     private func recomputeTools() {
-        let analyzed = GCodeToolpathAnalyzer.analyze(lines.map { (id: $0.id, text: $0.text) })
-        toolpaths = analyzed
+        apply(ProgramAnalysis.make(lines: lines))
+    }
 
-        var seen = Set<Int>()
-        var ordered: [Int] = []
-        for toolpath in analyzed {
-            guard let tool = toolpath.toolNumber, seen.insert(tool).inserted else { continue }
-            ordered.append(tool)
-        }
-        tools = ordered
+    private func apply(_ analysis: ProgramAnalysis) {
+        toolpaths = analysis.toolpaths
+        tools = analysis.tools
+        resumeResolver = analysis.resumeResolver
     }
 
     // MARK: Load
@@ -137,7 +162,7 @@ final class NCFileDocument: ObservableObject {
         // state update below hops back to the main actor.
         loadTask = Task.detached { [weak self] in
             do {
-                let parsed = try await Self.loadAndParseFile(url: url)
+                let (parsed, analysis) = try await Self.loadAndParseFile(url: url)
 
                 guard !Task.isCancelled else {
                     return
@@ -146,7 +171,7 @@ final class NCFileDocument: ObservableObject {
                     return
                 }
 
-                await self.finishLoad(parsed: parsed, url: url, fileName: fileName)
+                await self.finishLoad(parsed: parsed, analysis: analysis, url: url, fileName: fileName)
 
             } catch {
 
@@ -166,12 +191,12 @@ final class NCFileDocument: ObservableObject {
     /// is a member of `NCFileDocument`, which is `@MainActor`) so it's safe
     /// to touch every `@Published` property directly; called with `await`
     /// from the background `Task.detached` in `load(from:)`.
-    private func finishLoad(parsed: ParsedGCode, url: URL, fileName: String) {
+    private func finishLoad(parsed: ParsedGCode, analysis: ProgramAnalysis, url: URL, fileName: String) {
         guard !Task.isCancelled else { return }
         self.lines = parsed.lines
         self.toolpathSegments = parsed.toolpathSegments
         self.rebuildVertexPrefixSums()
-        self.recomputeTools()
+        self.apply(analysis)
         self.loadedHeader = parsed.header
         self.fileURL = url
         self.fileName = fileName
@@ -187,6 +212,7 @@ final class NCFileDocument: ObservableObject {
     func load(from string: String, name: String = "From CAM") {
         loadTask?.cancel()
         loadTask = nil
+        programLoadID += 1
         isLoading = false
         let parser = GCodeParser()
         let code: ParsedGCode = parser.parse(string)
@@ -204,7 +230,7 @@ final class NCFileDocument: ObservableObject {
 
     // MARK: Background parsing
 
-    private nonisolated static func loadAndParseFile(url: URL) async throws -> ParsedGCode {
+    private nonisolated static func loadAndParseFile(url: URL) async throws -> (ParsedGCode, ProgramAnalysis) {
 
         let didStartAccess = url.startAccessingSecurityScopedResource()
         defer {
@@ -214,9 +240,43 @@ final class NCFileDocument: ObservableObject {
         }
         let contents = try String(contentsOf: url, encoding: .utf8)
         let parser = GCodeParser()
+        let parsed = parser.parse(contents)
 
-        return parser.parse(contents)
+        return (parsed, ProgramAnalysis.make(lines: parsed.lines))
     }
+
+    /// Same as `load(from:name:)`, for a program too big to parse on the main thread: the parse
+    /// and the analysis run in the background and only the result is applied here. Returns when
+    /// the program is loaded (or a newer load replaced this one).
+    func loadProgram(_ string: String, name: String = "From CAM") async {
+        loadTask?.cancel()
+        loadTask = nil
+        programLoadID += 1
+        let loadID = programLoadID
+        isLoading = true
+
+        let (parsed, analysis) = await Task.detached(priority: .userInitiated) {
+            let parsed = GCodeParser().parse(string)
+            return (parsed, ProgramAnalysis.make(lines: parsed.lines))
+        }.value
+
+        // A newer load started while this one was parsing: it owns the document now
+        guard loadID == programLoadID else {
+            return
+        }
+        lines = parsed.lines
+        toolpathSegments = parsed.toolpathSegments
+        rebuildVertexPrefixSums()
+        apply(analysis)
+        loadedHeader = parsed.header
+        fileURL = nil
+        lastError = nil
+        fileName = name
+        isLoading = false
+    }
+
+    /// Bumped by every `loadProgram`, to tell a stale one from the current one.
+    private var programLoadID = 0
 
     // MARK: Line editing
 
@@ -358,6 +418,7 @@ final class NCFileDocument: ObservableObject {
         cuttingVertexPrefix = [0]
         tools.removeAll()
         toolpaths.removeAll()
+        resumeResolver = nil
         loadedHeader = nil
 
         lastError = nil

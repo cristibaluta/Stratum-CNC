@@ -52,7 +52,7 @@ struct PanelPosition: View {
                 .help("Ask the machine for its current position and status")
                 .padding(.bottom, -16)
 
-                Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 8) {
+                Grid(alignment: .trailing, horizontalSpacing: 24, verticalSpacing: 8) {
                     GridRow {
                         Color.clear
                             .frame(width: 1, height: 1)

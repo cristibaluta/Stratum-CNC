@@ -405,8 +405,7 @@ struct BitChangeSheet: View {
 
     private func setUp() {
         let lines = programLines
-        let toolpaths = GCodeToolpathAnalyzer.analyze(gCodeModel.document.lines.map { (id: $0.id, text: $0.text) })
-        resolver = ResumePointResolver(lines: lines, toolpaths: toolpaths)
+        resolver = ResumePointResolver(lines: lines, toolpaths: gCodeModel.document.toolpaths)
 
         // Where the job stopped: what the app saved, else what the canvas shows.
         var line = 1

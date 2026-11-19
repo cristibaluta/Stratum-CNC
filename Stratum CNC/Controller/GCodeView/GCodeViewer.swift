@@ -45,8 +45,6 @@ struct GCodeViewer: View {
     private static let listHeightRange = 80.0...600.0
 
     @State private var toolpaths: [GCodeToolpath] = []
-    /// Finds a clean line to resume from; rebuilt with the toolpaths.
-    @State private var resumeResolver: ResumePointResolver?
 
     var body: some View {
         VStack(spacing: 4) {
@@ -99,6 +97,10 @@ struct GCodeViewer: View {
             refreshToolpaths()
         }
         .onChange(of: model.document.toolpathSegments.count) { _, _ in
+            refreshToolpaths()
+        }
+        // A reload that keeps the same line and segment counts still produces new toolpaths
+        .onChange(of: model.document.toolpaths) { _, _ in
             refreshToolpaths()
         }
     }
@@ -155,9 +157,10 @@ struct GCodeViewer: View {
         .help("Drag to resize. Double-click to reset.")
     }
 
+    /// The document already analyzed the program when it loaded (in the background); reading
+    /// the whole program again here, on the main thread, is what froze the app.
     private func refreshToolpaths() {
-        toolpaths = GCodeToolpathAnalyzer.analyze(model.document.lines.map { (id: $0.id, text: $0.text) })
-        resumeResolver = ResumePointResolver(lines: model.document.lines.map(\.text), toolpaths: toolpaths)
+        toolpaths = model.document.toolpaths
     }
 
     // MARK: - Toolpaths
@@ -296,7 +299,7 @@ struct GCodeViewer: View {
     /// moved back to the start of the pass it falls in.
     private var resumePoint: ResumePoint? {
         guard let target = resumeLineTarget else { return nil }
-        return resumeResolver?.resolve(requestedLine: target)
+        return model.document.resumeResolver?.resolve(requestedLine: target)
             ?? ResumePoint(requestedLine: target, line: target, reason: .none)
     }
 
