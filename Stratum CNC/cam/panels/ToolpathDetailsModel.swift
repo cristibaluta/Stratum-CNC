@@ -315,6 +315,17 @@ final class ToolpathDetailsModel: ObservableObject {
         return "\(toolpaths) toolpath\(toolpaths == 1 ? "" : "s") · \(passes) pass\(passes == 1 ? "" : "es")"
     }
 
+    /// "Estimated time: 4 min" for the current result; nil while there is none or it is outdated.
+    func timeText(for generation: ToolpathGeneration?, toolpath: ToolpathData) -> String? {
+        guard let generation,
+              generation.isCurrent(for: toolpath),
+              let seconds = generation.estimatedSeconds,
+              seconds > 0 else {
+            return nil
+        }
+        return "Estimated time: \(GCodeTimeEstimator.format(seconds))"
+    }
+
     // MARK: Shapes
 
     func shapesTitle(for toolpath: ToolpathData) -> String {

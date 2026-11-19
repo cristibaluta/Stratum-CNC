@@ -215,11 +215,19 @@ struct GCodeViewer: View {
     /// the previous job.
     @ViewBuilder
     private var jobProgress: some View {
-        if connection.status?.activeJob == nil, let last = connection.status?.lastJob {
+        let estimate = model.document.estimatedSeconds
+        let last = connection.status?.activeJob == nil ? connection.status?.lastJob : nil
+
+        if estimate > 0 || last != nil {
             HStack {
-                Text(verbatim: "Last job: line \(last.currentLine)")
+                if estimate > 0 {
+                    Text(verbatim: "Est. time \(GCodeTimeEstimator.format(estimate))")
+                        .help("Rough estimate from the moves and their feed rates. Acceleration and tool changes aren't included, so the real time is a little longer.")
+                }
                 Spacer()
-                Text(verbatim: "\(last.percent)% · \(last.elapsedText)")
+                if let last {
+                    Text(verbatim: "Last job: line \(last.currentLine) · \(last.percent)% · \(last.elapsedText)")
+                }
             }
             .font(.caption.monospacedDigit())
             .foregroundStyle(.tertiary)

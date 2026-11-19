@@ -37,6 +37,10 @@ struct ToolpathGeneration {
     /// `ToolpathPathBuilder.restPath`). Built together with `previewPath`. Nil when there are none.
     var restPath: CGPath? = nil
 
+    /// Rough machining time of this result, from its G-code moves and feeds (see
+    /// `GCodeTimeEstimator`). Built together with `previewPath`. Nil on failure.
+    var estimatedSeconds: Double? = nil
+
     /// A rest toolpath only: the pocket it is linked to, as it was when this was generated
     /// (`nil` when that pocket was gone).
     var sourceSnapshot: ToolpathData? = nil

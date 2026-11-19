@@ -911,17 +911,25 @@ class CAMModel: ObservableObject {
 
                     PerfLog.log("gen", "background work finished; preview path + scrub data took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
 
+                    // The same program text the export would write for this toolpath, so the
+                    // time shown here is the one that ends up in the G-code header.
+                    let gcode = SCGCodeEngine().generateGCode(from: outputs,
+                                                               settings: ToolpathGenerator.makeSettings(from: toolpath))
+                    let estimatedSeconds = GCodeTimeEstimator.estimateSeconds(of: gcode)
+
                     return ComputedGeneration(outcome: .success(outputs),
                                               previewPath: previewPath,
                                               scrub: scrub,
                                               previewLines: previewLines,
-                                              restPath: restPath)
+                                              restPath: restPath,
+                                              estimatedSeconds: estimatedSeconds)
                 } catch {
                     return ComputedGeneration(outcome: .failure(error),
                                               previewPath: nil,
                                               scrub: nil,
                                               previewLines: nil,
-                                              restPath: nil)
+                                              restPath: nil,
+                                              estimatedSeconds: nil)
                 }
             }.value
 
@@ -958,6 +966,7 @@ class CAMModel: ObservableObject {
                                              scrub: computed.scrub,
                                              previewLines: computed.previewLines,
                                              restPath: computed.restPath,
+                                             estimatedSeconds: computed.estimatedSeconds,
                                              sourceSnapshot: linkedSource)
         // The pocket may have been edited while this was running
         refreshLinkedGenerations()
@@ -1260,4 +1269,5 @@ private struct ComputedGeneration: @unchecked Sendable {
     let scrub: ToolpathScrubData?
     let previewLines: [SIMD3<Float>]?
     let restPath: CGPath?
+    let estimatedSeconds: Double?
 }

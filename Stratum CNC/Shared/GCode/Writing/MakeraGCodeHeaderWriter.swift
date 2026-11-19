@@ -199,85 +199,8 @@ enum MakeraGCodeHeaderWriter {
 
     // MARK: Time estimate
 
-    /// Speed assumed for G0 moves, mm/min. The engine doesn't report a time, so this is the
-    /// one made-up number in the estimate.
-    private static let rapidRate = 3000.0
-
-    private static let wordRegex = try! NSRegularExpression(pattern: #"([A-Za-z])\s*(-?[0-9]*\.?[0-9]+)"#)
-
-    /// Rough machining time: path length over feed rate, straight from the G-code text.
-    /// Ignores acceleration, dwells and tool changes, so real jobs run a little longer.
+    /// Rough machining time, see `GCodeTimeEstimator`.
     static func estimateSeconds(of gcode: String) -> Double {
-        var x = 0.0, y = 0.0, z = 0.0
-        var feed = 0.0
-        var mode = 0
-        var minutes = 0.0
-
-        for rawLine in gcode.split(whereSeparator: \.isNewline) {
-            var line = String(rawLine)
-            if let semicolon = line.firstIndex(of: ";") {
-                line = String(line[..<semicolon])
-            }
-            line = line.replacingOccurrences(of: #"\([^)]*\)"#, with: "", options: .regularExpression)
-
-            var words: [(Character, Double)] = []
-            for match in wordRegex.matches(in: line, range: NSRange(line.startIndex..., in: line)) {
-                guard let letterRange = Range(match.range(at: 1), in: line),
-                      let valueRange = Range(match.range(at: 2), in: line),
-                      let letter = line[letterRange].uppercased().first,
-                      let value = Double(line[valueRange]) else {
-                    continue
-                }
-                words.append((letter, value))
-            }
-
-            var target = (x: x, y: y, z: z)
-            var i = 0.0, j = 0.0
-            var moves = false
-
-            for (letter, value) in words {
-                switch letter {
-                case "G":
-                    if [0, 1, 2, 3].contains(Int(value)) {
-                        mode = Int(value)
-                    }
-                case "F": feed = value
-                case "X": target.x = value; moves = true
-                case "Y": target.y = value; moves = true
-                case "Z": target.z = value; moves = true
-                case "I": i = value
-                case "J": j = value
-                default: break
-                }
-            }
-            guard moves else {
-                continue
-            }
-
-            let dx = target.x - x, dy = target.y - y, dz = target.z - z
-            var length = (dx * dx + dy * dy + dz * dz).squareRoot()
-
-            if (mode == 2 || mode == 3), i != 0 || j != 0 {
-                let radius = (i * i + j * j).squareRoot()
-                let centerX = x + i, centerY = y + j
-                let start = atan2(y - centerY, x - centerX)
-                let end = atan2(target.y - centerY, target.x - centerX)
-                var sweep = mode == 2 ? start - end : end - start
-                while sweep <= 0 {
-                    sweep += 2 * .pi
-                }
-                if dx == 0 && dy == 0 {
-                    sweep = 2 * .pi
-                }
-                let arc = radius * sweep
-                length = (arc * arc + dz * dz).squareRoot()
-            }
-
-            let rate = (mode == 0 || feed <= 0) ? rapidRate : feed
-            minutes += length / rate
-
-            (x, y, z) = target
-        }
-        return minutes * 60
+        GCodeTimeEstimator.estimateSeconds(of: gcode)
     }
 }

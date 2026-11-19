@@ -605,7 +605,16 @@ struct ControllerView: View {
 /// reasoning as `ToolPositionSync`).
 private struct ScrubberOrJobProgress<Scrubber: View>: View {
     @ObservedObject var connection: MachineConnection
+    /// For the time left: the loaded program's estimate at the machine's current line.
+    let document: NCFileDocument
     @ViewBuilder let scrubber: () -> Scrubber
+
+    private func timeLeftText(line: Int) -> String {
+        guard let seconds = document.estimatedSecondsRemaining(afterLine: line) else {
+            return ""
+        }
+        return " · ~\(GCodeTimeEstimator.format(seconds)) left"
+    }
 
     var body: some View {
         Group {
@@ -616,7 +625,7 @@ private struct ScrubberOrJobProgress<Scrubber: View>: View {
                     HStack {
                         Text(verbatim: "Line \(job.currentLine)")
                         Spacer()
-                        Text(verbatim: "\(job.percent)% · \(job.elapsedText)")
+                        Text(verbatim: "\(job.percent)% · \(job.elapsedText)" + timeLeftText(line: job.currentLine))
                     }
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -921,7 +930,7 @@ private struct CanvasSection: View {
                 .cornerRadius(8)
             }
 
-            ScrubberOrJobProgress(connection: connection) {
+            ScrubberOrJobProgress(connection: connection, document: gCodeModel.document) {
                 Slider(value: scrubBinding, in: 0...Double(max(1, gCodeModel.document.lines.count))) { editing in
                     if !editing {
                         forceHeightmapRefresh()

@@ -18,6 +18,8 @@ struct ProgramAnalysis: Sendable {
     let toolChanges: [GCodeToolpathAnalyzer.ToolChange]
     let tools: [Int]
     let resumeResolver: ResumePointResolver
+    /// Time to run the first `n` lines, `lines.count + 1` entries (see `GCodeTimeEstimator`).
+    let cumulativeSeconds: [Double]
 
     nonisolated static func make(lines: [GCodeLine]) -> ProgramAnalysis {
         let (toolpaths, toolChanges) = GCodeToolpathAnalyzer.analyzeAll(lines.map { (id: $0.id, text: $0.text) })
@@ -31,7 +33,8 @@ struct ProgramAnalysis: Sendable {
         return ProgramAnalysis(toolpaths: toolpaths,
                                toolChanges: toolChanges,
                                tools: tools,
-                               resumeResolver: ResumePointResolver(lines: lines.map(\.text), toolpaths: toolpaths))
+                               resumeResolver: ResumePointResolver(lines: lines.map(\.text), toolpaths: toolpaths),
+                               cumulativeSeconds: GCodeTimeEstimator.cumulativeSeconds(of: lines.map(\.text)))
     }
 }
 
@@ -66,6 +69,24 @@ final class NCFileDocument: ObservableObject {
     /// Every `T<n> M6` in file order, so the tool in the spindle is known on any line, not only
     /// inside a section (see `toolNumber(atLine:)`).
     private(set) var toolChanges: [GCodeToolpathAnalyzer.ToolChange] = []
+
+    /// Running time estimate per line, from the moves and feeds (see `GCodeTimeEstimator`).
+    /// Built with the rest of the analysis, so reading it costs nothing.
+    private var cumulativeSeconds: [Double] = [0]
+
+    /// Rough time to run the whole program. 0 when nothing is loaded.
+    var estimatedSeconds: Double {
+        cumulativeSeconds.last ?? 0
+    }
+
+    /// Rough time still to run once the machine has executed `line` (1-based, as the machine
+    /// reports it). Nil when the line isn't in the loaded program.
+    func estimatedSecondsRemaining(afterLine line: Int) -> Double? {
+        guard line >= 0, line < cumulativeSeconds.count else {
+            return nil
+        }
+        return max(0, estimatedSeconds - cumulativeSeconds[line])
+    }
 
     /// Finds a clean line to resume the loaded program from. Built together with `toolpaths`
     /// (see `ProgramAnalysis`), so views read it instead of scanning the program again.
@@ -140,6 +161,7 @@ final class NCFileDocument: ObservableObject {
         toolpaths = analysis.toolpaths
         tools = analysis.tools
         resumeResolver = analysis.resumeResolver
+        cumulativeSeconds = analysis.cumulativeSeconds
     }
 
     // MARK: Load
@@ -441,6 +463,7 @@ final class NCFileDocument: ObservableObject {
         toolpaths.removeAll()
         toolChanges.removeAll()
         resumeResolver = nil
+        cumulativeSeconds = [0]
         loadedHeader = nil
 
         lastError = nil

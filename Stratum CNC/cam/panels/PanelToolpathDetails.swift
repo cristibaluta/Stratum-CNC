@@ -474,6 +474,12 @@ struct PanelToolpathDetails: View {
                 .disabled(isGenerating || !toolpath.hasGeometry || toolpath.toolCompatibilityWarning != nil)
                 .help(model.previewButtonHelp(for: toolpath))
             }
+            if let timeText = model.timeText(for: generation, toolpath: toolpath) {
+                Label(timeText, systemImage: "clock")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .help("Rough estimate from the length of the moves and their feed rates. Acceleration and tool changes aren't included, so the real time is a little longer.")
+            }
             // Warnings don't stop the toolpath, and only matter while the result is current
             if let generation, generation.isCurrent(for: toolpath) {
                 ForEach(generation.warningMessages, id: \.self) { message in
