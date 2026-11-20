@@ -21,8 +21,8 @@ struct STEP3DCanvas: View {
     let sceneObjects: [RenderObject]
     let partTransform: simd_float4x4
     let previewTransform: simd_float4x4
-    /// Part-frame height of the active setup's z0 (`SetupFrame.z0InPartFrame`)
-    let projectionZ: Float
+    /// The active setup: its face is what the selected edges are projected onto, and measured to
+    let projectionFrame: SetupFrame
     let clearColor: SIMD4<Float>
     let isDark: Bool
     let zoomModel: CanvasZoomModel
@@ -53,8 +53,9 @@ struct STEP3DCanvas: View {
                         fitRequest: scenes.reduce(0) { $0 &+ $1.fitRequest } &+ scenes.count &+ fitRequest)
             .onAppear { syncSceneSettings() }
             .onChange(of: isDark) { _, _ in syncSceneSettings() }
-            // The projection lands on the setup's z0, which is the part's underside when flipped
-            .onChange(of: projectionZ, initial: true) { _, _ in syncSceneSettings() }
+            // The projection lands on the setup's z0: the part's underside when flipped, a side of
+            // the stock for the front, back, left and right setups
+            .onChange(of: projectionFrame, initial: true) { _, _ in syncSceneSettings() }
             // A file that has just loaded gets the same appearance and projection as the others
             .onChange(of: scenes.map { ObjectIdentifier($0) }) { _, _ in syncSceneSettings() }
             .overlay {
@@ -80,7 +81,7 @@ struct STEP3DCanvas: View {
     private func syncSceneSettings() {
         for scene in scenes {
             scene.setAppearance(isDark: isDark)
-            scene.setProjectionZ(projectionZ)
+            scene.setProjectionFrame(projectionFrame)
         }
     }
 }

@@ -171,7 +171,7 @@ struct CAM_Metal_View: View {
                          sceneObjects: sceneObjects3D + stepModelOverlay,
                          partTransform: partMatrix,
                          previewTransform: partFrame.previewMatrix,
-                         projectionZ: Float(partFrame.z0InPartFrame),
+                         projectionFrame: partFrame,
                          clearColor: scene.backgroundColor, isDark: colorScheme == .dark,
                          zoomModel: zoomModel,
                          addToolpathShapeCount: addToolpathShapeCount,

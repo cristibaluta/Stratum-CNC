@@ -301,8 +301,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             rebuildHighlight()
         }
     }
-    /// Lowest and highest Z of the selected edges, in display coordinates
-    /// (the model's top is z0). `nil` when nothing is selected.
+    /// Lowest and highest Z of the selected edges in the active setup's frame: their distance to the
+    /// face that is up in that setup (z0), negative below it. `nil` when nothing is selected.
     @Published private(set) var selectionZRange: ClosedRange<Float>?
     @Published var fitRequest = 0
 
@@ -813,20 +813,21 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// The vertical lines from the selected edges down to their projection.
     private static let dropLineWidth: Float = 1
 
-    /// Height of the active setup's z0 in the part's frame (`SetupFrame.z0InPartFrame`): 0 for the
-    /// top, the stock's thickness below it for the bottom. The edges are drawn in the part's frame
-    /// and turned with it, so the projection must be flattened onto this plane, not onto the
-    /// part's own top, which is the face pointing down once the stock is flipped.
-    private(set) var projectionZ: Float = 0
+    /// The active setup. Its z0 is the stock face that is up in that setup: the part's top for the
+    /// top setup, the underside for the bottom, a side of the stock for the front, back, left and
+    /// right. The edges are drawn in the part's frame and turned with it, so the projection is
+    /// flattened onto that face along the setup's up direction (`SetupFrame.projectOntoFace`), and
+    /// the Z shown is the distance to it, never onto or from the part's own top.
+    private(set) var projectionFrame: SetupFrame = .identity
 
-    func setProjectionZ(_ z: Float) {
-        guard z != projectionZ else { return }
-        projectionZ = z
+    func setProjectionFrame(_ frame: SetupFrame) {
+        guard frame != projectionFrame else { return }
+        projectionFrame = frame
         rebuildHighlight()
     }
 
     private func rebuildHighlight() {
-        let z0 = projectionZ
+        let frame = projectionFrame
         var points: [SIMD3<Float>] = []
         var projected: [SIMD3<Float>] = []   // the edges flattened onto z0
         var drops: [SIMD3<Float>] = []       // pairs: edge endpoint, same x/y at z0
@@ -839,8 +840,11 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             for edge in body.edges where selectedEdges.contains(edge.id) {
                 let edgePoints = body.points[edge.vertices].map { $0 + offset }
                 points.append(contentsOf: edgePoints)
-                let edgeMin = edgePoints.map(\.z).min() ?? 0
-                let edgeMax = edgePoints.map(\.z).max() ?? 0
+                // Distance to the setup's face along its up direction (its own Z: 0 on the face,
+                // negative below it). For the top setup this is the part's Z, as before.
+                let depths = edgePoints.map { frame.depth(of: $0) }
+                let edgeMin = depths.min() ?? 0
+                let edgeMax = depths.max() ?? 0
                 zMin = min(zMin, edgeMin)
                 zMax = max(zMax, edgeMax)
                 for point in edgePoints {
@@ -848,14 +852,14 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                     boxMax = simd_max(boxMax, point)
                 }
 
-                // An edge that already lies on z0 is its own projection.
-                guard max(abs(edgeMin - z0), abs(edgeMax - z0)) > 1e-4 else { continue }
-                projected.append(contentsOf: edgePoints.map { SIMD3<Float>($0.x, $0.y, z0) })
+                // An edge that already lies on the face is its own projection.
+                guard max(abs(edgeMin), abs(edgeMax)) > 1e-4 else { continue }
+                projected.append(contentsOf: edgePoints.map { frame.projectOntoFace($0) })
                 if let first = edgePoints.first, let last = edgePoints.last {
                     for end in (first == last ? [first] : [first, last])
-                    where abs(end.z - z0) > 1e-4 && dropped.insert(end).inserted {
+                    where abs(frame.depth(of: end)) > 1e-4 && dropped.insert(end).inserted {
                         drops.append(end)
-                        drops.append(SIMD3<Float>(end.x, end.y, z0))
+                        drops.append(frame.projectOntoFace(end))
                     }
                 }
             }

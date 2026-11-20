@@ -336,6 +336,42 @@ struct SetupFrame: Sendable, Equatable {
         }
     }
 
+    /// The inverse of `map`: a point of the setup's frame back in the part's frame.
+    func unmap(_ p: SIMD3<Double>) -> SIMD3<Double> {
+        if isIdentity { return p }
+        let (c, s) = cosSin
+        let za = p.z + surfaceDistance      // measured along the setup's up axis from the turning axis
+        switch axis {
+            case .x:
+                let u = p.y - pivot - originShift
+                return SIMD3(p.x,
+                             (u * c - za * s) + pivot,
+                             (u * s + za * c) + axisZ)
+            case .y:
+                let u = p.x - pivot - originShift
+                return SIMD3((u * c - za * s) + pivot,
+                             p.y,
+                             (u * s + za * c) + axisZ)
+        }
+    }
+
+    /// How far a point of the part (in the part's frame) is from this setup's face, along the
+    /// direction that is up in the setup: the setup's own Z, so 0 on the face and negative below it.
+    func depth(of point: SIMD3<Float>) -> Float {
+        Float(map(SIMD3<Double>(point)).z)
+    }
+
+    /// Where a point of the part lands when it is flattened onto this setup's face, in the part's frame:
+    /// straight along the setup's up direction, not along the part's own Z. For the top that is
+    /// z = 0, for the bottom the stock's underside, for the front, back, left and right the side of the
+    /// stock that now faces up (the point slides along Y or X, not along Z).
+    func projectOntoFace(_ point: SIMD3<Float>) -> SIMD3<Float> {
+        if isIdentity { return SIMD3<Float>(point.x, point.y, 0) }
+        var inSetup = map(SIMD3<Double>(point))
+        inSetup.z = 0
+        return SIMD3<Float>(unmap(inSetup))
+    }
+
     /// A toolpath preview (built in the machine frame) in the part's frame, which is what the
     /// 2D canvas draws. Only the top and the bottom have a top-down view of the part: the bottom
     /// is the same mirror (its own inverse). Nil for the side faces, which have none.
