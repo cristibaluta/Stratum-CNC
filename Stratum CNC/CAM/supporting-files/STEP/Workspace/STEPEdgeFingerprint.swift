@@ -20,7 +20,9 @@ struct STEPEdgeFingerprint: Codable, Hashable, Sendable {
     static let defaultTolerance = 0.05   // mm
 
     var isClosed: Bool {
-        guard let first = samples.first, let last = samples.last else { return false }
+        guard let first = samples.first, let last = samples.last else {
+            return false
+        }
         return length > 0 && simd_distance(first, last) < 1e-3
     }
 
@@ -44,27 +46,40 @@ struct STEPEdgeFingerprint: Codable, Hashable, Sendable {
 
     /// `points` is how a body stores an edge: start, end, start, end… of consecutive segments.
     init?(segmentPoints points: ArraySlice<SIMD3<Float>>, origin: SIMD3<Double>) {
-        guard let first = points.first else { return nil }
+        guard let first = points.first else {
+            return nil
+        }
         var chain = [SIMD3<Double>(first) + origin]
         var index = points.startIndex
+
         while index + 1 < points.endIndex {
             chain.append(SIMD3<Double>(points[index + 1]) + origin)
             index += 2
         }
+
         var cumulative = [0.0]
+
         for i in 1..<max(chain.count, 1) {
             cumulative.append(cumulative[i - 1] + simd_distance(chain[i - 1], chain[i]))
         }
+
         let total = cumulative.last ?? 0
+
         func point(at fraction: Double) -> SIMD3<Double> {
-            guard total > 1e-9, chain.count > 1 else { return chain[0] }
+            guard total > 1e-9, chain.count > 1 else {
+                return chain[0]
+            }
             let target = fraction * total
             var i = 1
-            while i < chain.count - 1, cumulative[i] < target { i += 1 }
+            while i < chain.count - 1, cumulative[i] < target {
+                i += 1
+            }
             let span = cumulative[i] - cumulative[i - 1]
             let t = span > 1e-12 ? (target - cumulative[i - 1]) / span : 0
+
             return chain[i - 1] + (chain[i] - chain[i - 1]) * min(max(t, 0), 1)
         }
+
         length = total
         samples = [0, 0.25, 0.5, 0.75, 1].map(point(at:))
     }
@@ -73,8 +88,11 @@ struct STEPEdgeFingerprint: Codable, Hashable, Sendable {
     /// edge. Open edges match in either direction.
     func deviation(to other: STEPEdgeFingerprint, shift: SIMD3<Double> = .zero,
                    tolerance tol: Double = defaultTolerance) -> Double? {
+
         guard isClosed == other.isClosed,
-              abs(length - other.length) <= 2 * tol + 1e-4 * max(length, other.length) else { return nil }
+              abs(length - other.length) <= 2 * tol + 1e-4 * max(length, other.length) else {
+            return nil
+        }
         if isClosed {
             let worst = max(simd_distance(center + shift, other.center), abs(spread - other.spread))
             return worst <= tol ? worst : nil
@@ -104,7 +122,9 @@ extension STEPDocumentScene {
 
     func edgeFingerprint(of id: STEP.EdgeID) -> STEPEdgeFingerprint? {
         guard let body = content.importedGeometry.bodies.first(where: { $0.id == id.bodyID }),
-              let edge = body.edges.first(where: { $0.id == id }) else { return nil }
+              let edge = body.edges.first(where: { $0.id == id }) else {
+            return nil
+        }
         return STEPEdgeFingerprint(segmentPoints: body.points[edge.vertices], origin: body.origin)
     }
 }
@@ -118,7 +138,10 @@ enum STEPEdgeRelinker {
     /// best match first, so edges that did not change can't be stolen by look-alikes.
     static func relink(_ wanted: [Entry], among candidates: [Entry],
                        tolerance tol: Double = STEPEdgeFingerprint.defaultTolerance) -> [STEP.EdgeID: STEP.EdgeID] {
-        guard !wanted.isEmpty, !candidates.isEmpty else { return [:] }
+
+        guard !wanted.isEmpty, !candidates.isEmpty else {
+            return [:]
+        }
         let shift = estimateShift(wanted, candidates, tol)
 
         var pairs: [(w: Int, c: Int, score: Double)] = []
@@ -148,8 +171,7 @@ enum STEPEdgeRelinker {
         let cell = tol * 4
         var votes: [SIMD3<Int>: (count: Int, sum: SIMD3<Double>)] = [:]
         for w in wanted {
-            for c in candidates where w.print.isClosed == c.print.isClosed
-                && abs(w.print.length - c.print.length) <= tol {
+            for c in candidates where w.print.isClosed == c.print.isClosed && abs(w.print.length - c.print.length) <= tol {
                 let d = c.print.anchor - w.print.anchor
                 let key = SIMD3<Int>(d / cell, rounding: .toNearestOrAwayFromZero)
                 let old = votes[key] ?? (0, .zero)
@@ -157,7 +179,9 @@ enum STEPEdgeRelinker {
             }
         }
         guard let best = votes.max(by: { $0.value.count < $1.value.count }),
-              best.value.count > (votes[SIMD3<Int>(0, 0, 0)]?.count ?? 0) else { return .zero }
+              best.value.count > (votes[SIMD3<Int>(0, 0, 0)]?.count ?? 0) else {
+            return .zero
+        }
         return best.value.sum / Double(best.value.count)
     }
 }

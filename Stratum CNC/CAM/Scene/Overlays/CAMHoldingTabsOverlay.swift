@@ -28,6 +28,7 @@ enum CAMHoldingTabsOverlay {
     static func renderObjects(for overlay: D2_CanvasState.HoldingTabsOverlay,
                               paths: [D2_RenderPath],
                               color: SIMD4<Float>) -> [RenderObject] {
+
         let targets = Set(overlay.targets)
         var points: [SIMD3<Float>] = []
 

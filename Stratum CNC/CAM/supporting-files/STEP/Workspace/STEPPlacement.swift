@@ -102,10 +102,13 @@ extension STEPDisplayGeometry.Body {
             low = simd_min(low, point)
             high = simd_max(high, point)
         }
-        guard low.x.isFinite, low.y.isFinite, high.z.isFinite else { return (self, .zero) }
+        guard low.x.isFinite, low.y.isFinite, high.z.isFinite else {
+            return (self, .zero)
+        }
 
         let shift = SIMD3<Float>(-low.x, -low.y, -high.z)
         let moved = STEPDisplayGeometry.Body(id: id, points: turned.map { $0 + shift }, edges: edges, origin: origin)
+        
         return (moved, shift)
     }
 }

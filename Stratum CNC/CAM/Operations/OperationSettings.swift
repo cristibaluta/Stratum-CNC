@@ -222,8 +222,7 @@ private extension KeyedDecodingContainer {
     /// Decodes one of the library's option enums. Projects saved before the app used them
     /// stored the title instead ("Climb", "Right-hand", "Outside in"), so a value that isn't
     /// a raw value is matched to a case ignoring case, spaces and hyphens.
-    func decodeLegacyOption<T: RawRepresentable & CaseIterable>(_ type: T.Type, forKey key: Key) throws -> T?
-    where T.RawValue == String {
+    func decodeLegacyOption<T: RawRepresentable & CaseIterable>(_ type: T.Type, forKey key: Key) throws -> T? where T.RawValue == String {
         guard let stored = try decodeIfPresent(String.self, forKey: key) else {
             return nil
         }

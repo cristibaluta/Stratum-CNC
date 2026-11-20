@@ -49,7 +49,9 @@ struct ShapeDetail: Identifiable {
 
                 case let .arc(_, radius, startDeg, endDeg):
                     var sweep = endDeg - startDeg
-                    while sweep < 0 { sweep += 360 }
+                    while sweep < 0 {
+                        sweep += 360
+                    }
                     let length = radius * sweep * .pi / 180
                     return ShapeDetail(kind: "Arc", size: "R \(mm(radius)) mm · \(mm(length)) mm long", z: z)
 
@@ -125,8 +127,7 @@ struct ShapeDetail: Identifiable {
     }
 
     /// The circle through three points in XY, nil when they are in a line.
-    private static func fitCircle(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>)
-        -> (x: Double, y: Double, radius: Double)? {
+    private static func fitCircle(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>) -> (x: Double, y: Double, radius: Double)? {
 
         let d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y))
         guard abs(d) > 1e-9 else {
@@ -137,6 +138,7 @@ struct ShapeDetail: Identifiable {
         let c2 = c.x * c.x + c.y * c.y
         let x = (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d
         let y = (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d
+
         return (x, y, hypot(a.x - x, a.y - y))
     }
 }

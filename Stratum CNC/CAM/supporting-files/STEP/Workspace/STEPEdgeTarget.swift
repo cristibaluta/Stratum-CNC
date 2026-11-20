@@ -147,14 +147,19 @@ extension STEPWorkspace {
 
     /// Edges at two heights split into the upper and the lower: a chamfer's rails. `nil` when
     /// they are all at one height (within 0.02 mm).
-    private static func chamferRails(of polylines: [[SIMD3<Double>]])
-        -> (upper: [[SIMD3<Double>]], lower: [[SIMD3<Double>]])? {
+    private static func chamferRails(of polylines: [[SIMD3<Double>]]) -> (upper: [[SIMD3<Double>]], lower: [[SIMD3<Double>]])? {
         let heights = polylines.map { $0.isEmpty ? 0 : $0.reduce(0.0) { $0 + $1.z } / Double($0.count) }
-        guard let low = heights.min(), let high = heights.max(), high - low > 0.02 else { return nil }
+        guard let low = heights.min(), let high = heights.max(), high - low > 0.02 else {
+            return nil
+        }
         let middle = (low + high) / 2
         var upper: [[SIMD3<Double>]] = [], lower: [[SIMD3<Double>]] = []
         for (polyline, height) in zip(polylines, heights) where !polyline.isEmpty {
-            if height < middle { lower.append(polyline) } else { upper.append(polyline) }
+            if height < middle {
+                lower.append(polyline)
+            } else {
+                upper.append(polyline)
+            }
         }
         return (upper, lower)
     }
@@ -219,6 +224,7 @@ extension STEPWorkspace {
         // The upper rail's starting points, each against the lower rail.
         let samples = rails.upper.compactMap { $0.first }.map(flat)
         let widths = samples.map { p in segments.map { distance(p, $0.0, $0.1) }.min() ?? 0 }.sorted()
+        
         guard let width = widths.isEmpty ? nil : widths[widths.count / 2], width > 0.001 else {
             return nil
         }

@@ -22,8 +22,12 @@ extension SetupFrame {
     /// lifted over the work bed on the way so the turn doesn't dip through it. Exactly
     /// `from.matrix` at 0 and `to.matrix` at 1.
     static func flipMatrix(from: SetupFrame, to: SetupFrame, t: Float) -> simd_float4x4 {
-        if t <= 0 { return from.matrix }
-        if t >= 1 { return to.matrix }
+        if t <= 0 {
+            return from.matrix
+        }
+        if t >= 1 {
+            return to.matrix
+        }
 
         let fromMatrix = from.matrix
         let toMatrix = to.matrix
@@ -49,6 +53,7 @@ extension SetupFrame {
         // result * p = R (p - center) + position
         let turned = result * SIMD4<Float>(center.x, center.y, center.z, 0)
         result.columns.3 = SIMD4<Float>(position.x - turned.x, position.y - turned.y, position.z - turned.z, 1)
+        
         return result
     }
 }

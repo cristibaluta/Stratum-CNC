@@ -52,38 +52,51 @@ struct ToolpathGeneration {
     /// The sharp corners the pocket's tool left, for the "Create rest operation" button and
     /// the overlay. Only a pocket's result has them.
     var restCorners: [SC.RestCorner] {
-        guard case .success(let outputs) = outcome else { return [] }
+        guard case .success(let outputs) = outcome else {
+            return []
+        }
         return outputs.flatMap(\.restCorners)
     }
 
     var passCount: Int {
-        guard case .success(let outputs) = outcome else { return 0 }
+        guard case .success(let outputs) = outcome else {
+            return 0
+        }
         return outputs.reduce(0) { $0 + $1.passes.count }
     }
 
     /// The most passes any one toolpath of the result has (stepdowns, or a thread's radial
     /// passes). The canvas preview draws all of them (see `ToolpathPreviewOptions.canvas2D`).
     var maxPassesPerToolpath: Int {
-        guard case .success(let outputs) = outcome else { return 0 }
+        guard case .success(let outputs) = outcome else {
+            return 0
+        }
         return outputs.map { $0.passes.count }.max() ?? 0
     }
 
     var outputCount: Int {
-        guard case .success(let outputs) = outcome else { return 0 }
+        guard case .success(let outputs) = outcome else {
+            return 0
+        }
         return outputs.count
     }
 
     /// Remarks about a result that was generated successfully; they never block it.
     var warningMessages: [String] {
-        guard case .success(let outputs) = outcome else { return [] }
+        guard case .success(let outputs) = outcome else {
+            return []
+        }
         var seen = Set<String>()
+        
         return outputs.flatMap(\.warnings)
             .map { ToolpathGenerator.message(for: $0) }
             .filter { seen.insert($0).inserted }
     }
 
     var errorMessage: String? {
-        guard case .failure(let error) = outcome else { return nil }
+        guard case .failure(let error) = outcome else {
+            return nil
+        }
         return ToolpathGenerator.message(for: error, operation: source.operation.kind, toolpath: source)
     }
 

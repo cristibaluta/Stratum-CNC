@@ -240,13 +240,6 @@ class CAMModel: ObservableObject {
         self.toolpaths = Self.orderedBySetup(toolpaths, setups: initialSetups)
         self.canvasState.stock = selectedStockMaterial
 
-        // D2_CanvasState is an ObservableObject nested inside a @Published
-        // property. SwiftUI does NOT forward its objectWillChange up through
-        // CAMModel automatically — that's a well-known Combine/SwiftUI gap.
-        // Without this line, selecting/editing objects through canvasState
-        // would repaint the canvas (which observes canvasState directly) but
-        // leave CAMView's body — the inspector, the objects list — stale,
-        // since CAMView only observes camModel. This forwards it explicitly.
         canvasState.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
@@ -279,19 +272,14 @@ class CAMModel: ObservableObject {
 
     // MARK: Toolpath list
 
-    /// Appends a toolpath — same settings as the last one, or a default first
-    /// one — and opens it in the settings panel.
-    /// - Parameter targets: the shapes the new toolpath starts with. Settings are
-    ///   copied from the last toolpath, never its shapes, so the default is none.
-    /// - Parameter stepTargets: the STEP edges it starts with; its End Z is then the depth of those edges.
-    /// - Parameter setupID: the setup it is cut in; the active one by default. Settings are copied from
-    ///   the last toolpath of that setup, or from the last one of any setup when it has none yet.
-    /// - Parameter operation: the operation it is created with, when the user has already chosen it
-    ///   (the canvas tooltip's list); otherwise the one of the toolpath it is copied from.
-    func addToolpath(targets: [PathSelection] = [], stepTargets: [STEPEdgeTarget] = [], setupID: UUID? = nil,
+    func addToolpath(targets: [PathSelection] = [],
+                     stepTargets: [STEPEdgeTarget] = [],
+                     setupID: UUID? = nil,
                      operation: SC.MachiningOperation.Kind? = nil) {
+
         let setupID = setupID.flatMap { id in setups.contains { $0.id == id } ? id : nil } ?? activeSetupID
         var toolpath = toolpaths.last(where: { $0.setupID == setupID }) ?? toolpaths.last ?? Self.defaultToolpath()
+
         toolpath.id = UUID()
         toolpath.setupID = setupID
         // A rest toolpath is tied to its pocket, so a copy of it would be one too: start from
@@ -560,7 +548,8 @@ class CAMModel: ObservableObject {
     @discardableResult
     func addSetup(face: SetupFace, axis: SetupAxis? = nil) -> UUID {
         let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
-        let setup = Setup(face: face, axis: axis,
+        let setup = Setup(face: face,
+                          axis: axis,
                           name: Setup.uniqueName(for: face, axis: axis, among: Set(setups.map(\.name))))
         setups.append(setup)
         activeSetupID = setup.id
@@ -928,8 +917,7 @@ class CAMModel: ObservableObject {
 
                     // The same program text the export would write for this toolpath, so the
                     // time shown here is the one that ends up in the G-code header.
-                    let gcode = SCGCodeEngine().generateGCode(from: outputs,
-                                                               settings: ToolpathGenerator.makeSettings(from: toolpath))
+                    let gcode = SCGCodeEngine().generateGCode(from: outputs, settings: ToolpathGenerator.makeSettings(from: toolpath))
                     let estimatedSeconds = GCodeTimeEstimator.estimateSeconds(of: gcode)
 
                     return ComputedGeneration(outcome: .success(outputs),
@@ -1192,19 +1180,22 @@ class CAMModel: ObservableObject {
     }
 
     @discardableResult
-    func loadAndParseFileAt(_ url: URL, restoring savedObjects: [AssetObjectData]? = nil,
+    func loadAndParseFileAt(_ url: URL,
+                            restoring savedObjects: [AssetObjectData]? = nil,
                            stepImportID: UUID? = nil,
                            onSTEPFinished: @escaping @MainActor () -> Void = {}) -> D2_Object? {
+
         let imported: [D2_Object]
+
         switch url.pathExtension.lowercased() {
-        case "step", "stp", "stl":
-            stepWorkspace.load(STEPSourceReference(id: stepImportID ?? UUID(), name: url.lastPathComponent, url: url),
-                               onFinished: onSTEPFinished)
-            return nil
-        case "svg": imported = SVGImporter().parse(url: url).map { [$0] } ?? []
-        case "dxf": imported = DXFImporter().parse(url: url).map { [$0] } ?? []
-        case "zip": imported = GerberImporter().parse(url: url)
-        default: return nil
+            case "step", "stp", "stl":
+                stepWorkspace.load(STEPSourceReference(id: stepImportID ?? UUID(), name: url.lastPathComponent, url: url),
+                                   onFinished: onSTEPFinished)
+                return nil
+            case "svg": imported = SVGImporter().parse(url: url).map { [$0] } ?? []
+            case "dxf": imported = DXFImporter().parse(url: url).map { [$0] } ?? []
+            case "zip": imported = GerberImporter().parse(url: url)
+            default: return nil
         }
 
         var restored: [D2_Object] = []
@@ -1212,11 +1203,17 @@ class CAMModel: ObservableObject {
             let object: D2_Object
             if let savedObjects {
                 // The saved list is authoritative: omitted archive layers were deleted.
-                guard let saved = savedObjects.first(where: { $0.name == parsed.name }) else { continue }
-                object = D2_Object(id: saved.id, name: parsed.name, paths: parsed.paths,
-                                   entities: parsed.entities, contours: parsed.contours,
+                guard let saved = savedObjects.first(where: { $0.name == parsed.name }) else {
+                    continue
+                }
+                object = D2_Object(id: saved.id,
+                                   name: parsed.name,
+                                   paths: parsed.paths,
+                                   entities: parsed.entities,
+                                   contours: parsed.contours,
                                    position: CGPoint(x: saved.transform.x, y: saved.transform.y),
-                                   originalSize: parsed.originalSize, width: max(saved.transform.width, 0.001))
+                                   originalSize: parsed.originalSize,
+                                   width: max(saved.transform.width, 0.001))
                 object.setRotation(saved.transform.rotation)
             } else {
                 object = parsed

@@ -180,8 +180,13 @@ extension ToolpathData {
     /// What is selected, for the panels: "2 shapes selected", "3 edges selected".
     var selectionSummary: String {
         var parts: [String] = []
-        if !targets.isEmpty { parts.append("\(targets.count) shape\(targets.count == 1 ? "" : "s")") }
-        if !stepTargets.isEmpty { parts.append("\(stepTargets.count) edge\(stepTargets.count == 1 ? "" : "s")") }
+        if !targets.isEmpty {
+            parts.append("\(targets.count) shape\(targets.count == 1 ? "" : "s")")
+        }
+        if !stepTargets.isEmpty {
+            parts.append("\(stepTargets.count) edge\(stepTargets.count == 1 ? "" : "s")")
+        }
+
         return parts.isEmpty ? "Click shapes to select" : parts.joined(separator: " + ") + " selected"
     }
 
@@ -225,6 +230,7 @@ extension ToolpathData {
                                       edgeZ: operation.chamferEdgeZ,
                                       tipOffset: operation.chamferTipOffset)
         let range = params.bevelZRange(depth: depth)
+
         return (start: range.top, bevelBottom: range.bottom, end: range.bottom - operation.chamferTipOffset)
     }
 
