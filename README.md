@@ -11,9 +11,10 @@ A 100% native macOS app for designing toolpaths and control **Makera CNC** machi
 - **SVG and DXF import:** create toolpaths straight from vector paths.
 - **Gerber import:** create toolpaths for PCBs.
 
-![Stratum CNC](https://myimgs.org/storage/images/72345/s1.png)
-![Stratum CNC](https://myimgs.org/storage/images/72346/s2.png)
-![Stratum CNC](https://myimgs.org/storage/images/72355/s3.png)
+![Stratum CNC](https://myimgs.org/storage/images/88140/s1-gj36k.png)
+![Stratum CNC](https://myimgs.org/storage/images/88141/s2-fk88e.png)
+![Stratum CNC](https://myimgs.org/storage/images/88142/s3-kxl0i.png)
+![Stratum CNC](https://myimgs.org/storage/images/88143/s4-frf9v.png)
 
 ## Tech Stack
 * **Language:** 100% Swift
