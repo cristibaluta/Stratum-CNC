@@ -562,6 +562,32 @@ struct MetalCanvasView: STViewRepresentable {
             return rect.contains(point)
         }
 
+        /// The pan-gesture counterpart of the cube handling in `handleMouseDown`: canvases without a
+        /// pointer handler (the Controller) drag through a pan recognizer, not through the mouse
+        /// events, and would otherwise treat a drag that starts on the cube like any other drag
+        /// (pan, or whatever the input settings say). Call it for every step of a left-button
+        /// drag; when it returns true the step orbited the camera and the caller is done.
+        ///
+        /// `location` is where the pointer is now and `translation` how far the drag has gone
+        /// since the last step, both y up like the rest of this file. A recognizer only starts
+        /// after the pointer moved a little, so the press point is `location - translation`
+        /// on the first step.
+        func orbitIfDraggingCube(began: Bool, ended: Bool, location: CGPoint, translation: CGPoint) -> Bool {
+            if began {
+                isDraggingCube = isOnOrientationCube(CGPoint(x: location.x - translation.x,
+                                                             y: location.y - translation.y))
+            }
+            guard isDraggingCube else {
+                return false
+            }
+            performOrbit(translation: translation)
+            metalView?.draw()
+            if ended {
+                isDraggingCube = false
+            }
+            return true
+        }
+
         func handleMouseDown(_ event: CanvasMouseEvent) {
             guard let view = metalView else { return }
             lastMousePosition = event.location
@@ -1049,6 +1075,14 @@ extension MetalCanvasView.Coordinator {
         }
         let translation = gesture.translation(in: gesture.view)
         let location = gesture.view.map { gesture.location(in: $0) } ?? .zero
+        // A drag that starts on the orientation cube orbits, whatever the drag is assigned to.
+        let isEnding = [.ended, .cancelled, .failed].contains(gesture.state)
+        if trigger != .middleButton,
+           orbitIfDraggingCube(began: gesture.state == .began, ended: isEnding,
+                               location: location, translation: translation) {
+            gesture.setTranslation(.zero, in: gesture.view)
+            return
+        }
         applyDrag(trigger: trigger, translation: translation, location: location)
         gesture.setTranslation(.zero, in: gesture.view)
     }
@@ -1104,9 +1138,17 @@ extension MetalCanvasView.Coordinator: UIGestureRecognizerDelegate {
         }
         // UIKit's y points down, the camera code's up
         let translation = gesture.translation(in: view)
-        applyDrag(trigger: trigger,
-                  translation: CGPoint(x: translation.x, y: -translation.y),
-                  location: view.canvasPoint(gesture.location(in: view)))
+        let flipped = CGPoint(x: translation.x, y: -translation.y)
+        let location = view.canvasPoint(gesture.location(in: view))
+        // A drag that starts on the orientation cube orbits, whatever the drag is assigned to.
+        let isEnding = [.ended, .cancelled, .failed].contains(gesture.state)
+        if trigger != .middleButton,
+           orbitIfDraggingCube(began: gesture.state == .began, ended: isEnding,
+                               location: location, translation: flipped) {
+            gesture.setTranslation(.zero, in: view)
+            return
+        }
+        applyDrag(trigger: trigger, translation: flipped, location: location)
         gesture.setTranslation(.zero, in: view)
     }
 
