@@ -946,9 +946,10 @@ private struct CanvasSection: View {
                             .buttonStyle(.plain)
                             .help("Heightmap quality")
                             .popover(isPresented: $isShowingHeightmapQuality, arrowEdge: .bottom) {
-                                HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize)
-                                    .frame(width: 190)
-                                    .padding(12)
+                                HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize,
+                                                           onSelect: { isShowingHeightmapQuality = false })
+                                    .frame(width: 210)
+                                    .padding(8)
                             }
                         }
 
