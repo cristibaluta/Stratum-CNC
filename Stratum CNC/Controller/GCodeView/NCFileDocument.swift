@@ -428,6 +428,21 @@ final class NCFileDocument: ObservableObject {
         toolpaths.last { $0.startLine <= line }
     }
 
+    /// The next change after `line` to a tool other than the one in the spindle there (a
+    /// `T2 M6` while T2 is already loaded doesn't count), and the rough time until the machine
+    /// reaches it once it has executed `line` (see `GCodeTimeEstimator`). Nil when the program
+    /// has no different tool left.
+    func nextDifferentToolChange(after line: Int) -> (change: GCodeToolpathAnalyzer.ToolChange, seconds: Double)? {
+        let current = toolNumber(atLine: line)
+        guard let change = toolChanges.first(where: { $0.line > line && $0.tool != current }),
+              line >= 0, line < cumulativeSeconds.count,
+              change.line - 1 < cumulativeSeconds.count else {
+            return nil
+        }
+        // The change itself starts once the lines before it have run.
+        return (change, max(0, cumulativeSeconds[change.line - 1] - cumulativeSeconds[line]))
+    }
+
     // MARK: Machine line lookup
 
     /// Returns the table row corresponding to a machine P: line number.

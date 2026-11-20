@@ -605,7 +605,7 @@ struct ControllerView: View {
 /// reasoning as `ToolPositionSync`).
 private struct ScrubberOrJobProgress<Scrubber: View>: View {
     @ObservedObject var connection: MachineConnection
-    /// For the time left: the loaded program's estimate at the machine's current line.
+    /// For the tool-change markers and the time left: the loaded program and its estimate.
     let document: NCFileDocument
     @ViewBuilder let scrubber: () -> Scrubber
 
@@ -620,8 +620,11 @@ private struct ScrubberOrJobProgress<Scrubber: View>: View {
         Group {
             if let job = connection.status?.activeJob {
                 VStack(alignment: .leading, spacing: 4) {
-                    ProgressView(value: job.fraction)
-                        .progressViewStyle(.linear)
+                    ZStack {
+                        ProgressView(value: job.fraction)
+                            .progressViewStyle(.linear)
+                        ToolChangeMarkers(changes: document.toolChanges, lineCount: document.lines.count, inset: 0)
+                    }
                     HStack {
                         Text(verbatim: "Line \(job.currentLine)")
                         Spacer()
@@ -632,10 +635,78 @@ private struct ScrubberOrJobProgress<Scrubber: View>: View {
                 }
                 .padding(.horizontal, 4)
             } else {
-                scrubber()
+                ZStack {
+                    scrubber()
+                    ToolChangeMarkers(changes: document.toolChanges, lineCount: document.lines.count, inset: 7)
+                }
             }
         }
         .frame(height: 45)
+    }
+}
+
+/// "Next T2 in ~12 min" in the tools bar: the time until the program switches to a tool other
+/// than the one in the spindle. Follows the machine's line while a job runs, the scrub slider
+/// otherwise. Observes the connection itself, like `ScrubberOrJobProgress`.
+private struct NextToolChangeLabel: View {
+    @ObservedObject var connection: MachineConnection
+    let document: NCFileDocument
+    let scrubLine: Int
+
+    var body: some View {
+        let line = connection.status?.activeJob?.currentLine ?? scrubLine
+        if let next = document.nextDifferentToolChange(after: line) {
+            Text(verbatim: "Next T\(next.change.tool) in ~\(GCodeTimeEstimator.format(next.seconds))")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+                .help("Rough time until the tool changes to T\(next.change.tool)")
+        }
+    }
+}
+
+/// Ticks along a scrubber or progress bar where the program changes tool, so they divide it
+/// into operations. A change to a tool other than the previous one also gets a dot on top.
+/// Placed by line, like the slider itself. They don't take clicks, so the slider underneath
+/// keeps working.
+private struct ToolChangeMarkers: View {
+    let changes: [GCodeToolpathAnalyzer.ToolChange]
+    let lineCount: Int
+    /// Space the control keeps free at each end of its track (the slider's thumb radius).
+    let inset: CGFloat
+
+    private struct Mark: Identifiable {
+        let line: Int
+        let isNewTool: Bool
+        var id: Int { line }
+    }
+
+    private var marks: [Mark] {
+        changes.enumerated().map { index, change in
+            Mark(line: change.line, isNewTool: index == 0 || changes[index - 1].tool != change.tool)
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let span = max(0, geometry.size.width - 2 * inset)
+            ForEach(marks) { mark in
+                let x = inset + span * CGFloat(mark.line) / CGFloat(max(1, lineCount))
+                let midY = geometry.size.height / 2
+                Capsule()
+                    .fill(Color.orange)
+                    .frame(width: 2, height: 12)
+                    .position(x: x, y: midY)
+                if mark.isNewTool {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 6, height: 6)
+                        .position(x: x, y: midY - 9)
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -921,6 +992,12 @@ private struct CanvasSection: View {
                                       library: gCodeModel.toolLibrary,
                                       activeTool: gCodeModel.activeToolNumber,
                                       alignment: .center)
+
+                        if showsLiveValues {
+                            NextToolChangeLabel(connection: connection,
+                                                document: gCodeModel.document,
+                                                scrubLine: gCodeModel.scrubLine)
+                        }
                     }
                 }
                 .padding(.horizontal, 10)
