@@ -8,13 +8,11 @@ Compiled on 2026-11-20 from `ROADMAP.md`, `PAUSE_RESUME_PLAN.md`, `3D-Probing-Pl
 
 ## 1. Fix first: data loss and machine safety
 
-- [ ] **A failed load can wipe the project.** `ProjectModel.init` catches a decode error of `project.json`, prints it and continues with an empty `ProjectData`; the next autosave overwrites the file. `ProjectsStore.loadProjects` logs and continues the same way, and `ToolsStore.init` sets `tools = []`. There is no `loadFailed` flag, no `.bak` copy, and `ProjectData` has no `schemaVersion` (only `ToolLibrary` has one). `toolpaths.json` was not re-checked.
 - [ ] **Stop can do nothing right after `play`.** `JobCoordinator.stop()` returns early unless `jobRunner.isActive` or the last status is busy, and status lags by about a second. Track "play sent, awaiting status" and soft-reset in that window (or whenever Stop is pressed while connected).
 - [ ] **Releasing a jog does not cancel motion already sent.** `JogDirection.stopAll()` only clears `held` and stops the timer. Send a realtime cancel / feed hold on release, and shorten chunks at high hold feed.
 - [ ] **Resume-from-line can silently resume from the wrong place.** `JobCoordinator.resume(fromLine:)` sends `goto` only if `lastUploadedRemotePath != nil && status?.isHeld == true`; otherwise it skips the `goto` and resumes with no message. Make it return a result, confirm the Pause state first, and show an error when `goto` can't be sent. It also never checks that the uploaded file is the program on screen.
 - [ ] **Bookmark entitlement missing.** `Stratum-CNC.entitlements` has sandbox, user-selected read-write and network client/server, but not `com.apple.security.files.bookmarks.app-scope`, which `ProjectBookmark` needs after a relaunch. (The Local Network usage string is set in the build settings, so that part is fine.)
 - [ ] **No work-envelope / soft-limit check** for jogging or the job origin. Only the probe result has a bed check (`ProbeResult.checkBed`).
-- [ ] **Save failures are invisible.** `ProjectModel.saveIfNeeded` is `try? save()`. Add an error surface, and consider a versioned backup. The metadata and toolpath writes are still two separate writes.
 - [ ] **Auto Z is still crude.** `JobCoordinator.autoZeroProbe` probes 10 mm down at the current XY and zeroes at the trigger point (no probe-plate thickness). At least say so in the UI.
 - [ ] **Alarm during a job ends progress tracking.** In `JobProgress.observe`, `.alarm` (like `.stopped` and `.interrupted`) returns `.unchanged` for all later status.
 - [ ] **Metal pipeline failures are silent.** `MetalRenderer` creates its pipelines with `try?`, so a shader failure gives a blank canvas without a message.
@@ -116,3 +114,4 @@ Compiled on 2026-11-20 from `ROADMAP.md`, `PAUSE_RESUME_PLAN.md`, `3D-Probing-Pl
 - STEP: display modes (wireframe, hidden edges, shaded, shaded + edges), flat-face picking, "Select similar" for holes, skipped-edge count.
 - Time: per-toolpath estimate in the panel and a program estimate in the G-code viewer.
 - Local Network usage description (set in build settings).
+- Project load safety and save errors (this session): an unreadable `project.json` / `toolpaths.json` is backed up as `.bak` and never overwritten, `schemaVersion` added, a failed save is shown in the subtitle. `ToolsStore` was already safe (a failed load leaves `library` nil, so `save()` throws).

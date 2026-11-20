@@ -36,6 +36,9 @@ struct ProjectView: View {
         guard projectModel.sessionKind == .project else {
             return gCodeStore.document.lines.isEmpty ? "" : gCodeStore.document.fileName
         }
+        if let problem = projectModel.storageProblem {
+            return problem
+        }
         if projectModel.hasUnsavedChanges {
             return "Unsaved…"
         }

@@ -10,6 +10,12 @@ import simd
 
 struct ProjectData: Identifiable, Codable, Hashable {
 
+    /// The layout of `project.json` this app writes. A file with a higher number was saved by a
+    /// newer app and is left alone instead of being rewritten with fields dropped.
+    static let currentSchemaVersion = 1
+    /// `nil` in files saved before the version was stamped (version 1 layout).
+    var schemaVersion: Int?
+
     /// The project's id, same as in `projects.json`, so a folder can be
     /// recognised on its own (reinstalled app, lost index, folder renamed).
     /// Projects saved before this was stamped carry an unrelated random id,

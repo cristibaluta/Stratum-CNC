@@ -82,6 +82,20 @@ class ProjectModel: ObservableObject {
     @Published private(set) var hasUnsavedChanges = false
     /// When the project was last written to disk; `nil` if it never was.
     @Published private(set) var lastSavedAt: Date?
+    /// Why the last save failed; `nil` after a save that worked. Shown in the subtitle.
+    @Published private(set) var saveError: String?
+    /// Set when `project.json` or `toolpaths.json` exists but couldn't be read. Saving that file is
+    /// then off, so the unreadable one is never overwritten. Shown in the subtitle.
+    @Published private(set) var loadProblem: String?
+    private var projectFileUnreadable = false
+    private var toolpathsFileUnreadable = false
+
+    /// What the subtitle shows instead of the save date, when something is wrong with the files.
+    var storageProblem: String? {
+        if let loadProblem { return loadProblem }
+        if let saveError { return "Not saved: \(saveError)" }
+        return nil
+    }
     let paths: ProjectPaths
 
     @Published var camModel: CAMModel
@@ -124,15 +138,25 @@ class ProjectModel: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
 
         var projectData: ProjectData
+        // Set when project.json exists but can't be used. The project then opens empty, and
+        // nothing is written over the file (see `markUnreadable`).
+        var unreadableMetadata: Error?
 
         do {
             let data = try Data(contentsOf: paths.projectMetadata)
             projectData = try decoder.decode(ProjectData.self, from: data)
+            if let version = projectData.schemaVersion, version > ProjectData.currentSchemaVersion {
+                throw ProjectError.newerFileVersion
+            }
         } catch {
             print("Failed to load projects: \(error)")
             projectData = ProjectData(stock: nil,
                                       isStockVisible: nil,
                                       assets: nil)
+            // A missing file is a new project, not a failure.
+            if FileManager.default.fileExists(atPath: paths.projectMetadata.path) {
+                unreadableMetadata = error
+            }
         }
         // The folder identifies itself: keep the project's id and name in
         // project.json in step with the index (older files have a random id).
@@ -157,6 +181,9 @@ class ProjectModel: ObservableObject {
             self?.projectData.stock = stock
         }
 
+        if let unreadableMetadata {
+            markUnreadable(paths.projectMetadata, error: unreadableMetadata)
+        }
         loadProjectData()
 
         // Restore the Controller's XY offset, then keep project.json in step
@@ -266,9 +293,31 @@ class ProjectModel: ObservableObject {
         } catch {
             print("Failed to load toolpaths: \(error)")
             toolpaths = []
+            if FileManager.default.fileExists(atPath: toolpathsUrl.path) {
+                markUnreadable(toolpathsUrl, error: error)
+            }
         }
         self.toolpaths = toolpaths
         camModel.toolpaths = toolpaths
+    }
+
+    /// A file that exists couldn't be read. Keeps a copy, turns saving that file off (it would be
+    /// replaced by the empty data the project opened with) and says so in the subtitle.
+    private func markUnreadable(_ url: URL, error: Error) {
+        let name = url.lastPathComponent
+        if url == paths.projectMetadata {
+            projectFileUnreadable = true
+        } else {
+            toolpathsFileUnreadable = true
+        }
+        let backup = backUpUnreadableFile(at: url, beginAccess: beginFolderAccess, endAccess: endFolderAccess)
+        let kept = backup.map { ", copy kept as \($0.lastPathComponent)" } ?? ""
+        var what = "can't be read"
+        if let projectError = error as? ProjectError, case .newerFileVersion = projectError {
+            what = "was saved by a newer version of Stratum"
+        }
+        let message = "\(name) \(what)\(kept). Saving it is off."
+        loadProblem = [loadProblem, message].compactMap { $0 }.joined(separator: " ")
     }
 
     func importAsset(from url: URL) throws -> AssetData {
@@ -435,14 +484,27 @@ class ProjectModel: ObservableObject {
         try? save()
     }
 
+    /// Writes the project. A failure is kept in `saveError` for the subtitle (autosave and the
+    /// key actions ignore the thrown error), and cleared by the next save that works.
     func save() throws {
-        try saveProjectMetadata()
-        try saveToolpaths()
-        hasUnsavedChanges = false
+        do {
+            try saveProjectMetadata()
+            try saveToolpaths()
+            hasUnsavedChanges = false
+            saveError = nil
+        } catch {
+            saveError = error.localizedDescription
+            throw error
+        }
     }
 
     private func saveProjectMetadata() throws {
-        let data = try encoder.encode(projectData)
+        if projectFileUnreadable {
+            throw ProjectError.fileUnreadable("project.json")
+        }
+        var stamped = projectData
+        stamped.schemaVersion = ProjectData.currentSchemaVersion
+        let data = try encoder.encode(stamped)
         try withFolderAccess {
             try data.write(to: paths.projectMetadata, options: .atomic)
         }
@@ -452,6 +514,9 @@ class ProjectModel: ObservableObject {
     private func saveToolpaths() throws {
         // Targets reference object IDs in project.json, so persist those first.
         try saveProjectMetadata()
+        if toolpathsFileUnreadable {
+            throw ProjectError.fileUnreadable("toolpaths.json")
+        }
         let data = try encoder.encode(toolpaths)
         try withFolderAccess {
             try data.write(to: paths.toolpathsFile, options: .atomic)

@@ -20,6 +20,55 @@ enum ProjectError: Error {
     /// An external project's folder can't be reached: deleted, moved, or on a drive that isn't mounted.
     case projectFolderMissing
     case bookmarkFailed
+    /// A file that exists but couldn't be read when the project opened. It is never overwritten:
+    /// the payload is the file's name.
+    case fileUnreadable(String)
+    /// A file saved by a newer version of the app: it is read-only for this one.
+    case newerFileVersion
+}
+
+extension ProjectError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+            case .projectNotFound: "The project can't be found."
+            case .projectAlreadyExists: "A project with that name already exists."
+            case .assetImportFailed: "The file couldn't be imported."
+            case .notAProjectFolder: "That folder isn't a Stratum project."
+            case .projectFolderMissing: "The project folder can't be reached."
+            case .bookmarkFailed: "Access to the folder couldn't be kept."
+            case .fileUnreadable(let name): "\(name) couldn't be read when the project opened, so it is left untouched."
+            case .newerFileVersion: "This project was saved by a newer version of Stratum."
+        }
+    }
+}
+
+/// Copies a file that couldn't be read next to itself (`name.bak`, then `name.bak2`, ...) so a
+/// later save can't destroy the only copy. A backup with the same content is reused instead of
+/// adding another one on every open. Nil when the copy couldn't be made.
+@MainActor
+func backUpUnreadableFile(at url: URL,
+                          beginAccess: @MainActor () -> Bool = { true },
+                          endAccess: @MainActor () -> Void = {}) -> URL? {
+    let fileManager = FileManager.default
+    guard beginAccess() else { return nil }
+    defer { endAccess() }
+
+    var candidate = url.appendingPathExtension("bak")
+    var number = 2
+    while fileManager.fileExists(atPath: candidate.path) {
+        if fileManager.contentsEqual(atPath: url.path, andPath: candidate.path) {
+            return candidate
+        }
+        candidate = url.appendingPathExtension("bak\(number)")
+        number += 1
+    }
+    do {
+        try fileManager.copyItem(at: url, to: candidate)
+        return candidate
+    } catch {
+        print("Failed to back up \(url.lastPathComponent): \(error)")
+        return nil
+    }
 }
 
 /// The bits of `project.json` needed to recognise a folder.
@@ -94,6 +143,9 @@ final class ProjectsStore: ObservableObject {
         } catch {
             print("Failed to load projects: \(error)")
             projects = []
+            // The next change rewrites the index; keep what is there now.
+            let kept = backUpUnreadableFile(at: indexFile).map { " A copy was kept as \($0.lastPathComponent)." } ?? ""
+            openError = "The project list (projects.json) couldn't be read.\(kept)"
         }
         resolveBookmarks()
     }
@@ -310,8 +362,13 @@ final class ProjectsStore: ObservableObject {
         do {
             try activeProjectModel?.save()
             return true
+        } catch ProjectError.fileUnreadable(_) {
+            // Saving was switched off on purpose to protect a file that couldn't be read: there is
+            // nothing to save, and the project must still be closable.
+            return true
         } catch {
             print("Failed to save project: \(error)")
+            openError = "The project wasn't saved: \(error.localizedDescription) It stays open so your changes aren't lost."
             return false
         }
     }
