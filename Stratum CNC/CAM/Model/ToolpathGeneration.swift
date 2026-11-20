@@ -30,7 +30,8 @@ struct ToolpathGeneration {
 
     /// The same cutting moves as 3D line pairs with their real Z (relative to the setup's z0, in the
     /// part's frame, see `SetupFrame.previewLines`), for the 3D view, where every pass sits at its
-    /// own depth. Nil on failure, or for a setup with no top-down view.
+    /// own depth. Nil on failure, or for an angle between the faces. The side faces, which have no
+    /// top-down `previewPath`, have these.
     var previewLines: [SIMD3<Float>]? = nil
 
     /// The corners a pocket's tool couldn't reach, as outlines for the canvas (see

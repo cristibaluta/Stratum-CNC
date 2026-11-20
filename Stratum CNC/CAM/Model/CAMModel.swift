@@ -914,8 +914,9 @@ class CAMModel: ObservableObject {
                     let outputs = try ToolpathGenerator.run(job)
                     let pathStart = PerfLog.now()
                     // The engine ran in the setup's frame, the canvas draws the part's: map the
-                    // overlays back. Front and back have no top-down view, so nothing is drawn
-                    // (and the scrub slider, which has no mapping yet, is off for turned setups).
+                    // overlays back. The side faces have no top-down view, so no 2D overlay; their cuts
+                    // are shown in 3D through `previewLines`. (The scrub slider, which has no mapping
+                    // yet, is off for turned setups.)
                     let frame = job.frame
                     let previewPath = frame.previewInPartFrame(ToolpathPathBuilder.path(for: outputs, options: previewOptions))
                     let flat = ToolpathPathBuilder.scrubData(for: outputs, options: previewOptions)
@@ -1109,12 +1110,13 @@ class CAMModel: ObservableObject {
                 // array instead of copying hundreds of thousands of points again
                 cached = hit
             } else {
+                // The front, back, left and right have no 2D path (no top-down view), only 3D lines
                 let paths = results.compactMap(\.previewPath)
-                guard !paths.isEmpty else {
-                    continue
-                }
                 // The 3D view draws the lines with their Z, so every pass shows at its own depth
                 let lines = results.compactMap(\.previewLines).flatMap { $0 }
+                guard !paths.isEmpty || !lines.isEmpty else {
+                    continue
+                }
                 let combined = CGMutablePath()
                 paths.forEach { combined.addPath($0) }
                 cached = (key: key, path: combined, lines: lines)

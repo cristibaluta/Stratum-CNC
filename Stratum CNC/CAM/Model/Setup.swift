@@ -392,7 +392,10 @@ struct SetupFrame: Sendable, Equatable {
 
     /// Cutting lines built in this setup's frame (with real Z), in the part's frame relative to the
     /// setup's z0: the same XY mirror as `previewInPartFrame`, and for the bottom Z flipped too (deeper
-    /// in the setup is higher in the part). The 3D view adds `z0InPartFrame`. Nil for the side faces.
+    /// in the setup is higher in the part). The 3D view adds `z0InPartFrame`.
+    /// The front, back, left and right have no top-down view (`previewInPartFrame` is nil) but their
+    /// cuts do have a place in the part: each point goes back through `unmap`. Their `z0InPartFrame`
+    /// is 0, so those lines are already in the part's frame. Nil only for an angle between faces.
     func previewLines(_ points: [SIMD3<Float>]) -> [SIMD3<Float>]? {
         switch quarterTurns {
             case 0?:
@@ -405,6 +408,8 @@ struct SetupFrame: Sendable, Equatable {
                     case .y:
                         return points.map { SIMD3<Float>(twicePivot - $0.x, $0.y, -$0.z) }
                 }
+            case 1?, 3?:
+                return points.map { SIMD3<Float>(unmap(SIMD3<Double>($0))) }
             default:
                 return nil
         }
