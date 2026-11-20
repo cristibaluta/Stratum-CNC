@@ -989,8 +989,8 @@ private struct CanvasSection: View {
                         ToolChipsView(tools: gCodeModel.tools,
                                       assignments: $gCodeModel.toolAssignments,
                                       fileTools: gCodeModel.headerTools,
-                                      library: gCodeModel.toolLibrary,
                                       activeTool: gCodeModel.activeToolNumber,
+                                      stockMaterial: camModel.selectedStockMaterial.material,
                                       alignment: .center)
 
                         if showsLiveValues {

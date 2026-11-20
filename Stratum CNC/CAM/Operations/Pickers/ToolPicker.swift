@@ -57,22 +57,12 @@ struct ToolPicker: View {
             }
             .buttonStyle(.plain)
             .help(fieldHelp)
-            .popover(isPresented: $showingList, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                ToolListPopover(current: tool,
-                                recent: recentTools,
-                                inStock: inStockTools,
-                                inStockTitle: inStockTitle,
-                                inStockEmptyText: inStockEmptyText,
-                                onSelect: { candidate in
-                                    showingList = false
-                                    select(candidate)
-                                },
-                                onOpenLibrary: {
-                                    showingList = false
-                                    // Presenting right after dismissing the other popover is dropped
-                                    DispatchQueue.main.async { showingLibrary = true }
-                                })
-            }
+            .toolChoicePopovers(isListPresented: $showingList,
+                                isLibraryPresented: $showingLibrary,
+                                current: tool,
+                                stockMaterial: stockMaterial,
+                                arrowEdge: .leading,
+                                onSelect: select)
 
             // The whole library, without having to open the list first.
             Button {
@@ -86,39 +76,6 @@ struct ToolPicker: View {
             .buttonStyle(.plain)
             .help("Pick from the tool library")
         }
-        .popover(isPresented: $showingLibrary, arrowEdge: .leading) {
-            ToolsLib_Sheet(store: appModel.toolsStore, onPick: { select($0) })
-        }
-    }
-
-    // MARK: Lists
-
-    /// The last 8 tools picked, the newest addition first (persisted in UserDefaults, see `AppModel`).
-    private var recentTools: [Tool] {
-        appModel.recentTools
-    }
-
-    private var metalOnly: Bool {
-        stockMaterial?.isMetal ?? false
-    }
-
-    /// Every tool in stock; for a metal stock only the ones meant for metal.
-    private var inStockTools: [Tool] {
-        let order = Dictionary(uniqueKeysWithValues: ToolType.allCases.enumerated().map { ($1, $0) })
-        return appModel.toolsStore.tools
-            .filter { $0.quantity > 0 && (!metalOnly || $0.isForMetal) }
-            .sorted {
-                let a = order[$0.type] ?? 0, b = order[$1.type] ?? 0
-                return a != b ? a < b : $0.toolDiameter < $1.toolDiameter
-            }
-    }
-
-    private var inStockTitle: String {
-        metalOnly ? "In stock · for metal" : "In stock"
-    }
-
-    private var inStockEmptyText: String {
-        metalOnly ? "No tools for metal in stock" : "No tools in stock"
     }
 
     private var fieldHelp: String {
@@ -143,12 +100,94 @@ struct ToolPicker: View {
     }
 }
 
+// MARK: - Shared popovers
+
+extension View {
+
+    /// The small tool chooser: recent tools and tools in stock, with "Pick from Library…" opening
+    /// the whole library in a second popover. Shared by CAM's `ToolPicker` and the Controller's
+    /// tool chips. Needs the `AppModel` in the environment.
+    ///
+    /// The owner presents each popover through its binding and decides what picking does
+    /// (`onSelect`); a pick closes the popover.
+    func toolChoicePopovers(isListPresented: Binding<Bool>,
+                            isLibraryPresented: Binding<Bool>,
+                            current: Tool?,
+                            fileTool: Tool? = nil,
+                            stockMaterial: StockMaterialType? = nil,
+                            arrowEdge: Edge = .leading,
+                            onSelect: @escaping (Tool) -> Void) -> some View {
+        modifier(ToolChoicePopovers(isListPresented: isListPresented,
+                                    isLibraryPresented: isLibraryPresented,
+                                    current: current,
+                                    fileTool: fileTool,
+                                    stockMaterial: stockMaterial,
+                                    arrowEdge: arrowEdge,
+                                    onSelect: onSelect))
+    }
+}
+
+private struct ToolChoicePopovers: ViewModifier {
+
+    @Binding var isListPresented: Bool
+    @Binding var isLibraryPresented: Bool
+    let current: Tool?
+    let fileTool: Tool?
+    let stockMaterial: StockMaterialType?
+    let arrowEdge: Edge
+    let onSelect: (Tool) -> Void
+
+    @EnvironmentObject private var appModel: AppModel
+
+    private var metalOnly: Bool {
+        stockMaterial?.isMetal ?? false
+    }
+
+    /// Every tool in stock; for a metal stock only the ones meant for metal.
+    private var inStockTools: [Tool] {
+        let order = Dictionary(uniqueKeysWithValues: ToolType.allCases.enumerated().map { ($1, $0) })
+        return appModel.toolsStore.tools
+            .filter { $0.quantity > 0 && (!metalOnly || $0.isForMetal) }
+            .sorted {
+                let a = order[$0.type] ?? 0, b = order[$1.type] ?? 0
+                return a != b ? a < b : $0.toolDiameter < $1.toolDiameter
+            }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .popover(isPresented: $isListPresented, attachmentAnchor: .rect(.bounds), arrowEdge: arrowEdge) {
+                ToolListPopover(current: current,
+                                fileTool: fileTool,
+                                // The last 8 tools picked, the newest addition first (see `AppModel`)
+                                recent: appModel.recentTools,
+                                inStock: inStockTools,
+                                inStockTitle: metalOnly ? "In stock · for metal" : "In stock",
+                                inStockEmptyText: metalOnly ? "No tools for metal in stock" : "No tools in stock",
+                                onSelect: { candidate in
+                                    isListPresented = false
+                                    onSelect(candidate)
+                                },
+                                onOpenLibrary: {
+                                    isListPresented = false
+                                    // Presenting right after dismissing the other popover is dropped
+                                    DispatchQueue.main.async { isLibraryPresented = true }
+                                })
+            }
+            .popover(isPresented: $isLibraryPresented, arrowEdge: arrowEdge) {
+                ToolsLib_Sheet(store: appModel.toolsStore, onPick: { onSelect($0) })
+            }
+    }
+}
+
 // MARK: - Popover
 
 /// The popover content: a section of recent tools and one of tools in stock, each tool a
 /// row of tip drawing + size and type + the shank diameter.
 private struct ToolListPopover: View {
-    let current: Tool
+    let current: Tool?
+    /// The tool the loaded G-code file itself declares for this slot (Controller only), offered first.
+    var fileTool: Tool? = nil
     let recent: [Tool]
     let inStock: [Tool]
     let inStockTitle: String
@@ -164,6 +203,11 @@ private struct ToolListPopover: View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    if let fileTool {
+                        section("From the file", tools: [fileTool])
+                        Divider()
+                            .padding(.vertical, 12)
+                    }
                     if !recent.isEmpty {
                         section("Recent", tools: recent)
                         Divider()
@@ -204,7 +248,7 @@ private struct ToolListPopover: View {
     }
 
     private func row(for tool: Tool, in section: String) -> some View {
-        let isSelected = tool.id == current.id
+        let isSelected = tool.id == current?.id
         let key = "\(section)-\(tool.id)"
 
         return Button {

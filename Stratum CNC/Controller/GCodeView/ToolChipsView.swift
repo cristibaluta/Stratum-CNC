@@ -5,7 +5,7 @@
 //  The tools the loaded program calls, as a horizontally scrolling row of
 //  chips: a large tool number, then the diameter over the tool type on two
 //  lines ("T2  Ø6.35 mm / Ball Nose"). Each chip is a menu that assigns a
-//  tool in a popover (Unassigned, the file's own tool, then the tools library).
+//  tool in CAM's small tool popover (the file's own tool, recent tools, tools in stock, the library).
 //  The chip for the tool currently in the spindle at the scrub position is
 //  outlined and filled green, marked with
 //  a little triangle under it, and scrolled into view. The chips use the whole
@@ -21,11 +21,10 @@ struct ToolChipsView: View {
     /// Tools the loaded file's header declares, by tool number — offered
     /// first, since it's what the CAM actually used.
     var fileTools: [Int: Tool] = [:]
-    /// The tools library the chooser lists. A closure, read when the chooser opens, so it is
-    /// current even if the library changed since this view was last drawn.
-    var library: () -> [Tool] = { [] }
     /// `GCodeStore.activeToolNumber`.
     var activeTool: Int? = nil
+    /// The stock being cut: a metal narrows the "In stock" list to the tools for metal.
+    var stockMaterial: StockMaterialType? = nil
     /// Where the chips sit while they all fit. `.trailing` pushes them to the
     /// right edge of the available width; once they overflow they scroll
     /// either way.
@@ -65,7 +64,7 @@ struct ToolChipsView: View {
         ToolChip(tool: tool,
                  assigned: assignments[tool],
                  fileTool: fileTools[tool],
-                 library: library,
+                 stockMaterial: stockMaterial,
                  isCurrent: tool == currentTool,
                  select: { assignments[tool] = $0 })
     }
@@ -79,11 +78,13 @@ private struct ToolChip: View {
     let tool: Int
     let assigned: Tool?
     let fileTool: Tool?
-    let library: () -> [Tool]
+    let stockMaterial: StockMaterialType?
     let isCurrent: Bool
-    let select: (Tool?) -> Void
+    let select: (Tool) -> Void
 
+    @EnvironmentObject private var appModel: AppModel
     @State private var isChoosing = false
+    @State private var isChoosingFromLibrary = false
 
     var body: some View {
         Button {
@@ -137,69 +138,17 @@ private struct ToolChip: View {
         .buttonStyle(.plain)
         .fixedSize()
         .help("Choose the tool for T\(tool)")
-        .popover(isPresented: $isChoosing, arrowEdge: .bottom) {
-            chooser
-        }
-    }
-
-    private var chooser: some View {
-        // By type, then diameter, so similar tools sit together.
-        let tools = library().sorted { a, b in
-            if a.type != b.type {
-                return a.type.displayName < b.type.displayName
-            }
-            if a.toolDiameter != b.toolDiameter {
-                return a.toolDiameter < b.toolDiameter
-            }
-            return a.name < b.name
-        }
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                option("Unassigned", value: nil)
-                if let fileTool {
-                    Divider().padding(.vertical, 2)
-                    option("\(fileTool.name) (from file)", subtitle: fileTool.displayName, value: fileTool)
-                }
-                Divider().padding(.vertical, 2)
-                if tools.isEmpty {
-                    Text("The tools library is empty")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 3)
-                }
-                ForEach(tools) { tool in
-                    option(tool.name, subtitle: tool.displayName, value: tool)
-                }
-            }
-            .padding(8)
-        }
-        .frame(width: 260, height: 300)
-    }
-
-    private func option(_ title: String, subtitle: String? = nil, value: Tool?) -> some View {
-        Button {
-            select(value)
-            isChoosing = false
-        } label: {
-            HStack {
-                Image(systemName: "checkmark")
-                    .opacity(assigned?.id == value?.id ? 1 : 0)
-                    .frame(width: 14)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(title)
-                        .font(.callout)
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.vertical, 3)
+        // The same small picker as CAM's tool field
+        .toolChoicePopovers(isListPresented: $isChoosing,
+                            isLibraryPresented: $isChoosingFromLibrary,
+                            current: assigned,
+                            fileTool: fileTool,
+                            stockMaterial: stockMaterial,
+                            arrowEdge: .bottom,
+                            onSelect: { tool in
+                                appModel.noteToolUsed(tool)
+                                select(tool)
+                            })
     }
 
     /// "Ball Nose", or "60° V Bit" for cone-tipped tools.

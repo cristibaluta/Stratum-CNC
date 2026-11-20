@@ -60,6 +60,8 @@ struct ProjectView: View {
                                    projectModel: projectModel,
                                    gCodeModel: projectModel.gCodeStore,
                                    joystickStore: projectModel.joystickStore)
+                        // The tool chips pick from the same small tool popover as CAM
+                        .environmentObject(appModel)
             }
         }
         .toolbar {
