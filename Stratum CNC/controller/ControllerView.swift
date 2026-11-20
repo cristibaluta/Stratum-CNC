@@ -904,13 +904,11 @@ private struct CanvasSection: View {
                                  settings: { layer in
                                      switch layer {
                                          case .stock:
+                                             // Just the fields: visibility is the legend's own checkbox
                                              return AnyView(
-                                                 PanelStockMaterial(stock: $camModel.selectedStockMaterial,
-                                                                    isStockVisible: isStockVisible,
-                                                                    isCompact: false,
-                                                                    onOpenStocksLib: nil)
-                                                     .frame(width: 320)
-                                                     .environment(\.forcesInspectorSectionsOpen, true)
+                                                 StockMaterialForm(stock: $camModel.selectedStockMaterial)
+                                                     .frame(width: 280)
+                                                     .padding(12)
                                              )
                                          case .boundingBox:
                                              return AnyView(JobAreaSettingsView(scene: scene))

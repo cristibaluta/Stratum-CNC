@@ -17,19 +17,29 @@ class CAMModel: ObservableObject {
 
     // ---- PERSISTENT DATA (mirrors ProjectData) ----
     /// Bumped whenever something the generated G-code is built from changes: the
-    /// toolpath settings, their generated results, or the stock. The Controller
+    /// toolpath settings, their generated results, or the setups. The Controller
     /// compares it with the value its program was generated at to know when that
     /// program is out of date (see `GCodeStore.generatedFromCAMRevision`).
+    /// Only real changes count: a write of the value that is already there (a form
+    /// writing its binding back, say) doesn't bump it. The stock isn't a source of its
+    /// own: a change that reaches the cutting moves discards the affected results, and
+    /// that bumps it (see `selectedStockMaterial`).
     @Published private(set) var revision = 0
 
     @Published var selectedStockMaterial: StockMaterial {
         didSet {
-            revision &+= 1
+            // A write that changes nothing isn't an edit
+            guard selectedStockMaterial != oldValue else {
+                return
+            }
             canvasState.stock = selectedStockMaterial
             // The alignment pins follow the stock's size
             canvasState.refitAlignmentPins()
-            // A turned setup is built from the stock's size, so its results are outdated too
-            if setups.contains(where: { $0.angle != 0 }) {
+            // Only the stock's shape and size can reach the cutting moves: a turned setup is
+            // built from them, and so is a facing of the whole stock. Their results are
+            // outdated then. Material, name, quantity… change nothing that is cut.
+            if selectedStockMaterial.geometry != oldValue.geometry,
+               setups.contains(where: { $0.angle != 0 }) || toolpaths.contains(where: \.cutsWholeStock) {
                 discardGenerations()
             }
             onStockChanged?(selectedStockMaterial)
@@ -42,7 +52,9 @@ class CAMModel: ObservableObject {
     /// setup is a contiguous run of the list.
     @Published private(set) var setups: [Setup] {
         didSet {
-            revision &+= 1
+            if setups != oldValue {
+                revision &+= 1
+            }
             onSetupsChanged?(setups)
             // Renaming or reordering changes nothing that is cut; a different orientation does
             if Self.orientations(of: oldValue) != Self.orientations(of: setups) {
@@ -81,7 +93,9 @@ class CAMModel: ObservableObject {
     // ---- TEMPORARY TOOLPATH EDITING ----
     @Published var toolpaths: [ToolpathData] = [] {
         didSet {
-            revision &+= 1
+            if toolpaths != oldValue {
+                revision &+= 1
+            }
             onToolpathsChanged?(toolpaths)
             // Switching a rest toolpath to another operation starts (or ends) shape picking
             syncPickingWithSelection()
