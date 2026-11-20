@@ -363,6 +363,9 @@ enum ToolpathGenerator {
                 return "TODO"
             case .depthExceedsFluteLength(depth: let depth, fluteLength: let fluteLength):
                 return "TODO"
+            case .toolDoesNotFit(shapeSize: let shapeSize, toolDiameter: let toolDiameter):
+                return String(format: "A shape (about %.2f mm wide) is smaller than the tool (Ø%.2f mm), so no toolpath was generated for it.",
+                              shapeSize, toolDiameter)
         }
     }
 

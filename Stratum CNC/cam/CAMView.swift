@@ -548,6 +548,9 @@ struct CAMView: View {
                                     camModel.canvasState.object(withID: target.objectID)?
                                         .worldCGPath(forPathAt: target.pathIndex)
                                 }
+                             },
+                             shapeDetails: {
+                                camModel.shapeDetails(for: toolpath.id)
                              }
         )
         .id(toolpath.id)

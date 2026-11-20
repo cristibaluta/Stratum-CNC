@@ -136,6 +136,15 @@ extension STEPWorkspace {
         return polylines
     }
 
+    /// One entry per picked edge for the toolpath panel's "Selected" list: its size and its
+    /// height from Z0, read from the geometry in the toolpath's frame.
+    func shapeDetails(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity) -> [ShapeDetail] {
+        guard !targets.isEmpty, let all = try? polylines(for: targets, frame: frame) else {
+            return []
+        }
+        return all.map { ShapeDetail.describeEdge($0) }
+    }
+
     /// Edges at two heights split into the upper and the lower: a chamfer's rails. `nil` when
     /// they are all at one height (within 0.02 mm).
     private static func chamferRails(of polylines: [[SIMD3<Double>]])

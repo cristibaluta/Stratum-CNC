@@ -23,7 +23,9 @@ PanelToolpathDetails
       ├─ InspectorSection "Shapes"
       │  ├─ "Area" Selection / Whole stock    ← facing only
       │  ├─ "Selection is" + width note       ← slot only (OperationOptionsView, part .shapes)
-      │  └─ "Selected": shapesLabel           ("N shapes selected", "Whole stock", orange "Click shapes to select")
+      │  ├─ "Selected": shapesLabel           ("N shapes selected", "Whole stock", orange "Click shapes to select")
+      │  │                                      with shapes selected the row has a chevron and expands into shapeListRows:
+      │  │                                      one line per shape / STEP edge (kind, Ø / R / length, distance to Z0), from CAMModel.shapeDetails
       │
       ├─ InspectorSection "Tool"
       │  ├─ ToolPicker(toolpath.tool)

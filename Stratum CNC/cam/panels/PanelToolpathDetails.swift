@@ -45,8 +45,15 @@ struct PanelToolpathDetails: View {
     /// The outlines of the selected shapes in world space, one per shape, for drawings in the
     /// panel (where the holding tabs sit). Called only when a drawing is shown.
     var targetShapes: () -> [CGPath] = { [] }
+    /// The selected shapes described one by one (kind, size, distance to Z0), for the expandable
+    /// "Selected" row. Called when the row is open and the selection changes.
+    var shapeDetails: () -> [ShapeDetail] = { [] }
 
     @StateObject private var model = ToolpathDetailsModel()
+
+    /// The "Selected" row is open and lists every selected shape.
+    @State private var isShapesExpanded = false
+    @State private var shapeList: [ShapeDetail] = []
 
     /// The title section's compact form is showing. Remembered like the other sections'.
     @AppStorage("inspector.sectionCollapsed.Title") private var isTitleCollapsed = false
@@ -440,8 +447,56 @@ struct PanelToolpathDetails: View {
             OperationOptionsView(toolpath: $toolpath, part: .shapes)
         }
         InspectorRow(label: "Selected") {
-            shapesLabel
+            if toolpath.hasSelectedTargets, !toolpath.cutsWholeStock {
+                Button {
+                    isShapesExpanded.toggle()
+                    if isShapesExpanded {
+                        shapeList = shapeDetails()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        shapesLabel
+                        Image(systemName: isShapesExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Show the selected shapes")
+            } else {
+                shapesLabel
+            }
         }
+        if isShapesExpanded, toolpath.hasSelectedTargets, !toolpath.cutsWholeStock {
+            shapeListRows
+                .onChange(of: toolpath.targets) { _, _ in shapeList = shapeDetails() }
+                .onChange(of: toolpath.stepTargets) { _, _ in shapeList = shapeDetails() }
+        }
+    }
+
+    /// Every selected shape on its own line: number, kind, size and the distance to Z0.
+    private var shapeListRows: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(Array(shapeList.enumerated()), id: \.element.id) { index, shape in
+                    HStack(spacing: 6) {
+                        Text("\(index + 1)")
+                            .foregroundStyle(.tertiary)
+                            .frame(minWidth: 14, alignment: .trailing)
+                        Text(shape.kind)
+                        Spacer(minLength: 8)
+                        Text(shape.size)
+                        Text(shape.z)
+                            .foregroundStyle(.secondary)
+                            .frame(minWidth: 52, alignment: .trailing)
+                    }
+                    .font(.system(size: 11).monospacedDigit())
+                    .help("\(shape.kind): \(shape.size), \(shape.z)")
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .frame(maxHeight: 160)
     }
 
     /// Generation status on the left, the Preview button on the right. Preview builds the
