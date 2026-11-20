@@ -45,7 +45,7 @@ struct ToolpathGeneration {
     /// A rest toolpath only: the pocket it is linked to, as it was when this was generated
     /// (`nil` when that pocket was gone).
     var sourceSnapshot: ToolpathData? = nil
-    /// A rest toolpath only: set by `CAMModel` once the linked pocket no longer matches
+    /// A rest toolpath only: set by `ToolpathGenerationStore` once the linked pocket no longer matches
     /// `sourceSnapshot`, which makes this result outdated too.
     var isLinkedSourceOutdated = false
 

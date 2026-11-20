@@ -142,29 +142,33 @@ class CAMModel: ObservableObject {
     /// every click on a shape adds/removes it from that toolpath's `targets`.
     @Published private(set) var pickingToolpathID: UUID?
 
-    /// Result of the last "Generate" per toolpath id. Session-only.
-    /// Toolpaths whose generation is running in the background right now.
-    @Published private(set) var generatingIDs: Set<UUID> = []
-    /// Identifies the in-flight run per toolpath. A run only applies its result
-    /// if its token is still current — otherwise it was superseded, or the
-    /// objects changed underneath it and the result would be stale.
-    private var generationTokens: [UUID: UUID] = [:]
+    /// Runs the generations and keeps their results (see `ToolpathGenerationStore`). CAMModel
+    /// forwards what the views and the Controller read, and reacts when the results change.
+    private let generationStore = ToolpathGenerationStore()
 
-    @Published private(set) var generations: [UUID: ToolpathGeneration] = [:] {
-        didSet {
-            revision &+= 1
-            // The preview below depends on whether something is being scrubbed, so sort that out first
-            syncScrub(refreshPreview: false)
-            updateToolpathPreview()
-        }
+    /// Keeps the canvas overlay and the scrub preview in step with the results.
+    private let preview = ToolpathPreviewController()
+
+    /// Result of the last "Generate" per toolpath id. Session-only.
+    var generations: [UUID: ToolpathGeneration] {
+        generationStore.generations
     }
 
-    /// How generated toolpaths are drawn and previewed on this canvas: which passes
-    /// of each one. Both canvas presets keep every pass (z layer); the all-toolpaths
-    /// overlay skips passes that repeat an XY line, the scrub slider walks them all,
-    /// first pass first. Read when a generation starts, so a change
-    /// applies from the next Generate, not to results already on screen.
-    var previewOptions: ToolpathPreviewOptions = .canvas2D
+    /// Toolpaths whose generation is running in the background right now.
+    var generatingIDs: Set<UUID> {
+        generationStore.generatingIDs
+    }
+
+    /// How generated toolpaths are drawn and previewed on this canvas (see
+    /// `ToolpathGenerationStore.previewOptions`).
+    var previewOptions: ToolpathPreviewOptions {
+        get {
+            generationStore.previewOptions
+        }
+        set {
+            generationStore.previewOptions = newValue
+        }
+    }
 
     /// The legend's "All toolpaths": with no toolpath open, every toolpath of every setup is
     /// calculated (what has no current result yet) and drawn; the ones of a setup that is not
@@ -190,9 +194,6 @@ class CAMModel: ObservableObject {
             updateRestRegions()
         }
     }
-
-    /// Which generation the canvas is scrubbing right now (see `syncScrub`).
-    private var scrubbedGenerationID: UUID?
 
     // ---- CANVAS VIEWPORT STATE ----
     // Persisted between sessions. Not @Published: this is *reported* by the
@@ -243,6 +244,15 @@ class CAMModel: ObservableObject {
         canvasState.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        generationStore.objectWillChange
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
+        generationStore.currentToolpaths = { [weak self] in
+            self?.toolpaths ?? []
+        }
+        generationStore.onGenerationsChanged = { [weak self] in
+            self?.generationsDidChange()
+        }
         stepWorkspace.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
@@ -415,14 +425,11 @@ class CAMModel: ObservableObject {
             selectedToolpathID = nil
         }
         // Abandon a generation still running for it
-        generationTokens[id] = nil
-        generatingIDs.remove(id)
+        generationStore.abandonRun(for: id)
 
         toolpaths.removeAll { $0.id == id }
-        // Removing the result also refreshes the canvas overlay (see `generations`)
-        if generations[id] != nil {
-            generations[id] = nil
-        }
+        // Removing the result also refreshes the canvas overlay (see `generationsDidChange`)
+        generationStore.removeResult(for: id)
     }
 
     /// Moves a toolpath to `newIndex` in the list (its index once it has moved). The list
@@ -836,21 +843,8 @@ class CAMModel: ObservableObject {
         }
     }
 
-    /// Whether `toolpath`'s result is on the canvas now: the open toolpath, or every one when none
-    /// is open and `showsAllToolpaths` is on.
-    private func isShownOnCanvas(_ toolpath: ToolpathData) -> Bool {
-        if let selectedToolpathID {
-            return toolpath.id == selectedToolpathID
-        }
-        return showsAllToolpaths
-    }
-
-    /// Runs StratumCAM for the toolpath `id` and stores the outcome (result or
-    /// error) in `generations`, where the toolpath's cell reads it from.
-    ///
-    /// The canvas is read here on the main thread, but the engine run and the
-    /// overlay path building happen in the background; the UI stays responsive
-    /// and the cell shows a spinner until `finishGeneration` applies the result.
+    /// Runs StratumCAM for the toolpath `id`; the outcome lands in `generations`, where the
+    /// toolpath's cell reads it from. The work itself is `ToolpathGenerationStore`'s.
     func generateToolpaths(for id: UUID) {
         guard let index = toolpaths.firstIndex(where: { $0.id == id }), !generatingIDs.contains(id) else {
             return
@@ -864,314 +858,62 @@ class CAMModel: ObservableObject {
         }
         let toolpath = toolpaths[index]
 
-        let requestedAt = PerfLog.now()
-        PerfLog.log("gen", "▶ Generate requested for '\(toolpath.name)' (\(canvasState.objects.count) object(s) on canvas)")
-
         // A rest toolpath is generated from the pocket it is linked to
         let linkedSource = toolpath.operation.restSourceID.flatMap { sourceID in
             toolpaths.first { $0.id == sourceID }
         }
-
-        let job: ToolpathGenerator.Job
-        do {
-            // The stock as the machine holds it in this toolpath's setup
-            let frame = try setupFrame(for: toolpath)
-            job = try ToolpathGenerator.prepare(for: toolpath,
-                                                source: linkedSource,
-                                                canvasState: canvasState,
-                                                frame: frame,
-                                                stepContours: { [workspace = stepWorkspace] in
-
-                let chamferEdge: SC.ChamferEdge? = $0.operation.kind == .chamfer
-                    ? ($0.operation.chamferUsesBottomEdge ? .bottom : .top)
-                    : nil
-
-                return try workspace.contours(for: $0.stepTargets,
-                                              frame: frame,
-                                              chamferEdge: chamferEdge)
-            })
-        } catch {
-            // Bad input (no shapes, invalid depth…): report it right away.
-            PerfLog.log("gen", "prepare failed: \(ToolpathGenerator.message(for: error))")
-            var failed = ToolpathGeneration(source: toolpath, outcome: .failure(error), previewPath: nil)
-            failed.sourceSnapshot = linkedSource
-            generations[id] = failed
-            return
-        }
-        PerfLog.log("gen", "prepare (main thread) took \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
-
-        let token = UUID()
-        generationTokens[id] = token
-        generatingIDs.insert(id)
-        let previewOptions = self.previewOptions
-
-        Task { [weak self] in
-            let computed = await Task.detached(priority: .userInitiated) { () -> ComputedGeneration in
-                do {
-                    let outputs = try ToolpathGenerator.run(job)
-                    let pathStart = PerfLog.now()
-                    // The engine ran in the setup's frame, the canvas draws the part's: map the
-                    // overlays back. The side faces have no top-down view, so no 2D overlay; their cuts
-                    // are shown in 3D through `previewLines`. (The scrub slider, which has no mapping
-                    // yet, is off for turned setups.)
-                    let frame = job.frame
-                    let previewPath = frame.previewInPartFrame(ToolpathPathBuilder.path(for: outputs, options: previewOptions))
-                    let flat = ToolpathPathBuilder.scrubData(for: outputs, options: previewOptions)
-                    let scrub = frame.isIdentity ? flat : nil
-                    let previewLines = flat.flatMap { frame.previewLines($0.points) }
-                    let restPath = frame.previewInPartFrame(ToolpathPathBuilder.restPath(for: outputs.flatMap(\.restCorners)))
-
-                    PerfLog.log("gen", "background work finished; preview path + scrub data took \(PerfLog.fmt(PerfLog.ms(since: pathStart)))")
-
-                    // The same program text the export would write for this toolpath, so the
-                    // time shown here is the one that ends up in the G-code header.
-                    let gcode = SCGCodeEngine().generateGCode(from: outputs, settings: ToolpathGenerator.makeSettings(from: toolpath))
-                    let estimatedSeconds = GCodeTimeEstimator.estimateSeconds(of: gcode)
-
-                    return ComputedGeneration(outcome: .success(outputs),
-                                              previewPath: previewPath,
-                                              scrub: scrub,
-                                              previewLines: previewLines,
-                                              restPath: restPath,
-                                              estimatedSeconds: estimatedSeconds)
-                } catch {
-                    return ComputedGeneration(outcome: .failure(error),
-                                              previewPath: nil,
-                                              scrub: nil,
-                                              previewLines: nil,
-                                              restPath: nil,
-                                              estimatedSeconds: nil)
-                }
-            }.value
-
-            self?.finishGeneration(id: id,
-                                   token: token,
-                                   source: toolpath,
-                                   linkedSource: linkedSource,
-                                   computed: computed,
-                                   requestedAt: requestedAt)
-        }
+        generationStore.generate(toolpath,
+                                 linkedSource: linkedSource,
+                                 frame: { try self.setupFrame(for: toolpath) },
+                                 canvasState: canvasState,
+                                 stepWorkspace: stepWorkspace)
     }
 
-    private func finishGeneration(id: UUID,
-                                  token: UUID,
-                                  source: ToolpathData,
-                                  linkedSource: ToolpathData?,
-                                  computed: ComputedGeneration,
-                                  requestedAt: UInt64) {
-
-        guard generationTokens[id] == token else {
-            PerfLog.log("gen", "result for '\(source.name)' discarded (superseded, or canvas objects changed while it ran) "
-                        + "after \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
-            return
-        }
-        generationTokens[id] = nil
-        generatingIDs.remove(id)
-
-        PerfLog.log("gen", "applying result on main thread — \(PerfLog.fmt(PerfLog.ms(since: requestedAt))) after the click")
-        let applyStart = PerfLog.now()
-        // No preview rebuild needed here: setting `generations` below does it.
-        generations[id] = ToolpathGeneration(source: source,
-                                             outcome: computed.outcome,
-                                             previewPath: computed.previewPath,
-                                             scrub: computed.scrub,
-                                             previewLines: computed.previewLines,
-                                             restPath: computed.restPath,
-                                             estimatedSeconds: computed.estimatedSeconds,
-                                             sourceSnapshot: linkedSource)
-        // The pocket may have been edited while this was running
-        refreshLinkedGenerations()
-        PerfLog.log("gen", "◼ applied in \(PerfLog.fmt(PerfLog.ms(since: applyStart))) (state update + preview overlay); "
-                    + "total click → applied: \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
-    }
-
-    /// Shows the corners of the open pocket on the canvas: only while its result is current and
-    /// the switch is on. Scrubbing doesn't hide them: an open pocket with a current result is
-    /// always being scrubbed.
-    private func updateRestRegions() {
-        guard showsRestAreas,
-              let id = selectedToolpathID,
-              let toolpath = toolpaths.first(where: { $0.id == id }),
-              toolpath.operation.kind == .pocket,
-              !toolpath.operation.isRest,
-              let generation = generations[id],
-              generation.isCurrent(for: toolpath) else {
-
-            canvasState.setRestRegionsPath(nil)
-            return
-        }
-        canvasState.setRestRegionsPath(generation.restPath)
-    }
-
-    /// A rest toolpath's result is outdated once the pocket it is linked to is edited or deleted.
-    /// The pocket's name is ignored: renaming it changes nothing that is cut.
-    private func refreshLinkedGenerations() {
-        for (id, generation) in generations where generation.source.operation.isRest {
-            let current = generation.source.operation.restSourceID.flatMap { sourceID in
-                toolpaths.first { $0.id == sourceID }
-            }
-            let outdated = !Self.sameCut(current, generation.sourceSnapshot)
-            if outdated != generation.isLinkedSourceOutdated {
-                generations[id]?.isLinkedSourceOutdated = outdated
-            }
-        }
-    }
-
-    private static func sameCut(_ a: ToolpathData?, _ b: ToolpathData?) -> Bool {
-        guard var a, var b else {
-            return a == nil && b == nil
-        }
-        a.name = ""
-        b.name = ""
-        return a == b
+    /// Runs when `generations` changed: a result landed, was removed or became outdated.
+    private func generationsDidChange() {
+        revision &+= 1
+        // The preview below depends on whether something is being scrubbed, so sort that out first
+        syncScrub(refreshPreview: false)
+        updateToolpathPreview()
     }
 
     /// Drops every result and abandons runs in flight (their tokens no longer match).
     private func discardGenerations() {
-        if !generations.isEmpty || !generatingIDs.isEmpty {
-            PerfLog.log("gen", "discarding \(generations.count) result(s) and abandoning \(generatingIDs.count) running generation(s) "
-                        + "(an object or the project changed)")
-        }
-        if !generationTokens.isEmpty {
-            generationTokens.removeAll()
-        }
-        if !generatingIDs.isEmpty {
-            generatingIDs.removeAll()
-        }
-        if !generations.isEmpty {
-            generations.removeAll()
-        }
+        generationStore.discardAll()
         scheduleAllToolpathsRefresh()
     }
 
-    /// Redraws the canvas's toolpath overlay: the open toolpath's result and nothing else, or,
-    /// with none open and `showsAllToolpaths` on, every toolpath's. With neither the canvas shows none. Also runs when results are cleared
-    /// (object edited, project cleared), which removes the overlay.
+    /// A rest toolpath's result is outdated once the pocket it is linked to is edited or deleted.
+    private func refreshLinkedGenerations() {
+        generationStore.refreshLinked(toolpaths: toolpaths)
+    }
+
+    /// The snapshot of the state the canvas overlay is built from.
+    private var previewInput: ToolpathPreviewInput {
+        ToolpathPreviewInput(canvasState: canvasState,
+                             toolpaths: toolpaths,
+                             setups: setups,
+                             activeSetupID: activeSetupID,
+                             selectedToolpathID: selectedToolpathID,
+                             showsAllToolpaths: showsAllToolpaths,
+                             showsRestAreas: showsRestAreas,
+                             stock: selectedStockMaterial,
+                             generations: generations)
+    }
+
+    /// Redraws the canvas's toolpath overlay (see `ToolpathPreviewController.updatePreview`).
     private func updateToolpathPreview() {
-        let t0 = PerfLog.now()
-        defer {
-            PerfLog.log("gen", "updateToolpathPreview took \(PerfLog.fmt(PerfLog.ms(since: t0)))")
-        }
-        // While the open toolpath is being scrubbed, the scrubber draws it instead.
-        // Only the active setup's: another setup is cut with the stock turned, so its overlay
-        // would sit on the wrong side of the part (opening a toolpath makes its setup the active one).
-        let paths = canvasState.toolpathScrub != nil ? [] : toolpaths
-            .filter { isShownOnCanvas($0) && isInActiveSetup($0) }
-            .compactMap { generations[$0.id]?.previewPath }
-
-        updateRestRegions()
-        updateFaceToolpaths()
-
-        switch paths.count {
-            case 0:
-                canvasState.setToolpathsPath(nil)
-            case 1:
-                canvasState.setToolpathsPath(paths[0])
-            default:
-                let combined = CGMutablePath()
-                paths.forEach { combined.addPath($0) }
-                canvasState.setToolpathsPath(combined)
-        }
+        preview.updatePreview(previewInput)
     }
 
-    /// Per setup: the combined preview path and 3D lines built from the generations in `key`.
-    /// `updateToolpathPreview` runs after many kinds of edits; without this each run re-flattened
-    /// every result's lines (a multi-MB copy for a big pocket).
-    private var faceGeometryCache: [UUID: (key: [UUID], path: CGPath, lines: [SIMD3<Float>])] = [:]
-
-    /// The shown toolpaths' results for the 3D view (the open toolpath's, or all of them), as one
-    /// group per setup's face, faded when that setup is not the active one. A group carries the
-    /// height of its face's z0 in the part's frame, so the canvas puts it on that face and the
-    /// turn to the active face does the rest.
-    private func updateFaceToolpaths() {
-        guard canvasState.toolpathScrub == nil else {
-            canvasState.setFaceToolpaths([])
-            return
-        }
-        var faces: [D2_CanvasState.FaceToolpaths] = []
-        var seenSetups = Set<UUID>()
-        defer {
-            if faceGeometryCache.count != seenSetups.count {
-                faceGeometryCache = faceGeometryCache.filter { seenSetups.contains($0.key) }
-            }
-        }
-        for setup in setups {
-            let results = toolpaths
-                .filter { isShownOnCanvas($0) && self.setup(for: $0).id == setup.id }
-                .compactMap { generations[$0.id] }
-            let key = results.map(\.id)
-            let cached: (key: [UUID], path: CGPath, lines: [SIMD3<Float>])
-            if let hit = faceGeometryCache[setup.id], hit.key == key {
-                // Same generations as last time: reuse the combined path and the (large) line
-                // array instead of copying hundreds of thousands of points again
-                cached = hit
-            } else {
-                // The front, back, left and right have no 2D path (no top-down view), only 3D lines
-                let paths = results.compactMap(\.previewPath)
-                // The 3D view draws the lines with their Z, so every pass shows at its own depth
-                let lines = results.compactMap(\.previewLines).flatMap { $0 }
-                guard !paths.isEmpty || !lines.isEmpty else {
-                    continue
-                }
-                let combined = CGMutablePath()
-                paths.forEach { combined.addPath($0) }
-                cached = (key: key, path: combined, lines: lines)
-                faceGeometryCache[setup.id] = cached
-            }
-            seenSetups.insert(setup.id)
-            let combined = cached.path
-            let lines = cached.lines
-            let frame = try? SetupFrame.make(setup: setup, stock: selectedStockMaterial)
-            faces.append(.init(setupID: setup.id, face: setup.face, path: combined,
-                               z: CGFloat(frame?.z0InPartFrame ?? 0),
-                               lines: lines, linesKey: results.map(\.id),
-                               opacity: setup.id == activeSetupID ? 1 : CAMSceneModel.Style.inactiveSetupToolpathOpacity))
-        }
-        canvasState.setFaceToolpaths(faces)
+    private func updateRestRegions() {
+        preview.updateRestRegions(previewInput)
     }
 
-    private func isInActiveSetup(_ toolpath: ToolpathData) -> Bool {
-        setups.count < 2 || setup(for: toolpath).id == activeSetupID
-    }
-
-    // MARK: Toolpath scrubbing
-
-    /// The open toolpath's result, if it can be scrubbed: the last Generate worked,
-    /// cut something, and the toolpath still matches it (an outdated result would
-    /// be previewed with settings it no longer has).
-    private var scrubbableGeneration: ToolpathGeneration? {
-        guard let id = selectedToolpathID,
-              let toolpath = toolpaths.first(where: { $0.id == id }),
-              let generation = generations[id],
-              generation.scrub != nil,
-              generation.isCurrent(for: toolpath) else {
-            return nil
-        }
-        return generation
-    }
-
-    /// Keeps the canvas's scrub preview in step with the open toolpath: starts it
-    /// (at the end, i.e. the whole toolpath) when the open toolpath has a scrubbable
-    /// result, replaces it when a new one lands, and ends it when there is none.
-    /// A no-op while nothing changed, so it is cheap to call after any edit.
+    /// Keeps the canvas's scrub preview in step with the open toolpath (see
+    /// `ToolpathPreviewController.syncScrub`). Cheap to call after any edit.
     private func syncScrub(refreshPreview: Bool = true) {
-        let generation = scrubbableGeneration
-        guard generation?.id != scrubbedGenerationID else {
-            return
-        }
-        scrubbedGenerationID = generation?.id
-
-        if let generation, let data = generation.scrub {
-            canvasState.setToolpathScrub(D2_CanvasState.ToolpathScrub(id: generation.id,
-                                                                      data: data,
-                                                                      tool: generation.source.tool,
-                                                                      step: data.stepCount))
-        } else {
-            canvasState.setToolpathScrub(nil)
-        }
-        if refreshPreview {
-            updateToolpathPreview()
-        }
+        preview.syncScrub(previewInput, refreshPreview: refreshPreview)
     }
 
     /// The scrub slider in the toolpath panel moved. Called on every tick of a drag.
@@ -1280,15 +1022,4 @@ class CAMModel: ObservableObject {
     func resetToTrueToLife() {
         canvasState.zoomScale = trueToLifeScale
     }
-}
-
-/// What a background generation hands back to the main actor.
-/// `@unchecked Sendable`: the CGPath is fully built before it crosses over and is never mutated afterwards.
-private struct ComputedGeneration: @unchecked Sendable {
-    let outcome: Result<[SC.OutputToolpath], Error>
-    let previewPath: CGPath?
-    let scrub: ToolpathScrubData?
-    let previewLines: [SIMD3<Float>]?
-    let restPath: CGPath?
-    let estimatedSeconds: Double?
 }
