@@ -121,11 +121,11 @@ extension STEPDisplayGeometry {
     func holeBottoms(of ids: Set<STEP.EdgeID>, hiddenBodies: Set<STEP.BodyID> = []) -> [STEP.EdgeID: STEP.EdgeID] {
         let circles = holeCircles(hiddenBodies: hiddenBodies)
         guard circles.contains(where: { ids.contains($0.id) }) else {
-            return [:] 
+            return [:]
         }
         var groups: [AxisKey: [HoleCircle]] = [:]
         for circle in circles {
-            groups[Self.axisKey(circle), default: []].append(circle) 
+            groups[Self.axisKey(circle), default: []].append(circle)
         }
 
         var result: [STEP.EdgeID: STEP.EdgeID] = [:]
