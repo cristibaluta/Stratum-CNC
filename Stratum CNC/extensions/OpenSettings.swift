@@ -10,14 +10,20 @@
 import SwiftUI
 
 private struct OpenSettingsKey: EnvironmentKey {
-    static var defaultValue: () -> Void { {} }
+    static var defaultValue: () -> Void {
+        {}
+    }
 }
 
 extension EnvironmentValues {
     /// Opens the app's settings. Use as `@Environment(\.stOpenSettings) var openSettings`, then `openSettings()`.
     var stOpenSettings: () -> Void {
-        get { self[OpenSettingsKey.self] }
-        set { self[OpenSettingsKey.self] = newValue }
+        get {
+            self[OpenSettingsKey.self]
+        }
+        set {
+            self[OpenSettingsKey.self] = newValue
+        }
     }
 }
 

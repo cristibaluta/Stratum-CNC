@@ -66,7 +66,13 @@ struct HeightmapGrid {
     /// handful of call sites (tests, previews) that don't care about a real
     /// stock thickness; `init(stock:cellSize:)` below always passes the
     /// material's actual depth.
-    init(originX: Float, originY: Float, width: Float, height: Float, cellSize: Float, topZ: Float, bottomZ: Float? = nil) {
+    init(originX: Float,
+         originY: Float,
+         width: Float,
+         height: Float,
+         cellSize: Float,
+         topZ: Float,
+         bottomZ: Float? = nil) {
         self.originX = originX
         self.originY = originY
         self.cellSize = max(cellSize, 0.01)
@@ -142,7 +148,9 @@ struct HeightmapGrid {
     }
 
     private func index(col: Int, row: Int) -> Int? {
-        guard col >= 0, col < columns, row >= 0, row < rows else { return nil }
+        guard col >= 0, col < columns, row >= 0, row < rows else {
+            return nil
+        }
         return row * columns + col
     }
 
@@ -182,7 +190,9 @@ struct HeightmapGrid {
         // `.arc` flag (see `GCodeParser.appendArc`), not `.cutting`, so both
         // need checking here.
         let cuts = segment.flags & ToolpathFlags.cutting != 0 || segment.flags & ToolpathFlags.arc != 0
-        guard cuts else { return }
+        guard cuts else {
+            return
+        }
 
         // `xyOffset`, applied once here rather than per-cell-sample below:
         // translating the segment's own endpoints before the bbox/loop is
@@ -198,7 +208,9 @@ struct HeightmapGrid {
         let travelLengthSquared = simd_length_squared(travel)
 
         let radius = ToolFootprint.radius(for: tool)
-        guard radius > 0 else { return }
+        guard radius > 0 else {
+            return
+        }
 
         // Bounding box of the swept footprint, clamped to the grid, so only
         // cells that could possibly be under the tool get visited.
@@ -214,13 +226,17 @@ struct HeightmapGrid {
         let lastCol = min(columns - 1, colEnd)
         let firstRow = max(0, rowStart)
         let lastRow = min(rows - 1, rowEnd)
-        guard firstCol <= lastCol, firstRow <= lastRow else { return }
+        guard firstCol <= lastCol, firstRow <= lastRow else {
+            return
+        }
 
         for row in firstRow...lastRow {
             for col in firstCol...lastCol {
                 // Empty cells (outside a round stock, or in a disk's bore)
                 // have nothing to cut.
-                if let mask, !mask[row * columns + col] { continue }
+                if let mask, !mask[row * columns + col] {
+                    continue
+                }
 
                 let cellCenter = center(col: col, row: row)
 
@@ -240,7 +256,9 @@ struct HeightmapGrid {
                 let closestPoint = start2D + travel * t
                 let offset = simd_distance(cellCenter, closestPoint)
 
-                guard offset <= radius else { continue }
+                guard offset <= radius else {
+                    continue
+                }
 
                 let tipZ = segment.start.z + (segment.end.z - segment.start.z) * t
                 guard let surfaceZ = ToolFootprint.surfaceZ(for: tool, tipZ: tipZ, radialOffset: offset) else {
@@ -262,7 +280,10 @@ struct HeightmapGrid {
     /// callable from here (today it's only wired up as far as
     /// `CanvasSceneModel.toolDiameter`/`toolLength`, which assumes a single
     /// active tool, same as this method does).
-    mutating func carve(segments: some Sequence<ToolpathSegment>, tool: ToolGeometry, offsetX: Float = 0, offsetY: Float = 0) {
+    mutating func carve(segments: some Sequence<ToolpathSegment>,
+                        tool: ToolGeometry,
+                        offsetX: Float = 0,
+                        offsetY: Float = 0) {
         for segment in segments {
             carve(segment: segment, tool: tool, offsetX: offsetX, offsetY: offsetY)
         }

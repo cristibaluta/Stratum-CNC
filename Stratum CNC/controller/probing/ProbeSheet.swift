@@ -366,9 +366,15 @@ struct ProbeSheet: View {
 
     /// Why Start is disabled, or nil.
     private var startBlocker: String? {
-        if let first = problems.first { return first }
-        if !allChecked { return "Tick every item first." }
-        if !isDryRun, let blocker = sequencer.startBlocker { return blocker }
+        if let first = problems.first {
+            return first
+        }
+        if !allChecked {
+            return "Tick every item first."
+        }
+        if !isDryRun, let blocker = sequencer.startBlocker {
+            return blocker
+        }
         return nil
     }
 
@@ -392,7 +398,9 @@ struct ProbeSheet: View {
     }
 
     private var isFailed: Bool {
-        if case .failed = sequencer.state { return true }
+        if case .failed = sequencer.state {
+            return true
+        }
         return false
     }
 
@@ -690,7 +698,9 @@ struct ProbeSheet: View {
     }
 
     private var connectionIsBusy: Bool {
-        guard model.connection.isConnected, let status = model.connection.status else { return true }
+        guard model.connection.isConnected, let status = model.connection.status else {
+            return true
+        }
         return !status.state.hasPrefix("Idle")
     }
 }

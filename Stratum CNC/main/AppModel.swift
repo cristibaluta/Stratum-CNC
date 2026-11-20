@@ -30,7 +30,9 @@ class AppModel: ObservableObject {
     /// True while someone is waiting for a tool to be picked. The tools sheet
     /// uses this to decide whether to show its "Pick" button (picker mode)
     /// or to behave as a plain library browser/editor.
-    var isPickingTool: Bool { toolsSheetContinuation != nil }
+    var isPickingTool: Bool {
+        toolsSheetContinuation != nil
+    }
 
     // MARK: - Recent tools
 

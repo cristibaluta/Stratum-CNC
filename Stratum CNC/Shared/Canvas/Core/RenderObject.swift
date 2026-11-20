@@ -216,10 +216,13 @@ extension Array where Element == RenderObject {
 extension RenderObject {
 
     /// Wireframe box, e.g. for previewing stock material.
-    static func stockBox(minX: Float = 0, maxX: Float = 100,
-                          minY: Float = 0, maxY: Float = 50,
-                          topZ: Float = 0, bottomZ: Float = -10,
-                          color: SIMD4<Float> = CanvasPalette.stock) -> RenderObject {
+    static func stockBox(minX: Float = 0,
+                         maxX: Float = 100,
+                         minY: Float = 0,
+                         maxY: Float = 50,
+                         topZ: Float = 0,
+                         bottomZ: Float = -10,
+                         color: SIMD4<Float> = CanvasPalette.stock) -> RenderObject {
 
         let c000 = SIMD3<Float>(minX, minY, bottomZ)
         let c100 = SIMD3<Float>(maxX, minY, bottomZ)
@@ -282,8 +285,10 @@ extension RenderObject {
         }
     }
 
-    private static func stockCylinder(diameter: Float, height: Float,
-                                      segments: Int = 48, strutCount: Int = 4,
+    private static func stockCylinder(diameter: Float,
+                                      height: Float,
+                                      segments: Int = 48,
+                                      strutCount: Int = 4,
                                       color: SIMD4<Float>) -> RenderObject {
 
         let radius = max(0, diameter) / 2
@@ -618,7 +623,10 @@ extension RenderObject {
 
     /// The ruler's line segments (baselines and ticks), shared by the
     /// standalone `ruler` and the anchor that carries it. `length` runs along X, `lengthY` along Y.
-    private static func rulerPoints(z: Float, insideCorner: SIMD2<Float>, length: Float, lengthY: Float? = nil) -> [SIMD3<Float>] {
+    private static func rulerPoints(z: Float,
+                                    insideCorner: SIMD2<Float>,
+                                    length: Float,
+                                    lengthY: Float? = nil) -> [SIMD3<Float>] {
 
         var points: [SIMD3<Float>] = []
         let x0 = insideCorner.x
@@ -640,7 +648,9 @@ extension RenderObject {
                 add(Float(index) * step, (index % 10 == 0 ? 6 : (index % 5 == 0 ? 4 : 2)) * step)
             }
             // The end of the ruler (the stock's edge) gets a long tick when it falls between marks.
-            if Float(count) * step < axisLength - 1e-3 { add(axisLength, 6 * step) }
+            if Float(count) * step < axisLength - 1e-3 {
+                add(axisLength, 6 * step)
+            }
         }
         // X ruler: along y = insideCorner.y, ticks toward -Y.
         ticks(length) { d, tick in

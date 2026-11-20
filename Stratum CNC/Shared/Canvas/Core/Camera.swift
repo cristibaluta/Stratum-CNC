@@ -46,9 +46,13 @@ class Camera {
 
     /// STEP opts in; existing 2D/controller fits keep their historic limits.
     func fit(center: SIMD3<Float>, radius: Float, aspect: Float, padding: Float = 1.3, adaptive: Bool = false) {
-        guard radius.isFinite, radius > 0, aspect.isFinite, aspect > 0 else { return }
+        guard radius.isFinite, radius > 0, aspect.isFinite, aspect > 0 else {
+            return
+        }
         let required = radius * padding / min(aspect, 1) / tan(fov * 0.5)
-        guard required.isFinite else { return }
+        guard required.isFinite else {
+            return
+        }
         if adaptive {
             viewStandoff = max(1000, radius * 2)
             farZ = viewStandoff * 2
@@ -104,9 +108,15 @@ class Camera {
     var distance: Float = 20.0
 
     /// The camera's right / up / back (target → eye) directions in world space.
-    var right: SIMD3<Float> { orientation.act(SIMD3<Float>(1, 0, 0)) }
-    var up: SIMD3<Float> { orientation.act(SIMD3<Float>(0, 1, 0)) }
-    var back: SIMD3<Float> { orientation.act(SIMD3<Float>(0, 0, 1)) }
+    var right: SIMD3<Float> {
+        orientation.act(SIMD3<Float>(1, 0, 0))
+    }
+    var up: SIMD3<Float> {
+        orientation.act(SIMD3<Float>(0, 1, 0))
+    }
+    var back: SIMD3<Float> {
+        orientation.act(SIMD3<Float>(0, 0, 1))
+    }
 
     /// The camera's right/up basis vectors in world space, for the current orientation.
     /// These match the view-space x/y axes computed in `matrix_look_at`.
@@ -364,7 +374,12 @@ class Camera {
         )
     }
 
-    private func matrix_orthographic(left: Float, right: Float, bottom: Float, top: Float, nearZ: Float, farZ: Float) -> matrix_float4x4 {
+    private func matrix_orthographic(left: Float,
+                                     right: Float,
+                                     bottom: Float,
+                                     top: Float,
+                                     nearZ: Float,
+                                     farZ: Float) -> matrix_float4x4 {
         let xScale = 2 / (right - left)
         let yScale = 2 / (top - bottom)
         let zScale = 1 / (farZ - nearZ)

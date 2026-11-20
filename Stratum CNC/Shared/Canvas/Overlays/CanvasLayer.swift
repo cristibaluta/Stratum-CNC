@@ -32,7 +32,9 @@ enum CanvasLayer: String, CaseIterable, Identifiable {
     /// CAM canvas: the generated toolpath previews of every face, the rest areas and the holding tabs
     case toolpaths
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     /// What the controller's canvas lists, in the order it lists them.
     static let controllerLayers: [CanvasLayer] = [

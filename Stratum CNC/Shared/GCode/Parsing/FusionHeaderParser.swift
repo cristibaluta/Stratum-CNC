@@ -44,7 +44,11 @@ struct FusionHeaderParser: GCodeHeaderParser {
             let range = NSRange(line.startIndex..., in: line)
 
             if let (axis, value) = Self.offset(in: line, range: range) {
-                if axis == "X" { offsetX = value } else { offsetY = value }
+                if axis == "X" {
+                    offsetX = value
+                } else {
+                    offsetY = value
+                }
                 continue
             }
 

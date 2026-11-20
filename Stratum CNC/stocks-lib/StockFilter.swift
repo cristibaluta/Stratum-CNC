@@ -74,7 +74,9 @@ struct StockFilter: Equatable {
         for stock in stocks {
             if matches(stock, ignoring: .stock) {
                 result.all += 1
-                if stock.quantity > 0 { result.inStock += 1 }
+                if stock.quantity > 0 {
+                    result.inStock += 1
+                }
             }
             if matches(stock, ignoring: .material) {
                 result.materials[stock.material, default: 0] += 1
@@ -100,7 +102,9 @@ struct StockFilter: Equatable {
     /// Case-insensitive, any order: "alu 100" finds "6061 Aluminum Sheet Plate" (100 × 150 × 3).
     private func matchesQuery(_ stock: StockMaterial) -> Bool {
         let words = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
-        guard !words.isEmpty else { return true }
+        guard !words.isEmpty else {
+            return true
+        }
 
         let haystack = [
             stock.name,

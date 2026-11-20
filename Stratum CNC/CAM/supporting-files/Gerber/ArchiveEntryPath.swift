@@ -7,7 +7,7 @@ enum ArchiveEntryPath {
         let root = directory.standardizedFileURL
         let destination = root.appendingPathComponent(entry).standardizedFileURL
         guard destination.path.hasPrefix(root.path + "/") else {
-            return nil 
+            return nil
         }
         return destination
     }

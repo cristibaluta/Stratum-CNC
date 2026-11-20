@@ -21,8 +21,12 @@ struct ToolsLib_Sheet: View {
     @State private var toolPendingDeletion: Tool?
     /// The filters live in the store, so they are still there when the sheet is reopened.
     private var filter: ToolFilter {
-        get { store.filter }
-        nonmutating set { store.filter = newValue }
+        get {
+            store.filter
+        }
+        nonmutating set {
+            store.filter = newValue
+        }
     }
     @State private var isImporting = false
     @State private var isManagingImports = false

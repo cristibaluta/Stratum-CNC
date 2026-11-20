@@ -48,12 +48,16 @@ enum ResumePreambleBuilder {
         var warnings = state.warnings
 
         let toFile = 1 / state.units.scaleToMillimeters
-        func number(_ millimeters: Double) -> String { format(millimeters * toFile) }
+        func number(_ millimeters: Double) -> String {
+            format(millimeters * toFile)
+        }
 
         // Modal state first, with absolute distances for the approach moves.
         lines.append(state.units == .inches ? "G20" : "G21")
         lines.append("G\(state.plane)")
-        if let workspace = state.workspace { lines.append("G\(workspace)") }
+        if let workspace = state.workspace {
+            lines.append("G\(workspace)")
+        }
         lines.append("G90")
 
         if options.includeToolChange, let tool = options.toolOverride ?? state.tool {
@@ -62,7 +66,9 @@ enum ResumePreambleBuilder {
 
         // Travel height: the program's own clearance, never below where it is now.
         var travelZ = maxZ ?? options.fallbackSafeZ
-        if let z = state.z { travelZ = max(travelZ, z) }
+        if let z = state.z {
+            travelZ = max(travelZ, z)
+        }
         lines.append("G0 Z\(number(travelZ))")
 
         if state.spindle != .off {
@@ -77,7 +83,9 @@ enum ResumePreambleBuilder {
                 lines.append("G4 P\(format(options.spinUpSeconds))")
             }
         }
-        if state.airflow { lines.append("M7") }
+        if state.airflow {
+            lines.append("M7")
+        }
 
         var canResume = true
         if let x = state.x, let y = state.y {
@@ -97,9 +105,15 @@ enum ResumePreambleBuilder {
         }
 
         // Back to what the program expects.
-        if let feed = state.feed { lines.append("F\(format(feed))") }
-        if let motion = state.motion { lines.append("G\(motion)") }
-        if !state.absolute { lines.append("G91") }
+        if let feed = state.feed {
+            lines.append("F\(format(feed))")
+        }
+        if let motion = state.motion {
+            lines.append("G\(motion)")
+        }
+        if !state.absolute {
+            lines.append("G91")
+        }
         lines.append("; --- End of resume preamble ---")
 
         return ResumePreamble(lines: lines, warnings: warnings, canResume: canResume)
@@ -108,8 +122,12 @@ enum ResumePreambleBuilder {
     /// Up to four decimals, no trailing zeros, always a dot.
     static func format(_ value: Double) -> String {
         var text = String(format: "%.4f", locale: Locale(identifier: "en_US_POSIX"), value)
-        while text.contains("."), text.hasSuffix("0") { text.removeLast() }
-        if text.hasSuffix(".") { text.removeLast() }
+        while text.contains("."), text.hasSuffix("0") {
+            text.removeLast()
+        }
+        if text.hasSuffix(".") {
+            text.removeLast()
+        }
         return text == "-0" ? "0" : text
     }
 }
@@ -137,7 +155,9 @@ enum ResumeFileBuilder {
     static func build(lines: [String],
                       resumeLine: Int,
                       options: ResumeOptions = ResumeOptions()) -> ResumeFile? {
-        guard !lines.isEmpty else { return nil }
+        guard !lines.isEmpty else {
+            return nil
+        }
         let line = resumeLine.clampedToLine(in: lines.count)
 
         let (state, maxZ) = GCodeModalState.scan(lines: lines, beforeLine: line)

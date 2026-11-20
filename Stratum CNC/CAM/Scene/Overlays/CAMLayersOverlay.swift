@@ -124,7 +124,9 @@ private struct ProjectionToggle: View {
 
     let scenes: [STEPDocumentScene]
 
-    private var isOn: Bool { scenes.allSatisfy(\.showsProjection) }
+    private var isOn: Bool {
+        scenes.allSatisfy(\.showsProjection)
+    }
 
     var body: some View {
         Button {

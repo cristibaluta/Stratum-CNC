@@ -35,7 +35,9 @@ extension ControllerModel {
     func applyProbedOrigin(_ result: ProbeResult,
                            workCoordinateSystem: Int,
                            previousMachineOrigin: SIMD2<Double>?) -> ProbeAppliedOrigin? {
-        guard let command = result.originCommand(workCoordinateSystem: workCoordinateSystem) else { return nil }
+        guard let command = result.originCommand(workCoordinateSystem: workCoordinateSystem) else {
+            return nil
+        }
 
         let previousOffset = scene.xyOffset
         connection.appendLog("3D probe: \(command)")
@@ -62,7 +64,9 @@ extension ControllerModel {
     /// Moves over the probed origin at the current height. The cycle ends at
     /// its safe height above the stock, so this is only for right after it.
     func moveOverProbedOrigin(_ result: ProbeResult) {
-        guard let x = result.originX, let y = result.originY else { return }
+        guard let x = result.originX, let y = result.originY else {
+            return
+        }
         sendRawCommand("G90")
         sendRawCommand("G53 G0 X\(ProbeCycleBuilder.number(x)) Y\(ProbeCycleBuilder.number(y))")
     }

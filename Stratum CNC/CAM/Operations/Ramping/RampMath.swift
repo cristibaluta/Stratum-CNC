@@ -65,7 +65,9 @@ enum RampMath {
     /// - If `length` falls short, the ramp uses all of it but only reaches a
     ///   partial depth — `reachesStepdown` is false, which callers should
     ///   surface as a warning rather than silently under-cutting.
-    static func linearRampOutcome(angle: Double, length: Double, stepdown: Double) -> (usedLength: Double, depth: Double, reachesStepdown: Bool) {
+    static func linearRampOutcome(angle: Double,
+                                  length: Double,
+                                  stepdown: Double) -> (usedLength: Double, depth: Double, reachesStepdown: Bool) {
         let a = clampedAngle(angle)
         let l = max(length, 0.1)
         let d = max(stepdown, 0.01)

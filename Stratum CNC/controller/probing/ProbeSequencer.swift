@@ -64,22 +64,34 @@ final class ProbeSequencer: ObservableObject {
         self.model = model
     }
 
-    var isRunning: Bool { state == .running }
+    var isRunning: Bool {
+        state == .running
+    }
 
     // MARK: Start / stop
 
     /// Why a run can't start right now, or nil.
     var startBlocker: String? {
         let connection = model.connection
-        guard connection.isConnected else { return "Connect to a machine first." }
-        guard let status = connection.status else { return "Waiting for the machine's status." }
-        guard status.state.hasPrefix("Idle") else { return "The machine is \(status.state.lowercased()), not idle." }
-        if model.jobRunner.isActive { return "Another sequence is running." }
+        guard connection.isConnected else {
+            return "Connect to a machine first."
+        }
+        guard let status = connection.status else {
+            return "Waiting for the machine's status."
+        }
+        guard status.state.hasPrefix("Idle") else {
+            return "The machine is \(status.state.lowercased()), not idle."
+        }
+        if model.jobRunner.isActive {
+            return "Another sequence is running."
+        }
         return nil
     }
 
     func start(plan: [ProbeStepPlan], dryRun: Bool) {
-        guard !isRunning else { return }
+        guard !isRunning else {
+            return
+        }
 
         if !dryRun, let blocker = startBlocker {
             state = .failed(blocker)
@@ -101,7 +113,9 @@ final class ProbeSequencer: ObservableObject {
 
     /// Stops the machine and the sequence. Safe to call at any time.
     func stop() {
-        guard isRunning else { return }
+        guard isRunning else {
+            return
+        }
         task?.cancel()
         model.stopJob()
         resume(false)
@@ -114,11 +128,15 @@ final class ProbeSequencer: ObservableObject {
 
     /// For when the dialog goes away mid-run.
     func stopIfRunning() {
-        if isRunning { stop() }
+        if isRunning {
+            stop()
+        }
     }
 
     func reset() {
-        guard !isRunning else { return }
+        guard !isRunning else {
+            return
+        }
         rows = []
         contacts = ProbeContacts()
         state = .idle
@@ -130,7 +148,9 @@ final class ProbeSequencer: ObservableObject {
         let log = model.connection
 
         for (index, step) in plan.enumerated() {
-            guard !Task.isCancelled, state == .running else { return }
+            guard !Task.isCancelled, state == .running else {
+                return
+            }
             rows[index].status = .running
 
             let lines = step.lines(contacts)
@@ -169,13 +189,17 @@ final class ProbeSequencer: ObservableObject {
             rows[index].status = .done
         }
 
-        guard state == .running else { return }
+        guard state == .running else {
+            return
+        }
         state = .finished
         log.appendLog("3D probe: finished.")
     }
 
     private func fail(_ index: Int, _ step: ProbeStepPlan, _ message: String) async {
-        guard state == .running else { return }
+        guard state == .running else {
+            return
+        }
         rows[index].status = .failed
         state = .failed(message)
         model.connection.appendLog("3D probe: \(message)")
@@ -207,7 +231,9 @@ final class ProbeSequencer: ObservableObject {
     }
 
     private func resume(_ result: Bool) {
-        guard let continuation = pending else { return }
+        guard let continuation = pending else {
+            return
+        }
         pending = nil
         continuation.resume(returning: result)
     }
@@ -218,13 +244,19 @@ final class ProbeSequencer: ObservableObject {
     private func readPosition() async -> SIMD3<Double>? {
         let connection = model.connection
         for _ in 0..<8 {
-            guard connection.isConnected, !Task.isCancelled else { return nil }
+            guard connection.isConnected, !Task.isCancelled else {
+                return nil
+            }
 
             connection.requestStatus()
             try? await Task.sleep(nanoseconds: 600_000_000)
 
-            guard let status = connection.status else { continue }
-            if status.state.hasPrefix("Alarm") { return nil }
+            guard let status = connection.status else {
+                continue
+            }
+            if status.state.hasPrefix("Alarm") {
+                return nil
+            }
             if status.state.hasPrefix("Idle") {
                 return SIMD3(Double(status.machinePosition.x),
                             Double(status.machinePosition.y),

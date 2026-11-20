@@ -27,7 +27,9 @@ struct ProgramAnalysis: Sendable {
         var seen = Set<Int>()
         var tools: [Int] = []
         for toolpath in toolpaths {
-            guard let tool = toolpath.toolNumber, seen.insert(tool).inserted else { continue }
+            guard let tool = toolpath.toolNumber, seen.insert(tool).inserted else {
+                continue
+            }
             tools.append(tool)
         }
         return ProgramAnalysis(toolpaths: toolpaths,
@@ -221,7 +223,9 @@ final class NCFileDocument: ObservableObject {
     /// to touch every `@Published` property directly; called with `await`
     /// from the background `Task.detached` in `load(from:)`.
     private func finishLoad(parsed: ParsedGCode, analysis: ProgramAnalysis, url: URL, fileName: String) {
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else {
+            return
+        }
         self.lines = parsed.lines
         self.toolpathSegments = parsed.toolpathSegments
         self.rebuildVertexPrefixSums()
@@ -233,7 +237,9 @@ final class NCFileDocument: ObservableObject {
     }
 
     private func failLoad(_ error: Error) {
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else {
+            return
+        }
         self.isLoading = false
         self.lastError = "Couldn't read file: \(error.localizedDescription)"
     }

@@ -45,8 +45,12 @@ struct STEPEdgeTarget: Codable, Hashable, Sendable {
     }
 
     // Identity is the ids only: a fingerprint being added or refreshed doesn't make it another edge.
-    static func == (a: STEPEdgeTarget, b: STEPEdgeTarget) -> Bool { a.edgeID == b.edgeID }
-    func hash(into hasher: inout Hasher) { hasher.combine(edgeID) }
+    static func == (a: STEPEdgeTarget, b: STEPEdgeTarget) -> Bool {
+        a.edgeID == b.edgeID
+    }
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(edgeID)
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -76,7 +80,9 @@ extension STEPDocumentScene {
             let offset = position(of: body.id)
             for edge in body.edges where ids.contains(edge.id) {
                 let raw = body.points[edge.vertices]
-                guard let first = raw.first else { continue }
+                guard let first = raw.first else {
+                    continue
+                }
                 // Consecutive line segments: the start, then the end of every segment.
                 var points = [first + offset]
                 var index = raw.startIndex
@@ -169,7 +175,8 @@ extension STEPWorkspace {
     /// For a chamfer's two rails `upper` and `lower` are the heights of the two rails, so the
     /// bevel can be cut from either; for edges at one height (a single edge) they are the same.
     /// `nil` when there are no edges.
-    func chamferEdgeHeights(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity) -> (upper: Double, lower: Double)? {
+    func chamferEdgeHeights(for targets: [STEPEdgeTarget],
+                            frame: SetupFrame = .identity) -> (upper: Double, lower: Double)? {
         guard let all = try? polylines(for: targets, frame: frame), !all.isEmpty else {
             return nil
         }
@@ -189,7 +196,8 @@ extension STEPWorkspace {
     /// and, when the sharp edge is a closed outline, which side of it the chamfer is on:
     /// `.inside` when the upper rail is inside the lower one (the edge of a part or a boss),
     /// `.outside` when it is outside (the rim of a hole). `nil` when the edges are not two rails.
-    func chamferSuggestion(for targets: [STEPEdgeTarget], frame: SetupFrame = .identity) -> (width: Double, depth: Double, side: SC.CutSide?)? {
+    func chamferSuggestion(for targets: [STEPEdgeTarget],
+                           frame: SetupFrame = .identity) -> (width: Double, depth: Double, side: SC.CutSide?)? {
         guard let all = try? polylines(for: targets, frame: frame),
               let rails = Self.chamferRails(of: all), !rails.upper.isEmpty, !rails.lower.isEmpty else {
             return nil
@@ -224,7 +232,7 @@ extension STEPWorkspace {
         // The upper rail's starting points, each against the lower rail.
         let samples = rails.upper.compactMap { $0.first }.map(flat)
         let widths = samples.map { p in segments.map { distance(p, $0.0, $0.1) }.min() ?? 0 }.sorted()
-        
+
         guard let width = widths.isEmpty ? nil : widths[widths.count / 2], width > 0.001 else {
             return nil
         }

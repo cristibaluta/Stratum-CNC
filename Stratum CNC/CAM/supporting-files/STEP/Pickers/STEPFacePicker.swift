@@ -30,7 +30,9 @@ enum STEPFacePicker {
                 : (l.y != r.y ? l.y < r.y : l.z < r.z)
         }
     }
-    private struct EdgeKey: Hashable { let a: Key, b: Key }
+    private struct EdgeKey: Hashable {
+        let a: Key, b: Key
+    }
 
     /// Vertices closer than this are the same vertex (mm).
     private static let quantum: Float = 0.01
@@ -212,8 +214,10 @@ enum STEPFacePicker {
     /// always kept. Any other loop is a hole when the mesh beside it, outside the face, lies on
     /// the inward side of `plane`, and a boss when it lies on the outward side. Only loops
     /// confirmed as holes are dropped; when that can't be told the loop is kept.
-    private static func withoutHoles(_ outline: [OutlineSegment], plane: STEPDisplayGeometry.Plane,
-                                     region: Set<Int>, positions: [SIMD3<Float>],
+    private static func withoutHoles(_ outline: [OutlineSegment],
+                                     plane: STEPDisplayGeometry.Plane,
+                                     region: Set<Int>,
+                                     positions: [SIMD3<Float>],
                                      indices: [Int]) -> [OutlineSegment] {
         // Loops: union-find over the segments' vertices.
         var parent: [Key: Key] = [:]
@@ -251,7 +255,9 @@ enum STEPFacePicker {
         }
         guard extent.count > 1,
               let outer = extent.max(by: { simd_length($0.value.high - $0.value.low) < simd_length($1.value.high - $1.value.low) })?.key
-        else { return outline }
+        else {
+            return outline
+        }
 
         // Which side of the face does the mesh beside each loop go to?
         var votes: [Key: (up: Int, down: Int)] = [:]
@@ -259,7 +265,9 @@ enum STEPFacePicker {
             let corner = [positions[indices[3 * t]], positions[indices[3 * t + 1]], positions[indices[3 * t + 2]]]
             for i in 0..<3 {
                 let ku = key(corner[i]), kv = key(corner[(i + 1) % 3])
-                guard ku != kv else { continue }
+                guard ku != kv else {
+                    continue
+                }
                 guard let loop = loopOf[EdgeKey(a: min(ku, kv), b: max(ku, kv))], loop != outer else {
                     continue
                 }

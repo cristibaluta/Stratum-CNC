@@ -113,7 +113,9 @@ final class CopperGerberParser {
 
     private func parseCommand(_ command: String) {
         let command = command.trimmed
-        guard !command.isEmpty else { return }
+        guard !command.isEmpty else {
+            return
+        }
 
         if command.contains("MOMM") {
             unitScale = 1.0
@@ -189,7 +191,9 @@ final class CopperGerberParser {
         }
         let suffix = command[range.upperBound...]
         let digits = suffix.filter(\.isNumber)
-        guard digits.count >= 4 else { return }
+        guard digits.count >= 4 else {
+            return
+        }
 
         let values = Array(digits)
         formatDecimalDigits = Int(String(values[1])) ?? 6
@@ -276,7 +280,9 @@ final class CopperGerberParser {
         switch dCode {
         case 1:
             if inRegion {
-                if regionPoints.isEmpty { regionPoints.append(oldPoint) }
+                if regionPoints.isEmpty {
+                    regionPoints.append(oldPoint)
+                }
                 regionPoints.append(newPoint)
             } else {
                 stroke(from: oldPoint, to: newPoint)
@@ -351,7 +357,9 @@ final class CopperGerberParser {
     private func stroke(from a: CGPoint, to b: CGPoint) {
         guard let apertureNumber = currentAperture,
               let aperture = apertures[apertureNumber],
-              a != b else { return }
+              a != b else {
+            return
+        }
 
         let scale = unitScale
 
@@ -617,7 +625,9 @@ final class CopperGerberParser {
     private static let overlayPrecisionScale: Double = 1000.0
 
     private func mergedEntities() -> [DXF.Entity] {
-        guard !positivePaths.isEmpty else { return [] }
+        guard !positivePaths.isEmpty else {
+            return []
+        }
 
         let scale = Self.overlayPrecisionScale
         func scaledUp(_ path: [CGPoint]) -> [CGPoint] {

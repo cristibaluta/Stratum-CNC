@@ -28,9 +28,9 @@ extension SC {
     }
 
     static func cutSideChoice(id: String,
-                               label: String = "Side",
-                               current: CutSide,
-                               onChange: @escaping (CutSide) -> Void) -> ParameterField.ChoiceField {
+                              label: String = "Side",
+                              current: CutSide,
+                              onChange: @escaping (CutSide) -> Void) -> ParameterField.ChoiceField {
         .init(id: id,
               label: label,
               options: [.init(id: CutSide.inside.rawValue, label: "Inside"),
@@ -41,9 +41,9 @@ extension SC {
     }
 
     static func threadDirectionChoice(id: String,
-                                       label: String = "Handedness",
-                                       current: ThreadDirection,
-                                       onChange: @escaping (ThreadDirection) -> Void) -> ParameterField.ChoiceField {
+                                      label: String = "Handedness",
+                                      current: ThreadDirection,
+                                      onChange: @escaping (ThreadDirection) -> Void) -> ParameterField.ChoiceField {
         .init(id: id,
               label: label,
               options: [.init(id: ThreadDirection.rightHand.rawValue, label: "Right-Hand"),
@@ -53,9 +53,9 @@ extension SC {
     }
 
     static func spiralDirectionChoice(id: String,
-                                       label: String = "Spiral Direction",
-                                       current: SpiralDirection,
-                                       onChange: @escaping (SpiralDirection) -> Void) -> ParameterField.ChoiceField {
+                                      label: String = "Spiral Direction",
+                                      current: SpiralDirection,
+                                      onChange: @escaping (SpiralDirection) -> Void) -> ParameterField.ChoiceField {
         .init(id: id,
               label: label,
               options: [.init(id: SpiralDirection.insideOut.rawValue, label: "Inside → Out"),

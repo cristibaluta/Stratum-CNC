@@ -86,7 +86,8 @@ struct STEPEdgeFingerprint: Codable, Hashable, Sendable {
 
     /// How far this edge (moved by `shift`) is from `other`, mm; `nil` when they are not the same
     /// edge. Open edges match in either direction.
-    func deviation(to other: STEPEdgeFingerprint, shift: SIMD3<Double> = .zero,
+    func deviation(to other: STEPEdgeFingerprint,
+                   shift: SIMD3<Double> = .zero,
                    tolerance tol: Double = defaultTolerance) -> Double? {
 
         guard isClosed == other.isClosed,
@@ -136,7 +137,8 @@ enum STEPEdgeRelinker {
     /// Old edge id → new edge id, for every wanted edge that has a geometric home.
     /// `wanted` must not repeat an id. Each candidate is given to at most one wanted edge,
     /// best match first, so edges that did not change can't be stolen by look-alikes.
-    static func relink(_ wanted: [Entry], among candidates: [Entry],
+    static func relink(_ wanted: [Entry],
+                       among candidates: [Entry],
                        tolerance tol: Double = STEPEdgeFingerprint.defaultTolerance) -> [STEP.EdgeID: STEP.EdgeID] {
 
         guard !wanted.isEmpty, !candidates.isEmpty else {

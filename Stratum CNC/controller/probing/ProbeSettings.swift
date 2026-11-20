@@ -17,7 +17,9 @@ enum ProbeHardware: String, CaseIterable, Identifiable, Codable {
     /// A ruby ball: works on any stock.
     case ruby
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var title: String {
         switch self {
@@ -95,13 +97,19 @@ struct ProbeSettings: Codable, Equatable {
 
     // MARK: Derived
 
-    var ballRadius: Double { ballDiameter / 2 }
+    var ballRadius: Double {
+        ballDiameter / 2
+    }
 
     /// The probe in use.
-    var probe: ProbeHardware { hardware ?? .ruby }
+    var probe: ProbeHardware {
+        hardware ?? .ruby
+    }
 
     /// "G54" … "G59".
-    var workCoordinateSystemName: String { "G\(53 + workCoordinateSystem)" }
+    var workCoordinateSystemName: String {
+        "G\(53 + workCoordinateSystem)"
+    }
 
     /// The depth a side touch actually uses: the setting, but always leaving
     /// at least 1 mm of the stock above the ball's lowest point so it never
@@ -113,12 +121,24 @@ struct ProbeSettings: Codable, Equatable {
     /// Reasons the settings can't be used for a run. Empty when fine.
     var problems: [String] {
         var result: [String] = []
-        if ballDiameter <= 0 { result.append("The probe ball diameter must be above 0.") }
-        if safeZ <= 0 { result.append("The safe Z must be above 0.") }
-        if searchFeed <= 0 || measureFeed <= 0 { result.append("The feeds must be above 0.") }
-        if measureFeed > searchFeed { result.append("The measure feed should not be faster than the search feed.") }
-        if searchDistance <= retractDistance { result.append("The search distance must be longer than the retract distance.") }
-        if !(1...6).contains(workCoordinateSystem) { result.append("The work coordinate system must be G54 to G59.") }
+        if ballDiameter <= 0 {
+            result.append("The probe ball diameter must be above 0.")
+        }
+        if safeZ <= 0 {
+            result.append("The safe Z must be above 0.")
+        }
+        if searchFeed <= 0 || measureFeed <= 0 {
+            result.append("The feeds must be above 0.")
+        }
+        if measureFeed > searchFeed {
+            result.append("The measure feed should not be faster than the search feed.")
+        }
+        if searchDistance <= retractDistance {
+            result.append("The search distance must be longer than the retract distance.")
+        }
+        if !(1...6).contains(workCoordinateSystem) {
+            result.append("The work coordinate system must be G54 to G59.")
+        }
         return result
     }
 
@@ -129,12 +149,16 @@ struct ProbeSettings: Codable, Equatable {
     static func load(from defaults: UserDefaults = .standard) -> ProbeSettings {
         guard let data = defaults.data(forKey: defaultsKey),
               let settings = try? JSONDecoder().decode(ProbeSettings.self, from: data)
-        else { return ProbeSettings() }
+        else {
+            return ProbeSettings()
+        }
         return settings
     }
 
     func save(to defaults: UserDefaults = .standard) {
-        guard let data = try? JSONEncoder().encode(self) else { return }
+        guard let data = try? JSONEncoder().encode(self) else {
+            return
+        }
         defaults.set(data, forKey: Self.defaultsKey)
     }
 }

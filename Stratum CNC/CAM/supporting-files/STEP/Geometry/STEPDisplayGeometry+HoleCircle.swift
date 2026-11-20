@@ -66,7 +66,8 @@ extension STEPDisplayGeometry {
 
     /// For a circle: the other circle of its hole (same centre and diameter, nearest in height),
     /// and which end this one is.
-    private func partner(of circle: HoleCircle, in groups: [AxisKey: [HoleCircle]]) -> (end: HoleEnd, other: HoleCircle?, depth: Float?) {
+    private func partner(of circle: HoleCircle,
+                         in groups: [AxisKey: [HoleCircle]]) -> (end: HoleEnd, other: HoleCircle?, depth: Float?) {
 
         let others = (groups[Self.axisKey(circle)] ?? []).filter {
             $0.id != circle.id && abs($0.center.z - circle.center.z) > Self.holeTolerance
@@ -131,7 +132,9 @@ extension STEPDisplayGeometry {
         var result: [STEP.EdgeID: STEP.EdgeID] = [:]
         for circle in circles where ids.contains(circle.id) {
             let info = partner(of: circle, in: groups)
-            if info.end == .top, let bottom = info.other { result[circle.id] = bottom.id }
+            if info.end == .top, let bottom = info.other {
+                result[circle.id] = bottom.id
+            }
         }
         return result
     }

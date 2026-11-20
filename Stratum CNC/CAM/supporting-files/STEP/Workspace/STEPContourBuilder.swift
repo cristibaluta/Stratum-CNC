@@ -34,7 +34,7 @@ enum STEPContourBuilder {
         }
 
         var chains: [[SIMD2<Double>]] = []
-        
+
         while !remaining.isEmpty {
             var chain = remaining.removeFirst()
             var extended = true

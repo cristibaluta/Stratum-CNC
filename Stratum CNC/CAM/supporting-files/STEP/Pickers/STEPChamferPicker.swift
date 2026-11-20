@@ -28,7 +28,9 @@ enum STEPChamferPicker {
             l.x != r.x ? l.x < r.x : (l.y != r.y ? l.y < r.y : l.z < r.z)
         }
     }
-    private struct EdgeKey: Hashable { let a: Key, b: Key }
+    private struct EdgeKey: Hashable {
+        let a: Key, b: Key
+    }
 
     /// Vertices closer than this are the same vertex (mm).
     private static let quantum: Float = 0.01
@@ -72,7 +74,9 @@ enum STEPChamferPicker {
     /// bounded by horizontal edges at two heights, or one that fills a corner (a concave edge,
     /// where the face meets a floor instead of a wall) which a V-bit cannot cut from above.
     /// - Parameter normals: the shading normal of each vertex, in the same space as `positions`.
-    static func rails(positions: [SIMD3<Float>], indices: [Int], normals: [SIMD3<Float>],
+    static func rails(positions: [SIMD3<Float>],
+                      indices: [Int],
+                      normals: [SIMD3<Float>],
                       triangle: Int) -> [STEPFacePicker.Region]? {
         let count = indices.count / 3
         guard triangle >= 0, triangle < count, normals.count == positions.count else {
@@ -80,7 +84,9 @@ enum STEPChamferPicker {
             return nil
         }
 
-        func corner(_ t: Int, _ i: Int) -> SIMD3<Float> { positions[indices[3 * t + i]] }
+        func corner(_ t: Int, _ i: Int) -> SIMD3<Float> {
+            positions[indices[3 * t + i]]
+        }
         func faceNormal(_ t: Int) -> SIMD3<Float> {
             let sum = (0..<3).reduce(SIMD3<Float>.zero) { $0 + normals[indices[3 * t + $1]] }
             return simd_length(sum) > 1e-6 ? simd_normalize(sum) : .zero
@@ -102,7 +108,9 @@ enum STEPChamferPicker {
             keys.append(k)
             for i in 0..<3 {
                 let (ku, kv) = (k[i], k[(i + 1) % 3])
-                guard ku != kv else { continue }
+                guard ku != kv else {
+                    continue
+                }
                 neighbors[EdgeKey(a: min(ku, kv), b: max(ku, kv)), default: []].append(t)
             }
         }
@@ -122,7 +130,9 @@ enum STEPChamferPicker {
         }
         func isFlatShaded(_ t: Int) -> Bool {
             let n = (0..<3).map { normals[indices[3 * t + $0]] }
-            guard n.allSatisfy({ simd_length($0) > 1e-6 }) else { return false }
+            guard n.allSatisfy({ simd_length($0) > 1e-6 }) else {
+                return false
+            }
             let first = simd_normalize(n[0])
             return simd_dot(first, simd_normalize(n[1])) > flatShading && simd_dot(first, simd_normalize(n[2])) > flatShading
         }
@@ -146,10 +156,14 @@ enum STEPChamferPicker {
         while let t = queue.popLast() {
             for i in 0..<3 {
                 let (ku, kv) = (keys[t][i], keys[t][(i + 1) % 3])
-                guard ku != kv else { continue }
+                guard ku != kv else {
+                    continue
+                }
                 for next in neighbors[EdgeKey(a: min(ku, kv), b: max(ku, kv))] ?? []
                 where next != t && !face.contains(next) {
-                    guard continues(t, into: next, ku, kv) else { continue }
+                    guard continues(t, into: next, ku, kv) else {
+                        continue
+                    }
                     face.insert(next)
                     queue.append(next)
                 }
@@ -166,16 +180,22 @@ enum STEPChamferPicker {
             let a: SIMD3<Float>, b: SIMD3<Float>
             let edge: EdgeKey
             let triangle: Int
-            var level: Float { (a.z + b.z) / 2 }
+            var level: Float {
+                (a.z + b.z) / 2
+            }
         }
         var rails: [Segment] = []
         var sloped = 0
         for t in face {
             for i in 0..<3 {
                 let (ku, kv) = (keys[t][i], keys[t][(i + 1) % 3])
-                guard ku != kv else { continue }
+                guard ku != kv else {
+                    continue
+                }
                 let edge = EdgeKey(a: min(ku, kv), b: max(ku, kv))
-                guard (neighbors[edge] ?? []).filter({ face.contains($0) }).count == 1 else { continue }
+                guard (neighbors[edge] ?? []).filter({ face.contains($0) }).count == 1 else {
+                    continue
+                }
                 let (p, q) = (corner(t, i), corner(t, (i + 1) % 3))
                 if abs(p.z - q.z) <= levelTolerance {
                     rails.append(Segment(a: p, b: q, edge: edge, triangle: t))
@@ -221,7 +241,9 @@ enum STEPChamferPicker {
                     let k = key(p)
                     return k != segment.edge.a && k != segment.edge.b
                 }
-                guard let third else { continue }
+                guard let third else {
+                    continue
+                }
                 if third.z < segment.level - levelTolerance {
                     down += 1
                 } else if abs(third.z - segment.level) <= levelTolerance {
@@ -246,9 +268,13 @@ enum STEPChamferPicker {
         // One region per height: each is matched in its own plane (a lower rail with a step is
         // two or more STEP edges at different heights)
         return groups.compactMap { group -> STEPFacePicker.Region? in
-            guard let first = group.first, let last = group.last else { return nil }
+            guard let first = group.first, let last = group.last else {
+                return nil
+            }
             let segments = rails.filter { $0.level >= first - levelTolerance && $0.level <= last + levelTolerance }
-            guard !segments.isEmpty else { return nil }
+            guard !segments.isEmpty else {
+                return nil
+            }
             return region(segments, at: segments.reduce(0) { $0 + $1.level } / Float(segments.count))
         }
     }

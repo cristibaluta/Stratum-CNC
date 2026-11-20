@@ -16,7 +16,7 @@ struct HelixTopView: View {
         GeometryReader { geo in
             let size = geo.size
             let points = spiralPoints(in: size)
-            
+
             TimelineView(.animation) { timeline in
                 let currentPhase = phase(for: timeline.date, cycleDuration: cycleDuration)
                 Canvas { context, _ in

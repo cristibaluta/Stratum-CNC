@@ -244,8 +244,10 @@ enum D2_RenderObjectBuilder {
         return RenderObject(points: points, color: color, primitive: .lineList)
     }
 
-    private static func makeRenderPath(objectID: UUID, pathIndex: Int,
-                                       worldSubpaths: [[CGPoint]], color: SIMD4<Float>) -> D2_RenderPath {
+    private static func makeRenderPath(objectID: UUID,
+                                       pathIndex: Int,
+                                       worldSubpaths: [[CGPoint]],
+                                       color: SIMD4<Float>) -> D2_RenderPath {
 
         let simdSubpaths = worldSubpaths.map { subpath in
             subpath.map { SIMD3<Float>(Float($0.x), Float($0.y), 0) }

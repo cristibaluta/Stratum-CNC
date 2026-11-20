@@ -31,14 +31,20 @@ class ControllerModel: ObservableObject {
     /// properties below.
     let session: SL.Session
 
-    var connection: SL.Connection { session.connection }
+    var connection: SL.Connection {
+        session.connection
+    }
 
     /// Owns streaming individual lines to the machine (MDI, jogging, small
     /// macros) — see its doc comment for why this isn't used for whole jobs.
-    var jobRunner: SL.JobRunner { session.jobRunner }
+    var jobRunner: SL.JobRunner {
+        session.jobRunner
+    }
 
     /// Owns uploading a whole loaded G-code program to the machine's SD card.
-    var uploader: SL.Uploader { session.uploader }
+    var uploader: SL.Uploader {
+        session.uploader
+    }
 
     @Published var mdiInput = ""
     @Published var commandHistory: [String] = []
@@ -62,7 +68,9 @@ class ControllerModel: ObservableObject {
     /// SD-card path of the most recently completed upload (persisted by
     /// `JobCoordinator`), so "Resume from Line" still works after the app was
     /// closed while a job sat suspended on the machine.
-    var lastUploadedRemotePath: String? { job.lastUploadedRemotePath }
+    var lastUploadedRemotePath: String? {
+        job.lastUploadedRemotePath
+    }
 
     // MARK: Alerts
 
@@ -75,21 +83,29 @@ class ControllerModel: ObservableObject {
     /// When on, "Send to Machine" probes a `G32` grid over the program's
     /// cutting area before `play`. Persisted: a workflow choice.
     @Published var levelBeforeRun: Bool = UserDefaults.standard.bool(forKey: "levelBeforeRun") {
-        didSet { UserDefaults.standard.set(levelBeforeRun, forKey: "levelBeforeRun") }
+        didSet {
+            UserDefaults.standard.set(levelBeforeRun, forKey: "levelBeforeRun")
+        }
     }
     /// Probe points per axis (`G32` I and J).
     @Published var levelGridPoints: Int = UserDefaults.standard.object(forKey: "levelGridPoints") as? Int ?? 5 {
-        didSet { UserDefaults.standard.set(levelGridPoints, forKey: "levelGridPoints") }
+        didSet {
+            UserDefaults.standard.set(levelGridPoints, forKey: "levelGridPoints")
+        }
     }
     /// Extra area probed around the program's cutting bounds, in mm.
     @Published var levelMargin: Double = UserDefaults.standard.object(forKey: "levelMargin") as? Double ?? 3 {
-        didSet { UserDefaults.standard.set(levelMargin, forKey: "levelMargin") }
+        didSet {
+            UserDefaults.standard.set(levelMargin, forKey: "levelMargin")
+        }
     }
 
     /// When on, the pre-run macro also probes Z and zeroes the work Z
     /// coordinate before `play`. Persisted like `levelBeforeRun`.
     @Published var autoZBeforeRun: Bool = UserDefaults.standard.bool(forKey: "autoZBeforeRun") {
-        didSet { UserDefaults.standard.set(autoZBeforeRun, forKey: "autoZBeforeRun") }
+        didSet {
+            UserDefaults.standard.set(autoZBeforeRun, forKey: "autoZBeforeRun")
+        }
     }
 
     /// Mirrors the M331/M332 "tie vacuum to spindle" mode. Only ever what the
@@ -111,7 +127,9 @@ class ControllerModel: ObservableObject {
 
     /// Heights, feeds and the probe's ball for 3D probing. Persisted.
     @Published var probeSettings = ProbeSettings.load() {
-        didSet { probeSettings.save() }
+        didSet {
+            probeSettings.save()
+        }
     }
 
     @Published var isGCodeImporterPresented = false
@@ -203,7 +221,9 @@ class ControllerModel: ObservableObject {
     private func autoSelectRealMachine(in machines: [SL.MakeraMachine]) {
         guard selectedMachine == nil || selectedMachine?.isMock == true,
               let real = machines.first(where: { !$0.isMock && !autoSelectedMachineIDs.contains($0.id) })
-        else { return }
+        else {
+            return
+        }
         autoSelectedMachineIDs.insert(real.id)
         selectedMachine = real
     }
@@ -318,7 +338,9 @@ class ControllerModel: ObservableObject {
                                     resumeOptions: ResumeOptions,
                                     reprobeZ: Bool) -> ResumeFile? {
         var options = currentRunOptions
-        if reprobeZ { options.autoZBeforeRun = true }
+        if reprobeZ {
+            options.autoZBeforeRun = true
+        }
         return job.resumeWithGeneratedFile(programLines: programLines,
                                            fileName: fileName,
                                            fromLine: line,
@@ -360,12 +382,16 @@ class ControllerModel: ObservableObject {
     /// Promotes the pending fingerprint to "sent" only once the uploader
     /// itself reports completion (never on the request being made).
     private func syncSentState() {
-        guard pendingSentFingerprint != nil else { return }
+        guard pendingSentFingerprint != nil else {
+            return
+        }
         if uploader.isActive {
             pendingSawActiveUpload = true
             return
         }
-        guard pendingSawActiveUpload else { return }
+        guard pendingSawActiveUpload else {
+            return
+        }
         switch uploader.state {
             case .completed:
                 sentJobFingerprint = pendingSentFingerprint

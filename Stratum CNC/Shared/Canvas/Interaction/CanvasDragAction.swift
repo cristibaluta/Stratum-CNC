@@ -26,7 +26,9 @@ enum CanvasControlAction: String, CaseIterable, Identifiable {
     case snapToFace
     case none
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     /// Snapping to a face needs a discrete swipe, which a drag or a mouse
     /// button doesn't provide, so it's only offered for the scroll triggers.
@@ -64,7 +66,9 @@ enum CanvasInputTrigger: String, CaseIterable, Identifiable {
     case modifiedScroll // Shift + scroll wheel / two-finger trackpad swipe
     case optionScroll   // Option + scroll wheel / two-finger trackpad swipe
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var isScroll: Bool {
         switch self {
@@ -102,24 +106,36 @@ final class CanvasInputSettings: ObservableObject {
     static let defaultOptionScroll: CanvasControlAction = .snapToFace
 
     @Published var primaryAction: CanvasControlAction {
-        didSet { defaults.set(primaryAction.rawValue, forKey: Keys.primary) }
+        didSet {
+            defaults.set(primaryAction.rawValue, forKey: Keys.primary)
+        }
     }
     @Published var modifiedAction: CanvasControlAction {
-        didSet { defaults.set(modifiedAction.rawValue, forKey: Keys.modified) }
+        didSet {
+            defaults.set(modifiedAction.rawValue, forKey: Keys.modified)
+        }
     }
     @Published var middleButtonAction: CanvasControlAction {
-        didSet { defaults.set(middleButtonAction.rawValue, forKey: Keys.middleButton) }
+        didSet {
+            defaults.set(middleButtonAction.rawValue, forKey: Keys.middleButton)
+        }
     }
     @Published var scrollAction: CanvasControlAction {
-        didSet { defaults.set(scrollAction.rawValue, forKey: Keys.scroll) }
+        didSet {
+            defaults.set(scrollAction.rawValue, forKey: Keys.scroll)
+        }
     }
 
     @Published var modifiedScrollAction: CanvasControlAction {
-        didSet { defaults.set(modifiedScrollAction.rawValue, forKey: Keys.modifiedScroll) }
+        didSet {
+            defaults.set(modifiedScrollAction.rawValue, forKey: Keys.modifiedScroll)
+        }
     }
 
     @Published var optionScrollAction: CanvasControlAction {
-        didSet { defaults.set(optionScrollAction.rawValue, forKey: Keys.optionScroll) }
+        didSet {
+            defaults.set(optionScrollAction.rawValue, forKey: Keys.optionScroll)
+        }
     }
 
     private let defaults: UserDefaults

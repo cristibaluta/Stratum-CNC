@@ -14,7 +14,7 @@ extension SC.LeadInOut {
     /// own feed rate. Wrapped in an `.optionalGroup` by the caller (`.contour`)
     /// since `leadIn`/`leadOut` can be entirely `nil`.
     public func formFields(idPrefix: String,
-                            onChange: @escaping (SC.LeadInOut) -> Void) -> [SC.ParameterField] {
+                           onChange: @escaping (SC.LeadInOut) -> Void) -> [SC.ParameterField] {
 
         let currentLength: Double = { if case .linear(let l) = style { return l } else { return 3.0 } }()
         let currentArcRadius: Double = { if case .arc(let r, _) = style { return r } else { return 3.0 } }()
@@ -76,9 +76,9 @@ extension SC.LeadInOut {
     /// `leadIn` and `leadOut` on `.contour`. When absent, toggling it on seeds
     /// a default linear 3mm lead at 300mm/min.
     static func optionalFormField(idPrefix: String,
-                                   label: String,
-                                   current: SC.LeadInOut?,
-                                   onChange: @escaping (SC.LeadInOut?) -> Void) -> SC.ParameterField {
+                                  label: String,
+                                  current: SC.LeadInOut?,
+                                  onChange: @escaping (SC.LeadInOut?) -> Void) -> SC.ParameterField {
         .optionalGroup(.init(
             id: idPrefix,
             label: label,

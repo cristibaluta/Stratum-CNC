@@ -18,7 +18,9 @@ struct SplashpageView: View {
     @Environment(\.stOpenToolLibrary) private var openToolLibrary
     @Environment(\.stOpenStockLibrary) private var openStockLibrary
 
-    private enum PickerKind { case projectFolder, gcode }
+    private enum PickerKind {
+        case projectFolder, gcode
+    }
 
     /// What the open file picker is for. Kept after the picker closes (only
     /// `isPicking` flips back), since SwiftUI can dismiss the picker before it

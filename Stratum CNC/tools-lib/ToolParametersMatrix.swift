@@ -149,10 +149,14 @@ private struct PresetNameField: View {
             .focused($isFocused)
             .onAppear { draft = name }
             .onChange(of: name) { _, newValue in
-                if !isFocused { draft = newValue }
+                if !isFocused {
+                    draft = newValue
+                }
             }
             .onChange(of: isFocused) { _, focused in
-                if !focused { commit() }
+                if !focused {
+                    commit()
+                }
             }
             .onSubmit(commit)
     }

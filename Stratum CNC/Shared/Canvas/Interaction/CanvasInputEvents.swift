@@ -65,9 +65,15 @@ struct CanvasScrollEvent {
 extension CanvasModifiers {
     init(_ flags: NSEvent.ModifierFlags) {
         var result: CanvasModifiers = []
-        if flags.contains(.shift) { result.insert(.shift) }
-        if flags.contains(.option) { result.insert(.option) }
-        if flags.contains(.command) { result.insert(.command) }
+        if flags.contains(.shift) {
+            result.insert(.shift)
+        }
+        if flags.contains(.option) {
+            result.insert(.option)
+        }
+        if flags.contains(.command) {
+            result.insert(.command)
+        }
         self = result
     }
 
@@ -80,11 +86,21 @@ extension CanvasModifiers {
 extension CanvasScrollPhase {
     init(_ phase: NSEvent.Phase) {
         var result: CanvasScrollPhase = []
-        if phase.contains(.began) { result.insert(.began) }
-        if phase.contains(.mayBegin) { result.insert(.mayBegin) }
-        if phase.contains(.changed) { result.insert(.changed) }
-        if phase.contains(.ended) { result.insert(.ended) }
-        if phase.contains(.cancelled) { result.insert(.cancelled) }
+        if phase.contains(.began) {
+            result.insert(.began)
+        }
+        if phase.contains(.mayBegin) {
+            result.insert(.mayBegin)
+        }
+        if phase.contains(.changed) {
+            result.insert(.changed)
+        }
+        if phase.contains(.ended) {
+            result.insert(.ended)
+        }
+        if phase.contains(.cancelled) {
+            result.insert(.cancelled)
+        }
         self = result
     }
 }
@@ -117,14 +133,22 @@ extension CanvasScrollEvent {
 extension CanvasModifiers {
     init(_ flags: UIKeyModifierFlags) {
         var result: CanvasModifiers = []
-        if flags.contains(.shift) { result.insert(.shift) }
-        if flags.contains(.alternate) { result.insert(.option) }
-        if flags.contains(.command) { result.insert(.command) }
+        if flags.contains(.shift) {
+            result.insert(.shift)
+        }
+        if flags.contains(.alternate) {
+            result.insert(.option)
+        }
+        if flags.contains(.command) {
+            result.insert(.command)
+        }
         self = result
     }
 
     /// UIKit has no global "keys held right now"; a touch has no modifiers.
-    static var current: CanvasModifiers { [] }
+    static var current: CanvasModifiers {
+        []
+    }
 }
 
 extension UIView {

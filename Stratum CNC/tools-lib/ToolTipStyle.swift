@@ -216,8 +216,14 @@ struct ToolDiagramView: View {
         context.stroke(arrow, with: .color(dimensionColor), lineWidth: 1)
     }
 
-    private func drawVerticalBracket(in context: inout GraphicsContext, label: String, x: CGFloat, topY: CGFloat, bottomY: CGFloat) {
-        guard bottomY - topY > 1 else { return }
+    private func drawVerticalBracket(in context: inout GraphicsContext,
+                                     label: String,
+                                     x: CGFloat,
+                                     topY: CGFloat,
+                                     bottomY: CGFloat) {
+        guard bottomY - topY > 1 else {
+            return
+        }
         var line = Path()
         line.move(to: CGPoint(x: x, y: topY))
         line.addLine(to: CGPoint(x: x, y: bottomY))
@@ -232,7 +238,10 @@ struct ToolDiagramView: View {
         )
     }
 
-    private func drawArrowHead(rotated90 _: Bool, in context: inout GraphicsContext, at point: CGPoint, pointingDown: Bool) {
+    private func drawArrowHead(rotated90 _: Bool,
+                               in context: inout GraphicsContext,
+                               at point: CGPoint,
+                               pointingDown: Bool) {
         let size: CGFloat = 5
         let dir: CGFloat = pointingDown ? 1 : -1
         var arrow = Path()

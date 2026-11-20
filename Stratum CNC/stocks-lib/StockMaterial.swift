@@ -18,14 +18,12 @@ struct StockMaterial: Identifiable, Codable, Hashable {
     var material: StockMaterialType
     var geometry: StockGeometry
 
-    init(
-        id: UUID = UUID(),
-        name: String,
-        link: String? = nil,
-        quantity: Int = 0,
-        material: StockMaterialType,
-        geometry: StockGeometry
-    ) {
+    init(id: UUID = UUID(),
+         name: String,
+         link: String? = nil,
+         quantity: Int = 0,
+         material: StockMaterialType,
+         geometry: StockGeometry) {
         self.id = id
         self.name = name
         self.link = link

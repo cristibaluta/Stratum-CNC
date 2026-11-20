@@ -107,7 +107,9 @@ struct GCodeViewer: View {
 
     // MARK: - Divider
 
-    private var isDraggingDivider: Bool { listHeightAtDragStart != nil }
+    private var isDraggingDivider: Bool {
+        listHeightAtDragStart != nil
+    }
 
     /// A hairline with three dots in its middle. Dragging it up or down gives the list more or
     /// less room; double-click resets the height.
@@ -206,7 +208,9 @@ struct GCodeViewer: View {
         guard let job = connection.status?.activeJob,
               job.currentLine > 0,
               job.currentLine <= model.document.lines.count
-        else { return nil }
+        else {
+            return nil
+        }
         return job.currentLine
     }
 
@@ -266,7 +270,9 @@ struct GCodeViewer: View {
 
     /// Pause is offered while the machine is moving; resume while it's held.
     private var canPauseOrResume: Bool {
-        guard connection.isConnected, let status = connection.status else { return false }
+        guard connection.isConnected, let status = connection.status else {
+            return false
+        }
         return status.isRunning || status.isHeld || status.isSuspended
     }
 
@@ -289,7 +295,9 @@ struct GCodeViewer: View {
     /// Suspend needs a job that is actually playing and moving, mirroring
     /// `ControllerModel.suspendJob`'s own guard.
     private var canSuspend: Bool {
-        guard connection.isConnected, let status = connection.status else { return false }
+        guard connection.isConnected, let status = connection.status else {
+            return false
+        }
         return status.isRunning && status.activeJob != nil
     }
 
@@ -306,7 +314,9 @@ struct GCodeViewer: View {
     /// The line to resume from: what the person picked (or where the job is),
     /// moved back to the start of the pass it falls in.
     private var resumePoint: ResumePoint? {
-        guard let target = resumeLineTarget else { return nil }
+        guard let target = resumeLineTarget else {
+            return nil
+        }
         return model.document.resumeResolver?.resolve(requestedLine: target)
             ?? ResumePoint(requestedLine: target, line: target, reason: .none)
     }
@@ -320,7 +330,9 @@ struct GCodeViewer: View {
         }
         switch uploader.state {
         case let .transferring(sent, total):
-            guard total > 0 else { return "…" }
+            guard total > 0 else {
+                return "…"
+            }
             let percent = Int((Double(sent) / Double(total)) * 100)
             return "\(percent)%"
         case .arming, .verifying:

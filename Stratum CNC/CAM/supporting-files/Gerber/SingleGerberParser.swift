@@ -776,7 +776,7 @@ final class SingleGerberParser {
             let sy = corner.y * unitScale
             let rx = sx * cos(rotationRadians) - sy * sin(rotationRadians)
             let ry = sx * sin(rotationRadians) + sy * cos(rotationRadians)
-            
+
             return DXF.Point(point.x + rx, point.y + ry)
         }
 

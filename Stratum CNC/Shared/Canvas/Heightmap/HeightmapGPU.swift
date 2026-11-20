@@ -87,8 +87,12 @@ final class HeightmapGPU {
         var depth: Float
         var offset: SIMD2<Float>
 
-        var spacing: SIMD2<Float> { SIMD2(width / Float(columns), height / Float(rows)) }
-        var samples: (x: Int, y: Int) { (columns + 1, rows + 1) }
+        var spacing: SIMD2<Float> {
+            SIMD2(width / Float(columns), height / Float(rows))
+        }
+        var samples: (x: Int, y: Int) {
+            (columns + 1, rows + 1)
+        }
     }
 
     private let device: MTLDevice

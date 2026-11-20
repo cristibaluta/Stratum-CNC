@@ -19,10 +19,14 @@ final class MacroStore: ObservableObject {
     let macros: [Macro] = Macro.builtIn
 
     @Published var selectedMacroID: String? {
-        didSet { refreshDocument() }
+        didSet {
+            refreshDocument()
+        }
     }
     @Published private var overrides: [String: [String: Double]] = [:] {
-        didSet { refreshDocument() }
+        didSet {
+            refreshDocument()
+        }
     }
 
     /// The selected macro's generated G-code, in the same document type the

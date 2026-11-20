@@ -111,7 +111,9 @@ struct RemoteFilesPopover: View {
         // Stays open while the file comes down (so the progress is visible),
         // then closes itself once it has been handed over.
         .onChange(of: downloader.isActive) { wasActive, isActive in
-            if wasActive, !isActive, downloader.state == .idle { dismiss() }
+            if wasActive, !isActive, downloader.state == .idle {
+                dismiss()
+            }
         }
         .onAppear {
             if isConnected, !downloader.isActive {

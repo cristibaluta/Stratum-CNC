@@ -32,7 +32,9 @@ struct AlignmentPinsData: Codable, Hashable, Identifiable {
     var diameter: Double
     var offset: Double
 
-    var spec: AlignmentPinsSpec { AlignmentPinsSpec(diameter: diameter, offset: offset) }
+    var spec: AlignmentPinsSpec {
+        AlignmentPinsSpec(diameter: diameter, offset: offset)
+    }
 }
 
 enum AlignmentPins {
@@ -94,7 +96,7 @@ enum AlignmentPins {
         guard lower <= upper + 1e-9 else {
             return nil
         }
-        
+
         return lower...max(lower, upper)
     }
 

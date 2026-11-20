@@ -191,12 +191,10 @@ private func polylinePath(vertices: [DXF.PolyVertex], closed: Bool) -> STBezierP
     return path
 }
 
-private func appendBulgeArc(
-    to path: STBezierPath,
-    from a: SwiftDXF.DXF.Point,
-    to b: SwiftDXF.DXF.Point,
-    bulge: Double
-) {
+private func appendBulgeArc(to path: STBezierPath,
+                            from a: SwiftDXF.DXF.Point,
+                            to b: SwiftDXF.DXF.Point,
+                            bulge: Double) {
     let dx = b.x - a.x
     let dy = b.y - a.y
 
@@ -252,13 +250,11 @@ private func appendBulgeArc(
     )
 }
 
-private func ellipsePath(
-    center: SwiftDXF.DXF.Point,
-    majorAxis: SwiftDXF.DXF.Point,
-    ratio: Double,
-    startParam: Double,
-    endParam: Double
-) -> STBezierPath {
+private func ellipsePath(center: SwiftDXF.DXF.Point,
+                         majorAxis: SwiftDXF.DXF.Point,
+                         ratio: Double,
+                         startParam: Double,
+                         endParam: Double) -> STBezierPath {
 
     let majorRadius = hypot(majorAxis.x, majorAxis.y)
     let minorRadius = majorRadius * ratio
@@ -291,7 +287,10 @@ private func ellipsePath(
     return path
 }
 
-private func textPath(at point: SwiftDXF.DXF.Point, height: Double, rotationDeg: Double, string: String) -> STBezierPath {
+private func textPath(at point: SwiftDXF.DXF.Point,
+                      height: Double,
+                      rotationDeg: Double,
+                      string: String) -> STBezierPath {
 
     let path = STBezierPath()
 
@@ -324,7 +323,9 @@ extension DXF.Entity {
         case let .line(a, b, _, _):
             let start = reversed ? b.cgPoint : a.cgPoint
             let end = reversed ? a.cgPoint : b.cgPoint
-            if isFirst { path.move(to: start) }
+            if isFirst {
+                path.move(to: start)
+            }
             path.line(to: end)
 
         case let .circle(center, radius, _, _):
@@ -337,7 +338,9 @@ extension DXF.Entity {
         case let .arc(center, radius, startDeg, endDeg, _, _):
             let start = CGFloat(startDeg)
             var end = CGFloat(endDeg)
-            while end < start { end += 360 } // DXF arcs sweep CCW start→end
+            while end < start {
+                end += 360
+            } // DXF arcs sweep CCW start→end
 
             let startPoint = CGPoint(x: center.x + radius * cos(startDeg.inRadians),
                                       y: center.y + radius * sin(startDeg.inRadians))
@@ -346,11 +349,15 @@ extension DXF.Entity {
 
             if reversed {
                 // Same physical arc, traced from `end` back down to `start`.
-                if isFirst { path.move(to: endPoint) }
+                if isFirst {
+                    path.move(to: endPoint)
+                }
                 path.appendArc(withCenter: center.cgPoint, radius: radius,
                                 startAngle: end, endAngle: start, clockwise: true)
             } else {
-                if isFirst { path.move(to: startPoint) }
+                if isFirst {
+                    path.move(to: startPoint)
+                }
                 path.appendArc(withCenter: center.cgPoint, radius: radius,
                                 startAngle: start, endAngle: end, clockwise: false)
             }
@@ -384,7 +391,9 @@ extension DXF.Entity {
     /// Bulge is stored on the *start* vertex of the segment it curves.
     private static func reversedVertices(_ vertices: [DXF.PolyVertex], closed: Bool) -> [DXF.PolyVertex] {
         let n = vertices.count
-        guard n > 1 else { return vertices }
+        guard n > 1 else {
+            return vertices
+        }
         return (0..<n).map { i in
             let originalIndex = n - 1 - i
             let bulgeSourceIndex = originalIndex - 1
@@ -410,7 +419,9 @@ extension SC.Geometry {
         case let .line(a, b):
             let start = reversed ? b.cg : a.cg
             let end = reversed ? a.cg : b.cg
-            if isFirst { path.move(to: start) }
+            if isFirst {
+                path.move(to: start)
+            }
             path.line(to: end)
 
         case let .circle(center, radius):
@@ -422,7 +433,9 @@ extension SC.Geometry {
         case let .arc(center, radius, startDeg, endDeg):
             let start = CGFloat(startDeg)
             var end = CGFloat(endDeg)
-            while end < start { end += 360 }
+            while end < start {
+                end += 360
+            }
 
             let startPoint = CGPoint(x: center.x + radius * cos(startDeg.inRadians),
                                      y: center.y + radius * sin(startDeg.inRadians))
@@ -430,11 +443,15 @@ extension SC.Geometry {
                                    y: center.y + radius * sin(Double(end).inRadians))
 
             if reversed {
-                if isFirst { path.move(to: endPoint) }
+                if isFirst {
+                    path.move(to: endPoint)
+                }
                 path.appendArc(withCenter: center.cg, radius: radius,
                                startAngle: end, endAngle: start, clockwise: true)
             } else {
-                if isFirst { path.move(to: startPoint) }
+                if isFirst {
+                    path.move(to: startPoint)
+                }
                 path.appendArc(withCenter: center.cg, radius: radius,
                                startAngle: start, endAngle: end, clockwise: false)
             }

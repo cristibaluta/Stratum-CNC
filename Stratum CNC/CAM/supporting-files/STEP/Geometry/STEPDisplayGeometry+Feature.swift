@@ -16,7 +16,9 @@ extension STEPDisplayGeometry {
     /// What `ids` form, given their measures and the plane they lie in (both already worked
     /// out by the scene for the selection). `nil` for an empty selection.
     func feature(of ids: Set<STEP.EdgeID>, measures: [EdgeMeasure], plane: Plane?) -> STEPSelectionFeature? {
-        guard !ids.isEmpty, !measures.isEmpty else { return nil }
+        guard !ids.isEmpty, !measures.isEmpty else {
+            return nil
+        }
         if measures.allSatisfy({ $0.kind == .circle }) {
             return .holes
         }

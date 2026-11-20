@@ -19,7 +19,9 @@ extension SC {
 
     /// One entry in the ISO metric coarse-pitch thread series.
     struct StandardThread: Identifiable, Hashable {
-        var id: String { designation }
+        var id: String {
+            designation
+        }
         var designation: String    // e.g. "M1.6"
         var diameter: Double       // major diameter, mm
         var pitch: Double          // mm
@@ -65,12 +67,12 @@ extension SC {
     /// values happen to match a preset. `onSelect` is called for a real preset,
     /// `onSelectCustom` when "Custom" is picked (the values are left as they are).
     static func standardThreadChoice(id: String,
-                                      label: String = "Standard Thread",
-                                      diameter: Double,
-                                      pitch: Double,
-                                      isCustom: Bool = false,
-                                      onSelectCustom: @escaping () -> Void = {},
-                                      onSelect: @escaping (StandardThread) -> Void) -> ParameterField.ChoiceField {
+                                     label: String = "Standard Thread",
+                                     diameter: Double,
+                                     pitch: Double,
+                                     isCustom: Bool = false,
+                                     onSelectCustom: @escaping () -> Void = {},
+                                     onSelect: @escaping (StandardThread) -> Void) -> ParameterField.ChoiceField {
         .init(id: id,
               label: label,
               options: [.init(id: customThreadId, label: "Custom")] + standardThreads.map { .init(id: $0.id, label: $0.designation) },
@@ -80,7 +82,9 @@ extension SC {
                       onSelectCustom()
                       return
                   }
-                  guard let thread = standardThreads.first(where: { $0.id == selectedId }) else { return }
+                  guard let thread = standardThreads.first(where: { $0.id == selectedId }) else {
+                      return
+                  }
                   onSelect(thread)
               })
     }

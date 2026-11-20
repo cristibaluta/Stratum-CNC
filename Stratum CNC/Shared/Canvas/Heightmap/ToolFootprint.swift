@@ -29,7 +29,9 @@ enum ToolFootprint {
     /// `d` and `tipZ` are both in millimeters, matching `ToolpathSegment`.
     static func surfaceZ(for tool: ToolGeometry, tipZ: Float, radialOffset d: Float) -> Float? {
         let r = radius(for: tool)
-        guard d >= 0, d <= r, r > 0 else { return nil }
+        guard d >= 0, d <= r, r > 0 else {
+            return nil
+        }
 
         switch tool.shape {
             case .flat:

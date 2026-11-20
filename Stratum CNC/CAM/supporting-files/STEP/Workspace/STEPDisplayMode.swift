@@ -17,7 +17,9 @@ enum STEPDisplayMode: String, CaseIterable, Identifiable, Sendable {
     /// Lit faces with the edges on top; hidden edges follow `STEPHiddenEdgeMode`.
     case shadedEdges
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var label: String {
         switch self {

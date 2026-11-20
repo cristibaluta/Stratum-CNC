@@ -143,7 +143,9 @@ private extension ToolTypeIcon {
                 if b.y < top {
                     b = (x: left + (y0 - top) / slope, y: top)
                 }
-                guard a.x < b.x else { continue }
+                guard a.x < b.x else {
+                    continue
+                }
                 p.move(to: pt(a.x, a.y))
                 p.addLine(to: pt(b.x, b.y))
             }

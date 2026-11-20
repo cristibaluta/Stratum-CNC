@@ -28,8 +28,12 @@ private struct ExpandInspectorSectionKey: @preconcurrency EnvironmentKey {
 extension EnvironmentValues {
     /// Opens the collapsible section this view is the compact form of. Set by `InspectorSection`.
     var expandInspectorSection: () -> Void {
-        get { self[ExpandInspectorSectionKey.self] }
-        set { self[ExpandInspectorSectionKey.self] = newValue }
+        get {
+            self[ExpandInspectorSectionKey.self]
+        }
+        set {
+            self[ExpandInspectorSectionKey.self] = newValue
+        }
     }
 }
 
@@ -42,8 +46,12 @@ extension EnvironmentValues {
     /// title (shared with the inspector, where the same section may have been collapsed).
     /// Used by popovers that must show the full form.
     var forcesInspectorSectionsOpen: Bool {
-        get { self[ForcesInspectorSectionsOpenKey.self] }
-        set { self[ForcesInspectorSectionsOpenKey.self] = newValue }
+        get {
+            self[ForcesInspectorSectionsOpenKey.self]
+        }
+        set {
+            self[ForcesInspectorSectionsOpenKey.self] = newValue
+        }
     }
 }
 
@@ -385,9 +393,13 @@ struct InspectorValueTextField: View {
 
     /// The digits after the "0." for a value in 0..<1 ("" for 0, "3" for 0.3, "05" for 0.05).
     private static func digits(of value: Double) -> String {
-        guard value > 0, value < 1 else { return "" }
+        guard value > 0, value < 1 else {
+            return ""
+        }
         let hundredths = min(value.roundedInt(scale: 100), 99)
-        guard hundredths > 0 else { return "" }
+        guard hundredths > 0 else {
+            return ""
+        }
         var text = String(format: "%02d", hundredths)
         if text.hasSuffix("0") {
             text.removeLast()
@@ -463,8 +475,12 @@ struct InspectorNumberField<Accessory: View>: View {
     private let offersDecimalsOnly: Bool
     @AppStorage private var decimalsOnly: Bool
 
-    init(title: String, value: Binding<Double>, suffix: String, prefix: String = "",
-         secondary: Binding<Double>? = nil, secondarySuffix: String = "",
+    init(title: String,
+         value: Binding<Double>,
+         suffix: String,
+         prefix: String = "",
+         secondary: Binding<Double>? = nil,
+         secondarySuffix: String = "",
          offersDecimalsOnly: Bool = false,
          @ViewBuilder accessory: () -> Accessory) {
         self.title = title
@@ -532,8 +548,12 @@ struct InspectorNumberField<Accessory: View>: View {
 
 extension InspectorNumberField where Accessory == EmptyView {
 
-    init(title: String, value: Binding<Double>, suffix: String, prefix: String = "",
-         secondary: Binding<Double>? = nil, secondarySuffix: String = "",
+    init(title: String,
+         value: Binding<Double>,
+         suffix: String,
+         prefix: String = "",
+         secondary: Binding<Double>? = nil,
+         secondarySuffix: String = "",
          offersDecimalsOnly: Bool = false) {
         self.init(title: title, value: value, suffix: suffix, prefix: prefix,
                   secondary: secondary, secondarySuffix: secondarySuffix,

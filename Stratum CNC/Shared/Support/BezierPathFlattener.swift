@@ -79,7 +79,10 @@ enum BezierPathFlattener {
     /// Recursively subdivides a cubic bezier until each segment is flat enough
     /// (within `tolerance`), returning the resulting points EXCLUDING p0
     /// (so callers can directly append to an existing point list).
-    private static func flattenCubicBezierAdaptive(p0: STPoint, p1: STPoint, p2: STPoint, p3: STPoint,
+    private static func flattenCubicBezierAdaptive(p0: STPoint,
+                                                   p1: STPoint,
+                                                   p2: STPoint,
+                                                   p3: STPoint,
                                                    tolerance: CGFloat,
                                                    maxDepth: Int = 24) -> [STPoint] {
         var result: [STPoint] = []
@@ -89,8 +92,13 @@ enum BezierPathFlattener {
         return result
     }
 
-    private static func subdivide(p0: STPoint, p1: STPoint, p2: STPoint, p3: STPoint,
-                                  tolerance: CGFloat, depth: Int, maxDepth: Int,
+    private static func subdivide(p0: STPoint,
+                                  p1: STPoint,
+                                  p2: STPoint,
+                                  p3: STPoint,
+                                  tolerance: CGFloat,
+                                  depth: Int,
+                                  maxDepth: Int,
                                   output: inout [STPoint]) {
 
         if depth >= maxDepth || isFlatEnough(p0: p0, p1: p1, p2: p2, p3: p3, tolerance: tolerance) {

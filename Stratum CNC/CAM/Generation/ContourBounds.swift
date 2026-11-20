@@ -53,7 +53,9 @@ extension SC.Geometry {
                 // The minor axis is the major one turned a quarter counter-clockwise, `ratio` as long.
                 let minor = SIMD2(-majorAxis.y, majorAxis.x) * ratio
                 var end = endParam
-                while end <= startParam { end += 2 * .pi }
+                while end <= startParam {
+                    end += 2 * .pi
+                }
                 let steps = 72
                 return (0...steps).map { index in
                     let t = startParam + (end - startParam) * Double(index) / Double(steps)
@@ -67,11 +69,15 @@ extension SC.Geometry {
                 var points = vertices.map { $0.point }
                 let count = vertices.count
                 let segments = closed ? count : count - 1
-                guard segments > 0 else { return points }
+                guard segments > 0 else {
+                    return points
+                }
                 for index in 0..<segments {
                     let from = vertices[index]
                     let to = vertices[(index + 1) % count]
-                    guard abs(from.bulge) > 1e-12 else { continue }
+                    guard abs(from.bulge) > 1e-12 else {
+                        continue
+                    }
                     points += Self.bulgePoints(from: from.point, to: to.point, bulge: from.bulge)
                 }
                 return points
@@ -79,14 +85,18 @@ extension SC.Geometry {
     }
 
     /// The arc's ends and the quadrant points inside its sweep (counter-clockwise from start to end).
-    private static func arcPoints(center: SIMD2<Double>, radius: Double,
-                                  startDeg: Double, endDeg: Double) -> [SIMD2<Double>] {
+    private static func arcPoints(center: SIMD2<Double>,
+                                  radius: Double,
+                                  startDeg: Double,
+                                  endDeg: Double) -> [SIMD2<Double>] {
         func point(_ degrees: Double) -> SIMD2<Double> {
             let radians = degrees * .pi / 180
             return SIMD2(center.x + radius * cos(radians), center.y + radius * sin(radians))
         }
         var end = endDeg
-        while end <= startDeg { end += 360 }
+        while end <= startDeg {
+            end += 360
+        }
         var points = [point(startDeg), point(end)]
         var quadrant = (startDeg / 90).rounded(.down) * 90 + 90
         while quadrant < end {
@@ -100,7 +110,9 @@ extension SC.Geometry {
     private static func bulgePoints(from p0: SIMD2<Double>, to p1: SIMD2<Double>, bulge: Double) -> [SIMD2<Double>] {
         let chord = p1 - p0
         let length = (chord.x * chord.x + chord.y * chord.y).squareRoot()
-        guard length > 1e-12 else { return [] }
+        guard length > 1e-12 else {
+            return []
+        }
         // The centre is on the left of the chord for a counter-clockwise arc, on the right for a clockwise one.
         let offset = length / 2 * (1 - bulge * bulge) / (2 * bulge)
         let normal = SIMD2(-chord.y, chord.x) / length

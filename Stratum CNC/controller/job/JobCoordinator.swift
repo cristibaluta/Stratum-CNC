@@ -37,9 +37,15 @@ struct JobRunOptions: Equatable {
 final class JobCoordinator: ObservableObject {
 
     private let session: SL.Session
-    private var connection: SL.Connection { session.connection }
-    private var uploader: SL.Uploader { session.uploader }
-    private var jobRunner: SL.JobRunner { session.jobRunner }
+    private var connection: SL.Connection {
+        session.connection
+    }
+    private var uploader: SL.Uploader {
+        session.uploader
+    }
+    private var jobRunner: SL.JobRunner {
+        session.jobRunner
+    }
 
     private static let lastPathKey = "lastUploadedRemotePath"
 
@@ -48,7 +54,9 @@ final class JobCoordinator: ObservableObject {
     /// offered while this is known. Persisted so it survives an app restart
     /// while a job sits suspended on the machine.
     @Published private(set) var lastUploadedRemotePath: String? {
-        didSet { UserDefaults.standard.set(lastUploadedRemotePath, forKey: Self.lastPathKey) }
+        didSet {
+            UserDefaults.standard.set(lastUploadedRemotePath, forKey: Self.lastPathKey)
+        }
     }
 
     /// What the app remembers about the job it started: the last line the
@@ -189,7 +197,9 @@ final class JobCoordinator: ObservableObject {
     }
 
     private func markPlaySent() {
-        guard var record = progress, record.phase == .starting else { return }
+        guard var record = progress, record.phase == .starting else {
+            return
+        }
         record.markPlaySent()
         progress = record
         persist(record)
@@ -197,7 +207,9 @@ final class JobCoordinator: ObservableObject {
 
     /// A run that was prepared but never reached `play`.
     private func abandonStartingProgress() {
-        guard progress?.phase == .starting else { return }
+        guard progress?.phase == .starting else {
+            return
+        }
         discardProgress()
     }
 
@@ -207,7 +219,9 @@ final class JobCoordinator: ObservableObject {
     }
 
     private func observe(_ status: MakeraMachineStatus?) {
-        guard var record = progress, let status else { return }
+        guard var record = progress, let status else {
+            return
+        }
 
         let outcome = record.observe(
             machineState: status.state,
@@ -233,7 +247,9 @@ final class JobCoordinator: ObservableObject {
 
     /// Uploads `contents` to the SD card without starting it.
     func upload(fileName: String, contents: String) {
-        guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil else { return }
+        guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil else {
+            return
+        }
         runAfterUpload = nil
         pendingContents = contents
         pendingFileName = fileName
@@ -244,7 +260,9 @@ final class JobCoordinator: ObservableObject {
     /// Uploads `contents`, then runs it (origin → optional Z probe / leveling → `play`).
     /// `lineOffset` is for a generated resume file (`JobProgress.lineOffset`).
     func uploadAndRun(fileName: String, contents: String, options: JobRunOptions, lineOffset: Int? = nil) {
-        guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil else { return }
+        guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil else {
+            return
+        }
         guard levelingArea(for: contents, options: options) != nil || !options.levelBeforeRun else {
             logNoLevelingArea()
             return
@@ -274,7 +292,9 @@ final class JobCoordinator: ObservableObject {
         guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil,
               connection.status?.isBusy != true,
               let file = ResumeFileBuilder.build(lines: programLines, resumeLine: line, options: resumeOptions)
-        else { return nil }
+        else {
+            return nil
+        }
 
         guard file.preamble.canResume else {
             file.preamble.warnings.forEach { connection.appendLog("Resume: \($0)") }
@@ -296,7 +316,9 @@ final class JobCoordinator: ObservableObject {
     /// Runs the file `upload` last put on the machine.
     func runUploaded(options: JobRunOptions) {
         guard connection.isConnected, !uploader.isActive, pendingPlayPath == nil,
-              let path = lastUploadedRemotePath else { return }
+              let path = lastUploadedRemotePath else {
+            return
+        }
         let area = levelingArea(for: lastUploadedContents ?? "", options: options)
         if options.levelBeforeRun, area == nil {
             logNoLevelingArea()
@@ -313,7 +335,9 @@ final class JobCoordinator: ObservableObject {
     /// Starts streaming `lines` one at a time. For MDI-style manual sends and
     /// small macros, not for whole programs.
     func startLines(_ lines: [String]) {
-        guard connection.isConnected else { return }
+        guard connection.isConnected else {
+            return
+        }
         jobRunner.start(lines: lines)
     }
 
@@ -326,7 +350,9 @@ final class JobCoordinator: ObservableObject {
         pendingFileName = nil
         pendingLineOffset = nil
 
-        guard let options = runAfterUpload else { return }
+        guard let options = runAfterUpload else {
+            return
+        }
         runAfterUpload = nil
         let area = levelingArea(for: lastUploadedContents ?? "", options: options)
         startRun(remotePath: remotePath, options: options, area: area)
@@ -398,7 +424,9 @@ final class JobCoordinator: ObservableObject {
     /// The pre-run lines have all been acknowledged. Also fires for any other
     /// `jobRunner` macro finishing, hence the `pendingPlayPath` check.
     private func preRunFinished() {
-        guard let path = pendingPlayPath else { return }
+        guard let path = pendingPlayPath else {
+            return
+        }
         let runID = pendingPlayID
         Task { await self.playWhenIdle(path, runID: runID) }
     }
@@ -407,7 +435,9 @@ final class JobCoordinator: ObservableObject {
     /// once `G32` was acknowledged. Bails out on Alarm, disconnect, or after
     /// ten minutes.
     private func playWhenIdle(_ path: String, runID: UUID) async {
-        guard pendingPlayID == runID else { return }
+        guard pendingPlayID == runID else {
+            return
+        }
         let deadline = Date().addingTimeInterval(600)
 
         // Let a status report that predates the last line clear out.
@@ -423,14 +453,18 @@ final class JobCoordinator: ObservableObject {
                 abandonStartingProgress()
                 return
             }
-            if state.hasPrefix("Idle") { break }
+            if state.hasPrefix("Idle") {
+                break
+            }
 
             connection.requestStatus()
             try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
 
         // Stop (or a newer run) cleared/replaced it while waiting.
-        guard pendingPlayID == runID, pendingPlayPath == path else { return }
+        guard pendingPlayID == runID, pendingPlayPath == path else {
+            return
+        }
         pendingPlayPath = nil
         session.sendRawCommand("play \(path)")
         markPlaySent()
@@ -440,13 +474,17 @@ final class JobCoordinator: ObservableObject {
 
     /// Feed hold: decelerates to a stop, keeping the job resumable.
     func pause() {
-        guard connection.isConnected else { return }
+        guard connection.isConnected else {
+            return
+        }
 
         // Stop the streamed queue regardless of machine state.
         jobRunner.pause()
 
         // A feed hold only means something while there's motion to hold.
-        guard connection.status?.isRunning == true else { return }
+        guard connection.status?.isRunning == true else {
+            return
+        }
         _ = connection.sendRealtime(.feedHold)
         connection.requestStatus()
     }
@@ -463,7 +501,9 @@ final class JobCoordinator: ObservableObject {
     /// by the machine". That goes away once the alert policy moves into the app.
     func suspend() {
         guard connection.isConnected, !isSuspending,
-              let status = connection.status, status.isRunning, status.activeJob != nil else { return }
+              let status = connection.status, status.isRunning, status.activeJob != nil else {
+            return
+        }
 
         isSuspending = true
         session.suspendJob()
@@ -480,10 +520,14 @@ final class JobCoordinator: ObservableObject {
         let deadline = Date().addingTimeInterval(Self.suspendTimeout)
 
         while !Task.isCancelled {
-            guard connection.isConnected else { return }
+            guard connection.isConnected else {
+                return
+            }
             let state = connection.status?.state ?? ""
 
-            if state.hasPrefix("Pause") { break }
+            if state.hasPrefix("Pause") {
+                break
+            }
             if state.hasPrefix("Idle") || state.hasPrefix("Alarm") {
                 connection.appendLog("Suspend did not take effect: the machine is \(state).")
                 return
@@ -495,7 +539,9 @@ final class JobCoordinator: ObservableObject {
             connection.requestStatus()
             try? await Task.sleep(nanoseconds: 500_000_000)
         }
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else {
+            return
+        }
 
         // The status that reported Pause has already updated `progress`; make
         // sure what the machine says is on disk before anything else happens.
@@ -515,7 +561,9 @@ final class JobCoordinator: ObservableObject {
     /// jumps to that line using the console `goto <line>` command, which the
     /// firmware only accepts while the job is paused.
     func resume(fromLine line: Int? = nil) {
-        guard connection.isConnected else { return }
+        guard connection.isConnected else {
+            return
+        }
         suspendTask?.cancel()
 
         let status = connection.status
@@ -570,7 +618,9 @@ final class JobCoordinator: ObservableObject {
         }
 
         let somethingToAbort = jobRunner.isActive || connection.status?.isBusy == true
-        guard somethingToAbort else { return }
+        guard somethingToAbort else {
+            return
+        }
         // The session's soft reset also stops the queue and tells the host
         // (`motionAborting`) so held jogs are released.
         session.sendRawCommand(SL.Session.softResetCommand)
@@ -582,7 +632,9 @@ final class JobCoordinator: ObservableObject {
     /// trigger point. The two lines go through `jobRunner`, which only advances
     /// on the previous line's "ok", so the zero lands after the probe stopped.
     func autoZeroProbe() {
-        guard connection.isConnected, !jobRunner.isActive else { return }
+        guard connection.isConnected, !jobRunner.isActive else {
+            return
+        }
         jobRunner.start(lines: [
             CNC.probe.with(z: -10, feed: 50).command,
             SL.Session.zeroCommand(z: true)

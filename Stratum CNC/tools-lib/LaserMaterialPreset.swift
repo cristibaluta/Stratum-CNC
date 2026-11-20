@@ -17,14 +17,12 @@ struct LaserMaterialPreset: Identifiable, Codable, Hashable {
     var vectorCut: LaserOperation?
     var imageEngrave: LaserOperation?
 
-    init(
-        id: UUID = UUID(),
-        material: String,
-        suggestedThicknessCut: String? = nil,
-        vectorEngrave: LaserOperation? = nil,
-        vectorCut: LaserOperation? = nil,
-        imageEngrave: LaserOperation? = nil
-    ) {
+    init(id: UUID = UUID(),
+         material: String,
+         suggestedThicknessCut: String? = nil,
+         vectorEngrave: LaserOperation? = nil,
+         vectorCut: LaserOperation? = nil,
+         imageEngrave: LaserOperation? = nil) {
         self.id = id
         self.material = material
         self.suggestedThicknessCut = suggestedThicknessCut

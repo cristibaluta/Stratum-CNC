@@ -97,7 +97,8 @@ struct PaletteCommandView: View {
         }
     }
 
-    private func paletteSection<S: Sequence>(title: String, commands: S) -> some View where S.Element == PaletteCommand {
+    private func paletteSection<S: Sequence>(title: String,
+                                             commands: S) -> some View where S.Element == PaletteCommand {
         let commands = Array(commands)
         if commands.isEmpty {
             return AnyView(EmptyView())

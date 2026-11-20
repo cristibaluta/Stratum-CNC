@@ -16,7 +16,9 @@ enum ProbeKind: String, CaseIterable, Identifiable, Codable {
     /// A position in X and Y: one of the four `ProbeFeature`s.
     case point
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var title: String {
         switch self {
@@ -34,7 +36,9 @@ enum ProbeFeature: String, CaseIterable, Identifiable, Codable {
     case bossCenter
     case pocketCenter
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var title: String {
         switch self {
@@ -47,10 +51,16 @@ enum ProbeFeature: String, CaseIterable, Identifiable, Codable {
 
     /// Touched from inside, moving out (a pocket or hole), as opposed to from
     /// outside, moving in (a boss, or the stock itself).
-    var isInside: Bool { self == .pocketCorner || self == .pocketCenter }
-    var isCenter: Bool { self == .bossCenter || self == .pocketCenter }
+    var isInside: Bool {
+        self == .pocketCorner || self == .pocketCenter
+    }
+    var isCenter: Bool {
+        self == .bossCenter || self == .pocketCenter
+    }
 
-    var thing: String { isInside ? "pocket" : "boss" }
+    var thing: String {
+        isInside ? "pocket" : "boss"
+    }
 }
 
 /// The nine points of a rectangle that can be chosen on the drawing: four
@@ -67,7 +77,9 @@ enum ProbePoint: String, CaseIterable, Identifiable, Codable {
     case top
     case topRight
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     /// −1 left, 0 middle, +1 right.
     var column: Int {
@@ -87,8 +99,12 @@ enum ProbePoint: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    var isCorner: Bool { column != 0 && row != 0 }
-    var isCenter: Bool { self == .center }
+    var isCorner: Bool {
+        column != 0 && row != 0
+    }
+    var isCenter: Bool {
+        self == .center
+    }
 
     /// The point at `column`, `row` (each −1, 0 or +1).
     static func at(column: Int, row: Int) -> ProbePoint {
@@ -118,9 +134,13 @@ enum ProbeEdge: String, CaseIterable, Identifiable, Codable {
     case bottom
     case top
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
-    var title: String { rawValue.capitalized }
+    var title: String {
+        rawValue.capitalized
+    }
 
     var axis: ProbeAxis {
         switch self {

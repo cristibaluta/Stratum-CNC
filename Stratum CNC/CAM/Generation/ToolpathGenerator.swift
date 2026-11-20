@@ -89,7 +89,9 @@ enum ToolpathGenerator {
     /// - Parameter stepContours: resolves the toolpath's STEP edges (`stepTargets`) into contours.
     ///   They must already be in `frame`: the caller maps them (see `STEPWorkspace.contours(for:frame:)`).
     /// - Parameter frame: the setup the toolpath is cut in (`.identity` for the top).
-    static func prepare(for toolpath: ToolpathData, source: ToolpathData? = nil, canvasState: D2_CanvasState,
+    static func prepare(for toolpath: ToolpathData,
+                        source: ToolpathData? = nil,
+                        canvasState: D2_CanvasState,
                         frame: SetupFrame = .identity,
                         stepContours: (ToolpathData) throws -> [SC.Contour] = { _ in [] }) throws -> Job {
 
@@ -310,7 +312,9 @@ enum ToolpathGenerator {
     /// A message fit for showing under the Generate button. `operation` (the operation the
     /// error came from) lets a few generic engine errors say what actually went wrong; `toolpath`
     /// (the settings it was generated from) lets them name the tool and the sizes involved.
-    static func message(for error: Error, operation: SC.MachiningOperation.Kind? = nil, toolpath: ToolpathData? = nil) -> String {
+    static func message(for error: Error,
+                        operation: SC.MachiningOperation.Kind? = nil,
+                        toolpath: ToolpathData? = nil) -> String {
         if let error = error as? GenerationError {
             return error.errorDescription ?? "Couldn't generate the toolpath."
         }

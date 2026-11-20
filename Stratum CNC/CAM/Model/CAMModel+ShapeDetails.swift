@@ -27,7 +27,7 @@ extension CAMModel {
             details.append(ShapeDetail.describe(contours))
         }
         details += stepWorkspace.shapeDetails(for: toolpath.stepTargets, frame: frame)
-        
+
         return details
     }
 }

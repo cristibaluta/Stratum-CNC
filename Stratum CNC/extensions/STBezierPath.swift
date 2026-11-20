@@ -29,8 +29,11 @@ extension UIBezierPath {
     /// AppKit's convention: angles in degrees, counter-clockwise (y up) unless
     /// `clockwise`. UIKit takes radians, and its `clockwise: true` is the
     /// direction of increasing angle, so the flag flips.
-    func appendArc(withCenter center: CGPoint, radius: CGFloat,
-                   startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
+    func appendArc(withCenter center: CGPoint,
+                   radius: CGFloat,
+                   startAngle: CGFloat,
+                   endAngle: CGFloat,
+                   clockwise: Bool) {
         addArc(withCenter: center, radius: radius,
                startAngle: startAngle * .pi / 180, endAngle: endAngle * .pi / 180,
                clockwise: !clockwise)

@@ -30,9 +30,13 @@ extension NSColor {
 
 extension STColor {
     /// Primary text color (`NSColor.labelColor` / `UIColor.label`).
-    static var stLabel: STColor { .labelColor }
+    static var stLabel: STColor {
+        .labelColor
+    }
     /// Background of editable content, like the CAM canvas.
-    static var stTextBackground: STColor { .textBackgroundColor }
+    static var stTextBackground: STColor {
+        .textBackgroundColor
+    }
 
     /// sRGB components, for baking into vertex data. A dynamic color resolves
     /// against the appearance that is current when this runs.
@@ -45,13 +49,21 @@ extension STColor {
 }
 
 extension Image {
-    init(stImage: STImage) { self.init(nsImage: stImage) }
+    init(stImage: STImage) {
+        self.init(nsImage: stImage)
+    }
 }
 
 extension Color {
-    static var stWindowBackground: Color { Color(nsColor: .windowBackgroundColor) }
-    static var stControlBackground: Color { Color(nsColor: .controlBackgroundColor) }
-    static var stSeparator: Color { Color(nsColor: .separatorColor) }
+    static var stWindowBackground: Color {
+        Color(nsColor: .windowBackgroundColor)
+    }
+    static var stControlBackground: Color {
+        Color(nsColor: .controlBackgroundColor)
+    }
+    static var stSeparator: Color {
+        Color(nsColor: .separatorColor)
+    }
 }
 
 /// Dynamic system colors (`labelColor` …) are resolved against an appearance.
@@ -74,8 +86,12 @@ enum STAppearance {
 
 /// The running application, for the one notification both platforms share.
 enum STApp {
-    static var didResignActiveNotification: Notification.Name { NSApplication.didResignActiveNotification }
-    static var willTerminateNotification: Notification.Name { NSApplication.willTerminateNotification }
+    static var didResignActiveNotification: Notification.Name {
+        NSApplication.didResignActiveNotification
+    }
+    static var willTerminateNotification: Notification.Name {
+        NSApplication.willTerminateNotification
+    }
 }
 
 enum STPasteboard {
@@ -102,8 +118,12 @@ extension UIColor {
 }
 
 extension STColor {
-    static var stLabel: STColor { .label }
-    static var stTextBackground: STColor { .systemBackground }
+    static var stLabel: STColor {
+        .label
+    }
+    static var stTextBackground: STColor {
+        .systemBackground
+    }
 
     var stRGBA: SIMD4<Float> {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
@@ -115,13 +135,21 @@ extension STColor {
 }
 
 extension Image {
-    init(stImage: STImage) { self.init(uiImage: stImage) }
+    init(stImage: STImage) {
+        self.init(uiImage: stImage)
+    }
 }
 
 extension Color {
-    static var stWindowBackground: Color { Color(uiColor: .systemBackground) }
-    static var stControlBackground: Color { Color(uiColor: .secondarySystemBackground) }
-    static var stSeparator: Color { Color(uiColor: .separator) }
+    static var stWindowBackground: Color {
+        Color(uiColor: .systemBackground)
+    }
+    static var stControlBackground: Color {
+        Color(uiColor: .secondarySystemBackground)
+    }
+    static var stSeparator: Color {
+        Color(uiColor: .separator)
+    }
 }
 
 enum STAppearance {
@@ -138,8 +166,12 @@ enum STAppearance {
 }
 
 enum STApp {
-    static var didResignActiveNotification: Notification.Name { UIApplication.willResignActiveNotification }
-    static var willTerminateNotification: Notification.Name { UIApplication.willTerminateNotification }
+    static var didResignActiveNotification: Notification.Name {
+        UIApplication.willResignActiveNotification
+    }
+    static var willTerminateNotification: Notification.Name {
+        UIApplication.willTerminateNotification
+    }
 }
 
 enum STPasteboard {

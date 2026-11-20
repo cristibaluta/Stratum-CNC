@@ -192,7 +192,9 @@ class MetalRenderer: NSObject {
     var camera = Camera()
     var adaptiveModelFit = false
 
-    func requestFit() { hasFittedInitialContent = false }
+    func requestFit() {
+        hasFittedInitialContent = false
+    }
 
     private var renderBatches: [RenderBatch] = []
 
@@ -793,7 +795,10 @@ private extension MetalRenderer {
     /// Binds one batch's uniforms/buffer and issues its draw call. Shared by
     /// both the visible and hidden passes in `draw(in:)` — they differ only
     /// in which depth state is bound and what dash length they pass in.
-    func drawBatch(_ batch: RenderBatch, mvp: matrix_float4x4, dashLength: Float, alpha: Float = 1,
+    func drawBatch(_ batch: RenderBatch,
+                   mvp: matrix_float4x4,
+                   dashLength: Float,
+                   alpha: Float = 1,
                    encoder: MTLRenderCommandEncoder) {
         // Solid-only objects (the tool) have no line buffer; `drawSolids`
         // handles those.
@@ -921,7 +926,9 @@ private extension MetalRenderer {
             encoder.setVertexBuffer(solidBuffer, offset: 0, index: 0)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: batch.solidVertexCount)
         }
-        if pipelineBound { encoder.setDepthBias(0, slopeScale: 0, clamp: 0) }
+        if pipelineBound {
+            encoder.setDepthBias(0, slopeScale: 0, clamp: 0)
+        }
     }
 
 
@@ -960,7 +967,11 @@ private extension MetalRenderer {
     /// have to sit exactly where the edges they hide are drawn, or the depth
     /// test no longer tells hidden edges from visible ones and the dotted
     /// hidden lines are lost.
-    func drawOccluder(_ buffer: MTLBuffer, vertexCount: Int, offset: SIMD2<Float>, mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
+    func drawOccluder(_ buffer: MTLBuffer,
+                      vertexCount: Int,
+                      offset: SIMD2<Float>,
+                      mvp: matrix_float4x4,
+                      encoder: MTLRenderCommandEncoder) {
         var uniforms = Uniforms(modelViewProjectionMatrix: mvp, dashLength: 0, offset: offset)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 1)
@@ -972,7 +983,9 @@ private extension MetalRenderer {
 extension MetalRenderer: MTKViewDelegate {
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        if size.width > 0, size.height > 0 { camera.aspectRatio = Float(size.width / size.height) }
+        if size.width > 0, size.height > 0 {
+            camera.aspectRatio = Float(size.width / size.height)
+        }
         // The view is manually driven (see `MetalCanvasView.makeNSView`), so
         // without this a resize wouldn't redraw until the next scrub/pan/
         // zoom — leaving a stretched or stale frame on screen in the
@@ -989,7 +1002,9 @@ extension MetalRenderer: MTKViewDelegate {
                 PerfLog.log("canvas", "draw(in:) took \(PerfLog.fmt(took)) (\(renderBatches.count) batches)")
             }
         }
-        guard view.drawableSize.width > 0, view.drawableSize.height > 0 else { return }
+        guard view.drawableSize.width > 0, view.drawableSize.height > 0 else {
+            return
+        }
         camera.aspectRatio = Float(view.drawableSize.width / view.drawableSize.height)
         viewportPixels = SIMD2<Float>(Float(view.drawableSize.width), Float(view.drawableSize.height))
         pixelScale = view.bounds.width > 0 ? Float(view.drawableSize.width / view.bounds.width) : 1
@@ -1104,7 +1119,9 @@ private extension MetalRenderer {
     /// visible edges, then the hidden edges in the style each batch asks for. A later call sees
     /// the depth the earlier ones left in the buffer.
     private func drawEdgePasses(_ batches: [RenderBatch], mvp: matrix_float4x4, encoder: MTLRenderCommandEncoder) {
-        guard !batches.isEmpty else { return }
+        guard !batches.isEmpty else {
+            return
+        }
 
         // Pass 0 — occluder faces. Depth-only, color writes off, drawn
         // before any edges so their surfaces are already in the depth

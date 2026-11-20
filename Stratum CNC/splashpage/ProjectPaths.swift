@@ -15,9 +15,13 @@ struct ProjectPaths {
     let projectDirectory: URL
 
     static let appDocuments: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-    static var projectsIndexFile: URL { appDocuments.appendingPathComponent("projects.json") }
+    static var projectsIndexFile: URL {
+        appDocuments.appendingPathComponent("projects.json")
+    }
 
-    enum PathError: Error { case invalidProjectName }
+    enum PathError: Error {
+        case invalidProjectName
+    }
 
     static func isValidName(_ name: String) -> Bool {
         !name.isBlank
@@ -34,7 +38,9 @@ struct ProjectPaths {
 
     /// An internal project: `<documentsDirectory>/Projects/<name>`.
     init(project: Project, documentsDirectory: URL = Self.appDocuments) throws {
-        guard Self.isValidName(project.name) else { throw PathError.invalidProjectName }
+        guard Self.isValidName(project.name) else {
+            throw PathError.invalidProjectName
+        }
 
         let projectsRoot = documentsDirectory.appendingPathComponent("Projects", isDirectory: true)
         try FileManager.default.createDirectory(at: projectsRoot, withIntermediateDirectories: true)

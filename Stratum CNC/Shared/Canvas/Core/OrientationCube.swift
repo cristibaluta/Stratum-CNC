@@ -129,7 +129,9 @@ enum OrientationCube {
         let isPositive: Bool
         let axisColor: SIMD3<Float>
 
-        var right: SIMD3<Float> { simd_cross(up, normal) }
+        var right: SIMD3<Float> {
+            simd_cross(up, normal)
+        }
 
         /// A point on the face at (a, b) in face units, `lift` above the
         /// surface — the small lift layers the fill and the letter over the

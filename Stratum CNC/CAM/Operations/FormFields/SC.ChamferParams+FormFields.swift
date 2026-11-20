@@ -15,7 +15,7 @@ extension SC.ChamferParams {
     /// with controls of its own). The bevel's depth isn't a field: it always follows from the
     /// width and the V-bit's angle.
     public func formFields(idPrefix: String = "chamfer",
-                            onChange: @escaping (SC.ChamferParams) -> Void) -> [SC.ParameterField] {
+                           onChange: @escaping (SC.ChamferParams) -> Void) -> [SC.ParameterField] {
 
         // Every field hands back the whole value with just its own part changed, so editing one
         // never resets the others.

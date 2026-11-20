@@ -175,8 +175,12 @@ private struct IsoScene {
 
     // MARK: Shapes in the XY plane
 
-    private func roundedRect(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double,
-                             radius r: Double, segments n: Int = 6) -> [P2] {
+    private func roundedRect(_ x0: Double,
+                             _ y0: Double,
+                             _ x1: Double,
+                             _ y1: Double,
+                             radius r: Double,
+                             segments n: Int = 6) -> [P2] {
         var points: [P2] = []
         let corners: [(Double, Double, Double)] = [(x1 - r, y1 - r, 0), (x0 + r, y1 - r, 90),
                                                    (x0 + r, y0 + r, 180), (x1 - r, y0 + r, 270)]
@@ -246,7 +250,9 @@ private struct IsoScene {
     /// - `faces`: the visible walls as one path, for filling.
     /// Vertical edges are drawn at corners and where the wall turns away from the viewer, so a
     /// curved wall gets its two outer lines and not one line per segment.
-    private func wallPaths(_ outline: [P2], zTop: Double, zBottom: Double,
+    private func wallPaths(_ outline: [P2],
+                           zTop: Double,
+                           zBottom: Double,
                            inward: Bool) -> (solid: Path, hidden: Path, faces: Path) {
         let n = outline.count
         let ccw = signedArea(outline) > 0
@@ -324,8 +330,13 @@ private struct IsoScene {
     /// clipped: a deeper step, a part standing in a groove, a thread.
     /// - `floorFill`, `wallFill`: how much of the accent colour the cut floor / far walls get (0 = none).
     /// - `floorHole`: an outline cut out of the floor fill, where a deeper cut continues.
-    private func recess(_ ctx: inout GraphicsContext, _ opening: [P2], z0: Double = 0, depth: Double,
-                        floorFill: Double = 1, wallFill: Double = 0, floorHole: [P2]? = nil,
+    private func recess(_ ctx: inout GraphicsContext,
+                        _ opening: [P2],
+                        z0: Double = 0,
+                        depth: Double,
+                        floorFill: Double = 1,
+                        wallFill: Double = 0,
+                        floorHole: [P2]? = nil,
                         ring: Bool = false,
                         extra: ((inout GraphicsContext) -> Void)? = nil) {
         let zFloor = z0 - depth

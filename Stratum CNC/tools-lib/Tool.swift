@@ -52,26 +52,24 @@ struct Tool: Identifiable, Codable, Hashable {
     /// Shown alphabetically by name in the UI.
     var presets: [ToolPreset]
 
-    init(
-        id: UUID = UUID(),
-        name: String,
-        shankDiameter: Double,
-        toolDiameter: Double,
-        cuttingHeight: Double?,
-        toolLength: Double? = nil,
-        type: ToolType,
-        group: String? = nil,
-        numberOfFlutes: Int? = nil,
-        cuttingDirection: CuttingDirection? = nil,
-        quantity: Int = 0,
-        link: String? = nil,
-        tipAngle: Double? = nil,
-        tipDiameter: Double? = nil,
-        cornerRadius: Double? = nil,
-        thread: ThreadProfile? = nil,
-        presets: [ToolPreset] = [],
-        sourceID: UUID = ToolSourceInfo.customID
-    ) {
+    init(id: UUID = UUID(),
+         name: String,
+         shankDiameter: Double,
+         toolDiameter: Double,
+         cuttingHeight: Double?,
+         toolLength: Double? = nil,
+         type: ToolType,
+         group: String? = nil,
+         numberOfFlutes: Int? = nil,
+         cuttingDirection: CuttingDirection? = nil,
+         quantity: Int = 0,
+         link: String? = nil,
+         tipAngle: Double? = nil,
+         tipDiameter: Double? = nil,
+         cornerRadius: Double? = nil,
+         thread: ThreadProfile? = nil,
+         presets: [ToolPreset] = [],
+         sourceID: UUID = ToolSourceInfo.customID) {
         self.id = id
         self.name = name
         self.shankDiameter = shankDiameter
@@ -257,7 +255,9 @@ extension ToolType {
     }
 
     /// Whether the tool's corner can be rounded: an end mill with a corner radius is a bull nose mill.
-    var hasCornerRadius: Bool { self == .endMill }
+    var hasCornerRadius: Bool {
+        self == .endMill
+    }
 }
 
 enum ToolType: String, Codable, CaseIterable, Hashable {

@@ -100,7 +100,9 @@ struct BitChangeFlow: Equatable {
         case .secure:
             return machine == .ready
         case .replace:
-            guard machine == .ready else { return false }
+            guard machine == .ready else {
+                return false
+            }
             switch installation {
             case .byHand: return calibrationSent
             case .automatic(let tool): return tool >= 1
@@ -112,7 +114,9 @@ struct BitChangeFlow: Equatable {
 
     /// Why the current step can't be left yet, for the sheet.
     func blocker(machine: MachineCondition) -> String? {
-        guard !canAdvance(machine: machine), step != .restart else { return nil }
+        guard !canAdvance(machine: machine), step != .restart else {
+            return nil
+        }
         switch step {
         case .secure:
             switch machine {
@@ -123,7 +127,9 @@ struct BitChangeFlow: Equatable {
             case .unknown: return "Waiting for the machine's status."
             }
         case .replace:
-            if machine != .ready { return "Wait until the machine is idle." }
+            if machine != .ready {
+                return "Wait until the machine is idle."
+            }
             switch installation {
             case .byHand: return "Measure the new bit's length once it is tightened."
             case .automatic: return "Enter the tool number (1 or higher)."
@@ -135,17 +141,23 @@ struct BitChangeFlow: Equatable {
 
     @discardableResult
     mutating func advance(machine: MachineCondition) -> Bool {
-        guard canAdvance(machine: machine), let next = Step(rawValue: step.rawValue + 1) else { return false }
+        guard canAdvance(machine: machine), let next = Step(rawValue: step.rawValue + 1) else {
+            return false
+        }
         step = next
         return true
     }
 
     mutating func goBack() {
-        if let previous = Step(rawValue: step.rawValue - 1) { step = previous }
+        if let previous = Step(rawValue: step.rawValue - 1) {
+            step = previous
+        }
     }
 
     mutating func setInstallation(_ installation: Installation) {
-        guard installation != self.installation else { return }
+        guard installation != self.installation else {
+            return
+        }
         self.installation = installation
         calibrationSent = false
     }

@@ -114,13 +114,11 @@ struct ToolTypeRail: View {
         String(format: "%g", value)
     }
 
-    private func row<Icon: View>(
-        _ title: String,
-        count: Int,
-        isSelected: Bool,
-        action: @escaping () -> Void,
-        @ViewBuilder icon: () -> Icon
-    ) -> some View {
+    private func row<Icon: View>(_ title: String,
+                                 count: Int,
+                                 isSelected: Bool,
+                                 action: @escaping () -> Void,
+                                 @ViewBuilder icon: () -> Icon) -> some View {
         Button(action: action) {
             HStack(spacing: 8) {
                 icon()

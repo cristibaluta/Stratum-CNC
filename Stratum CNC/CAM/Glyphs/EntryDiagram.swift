@@ -237,7 +237,11 @@ struct EntryDiagram: View {
                 for i in 0...steps {
                     let theta = drawn * Double(i) / Double(steps)
                     let point = CGPoint(x: marker.x + arcRadius * CGFloat(cos(theta)), y: marker.y + arcRadius * CGFloat(sin(theta)))
-                    if i == 0 { arc.move(to: point) } else { arc.addLine(to: point) }
+                    if i == 0 {
+                        arc.move(to: point)
+                    } else {
+                        arc.addLine(to: point)
+                    }
                 }
                 context.stroke(arc, with: .color(accent), style: StrokeStyle(lineWidth: 1.2))
                 context.draw(Text("\(Self.format(degrees))°").font(.system(size: 10, weight: .semibold)).foregroundColor(accent),

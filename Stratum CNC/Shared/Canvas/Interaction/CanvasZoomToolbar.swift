@@ -18,7 +18,7 @@ struct CanvasZoomToolbar: View {
                 Image(systemName: "minus.magnifyingglass")
             }
             .buttonStyle(.plain)
-            
+
             // Logarithmic Slider centered on 1:1
             VStack(spacing: 2) {
                 Slider(value: $viewModel.sliderPosition, in: 0.0...1.0) {
@@ -33,22 +33,22 @@ struct CanvasZoomToolbar: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(width: 180)
-                
+
                 // Tick indicator for middle point
                 Rectangle()
                     .fill(Color.secondary.opacity(0.5))
                     .frame(width: 1.5, height: 4)
             }
-            
+
             // Zoom In Button
             Button(action: { zoomStep(out: false) }) {
                 Image(systemName: "plus.magnifyingglass")
             }
             .buttonStyle(.plain)
-            
+
             Divider()
                 .frame(height: 16)
-            
+
             // True to Life (1:1) Shortcut Button
             Button(action: {
                 withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
@@ -72,11 +72,11 @@ struct CanvasZoomToolbar: View {
             viewModel.resetToTrueToLife()
         }
     }
-    
+
     private var isTrueToLife: Bool {
         abs(viewModel.canvasState.zoomScale - viewModel.trueToLifeScale) < 0.001
     }
-    
+
     private func zoomStep(out: Bool) {
         withAnimation(.easeOut(duration: 0.15)) {
             let step = out ? -0.05 : 0.05

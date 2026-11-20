@@ -116,7 +116,9 @@ struct LeadInOutEditor: View {
 
     private enum StyleKind: String, CaseIterable, Identifiable {
         case linear = "Linear", arc = "Arc"
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
     }
 
     let role: Role
@@ -253,7 +255,9 @@ struct LeadInOutEditor: View {
     private var styleKind: Binding<StyleKind> {
         Binding(
             get: {
-                if case .arc = current.style { return .arc }
+                if case .arc = current.style {
+                    return .arc
+                }
                 return .linear
             },
             set: { kind in
@@ -268,7 +272,9 @@ struct LeadInOutEditor: View {
     private var length: Binding<Double> {
         Binding(
             get: {
-                if case .linear(let length) = current.style { return length }
+                if case .linear(let length) = current.style {
+                    return length
+                }
                 return 3
             },
             set: { leadInOut?.style = .linear(length: Self.clamp($0, 0.1...20)) }
@@ -278,7 +284,9 @@ struct LeadInOutEditor: View {
     private var radius: Binding<Double> {
         Binding(
             get: {
-                if case .arc(let radius, _) = current.style { return radius }
+                if case .arc(let radius, _) = current.style {
+                    return radius
+                }
                 return 3
             },
             set: { newValue in
@@ -292,7 +300,9 @@ struct LeadInOutEditor: View {
     private var sweep: Binding<Double> {
         Binding(
             get: {
-                if case .arc(_, let sweep) = current.style { return sweep }
+                if case .arc(_, let sweep) = current.style {
+                    return sweep
+                }
                 return 90
             },
             set: { newValue in

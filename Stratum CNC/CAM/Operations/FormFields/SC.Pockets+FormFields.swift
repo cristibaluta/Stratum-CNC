@@ -10,7 +10,7 @@ import StratumCAM
 
 extension SC.AdaptiveSettings {
     fileprivate func formFields(idPrefix: String,
-                                 onChange: @escaping (SC.AdaptiveSettings) -> Void) -> [SC.ParameterField] {
+                                onChange: @escaping (SC.AdaptiveSettings) -> Void) -> [SC.ParameterField] {
         [
             .double(.init(id: "\(idPrefix).optimalLoad",
                           label: "Optimal Load",
@@ -24,7 +24,7 @@ extension SC.AdaptiveSettings {
 
 extension SC.TrochoidalSettings {
     fileprivate func formFields(idPrefix: String,
-                                 onChange: @escaping (SC.TrochoidalSettings) -> Void) -> [SC.ParameterField] {
+                                onChange: @escaping (SC.TrochoidalSettings) -> Void) -> [SC.ParameterField] {
         [
             .double(.init(id: "\(idPrefix).radialEngagement",
                           label: "Radial Engagement",
@@ -46,8 +46,8 @@ extension SC.PocketClearingPattern {
 
     /// Variant field covering all five pocket clearing patterns.
     public func formField(id: String = "pattern",
-                           label: String = "Clearing Pattern",
-                           onChange: @escaping (SC.PocketClearingPattern) -> Void) -> SC.ParameterField {
+                          label: String = "Clearing Pattern",
+                          onChange: @escaping (SC.PocketClearingPattern) -> Void) -> SC.ParameterField {
 
         let currentSpiral: SC.SpiralDirection = {
             if case .spiral(let d) = self {
@@ -56,13 +56,25 @@ extension SC.PocketClearingPattern {
                 return .outsideIn }
         }()
         let currentConcentric: SC.SpiralDirection = {
-            if case .concentric(let d) = self { return d } else { return .outsideIn }
+            if case .concentric(let d) = self {
+                return d
+            } else {
+                return .outsideIn
+            }
         }()
         let currentTrochoidal: SC.TrochoidalSettings = {
-            if case .trochoidal(let s) = self { return s } else { return .init(radialEngagement: 0.3, loopRadius: 1.0) }
+            if case .trochoidal(let s) = self {
+                return s
+            } else {
+                return .init(radialEngagement: 0.3, loopRadius: 1.0)
+            }
         }()
         let currentAdaptive: SC.AdaptiveSettings = {
-            if case .adaptive(let s) = self { return s } else { return .init(optimalLoad: 1.0) }
+            if case .adaptive(let s) = self {
+                return s
+            } else {
+                return .init(optimalLoad: 1.0)
+            }
         }()
 
         let cases: [SC.ParameterField.VariantField.Case] = [

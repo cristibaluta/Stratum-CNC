@@ -42,7 +42,9 @@ struct STEPDisplayGeometry: Sendable {
         var bodies: [Body] = []
         for body in placed {
             try Task.checkCancellation()
-            guard let bounds = body.bounds else { continue }
+            guard let bounds = body.bounds else {
+                continue
+            }
             let anchor = bounds.workpieceOrigin
             guard (0..<3).allSatisfy({ anchor[$0].isFinite }) else {
                 throw STEP.ParseError("Invalid STEP display bounds")
@@ -51,7 +53,9 @@ struct STEPDisplayGeometry: Sendable {
             var ranges: [EdgeRange] = []
             for edge in body.edges {
                 try Task.checkCancellation()
-                guard edge.points.count >= 2 else { continue }
+                guard edge.points.count >= 2 else {
+                    continue
+                }
                 let start = points.count
                 func displayPoint(_ source: SIMD3<Double>) throws -> SIMD3<Float> {
                     let local = source - anchor
@@ -62,7 +66,9 @@ struct STEPDisplayGeometry: Sendable {
                 }
                 var previous = try displayPoint(edge.points[0])
                 for point in edge.points.dropFirst() {
-                    if points.count % 4096 == 0 { try Task.checkCancellation() }
+                    if points.count % 4096 == 0 {
+                        try Task.checkCancellation()
+                    }
                     let current = try displayPoint(point)
                     points.append(previous)
                     points.append(current)
@@ -84,7 +90,9 @@ struct STEPDisplayGeometry: Sendable {
                     }
                 }
             }
-            if !points.isEmpty { bodies.append(Body(id: body.id, points: points, edges: ranges, origin: anchor)) }
+            if !points.isEmpty {
+                bodies.append(Body(id: body.id, points: points, edges: ranges, origin: anchor))
+            }
         }
         self.origin = origin
         self.bodies = bodies
@@ -122,7 +130,9 @@ struct STEPDisplayGeometry: Sendable {
             let bodyMatrix = offsets[body.id].map { matrix * Self.translation($0) } ?? matrix
             for edge in body.edges {
                 for index in stride(from: edge.vertices.lowerBound, to: edge.vertices.upperBound, by: 2) {
-                    guard let (a, b) = Self.projectSegment(body.points[index], body.points[index + 1], matrix: bodyMatrix, viewport: viewport) else { continue }
+                    guard let (a, b) = Self.projectSegment(body.points[index], body.points[index + 1], matrix: bodyMatrix, viewport: viewport) else {
+                        continue
+                    }
                     let delta = SIMD2<Float>(b.x - a.x, b.y - a.y)
                     let offset = cursor - SIMD2<Float>(a.x, a.y)
                     let length = simd_length_squared(delta)
@@ -173,8 +183,12 @@ struct STEPDisplayGeometry: Sendable {
             if f < 0 && g < 0 {
                 return nil
             }
-            if f < 0 { low = max(low, f / (f - g)) }
-            if g < 0 { high = min(high, f / (f - g)) }
+            if f < 0 {
+                low = max(low, f / (f - g))
+            }
+            if g < 0 {
+                high = min(high, f / (f - g))
+            }
             if low > high {
                 return nil
             }

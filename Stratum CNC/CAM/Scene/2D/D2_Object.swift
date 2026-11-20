@@ -56,18 +56,18 @@ final class D2_Object {
     var alignmentPins: AlignmentPinsSpec?
 
     /// The object is built from parameters, not placed by hand.
-    var isParametric: Bool { alignmentPins != nil }
+    var isParametric: Bool {
+        alignmentPins != nil
+    }
 
-    init(
-        id: UUID = UUID(),
-        name: String,
-        paths: [STBezierPath],
-        entities: [DXF.Entity],
-        contours: [[SC.Contour]] = [],
-        position: CGPoint,
-        originalSize: CGSize,
-        width: CGFloat
-    ) {
+    init(id: UUID = UUID(),
+         name: String,
+         paths: [STBezierPath],
+         entities: [DXF.Entity],
+         contours: [[SC.Contour]] = [],
+         position: CGPoint,
+         originalSize: CGSize,
+         width: CGFloat) {
         self.id = id
         self.name = name
         self.paths = paths

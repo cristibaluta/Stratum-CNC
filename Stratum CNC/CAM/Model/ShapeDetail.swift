@@ -83,7 +83,9 @@ struct ShapeDetail: Identifiable {
 
                 case let .arc(_, radius, startAngle, endAngle, isCCW):
                     var sweep = isCCW ? endAngle - startAngle : startAngle - endAngle
-                    while sweep < 0 { sweep += 2 * .pi }
+                    while sweep < 0 {
+                        sweep += 2 * .pi
+                    }
                     total += radius * sweep
             }
         }
@@ -127,7 +129,9 @@ struct ShapeDetail: Identifiable {
     }
 
     /// The circle through three points in XY, nil when they are in a line.
-    private static func fitCircle(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>) -> (x: Double, y: Double, radius: Double)? {
+    private static func fitCircle(_ a: SIMD3<Double>,
+                                  _ b: SIMD3<Double>,
+                                  _ c: SIMD3<Double>) -> (x: Double, y: Double, radius: Double)? {
 
         let d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y))
         guard abs(d) > 1e-9 else {

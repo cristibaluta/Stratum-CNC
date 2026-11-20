@@ -32,7 +32,9 @@ extension SIMD2 where Scalar: FloatingPoint {
     }
 
     /// Rotated 90° counter-clockwise.
-    var perpendicular: Self { Self(-y, x) }
+    var perpendicular: Self {
+        Self(-y, x)
+    }
 
     var isFinite: Bool {
         x.isFinite && y.isFinite

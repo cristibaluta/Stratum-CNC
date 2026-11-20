@@ -50,7 +50,10 @@ extension STEPDisplayGeometry {
         var farthest: Float = 0
         for point in points {
             let d = simd_length_squared(point - first)
-            if d > farthest { farthest = d; far = point }
+            if d > farthest {
+                farthest = d
+                far = point
+            }
         }
         guard farthest > Self.planeTolerance * Self.planeTolerance else {
             return nil
@@ -62,7 +65,10 @@ extension STEPDisplayGeometry {
         for point in points {
             let cross = simd_cross(direction, point - first)
             let d = simd_length(cross)
-            if d > offLine { offLine = d; normal = cross }
+            if d > offLine {
+                offLine = d
+                normal = cross
+            }
         }
 
         if offLine > Self.planeTolerance {
@@ -120,7 +126,9 @@ extension STEPDisplayGeometry {
                 inPlane.insert(index)
                 let (a, b) = ends(edge)
                 atVertex[a, default: []].append(index)
-                if b != a { atVertex[b, default: []].append(index) }
+                if b != a {
+                    atVertex[b, default: []].append(index)
+                }
             }
 
             var visited = Set(seeds)

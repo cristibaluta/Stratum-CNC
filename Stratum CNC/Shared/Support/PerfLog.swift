@@ -70,7 +70,9 @@ enum PerfLog {
     /// Runs `body`, then logs how long it took.
     static func measure<T>(_ category: String, _ label: String, _ body: () throws -> T) rethrows -> T {
         let t0 = now()
-        defer { PerfLog.log(category, "\(label): \(fmt(ms(since: t0)))") }
+        defer {
+            PerfLog.log(category, "\(label): \(fmt(ms(since: t0)))")
+        }
         return try body()
     }
 
@@ -313,7 +315,9 @@ private final class Core: @unchecked Sendable {
         pingSentAt = 0
         lock.unlock()
 
-        guard sent != 0 else { return }
+        guard sent != 0 else {
+            return
+        }
         let ms = Double(nowNs - sent) / 1_000_000
         if ms > 250 {
             write(category: "STALL", message: "main thread was unresponsive for \(PerfLog.fmt(ms)) (now recovered)")
@@ -325,7 +329,9 @@ private final class Core: @unchecked Sendable {
     private func observeSystem() {
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.normal, .warning, .critical], queue: timerQueue)
         source.setEventHandler { [weak self, weak source] in
-            guard let event = source?.data else { return }
+            guard let event = source?.data else {
+                return
+            }
             let name = event.contains(.critical) ? "CRITICAL" : (event.contains(.warning) ? "WARNING" : "normal")
             self?.write(category: "system", message: "memory pressure: \(name)")
         }

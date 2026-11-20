@@ -297,7 +297,8 @@ private struct FeedCalculatorView: View {
         value.formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "en_US")))
     }
 
-    private func row<Field: View>(_ title: String, suffix: String,
+    private func row<Field: View>(_ title: String,
+                                  suffix: String,
                                   @ViewBuilder field: () -> Field) -> some View {
         InspectorRow(label: title, labelWidth: 70) {
             HStack(spacing: 6) {

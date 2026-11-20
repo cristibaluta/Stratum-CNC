@@ -208,8 +208,12 @@ struct STEPDisplayOptionsButton: View {
         .onChange(of: others.map { ObjectIdentifier($0) }) { _, _ in
             // A file that has just loaded takes the options already chosen
             for other in others {
-                if scene.displayMode == .wireframe || other.canShade { other.displayMode = scene.displayMode }
-                if other.hasSurfaces { other.hiddenEdgeMode = scene.hiddenEdgeMode }
+                if scene.displayMode == .wireframe || other.canShade {
+                    other.displayMode = scene.displayMode
+                }
+                if other.hasSurfaces {
+                    other.hiddenEdgeMode = scene.hiddenEdgeMode
+                }
                 other.showsProjection = scene.showsProjection
             }
         }

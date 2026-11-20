@@ -27,7 +27,9 @@ enum AnchorChoice: Int, Codable, CaseIterable, Identifiable {
     case anchor1 = 1
     case anchor2 = 2
 
-    var id: Int { rawValue }
+    var id: Int {
+        rawValue
+    }
 
     var label: String {
         "Anchor \(rawValue)"

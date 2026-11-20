@@ -12,7 +12,10 @@ import StratumCAM
 struct ObjectFactory {
 
     /// - Parameter contours: index-aligned with `paths` (see `D2_Object.contours`).
-    func makeObject(name: String, paths: [STBezierPath], entities: [DXF.Entity], contours: [[SC.Contour]]) -> D2_Object? {
+    func makeObject(name: String,
+                    paths: [STBezierPath],
+                    entities: [DXF.Entity],
+                    contours: [[SC.Contour]]) -> D2_Object? {
 
         guard !paths.isEmpty else {
             return nil

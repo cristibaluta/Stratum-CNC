@@ -87,7 +87,7 @@ struct ToolpathGeneration {
             return []
         }
         var seen = Set<String>()
-        
+
         return outputs.flatMap(\.warnings)
             .map { ToolpathGenerator.message(for: $0) }
             .filter { seen.insert($0).inserted }

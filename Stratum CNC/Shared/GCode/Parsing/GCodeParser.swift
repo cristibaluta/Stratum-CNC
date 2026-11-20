@@ -109,9 +109,7 @@ final class GCodeParser {
     /// so a file that's nothing but comments isn't scanned end to end.
     private static let maxHeaderLines = 1000
 
-    init(headerParsers: [any GCodeHeaderParser] = [MakeraHeaderParser(),
-                                                   FusionHeaderParser(),
-                                                   MakeraCAMHeaderParser()]) {
+    init(headerParsers: [any GCodeHeaderParser] = [MakeraHeaderParser(), FusionHeaderParser(), MakeraCAMHeaderParser()]) {
         self.headerParsers = headerParsers
     }
 
@@ -188,7 +186,10 @@ final class GCodeParser {
 
     // MARK: Parse line
 
-    private func parseLine(_ text: String, lineNumber: Int, state: inout GCodeState, segments: inout [ToolpathSegment]) {
+    private func parseLine(_ text: String,
+                           lineNumber: Int,
+                           state: inout GCodeState,
+                           segments: inout [ToolpathSegment]) {
 
         let bytes = Array(text.utf8)
         var values: [UInt8: Double] = [:]
@@ -281,7 +282,9 @@ final class GCodeParser {
 
         let scale = state.units.scaleToMillimeters
         // Reject the whole geometry block before it can poison modal position or Metal buffers.
-        guard values.values.allSatisfy({ Float($0 * scale).isFinite }) else { return }
+        guard values.values.allSatisfy({ Float($0 * scale).isFinite }) else {
+            return
+        }
 
         // X
         if let value = values[0x58] {
@@ -320,7 +323,9 @@ final class GCodeParser {
         }
 
         guard Float(newPosition.x).isFinite, Float(newPosition.y).isFinite,
-              Float(newPosition.z).isFinite else { return }
+              Float(newPosition.z).isFinite else {
+            return
+        }
 
         let hasXYZ =
             values[0x58] != nil ||
@@ -410,15 +415,15 @@ final class GCodeParser {
 
     // MARK: Linear movement
 
-    private func appendLinearSegment(
-        start: SIMD3<Double>,
-        end: SIMD3<Double>,
-        lineNumber: Int,
-        flags: UInt32,
-        segments: inout [ToolpathSegment]
-    ) {
+    private func appendLinearSegment(start: SIMD3<Double>,
+                                     end: SIMD3<Double>,
+                                     lineNumber: Int,
+                                     flags: UInt32,
+                                     segments: inout [ToolpathSegment]) {
 
-        guard [start.x, start.y, start.z, end.x, end.y, end.z].allSatisfy({ Float($0).isFinite }) else { return }
+        guard [start.x, start.y, start.z, end.x, end.y, end.z].allSatisfy({ Float($0).isFinite }) else {
+            return
+        }
         guard distanceSquared(
             start,
             end

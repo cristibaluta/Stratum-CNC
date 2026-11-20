@@ -86,7 +86,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// over the whole part, hidden edges included, so a selected rear edge can always be seen.
     @Published var hiddenEdgeMode: STEPHiddenEdgeMode = .solid {
         didSet {
-            guard hiddenEdgeMode != oldValue else { return }
+            guard hiddenEdgeMode != oldValue else {
+                return
+            }
             defaults?.set(hiddenEdgeMode.rawValue, forKey: Self.hiddenEdgeModeKey)
             rebuildObjects()
         }
@@ -105,7 +107,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             }
             defaults?.set(displayMode.rawValue, forKey: Self.displayModeKey)
             // Edges are not drawn, so a plain selection has nothing to show. A toolpath being edited keeps its edges.
-            if displayMode == .shaded, !isPicking { setSelection([], notify: true) }
+            if displayMode == .shaded, !isPicking {
+                setSelection([], notify: true)
+            }
             rebuildObjects()
         }
     }
@@ -166,11 +170,15 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     }
 
     /// Where the body sits on the canvas, in mm (its corner and its top, see `positions`).
-    func position(of body: STEP.BodyID) -> SIMD3<Float> { positions[body] ?? .zero }
+    func position(of body: STEP.BodyID) -> SIMD3<Float> {
+        positions[body] ?? .zero
+    }
 
     /// Moves one body: its edges, faces and the selection overlay are rebuilt translated.
     func setPosition(_ position: SIMD3<Float>, of body: STEP.BodyID) {
-        guard content.info(of: body) != nil, positions[body] != position else { return }
+        guard content.info(of: body) != nil, positions[body] != position else {
+            return
+        }
         positions[body] = position
         rebuildObjects(only: body)
         rebuildHighlight()
@@ -180,7 +188,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// selection stays; what depends on where they are (plane, highlight, faces) is rebuilt, and the
     /// camera frames the part again.
     func setOrientation(_ face: SetupFace, of body: STEP.BodyID) {
-        guard content.info(of: body) != nil, face != content.orientation(of: body) else { return }
+        guard content.info(of: body) != nil, face != content.orientation(of: body) else {
+            return
+        }
         content = content.updated(body, orientation: face, scale: content.scale(of: body))
         setSelection(selectedEdges, notify: false)
         rebuildObjects(only: body)
@@ -189,7 +199,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
     /// Scales one body (uniformly, about its corner and top, so it stays where it is).
     func setScale(_ scale: Float, of body: STEP.BodyID) {
-        guard content.info(of: body) != nil, scale.isFinite, scale > 0, scale != content.scale(of: body) else { return }
+        guard content.info(of: body) != nil, scale.isFinite, scale > 0, scale != content.scale(of: body) else {
+            return
+        }
         content = content.updated(body, orientation: content.orientation(of: body), scale: scale)
         setSelection(selectedEdges, notify: false)
         rebuildObjects(only: body)
@@ -197,7 +209,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
     /// Takes a body out of the scene for good: its edges, faces and selected edges go.
     func removeBody(_ body: STEP.BodyID) {
-        guard content.info(of: body) != nil else { return }
+        guard content.info(of: body) != nil else {
+            return
+        }
         content = content.removing(body)
         positions.removeValue(forKey: body)
         hiddenBodies.remove(body)
@@ -248,13 +262,19 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// dotted. Shaded: the faces themselves provide the depth, the lines are kept (for the camera fit
     /// and picking data) but not drawn. A body without a surface always keeps its drawn wireframe.
     /// - Parameter only: the index of the one body to build (the result then has one entry per list).
-    private static func makeObjects(_ content: STEPViewerContent, isDark: Bool, positions: [STEP.BodyID: SIMD3<Float>],
-                                    displayMode: STEPDisplayMode, hiddenMode: STEPHiddenEdgeMode, only: Int? = nil)
+    private static func makeObjects(_ content: STEPViewerContent,
+                                    isDark: Bool,
+                                    positions: [STEP.BodyID: SIMD3<Float>],
+                                    displayMode: STEPDisplayMode,
+                                    hiddenMode: STEPHiddenEdgeMode,
+                                    only: Int? = nil)
         -> (lines: [RenderObject], solids: [RenderObject?]) {
         var lines: [RenderObject] = []
         var solids: [RenderObject?] = []
         for (index, body) in content.geometry.bodies.enumerated() {
-            if let only, only != index { continue }
+            if let only, only != index {
+                continue
+            }
             let offset = positions[body.id] ?? .zero
             let placement = content.placement(of: body.id)
             let points = offset == .zero ? body.points : body.points.map { $0 + offset }
@@ -299,33 +319,45 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
     /// Rebuilds the edges in the color that suits the current appearance.
     func setAppearance(isDark: Bool) {
-        guard isDark != isDarkAppearance else { return }
+        guard isDark != isDarkAppearance else {
+            return
+        }
         isDarkAppearance = isDark
         rebuildObjects()
     }
 
     var visibleObjects: [RenderObject] {
-        guard isModelVisible else { return [] }
+        guard isModelVisible else {
+            return []
+        }
         var objects: [RenderObject] = []
         for (index, body) in content.geometry.bodies.enumerated() where !hiddenBodies.contains(body.id) {
-            if let solid = solidObjects[index] { objects.append(solid) }
+            if let solid = solidObjects[index] {
+                objects.append(solid)
+            }
             objects.append(baseObjects[index])
         }
         return objects + selectionObjects
     }
 
     /// The body is drawn: the model is shown and the body itself is not hidden.
-    func isBodyVisible(_ id: STEP.BodyID) -> Bool { isModelVisible && !hiddenBodies.contains(id) }
+    func isBodyVisible(_ id: STEP.BodyID) -> Bool {
+        isModelVisible && !hiddenBodies.contains(id)
+    }
 
     /// The eye of the body's row. When the whole model is hidden, showing a body shows the model again.
     func toggleBodyVisible(_ id: STEP.BodyID) {
         let show = !isBodyVisible(id)
-        if show, !isModelVisible { isModelVisible = true }
+        if show, !isModelVisible {
+            isModelVisible = true
+        }
         setBodyVisible(id, show)
     }
 
     func setBodyVisible(_ id: STEP.BodyID, _ visible: Bool) {
-        if visible { hiddenBodies.remove(id) } else {
+        if visible {
+            hiddenBodies.remove(id)
+        } else {
             hiddenBodies.insert(id)
             setSelection(selectedEdges.filter { $0.bodyID != id }, notify: true)
         }
@@ -335,7 +367,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// The edge under `point`, if any.
     func edge(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4) -> STEP.EdgeID? {
         // Edges that are not drawn must not be picked either.
-        guard isModelVisible, displayMode != .shaded else { return nil }
+        guard isModelVisible, displayMode != .shaded else {
+            return nil
+        }
         // Every body is stored at the origin; the matrix the canvas hands over
         // sees them there, so each is moved back into place first (`offsets`).
         // With hidden edges not drawn, the edges behind a face are not pickable.
@@ -352,7 +386,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         var screen: [SIMD3<Float>] = []
         var indices: [Int] = []
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
-            guard let mesh = content.surfaces.mesh(for: body.id) else { continue }
+            guard let mesh = content.surfaces.mesh(for: body.id) else {
+                continue
+            }
             // The mesh goes through the body's placement and position, like the edges in `hitTest`
             let placement = content.placement(of: body.id)
             let bodyMatrix = matrix * STEPDisplayGeometry.translation(position(of: body.id))
@@ -361,7 +397,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                                              matrix: bodyMatrix, viewport: viewport)
             indices += mesh.indices.map { base + Int($0) }
         }
-        guard !indices.isEmpty else { return nil }
+        guard !indices.isEmpty else {
+            return nil
+        }
         // The projection is orthographic: depth changes by this much per mm along the view.
         let perMM = simd_length(SIMD3<Float>(matrix.columns.0.z, matrix.columns.1.z, matrix.columns.2.z))
         let tolerance = 0.1 * perMM
@@ -379,14 +417,18 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// - Parameter chamfersOnly: only a chamfer is looked for (nothing for a flat face). A chamfer is
     ///   a thin strip, so every point on it is within the edge tolerance of one of its rails: the
     ///   click routing asks for it before the edges, or a click on it would always pick a rail.
-    func faceEdges(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
+    func faceEdges(at point: CGPoint,
+                   viewport: CGSize,
+                   matrix: simd_float4x4,
                    chamfersOnly: Bool = false) -> Set<STEP.EdgeID>? {
         faceHit(at: point, viewport: viewport, matrix: matrix, chamfersOnly: chamfersOnly)?.edges
     }
 
     /// `faceEdges` and how far the picked triangle is from the viewer (the same depth for every scene
     /// drawn with the same `matrix`), so that with several scenes on the canvas the nearest face wins.
-    func faceHit(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
+    func faceHit(at point: CGPoint,
+                 viewport: CGSize,
+                 matrix: simd_float4x4,
                  chamfersOnly: Bool = false) -> (edges: Set<STEP.EdgeID>, depth: Float)? {
         guard isModelVisible, displayMode == .shadedEdges else {
             PerfLog.log("pick", "face: ignored, model visible \(isModelVisible), display mode \(displayMode.rawValue)")
@@ -396,7 +438,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         var best: (body: STEP.BodyID, positions: [SIMD3<Float>], indices: [Int], triangle: Int, depth: Float,
                    outward: SIMD3<Float>?, normals: [SIMD3<Float>])?
         for body in content.geometry.bodies where !hiddenBodies.contains(body.id) {
-            guard let mesh = content.surfaces.mesh(for: body.id) else { continue }
+            guard let mesh = content.surfaces.mesh(for: body.id) else {
+                continue
+            }
             // The body's mesh is in the file's frame; its placement takes it to the body's own frame,
             // which `matrix` sees at the origin, so the body's position moves it into place.
             let placement = content.placement(of: body.id)
@@ -405,11 +449,15 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
             let indices = mesh.indices.map { Int($0) }
             guard let hit = STEPFacePicker.pickTriangle(positions: positions, indices: indices, at: point,
                                                         viewport: viewport, matrix: bodyMatrix),
-                  hit.depth < (best?.depth ?? .infinity) else { continue }
+                  hit.depth < (best?.depth ?? .infinity) else {
+                continue
+            }
             // The way the face looks out of the solid, from the mesh's own shading normals.
             // Used to tell bosses (walls rising off the face) from holes (walls dropping into it).
             var normal = SIMD3<Float>.zero
-            for corner in 0..<3 { normal += placement.direction(mesh.normals[Int(indices[3 * hit.triangle + corner])]) }
+            for corner in 0..<3 {
+                normal += placement.direction(mesh.normals[Int(indices[3 * hit.triangle + corner])])
+            }
             let outward: SIMD3<Float>? = simd_length(normal) > 1e-6 ? simd_normalize(normal) : nil
             best = (body.id, positions, indices, hit.triangle, hit.depth, outward,
                     mesh.normals.map { placement.direction($0) })
@@ -451,10 +499,16 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// A click on a face: its edges become the selection. Extending (Shift or Cmd, or the picks
     /// of an open toolpath) adds them, or takes them out again when they were all selected.
     func selectFace(_ edges: Set<STEP.EdgeID>, extend: Bool) {
-        guard isModelVisible else { return }
+        guard isModelVisible else {
+            return
+        }
         var selection = selectedEdges
         if extend || isPicking {
-            if edges.isSubset(of: selection) { selection.subtract(edges) } else { selection.formUnion(edges) }
+            if edges.isSubset(of: selection) {
+                selection.subtract(edges)
+            } else {
+                selection.formUnion(edges)
+            }
         } else {
             selection = edges
         }
@@ -465,12 +519,16 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         guard let id, isModelVisible, !hiddenBodies.contains(id.bodyID),
               content.geometry.bodies.contains(where: { $0.edges.contains(where: { $0.id == id }) }) else {
             // Like the 2D canvas: an empty click keeps the toolpath's shapes while picking
-            if !isPicking { clearSelection() }
+            if !isPicking {
+                clearSelection()
+            }
             return
         }
         var selection = selectedEdges
         if extend || isPicking {
-            if !selection.insert(id).inserted { selection.remove(id) }
+            if !selection.insert(id).inserted {
+                selection.remove(id)
+            }
         } else {
             selection = [id]
         }
@@ -521,19 +579,27 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// Adds the holes like the selected ones: the same diameter and depth. A hole's top circle
     /// finds the other holes' top circles, so each hole is selected once.
     func selectSimilarHoles() {
-        guard isModelVisible, canSelectSimilarHoles else { return }
+        guard isModelVisible, canSelectSimilarHoles else {
+            return
+        }
         let similar = content.geometry.similarHoles(to: selectedEdges, hiddenBodies: hiddenBodies)
-        guard !similar.isEmpty else { return }
+        guard !similar.isEmpty else {
+            return
+        }
         setSelection(selectedEdges.union(similar), notify: true)
     }
 
     /// Adds every edge connected to the selection that lies in the same plane, e.g. the whole
     /// outline of a face, or of a pocket floor, from one clicked edge.
     func selectLinkedEdgesInPlane() {
-        guard isModelVisible, let plane = selectionPlane else { return }
+        guard isModelVisible, let plane = selectionPlane else {
+            return
+        }
         let linked = content.geometry.linkedEdges(startingFrom: selectedEdges, in: plane,
                                                   hiddenBodies: hiddenBodies)
-        guard linked != selectedEdges else { return }
+        guard linked != selectedEdges else {
+            return
+        }
         setSelection(linked, notify: true)
     }
 
@@ -542,7 +608,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// double click has normally selected `id` already; it is only added here when it is not
     /// selected (an open toolpath's clicks toggle, so the first one may have taken it out).
     func expandSelection(from id: STEP.EdgeID) {
-        guard isModelVisible, !hiddenBodies.contains(id.bodyID) else { return }
+        guard isModelVisible, !hiddenBodies.contains(id.bodyID) else {
+            return
+        }
         if !selectedEdges.contains(id) {
             setSelection(isPicking ? selectedEdges.union([id]) : [id], notify: true)
         }
@@ -558,10 +626,14 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         selectionPlane = edges.isEmpty ? nil : content.geometry.plane(containing: edges)
         selectionMeasures = edges.isEmpty ? [] : content.geometry.measures(of: edges)
         selectionFeature = content.geometry.feature(of: edges, measures: selectionMeasures, plane: selectionPlane)
-        if !edges.isEmpty, edges.isSubset(of: chamferEdges) { selectionFeature = .chamfer }
+        if !edges.isEmpty, edges.isSubset(of: chamferEdges) {
+            selectionFeature = .chamfer
+        }
         updateCanSelectLinked()
         rebuildHighlight()
-        if notify { onSelectionChanged?(edges) }
+        if notify {
+            onSelectionChanged?(edges)
+        }
     }
 
     /// A toolpath was opened: show its edges as the selection, and from now on every click
@@ -596,7 +668,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     private(set) var projectionFrame: SetupFrame = .identity
 
     func setProjectionFrame(_ frame: SetupFrame) {
-        guard frame != projectionFrame else { return }
+        guard frame != projectionFrame else {
+            return
+        }
         projectionFrame = frame
         rebuildHighlight()
     }
@@ -628,7 +702,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
                 }
 
                 // An edge that already lies on the face is its own projection.
-                guard max(abs(edgeMin), abs(edgeMax)) > 1e-4 else { continue }
+                guard max(abs(edgeMin), abs(edgeMax)) > 1e-4 else {
+                    continue
+                }
                 projected.append(contentsOf: edgePoints.map { frame.projectOntoFace($0) })
                 if let first = edgePoints.first, let last = edgePoints.last {
                     for end in (first == last ? [first] : [first, last])

@@ -32,13 +32,11 @@ struct ToolSourceInfo: Identifiable, Codable, Hashable {
     /// The file an import came from, if any.
     var fileName: String?
 
-    init(
-        id: UUID = UUID(),
-        name: String,
-        kind: ToolSourceKind,
-        date: Date? = nil,
-        fileName: String? = nil
-    ) {
+    init(id: UUID = UUID(),
+         name: String,
+         kind: ToolSourceKind,
+         date: Date? = nil,
+         fileName: String? = nil) {
         self.id = id
         self.name = name
         self.kind = kind

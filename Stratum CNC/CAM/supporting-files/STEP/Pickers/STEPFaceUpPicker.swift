@@ -88,13 +88,17 @@ struct STEPFaceGlyph: View {
             let ftr = CGPoint(x: x0 + side, y: top + depth)
             let fbl = CGPoint(x: x0, y: top + depth + side)
             let fbr = CGPoint(x: x0 + side, y: top + depth + side)
-            func back(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + depth, y: p.y - depth) }
+            func back(_ p: CGPoint) -> CGPoint {
+                CGPoint(x: p.x + depth, y: p.y - depth)
+            }
             let btl = back(ftl), btr = back(ftr), bbl = back(fbl), bbr = back(fbr)
 
             func path(_ points: [CGPoint], closed: Bool = false) -> Path {
                 var path = Path()
                 path.addLines(points)
-                if closed { path.closeSubpath() }
+                if closed {
+                    path.closeSubpath()
+                }
                 return path
             }
 

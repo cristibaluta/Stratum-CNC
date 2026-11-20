@@ -108,7 +108,9 @@ struct ToolFilter: Equatable {
         for tool in tools {
             if matches(tool, ignoring: .stock) {
                 result.all += 1
-                if tool.quantity > 0 { result.inStock += 1 }
+                if tool.quantity > 0 {
+                    result.inStock += 1
+                }
             }
             if matches(tool, ignoring: .type) {
                 result.types[tool.type, default: 0] += 1
@@ -167,7 +169,9 @@ struct ToolFilter: Equatable {
     }
 
     private func matchesShank(_ tool: Tool) -> Bool {
-        guard let shank else { return true }
+        guard let shank else {
+            return true
+        }
         return Self.shankKey(shank) == Self.shankKey(tool.shankDiameter)
     }
 
@@ -190,7 +194,9 @@ struct ToolFilter: Equatable {
     /// Case-insensitive, any order: "ball 3.175" finds "3.175mm Ball Nose".
     private func matchesQuery(_ tool: Tool) -> Bool {
         let words = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
-        guard !words.isEmpty else { return true }
+        guard !words.isEmpty else {
+            return true
+        }
 
         let haystack = Self.searchText(for: tool)
         return words.allSatisfy { haystack.contains($0) }
@@ -218,19 +224,29 @@ struct ToolFilter: Equatable {
     private static func areInOrder(_ a: Tool, _ b: Tool) -> Bool {
         let typeA = typeOrder[a.type] ?? Int.max
         let typeB = typeOrder[b.type] ?? Int.max
-        if typeA != typeB { return typeA < typeB }
+        if typeA != typeB {
+            return typeA < typeB
+        }
 
-        if a.toolDiameter != b.toolDiameter { return a.toolDiameter < b.toolDiameter }
+        if a.toolDiameter != b.toolDiameter {
+            return a.toolDiameter < b.toolDiameter
+        }
 
         // V-shaped bits of one family share a diameter; order them by tip, then angle.
         let tipA = a.tipDiameter ?? 0, tipB = b.tipDiameter ?? 0
-        if tipA != tipB { return tipA < tipB }
+        if tipA != tipB {
+            return tipA < tipB
+        }
         let angleA = a.tipAngle ?? 0, angleB = b.tipAngle ?? 0
-        if angleA != angleB { return angleA < angleB }
+        if angleA != angleB {
+            return angleA < angleB
+        }
 
         let heightA = a.cuttingHeight ?? 0
         let heightB = b.cuttingHeight ?? 0
-        if heightA != heightB { return heightA < heightB }
+        if heightA != heightB {
+            return heightA < heightB
+        }
 
         // Not `localizedStandardCompare`: that goes through the ICU collator, which is slow
         // enough to notice when it runs for every tie while sorting a few hundred tools.

@@ -250,7 +250,9 @@ class CAMModel: ObservableObject {
 //        stepWorkspace.onModelMoved = { [weak self] in self?.discardGenerations() }
 
         canvasState.onObjectsChanged = { [weak self] in
-            guard let self else { return }
+            guard let self else {
+                return
+            }
             // Toolpaths are built in world space, so moving/scaling/rotating/
             // removing an object leaves every generated result stale.
             self.discardGenerations()
@@ -259,7 +261,9 @@ class CAMModel: ObservableObject {
 
         // Selecting an object closes the open toolpath
         canvasState.onObjectSelected = { [weak self] in
-            guard let self, self.selectedToolpathID != nil else { return }
+            guard let self, self.selectedToolpathID != nil else {
+                return
+            }
             self.selectedToolpathID = nil
         }
 
@@ -309,7 +313,9 @@ class CAMModel: ObservableObject {
         if toolpath.operation.kind == .chamfer, !stepTargets.isEmpty {
             if let chamfer = stepWorkspace.chamferSuggestion(for: stepTargets, frame: frameOrIdentity(for: toolpath)) {
                 toolpath.operation.chamferWidth = chamfer.width
-                if let side = chamfer.side { toolpath.operation.chamferSide = side }
+                if let side = chamfer.side {
+                    toolpath.operation.chamferSide = side
+                }
                 toolpath.operation.chamferUsesBottomEdge = true
             } else {
                 toolpath.operation.chamferUsesBottomEdge = false
@@ -371,7 +377,9 @@ class CAMModel: ObservableObject {
     /// The STEP edges selected in the 3D canvas that a new toolpath could be built from.
     /// Empty while a toolpath is open (clicks edit that toolpath's edges then).
     var stepEdgesForNewToolpath: [STEPEdgeTarget] {
-        guard selectedToolpathID == nil else { return [] }
+        guard selectedToolpathID == nil else {
+            return []
+        }
         // Every file on the canvas can hold the selection (a click clears the others, but not an open toolpath's picks)
         return stepWorkspace.loadedScenes.flatMap { scene in
             scene.selectedEdges.sorted { ($0.bodyID.entityID, $0.entityID) < ($1.bodyID.entityID, $1.entityID) }
@@ -1182,8 +1190,8 @@ class CAMModel: ObservableObject {
     @discardableResult
     func loadAndParseFileAt(_ url: URL,
                             restoring savedObjects: [AssetObjectData]? = nil,
-                           stepImportID: UUID? = nil,
-                           onSTEPFinished: @escaping @MainActor () -> Void = {}) -> D2_Object? {
+                            stepImportID: UUID? = nil,
+                            onSTEPFinished: @escaping @MainActor () -> Void = {}) -> D2_Object? {
 
         let imported: [D2_Object]
 

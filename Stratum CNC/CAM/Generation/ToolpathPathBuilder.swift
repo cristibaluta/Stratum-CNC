@@ -410,8 +410,12 @@ extension ToolpathPathBuilder {
     /// (sweep in the direction of travel, a zero sweep is a full circle), kept
     /// separate so the preview path builder stays untouched.
     /// Z runs linearly from `fromZ` to `toZ` along the arc (a helix, if they differ).
-    private static func appendArc(from: CGPoint, fromZ: Double, to: CGPoint, toZ: Double,
-                                  center: CGPoint, isCCW: Bool,
+    private static func appendArc(from: CGPoint,
+                                  fromZ: Double,
+                                  to: CGPoint,
+                                  toZ: Double,
+                                  center: CGPoint,
+                                  isCCW: Bool,
                                   into points: inout [SIMD3<Float>]) {
 
         func simd(_ point: CGPoint, _ z: Double) -> SIMD3<Float> {

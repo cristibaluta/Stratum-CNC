@@ -50,8 +50,12 @@ func backUpUnreadableFile(at url: URL,
                           beginAccess: @MainActor () -> Bool = { true },
                           endAccess: @MainActor () -> Void = {}) -> URL? {
     let fileManager = FileManager.default
-    guard beginAccess() else { return nil }
-    defer { endAccess() }
+    guard beginAccess() else {
+        return nil
+    }
+    defer {
+        endAccess()
+    }
 
     var candidate = url.appendingPathExtension("bak")
     var number = 2
@@ -163,10 +167,16 @@ final class ProjectsStore: ObservableObject {
     func resolveBookmarks() {
         var indexChanged = false
         for index in projects.indices where projects[index].isExternal {
-            if resolveBookmark(at: index) { indexChanged = true }
+            if resolveBookmark(at: index) {
+                indexChanged = true
+            }
         }
         if indexChanged {
-            do { try saveIndex() } catch { print("Failed to save refreshed bookmarks: \(error)") }
+            do {
+                try saveIndex()
+            } catch {
+                print("Failed to save refreshed bookmarks: \(error)")
+            }
         }
     }
 
@@ -174,16 +184,24 @@ final class ProjectsStore: ObservableObject {
     /// index needs saving.
     private func resolveBookmark(at index: Int) -> Bool {
         let id = projects[index].id
-        guard let data = projects[index].bookmark else { return false }
+        guard let data = projects[index].bookmark else {
+            return false
+        }
 
         resolvedDirectories[id] = nil
         missingProjectIDs.insert(id)
 
-        guard let resolved = try? ProjectBookmark.resolve(data) else { return false }
+        guard let resolved = try? ProjectBookmark.resolve(data) else {
+            return false
+        }
         let url = resolved.url
         guard !url.path.contains("/.Trash/"),
-              url.startAccessingSecurityScopedResource() else { return false }
-        defer { url.stopAccessingSecurityScopedResource() }
+              url.startAccessingSecurityScopedResource() else {
+            return false
+        }
+        defer {
+            url.stopAccessingSecurityScopedResource()
+        }
 
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
@@ -231,16 +249,24 @@ final class ProjectsStore: ObservableObject {
     /// internal projects.
     @discardableResult
     func beginAccess(_ project: Project) -> Bool {
-        guard project.isExternal else { return true }
-        guard let url = resolvedDirectories[project.id] else { return false }
+        guard project.isExternal else {
+            return true
+        }
+        guard let url = resolvedDirectories[project.id] else {
+            return false
+        }
         let count = accessCounts[project.id, default: 0]
-        if count == 0, !url.startAccessingSecurityScopedResource() { return false }
+        if count == 0, !url.startAccessingSecurityScopedResource() {
+            return false
+        }
         accessCounts[project.id] = count + 1
         return true
     }
 
     func endAccess(_ project: Project) {
-        guard project.isExternal, let count = accessCounts[project.id] else { return }
+        guard project.isExternal, let count = accessCounts[project.id] else {
+            return
+        }
         if count <= 1 {
             accessCounts[project.id] = nil
             resolvedDirectories[project.id]?.stopAccessingSecurityScopedResource()
@@ -251,9 +277,15 @@ final class ProjectsStore: ObservableObject {
 
     /// Runs `body` with access to the project's folder; `nil` if it can't be reached.
     func withAccess<T>(to project: Project, _ body: (ProjectPaths) throws -> T) rethrows -> T? {
-        guard beginAccess(project) else { return nil }
-        defer { endAccess(project) }
-        guard let paths = try? self.paths(for: project) else { return nil }
+        guard beginAccess(project) else {
+            return nil
+        }
+        defer {
+            endAccess(project)
+        }
+        guard let paths = try? self.paths(for: project) else {
+            return nil
+        }
         return try body(paths)
     }
 
@@ -265,7 +297,9 @@ final class ProjectsStore: ObservableObject {
     }
 
     func open(_ project: Project) {
-        guard saveActiveProject() else { return }
+        guard saveActiveProject() else {
+            return
+        }
         guard !isMissing(project), beginAccess(project) else {
             print("Project folder is not reachable: \(project.name)")
             openError = "\(project.name)'s folder can't be reached. It may have been moved, deleted, or be on a drive that isn't connected."
@@ -292,7 +326,11 @@ final class ProjectsStore: ObservableObject {
         do {
             let url = try history.resolveURL(for: entry)
             let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
 
             switch entry.kind {
                 case .gcode:
@@ -320,7 +358,9 @@ final class ProjectsStore: ObservableObject {
     /// `gcodeURL` loads that G-code into the Controller first (it implies the
     /// Controller tab).
     func openZombieProject(tab: ActiveTab = .cam, gcodeURL: URL? = nil) {
-        guard saveActiveProject() else { return }
+        guard saveActiveProject() else {
+            return
+        }
         releaseActiveAccess()
         do {
             let project = try createProject(name: "Untitled", isZombie: true)
@@ -351,7 +391,9 @@ final class ProjectsStore: ObservableObject {
     }
 
     func close() {
-        guard saveActiveProject() else { return }
+        guard saveActiveProject() else {
+            return
+        }
         releaseActiveAccess()
         activeProject = nil
         activeProjectModel = nil
@@ -503,7 +545,11 @@ final class ProjectsStore: ObservableObject {
     @discardableResult
     func openProjectFolder(_ folder: URL) throws -> Project {
         let didAccess = folder.startAccessingSecurityScopedResource()
-        defer { if didAccess { folder.stopAccessingSecurityScopedResource() } }
+        defer {
+            if didAccess {
+                folder.stopAccessingSecurityScopedResource()
+            }
+        }
 
         guard let data = try? Data(contentsOf: folder.appendingPathComponent("project.json")) else {
             throw ProjectError.notAProjectFolder
@@ -518,7 +564,11 @@ final class ProjectsStore: ObservableObject {
         }
 
         let bookmark: Data
-        do { bookmark = try ProjectBookmark.make(for: folder) } catch { throw ProjectError.bookmarkFailed }
+        do {
+            bookmark = try ProjectBookmark.make(for: folder)
+        } catch {
+            throw ProjectError.bookmarkFailed
+        }
 
         if let existingIndex {
             // Already listed. An external project whose folder couldn't be
@@ -587,8 +637,12 @@ final class ProjectsStore: ObservableObject {
             return
         }
         // An external folder can only be touched while its bookmark is active
-        guard beginAccess(project) else { throw ProjectError.projectFolderMissing }
-        defer { endAccess(project) }
+        guard beginAccess(project) else {
+            throw ProjectError.projectFolderMissing
+        }
+        defer {
+            endAccess(project)
+        }
 
         let directory = try paths(for: project).projectDirectory
         if FileManager.default.fileExists(atPath: directory.path) {
@@ -660,7 +714,9 @@ final class ProjectsStore: ObservableObject {
 
     func revealInFinder(_ project: Project) {
         #if os(macOS)
-        guard let directory = directory(for: project) else { return }
+        guard let directory = directory(for: project) else {
+            return
+        }
         NSWorkspace.shared.activateFileViewerSelecting([directory])
         #endif
     }

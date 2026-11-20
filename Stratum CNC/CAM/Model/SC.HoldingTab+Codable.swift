@@ -19,7 +19,7 @@ extension SC.HoldingTab: Codable {
         let positionRatio = try container.decode(Double.self, forKey: .positionRatio)
         let width = try container.decode(Double.self, forKey: .width)
         let height = try container.decode(Double.self, forKey: .height)
-        
+
         self.init(positionRatio: positionRatio, width: width, height: height)
     }
 

@@ -54,7 +54,9 @@ struct JobButtonStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == QuietButtonStyle {
-    static var quiet: QuietButtonStyle { QuietButtonStyle() }
+    static var quiet: QuietButtonStyle {
+        QuietButtonStyle()
+    }
 }
 
 /// Fixed-width caption that names a row inside a panel ("ZERO", "PROBE"),

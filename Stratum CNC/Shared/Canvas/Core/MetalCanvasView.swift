@@ -336,7 +336,9 @@ struct MetalCanvasView: STViewRepresentable {
     private func updateCanvasView(_ nsView: MTKView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.isInsideSwiftUIUpdate = true
-        defer { context.coordinator.isInsideSwiftUIUpdate = false }
+        defer {
+            context.coordinator.isInsideSwiftUIUpdate = false
+        }
 
         // Diagnostics: how often SwiftUI calls this and how long it takes. A feedback loop
         // (a published change made while drawing, which updates the view again) shows up as
@@ -589,7 +591,9 @@ struct MetalCanvasView: STViewRepresentable {
         }
 
         func handleMouseDown(_ event: CanvasMouseEvent) {
-            guard let view = metalView else { return }
+            guard let view = metalView else {
+                return
+            }
             lastMousePosition = event.location
             if isOnOrientationCube(event.location) {
                 isDraggingCube = true
@@ -606,7 +610,9 @@ struct MetalCanvasView: STViewRepresentable {
         }
 
         func handleMouseDragged(_ event: CanvasMouseEvent) {
-            guard let view = metalView, let camera = renderer?.camera else { return }
+            guard let view = metalView, let camera = renderer?.camera else {
+                return
+            }
             let point = event.location
             clickTracker.move(to: point)
             let translation = CGPoint(x: point.x - lastMousePosition.x, y: point.y - lastMousePosition.y)
@@ -630,7 +636,9 @@ struct MetalCanvasView: STViewRepresentable {
                 return
             }
 
-            guard clickTracker.isDragging else { return }
+            guard clickTracker.isDragging else {
+                return
+            }
             let trigger: CanvasInputTrigger = event.modifiers.contains(.shift) ? .modified : .primary
             switch CanvasInputSettings.shared.action(for: trigger) {
                 case .orbit: performOrbit(translation: translation)
@@ -644,7 +652,9 @@ struct MetalCanvasView: STViewRepresentable {
         }
 
         func handleMouseUp(_ event: CanvasMouseEvent, cancelled: Bool = false) {
-            guard let view = metalView, let camera = renderer?.camera else { return }
+            guard let view = metalView, let camera = renderer?.camera else {
+                return
+            }
             if isDraggingCube {
                 // Orbiting the cube is not a click on the canvas behind it.
                 isDraggingCube = false

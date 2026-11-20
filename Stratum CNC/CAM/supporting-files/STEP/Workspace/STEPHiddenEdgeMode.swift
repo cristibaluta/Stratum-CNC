@@ -12,7 +12,9 @@ import Foundation
 enum STEPHiddenEdgeMode: String, CaseIterable, Identifiable, Sendable {
     case dotted, hidden, solid
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var label: String {
         switch self {

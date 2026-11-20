@@ -75,10 +75,14 @@ struct STEPPlacement: Sendable {
             && shift == .zero && anchor == .zero && scale == 1
     }
 
-    func point(_ p: SIMD3<Float>) -> SIMD3<Float> { rotation * ((p + anchor) * scale) + shift }
+    func point(_ p: SIMD3<Float>) -> SIMD3<Float> {
+        rotation * ((p + anchor) * scale) + shift
+    }
 
     /// Directions (normals) only turn. (A uniform scale leaves a unit direction as it is.)
-    func direction(_ d: SIMD3<Float>) -> SIMD3<Float> { rotation * d }
+    func direction(_ d: SIMD3<Float>) -> SIMD3<Float> {
+        rotation * d
+    }
 }
 
 extension STEPDisplayGeometry {
@@ -108,7 +112,7 @@ extension STEPDisplayGeometry.Body {
 
         let shift = SIMD3<Float>(-low.x, -low.y, -high.z)
         let moved = STEPDisplayGeometry.Body(id: id, points: turned.map { $0 + shift }, edges: edges, origin: origin)
-        
+
         return (moved, shift)
     }
 }

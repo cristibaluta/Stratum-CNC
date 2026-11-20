@@ -14,7 +14,9 @@ struct StockLibrary: Codable {
 struct StockGroup: Identifiable {
     let material: StockMaterialType
     let stocks: [StockMaterial]
-    var id: StockMaterialType { material }
+    var id: StockMaterialType {
+        material
+    }
 }
 
 extension Array where Element == StockMaterial {

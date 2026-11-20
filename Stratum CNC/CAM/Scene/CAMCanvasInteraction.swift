@@ -56,7 +56,9 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
     // MARK: Clicks
 
     /// A toolpath is open: clicks toggle its shapes instead of selecting.
-    var isPicking: Bool { canvasState.isPickingPaths }
+    var isPicking: Bool {
+        canvasState.isPickingPaths
+    }
 
     /// The shape under the pointer, if any.
     func shapeHit(at event: CanvasPointerEvent) -> PathSelection? {

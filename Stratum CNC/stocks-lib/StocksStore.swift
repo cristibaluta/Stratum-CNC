@@ -26,9 +26,7 @@ final class StocksStore: ObservableObject {
 
     private let stocksFileURL: URL
 
-    init(stocksFileURL: URL = FileManager.default.urls(for: .documentDirectory,
-                                                      in: .userDomainMask)[0]
-        .appendingPathComponent("materials.json")) {
+    init(stocksFileURL: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] .appendingPathComponent("materials.json")) {
         self.stocksFileURL = stocksFileURL
         self.library = StockLibrary(stocks: [])
 
@@ -116,7 +114,7 @@ final class StocksStore: ObservableObject {
         guard let bundledURL = Bundle.main.url(forResource: "default_stocks", withExtension: "json") else {
             throw StockStoreError.defaultStocksNotFound
         }
-        
+
         try fileManager.copyItem(at: bundledURL, to: stocksFileURL)
     }
 }

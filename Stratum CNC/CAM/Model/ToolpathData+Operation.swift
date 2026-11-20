@@ -21,8 +21,12 @@ import StratumCAM
 extension ToolpathData {
 
     var machiningOperation: SC.MachiningOperation {
-        get { ToolpathGenerator.makeOperation(from: self) }
-        set { apply(newValue) }
+        get {
+            ToolpathGenerator.makeOperation(from: self)
+        }
+        set {
+            apply(newValue)
+        }
     }
 
     private mutating func apply(_ newValue: SC.MachiningOperation) {

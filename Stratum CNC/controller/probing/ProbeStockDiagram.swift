@@ -223,7 +223,9 @@ struct ProbeHardwareDrawing: View {
             context.stroke(stylus, with: .color(Color.secondary), lineWidth: 3)
 
             // The metal probe is a straight pin: no ball. Only the ruby has one.
-            guard hardware == .ruby else { return }
+            guard hardware == .ruby else {
+                return
+            }
 
             // Ball: red for the ruby.
             let ball = Path(ellipseIn: CGRect(x: midX - ballRadius, y: ballY - ballRadius,

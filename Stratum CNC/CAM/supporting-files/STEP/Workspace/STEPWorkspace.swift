@@ -16,7 +16,9 @@ struct STEPSourceReference: Identifiable, Sendable {
 /// the canvas without also re-rendering everything that observes the workspace (the CAM model forwards it).
 @MainActor
 final class STEPSceneChanges: ObservableObject {
-    func send() { objectWillChange.send() }
+    func send() {
+        objectWillChange.send()
+    }
 }
 
 /// One body of a STEP file, as the objects list shows it.
@@ -46,7 +48,9 @@ struct STEPBodyState: Codable, Hashable, Sendable {
 
 extension STEP.BodyID {
     /// The key of the body's saved state: stable for the same file.
-    var stateKey: String { "\(representationID).\(entityID).\(instance)" }
+    var stateKey: String {
+        "\(representationID).\(entityID).\(instance)"
+    }
 }
 
 
@@ -324,7 +328,9 @@ final class STEPWorkspace: ObservableObject {
         update(key) { $0.isRemoved = true }
         modelKeys.removeValue(forKey: id)
         modelIDs.removeValue(forKey: key)
-        if selectedModelID == id { selectedModelID = nil }
+        if selectedModelID == id {
+            selectedModelID = nil
+        }
         bodyChanged()
     }
 
@@ -410,7 +416,9 @@ final class STEPWorkspace: ObservableObject {
         let loader = loader
 
         tasks[source.id] = Task { [weak self] in
-            defer { onFinished() }
+            defer {
+                onFinished()
+            }
             do {
                 try Task.checkCancellation()
                 let content = try await loader(source.url, source.id)

@@ -27,7 +27,9 @@ struct STEPDisplayOptionsView: View {
         scene.hasSurfaces ? scene.hiddenEdgeMode : .solid
     }
 
-    private var displayEnabled: Bool { scene.isModelVisible }
+    private var displayEnabled: Bool {
+        scene.isModelVisible
+    }
 
     private var hiddenEdgesEnabled: Bool {
         scene.hasSurfaces && scene.isModelVisible && scene.displayMode != .shaded
@@ -78,7 +80,8 @@ struct STEPDisplayOptionsView: View {
         .frame(width: 320)
     }
 
-    private func section<Content: View>(title: String, detail: String?,
+    private func section<Content: View>(title: String,
+                                        detail: String?,
                                         @ViewBuilder tiles: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.headline)
@@ -173,7 +176,9 @@ struct STEPPartGlyph: View {
             let ftr = CGPoint(x: x0 + side, y: top + depth)
             let fbl = CGPoint(x: x0, y: top + depth + side)
             let fbr = CGPoint(x: x0 + side, y: top + depth + side)
-            func back(_ p: CGPoint) -> CGPoint { CGPoint(x: p.x + depth, y: p.y - depth) }
+            func back(_ p: CGPoint) -> CGPoint {
+                CGPoint(x: p.x + depth, y: p.y - depth)
+            }
             let btl = back(ftl), btr = back(ftr), bbl = back(fbl), bbr = back(fbr)
 
             let ink = Color.primary

@@ -52,7 +52,9 @@ enum CAMHoldingTabsOverlay {
     private struct Outline {
         let points: [CGPoint]
         let cumulative: [CGFloat]
-        var length: CGFloat { cumulative.last ?? 0 }
+        var length: CGFloat {
+            cumulative.last ?? 0
+        }
     }
 
     /// The subpaths of a flattened world path. A contour that doesn't end where it began is
@@ -129,7 +131,10 @@ enum CAMHoldingTabsOverlay {
     }
 
     /// The part of the outline between two distances from its start, as three parallel lines.
-    private static func appendStretch(from: CGFloat, to: CGFloat, on outline: Outline, into points: inout [SIMD3<Float>]) {
+    private static func appendStretch(from: CGFloat,
+                                      to: CGFloat,
+                                      on outline: Outline,
+                                      into points: inout [SIMD3<Float>]) {
         guard to > from else {
             return
         }

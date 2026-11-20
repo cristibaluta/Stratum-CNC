@@ -16,7 +16,9 @@ extension Comparable {
 extension BinaryFloatingPoint {
 
     /// Clamped to `0...1`.
-    var clampedToUnit: Self { clamped(to: 0...1) }
+    var clampedToUnit: Self {
+        clamped(to: 0...1)
+    }
 }
 
 extension Int {

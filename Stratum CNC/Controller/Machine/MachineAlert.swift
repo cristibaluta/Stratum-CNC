@@ -18,7 +18,9 @@ final class MachineAlertCenter: ObservableObject {
 
     @Published private(set) var queue: [MachineAlert] = []
 
-    var current: MachineAlert? { queue.first }
+    var current: MachineAlert? {
+        queue.first
+    }
 
     private var lastPosted: [MachineAlert.Kind: Date] = [:]
     private var lastKey: (key: String, date: Date)?
@@ -33,7 +35,7 @@ final class MachineAlertCenter: ObservableObject {
         // A status change and the line explaining it usually both arrive.
         let key = "\(alert.kind)|\(alert.message)"
         if let last = lastKey, last.key == key, Date().timeIntervalSince(last.date) < 5 {
-            return 
+            return
         }
         lastKey = (key, Date())
         lastPosted[alert.kind] = Date()
@@ -52,7 +54,7 @@ final class MachineAlertCenter: ObservableObject {
 
     func wasPosted(_ kind: MachineAlert.Kind, within seconds: TimeInterval) -> Bool {
         guard let date = lastPosted[kind] else {
-            return false 
+            return false
         }
         return Date().timeIntervalSince(date) < seconds
     }
@@ -93,11 +95,15 @@ final class MachineAlertCenter: ObservableObject {
             attentionRequest = NSApp.requestUserAttention(.criticalRequest)
         }
         playSound()
-        guard alert.isPersistent, soundTask == nil else { return }
+        guard alert.isPersistent, soundTask == nil else {
+            return
+        }
         soundTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    return
+                }
                 self?.playSound()
             }
         }
@@ -156,7 +162,9 @@ private struct MachineAlertModifier: ViewModifier {
             isPresented: Binding(
                 get: { alerts.current != nil },
                 set: { presented in
-                    if !presented { alerts.dismiss() }
+                    if !presented {
+                        alerts.dismiss()
+                    }
                 }
             ),
             presenting: alerts.current

@@ -66,7 +66,9 @@ class ProjectModel: ObservableObject {
     var sessionKind: SessionKind = .project
 
     /// Controller-only sessions have no CAM: its tab and CAM actions are hidden.
-    var hidesCAM: Bool { sessionKind != .project }
+    var hidesCAM: Bool {
+        sessionKind != .project
+    }
 
     @Published var activeTab: ActiveTab = .cam
 
@@ -92,8 +94,12 @@ class ProjectModel: ObservableObject {
 
     /// What the subtitle shows instead of the save date, when something is wrong with the files.
     var storageProblem: String? {
-        if let loadProblem { return loadProblem }
-        if let saveError { return "Not saved: \(saveError)" }
+        if let loadProblem {
+            return loadProblem
+        }
+        if let saveError {
+            return "Not saved: \(saveError)"
+        }
         return nil
     }
     let paths: ProjectPaths
@@ -194,7 +200,9 @@ class ProjectModel: ObservableObject {
             .dropFirst()
             .removeDuplicates()
             .sink { [weak self] offset in
-                guard let self, self.projectData.xyOffset != offset else { return }
+                guard let self, self.projectData.xyOffset != offset else {
+                    return
+                }
                 self.projectData.xyOffset = offset
             }
             .store(in: &cancellables)
@@ -223,7 +231,9 @@ class ProjectModel: ObservableObject {
         // A STEP body was moved, turned, scaled or deleted: remember it, like an object's transform.
         camModel.stepWorkspace.onBodyStateChanged = { [weak self] id, key, state in
             guard let self,
-                  let index = self.projectData.assets?.firstIndex(where: { $0.stepImportID == id }) else { return }
+                  let index = self.projectData.assets?.firstIndex(where: { $0.stepImportID == id }) else {
+                return
+            }
             var states = self.projectData.assets?[index].stepBodies ?? [:]
             states[key] = state
             self.projectData.assets?[index].stepBodies = states
@@ -256,7 +266,9 @@ class ProjectModel: ObservableObject {
         for asset in projectData.assets ?? [] {
             let url = paths.assetsDirectory.appendingPathComponent(asset.name)
             if Self.isSTEPAsset(asset.name) {
-                do { try loadSTEPAsset(asset) }
+                do {
+                    try loadSTEPAsset(asset)
+                }
                 catch {
                     let id = projectData.assets?.first(where: { $0.name == asset.name })?.stepImportID ?? asset.stepImportID ?? UUID()
                     camModel.stepWorkspace.reportFailure(
@@ -357,7 +369,9 @@ class ProjectModel: ObservableObject {
     /// `generatePreview` is for a fresh import: once the model has loaded, its picture becomes the
     /// project's card preview. Reopening a project leaves the preview as it is.
     func loadSTEPAsset(_ asset: AssetData, generatePreview: Bool = false) throws {
-        guard Self.isSTEPAsset(asset.name) else { return }
+        guard Self.isSTEPAsset(asset.name) else {
+            return
+        }
         let savedID = projectData.assets?.first(where: { $0.name == asset.name })?.stepImportID
         let id = savedID ?? asset.stepImportID ?? UUID()
         if savedID == nil,
@@ -365,7 +379,9 @@ class ProjectModel: ObservableObject {
             projectData.assets?[index].stepImportID = id
             try saveProjectMetadata()
         }
-        guard beginFolderAccess() else { throw ProjectError.projectFolderMissing }
+        guard beginFolderAccess() else {
+            throw ProjectError.projectFolderMissing
+        }
         let endAccess = endFolderAccess
         if let saved = projectData.assets?.first(where: { $0.name == asset.name })?.stepOffset ?? asset.stepOffset,
            saved.count == 3 {
@@ -398,7 +414,9 @@ class ProjectModel: ObservableObject {
     /// deleted, so it stays gone after a reload); deleting a file's last body removes the file.
     func removeSTEPModel(_ id: UUID) throws {
         let workspace = camModel.stepWorkspace
-        guard let source = workspace.sourceID(ofModel: id) else { return }
+        guard let source = workspace.sourceID(ofModel: id) else {
+            return
+        }
         if workspace.body(ofModel: id) != nil, workspace.remainingBodies(inSource: source) > 1 {
             workspace.removeBody(model: id)
             return
@@ -409,8 +427,13 @@ class ProjectModel: ObservableObject {
     func removeSTEPSource(_ id: UUID) throws {
         let previous = projectData.assets
         projectData.assets?.removeAll { $0.stepImportID == id }
-        do { try saveProjectMetadata() }
-        catch { projectData.assets = previous; throw error }
+        do {
+            try saveProjectMetadata()
+        }
+        catch {
+            projectData.assets = previous
+            throw error
+        }
         // Leave the source copy on disk; only referenced assets reopen. Avoid
         // deleting data while an in-flight mapped reader is finishing cancellation.
         camModel.stepWorkspace.remove(id)
@@ -419,7 +442,9 @@ class ProjectModel: ObservableObject {
     /// Draws the canvas objects into the project's `preview.png`, the picture on its card.
     /// Called right after an import has put the new object on the canvas.
     func updatePreview(from objects: [D2_Object], ignoringVisibility: Bool = false) {
-        guard let data = ProjectPreviewRenderer.pngData(for: objects, ignoringVisibility: ignoringVisibility) else { return }
+        guard let data = ProjectPreviewRenderer.pngData(for: objects, ignoringVisibility: ignoringVisibility) else {
+            return
+        }
         writePreview(data)
     }
 
@@ -430,7 +455,9 @@ class ProjectModel: ObservableObject {
             let data = await Task.detached(priority: .utility) {
                 ProjectPreviewRenderer.pngData(forSTEP: geometry)
             }.value
-            guard let data else { return }
+            guard let data else {
+                return
+            }
             self?.writePreview(data)
         }
     }
@@ -461,7 +488,9 @@ class ProjectModel: ObservableObject {
             projectData.alignmentPins = pins.isEmpty ? nil : pins
         }
 
-        guard var assets = projectData.assets, !assets.isEmpty else { return }
+        guard var assets = projectData.assets, !assets.isEmpty else {
+            return
+        }
 
         loadedAssetNames.formUnion(objects.compactMap(\.sourceAssetName))
         for index in assets.indices where loadedAssetNames.contains(assets[index].name) {
@@ -480,7 +509,9 @@ class ProjectModel: ObservableObject {
     /// Writes the project if something changed since the last save. Called by the timer and by
     /// the key actions (Done, Preview, new toolpath).
     func saveIfNeeded() {
-        guard hasUnsavedChanges else { return }
+        guard hasUnsavedChanges else {
+            return
+        }
         try? save()
     }
 
@@ -528,8 +559,12 @@ class ProjectModel: ObservableObject {
     /// Runs `body` with the project folder's bookmark activated. Calls nest, so
     /// it's safe while the store is already holding access for the open project.
     private func withFolderAccess<T>(_ body: () throws -> T) throws -> T {
-        guard beginFolderAccess() else { throw ProjectError.projectFolderMissing }
-        defer { endFolderAccess() }
+        guard beginFolderAccess() else {
+            throw ProjectError.projectFolderMissing
+        }
+        defer {
+            endFolderAccess()
+        }
         return try body()
     }
 

@@ -37,7 +37,9 @@ private struct ToolPositionSync: View {
     }
 
     private func sync(_ status: MakeraMachineStatus?) {
-        guard let status else { return }
+        guard let status else {
+            return
+        }
         onUpdate(SIMD3<Float>(Float(status.machinePosition.x) - workOrigin.x,
                               Float(status.machinePosition.y) - workOrigin.y,
                               Float(status.workPosition.z)))
@@ -71,11 +73,15 @@ struct ControllerView: View {
     @State private var isShowingToolbarRemoteFiles = false
 
     /// Without CAM (Controller-only sessions) there is nothing to generate from.
-    private var hasCAM: Bool { !projectModel.hidesCAM }
+    private var hasCAM: Bool {
+        !projectModel.hidesCAM
+    }
 
     /// Saved projects get their program from CAM only; any import happens in
     /// the Controller-only sessions.
-    private var canImportGCode: Bool { projectModel.sessionKind != .project }
+    private var canImportGCode: Bool {
+        projectModel.sessionKind != .project
+    }
     /// The import menu sits in the middle of the window bar. Opened with a file it is always
     /// there; opened empty, the empty state has its own import buttons until a program is loaded.
     private var showsImportInWindowBar: Bool {
@@ -96,7 +102,11 @@ struct ControllerView: View {
         Self.scrubTo(line: line, gCodeModel: gCodeModel, camModel: camModel, scene: model.scene, forceHeightmap: true)
     }
 
-    fileprivate static func scrubTo(line: Int, gCodeModel: GCodeStore, camModel: CAMModel, scene: CanvasSceneModel, forceHeightmap: Bool) {
+    fileprivate static func scrubTo(line: Int,
+                                    gCodeModel: GCodeStore,
+                                    camModel: CAMModel,
+                                    scene: CanvasSceneModel,
+                                    forceHeightmap: Bool) {
         guard line != gCodeModel.scrubLine else {
             return
         }
@@ -679,7 +689,9 @@ private struct ToolChangeMarkers: View {
     private struct Mark: Identifiable {
         let line: Int
         let isNewTool: Bool
-        var id: Int { line }
+        var id: Int {
+            line
+        }
     }
 
     private var marks: [Mark] {
@@ -841,7 +853,9 @@ private struct CanvasSection: View {
         // Only whole lines can be shown; keep the fraction for the next event.
         scrubRemainder += step
         let whole = scrubRemainder.rounded(.towardZero)
-        guard whole != 0 else { return }
+        guard whole != 0 else {
+            return
+        }
         scrubRemainder -= whole
 
         let newLine = gCodeModel.scrubLine + Int(whole)

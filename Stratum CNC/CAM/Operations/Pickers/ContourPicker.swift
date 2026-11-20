@@ -20,7 +20,9 @@ extension SC.CutSide: @retroactive CaseIterable {
 }
 
 extension SC.CutSide: CutSideOption {
-    var position: SC.CutSide { self }
+    var position: SC.CutSide {
+        self
+    }
     var label: String {
         switch self {
             case .inside:    return "Inside"

@@ -67,12 +67,16 @@ struct GCodeToolpathAnalyzer {
 
         for line in lines {
             let text = stripComments(line.text)
-            guard !text.isBlank else { continue }
+            guard !text.isBlank else {
+                continue
+            }
 
             let codes = extractCodes(from: text)
 
             // Tool changes define a hard boundary between machining tools.
-            if let tool = extractToolNumber(from: text) { pendingTool = tool }
+            if let tool = extractToolNumber(from: text) {
+                pendingTool = tool
+            }
             if containsM6(codes), let tool = pendingTool {
                 finishCurrent()
                 currentTool = tool
@@ -95,7 +99,9 @@ struct GCodeToolpathAnalyzer {
             let hasCenter = text.range(of: #"(?i)[IJ]\s*[-+]?(?:\d|\.)"#,
                                        options: .regularExpression) != nil
             guard let motion = modalMotion,
-                  hasAxes || ([2, 3].contains(motion) && hasCenter) else { continue }
+                  hasAxes || ([2, 3].contains(motion) && hasCenter) else {
+                continue
+            }
             let kind: MoveKind = (81...89).contains(motion) ? .drilling
                 : (motion == 0 ? .rapid : .cutting)
             if currentKind != kind {
@@ -104,7 +110,9 @@ struct GCodeToolpathAnalyzer {
                 currentOperation = kind == .drilling ? "Drilling (G\(motion))"
                     : (kind == .rapid ? "Rapid" : "Cutting")
             }
-            if currentStart == nil { currentStart = line.id }
+            if currentStart == nil {
+                currentStart = line.id
+            }
             currentEnd = line.id
             motionCount += 1
         }
@@ -152,7 +160,9 @@ struct GCodeToolpathAnalyzer {
                   let letterRange = Range(match.range(at: 1), in: text),
                   let valueRange = Range(match.range(at: 2), in: text),
                   let value = Double(text[valueRange]),
-                  let code = Int(exactly: value) else { return nil }
+                  let code = Int(exactly: value) else {
+                return nil
+            }
             return (String(text[letterRange]).uppercased(), code)
         }
     }
@@ -160,7 +170,9 @@ struct GCodeToolpathAnalyzer {
     private static func extractToolNumber(from text: String) -> Int? {
         let range = NSRange(text.startIndex..., in: text)
         guard let match = toolRegex.firstMatch(in: text, range: range),
-              let valueRange = Range(match.range(at: 1), in: text) else { return nil }
+              let valueRange = Range(match.range(at: 1), in: text) else {
+            return nil
+        }
         return Int(text[valueRange])
     }
 

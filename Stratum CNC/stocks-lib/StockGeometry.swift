@@ -18,7 +18,9 @@ enum StockGeometry: Codable, Hashable, CaseIterable {
         case cylindrical
         case disk
 
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
 
         var displayName: String {
             switch self {
@@ -59,7 +61,9 @@ enum StockGeometry: Codable, Hashable, CaseIterable {
     /// Returns this geometry converted to another shape type, carrying over
     /// the dimensions that make sense. Returns self if the kind is unchanged.
     func converted(to newKind: Kind) -> StockGeometry {
-        guard newKind != kind else { return self }
+        guard newKind != kind else {
+            return self
+        }
 
         // Reduce the current shape to a footprint size and a thickness/length.
         let size: Double

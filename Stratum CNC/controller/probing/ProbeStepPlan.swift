@@ -17,7 +17,9 @@ enum ProbeAxis: String, Equatable {
     case x
     case y
 
-    var letter: String { rawValue.uppercased() }
+    var letter: String {
+        rawValue.uppercased()
+    }
 }
 
 /// Names of the positions a cycle reads.
@@ -44,11 +46,17 @@ struct ProbeContacts: Equatable, Sendable {
     var points: [String: SIMD3<Double>] = [:]
 
     subscript(key: String) -> SIMD3<Double>? {
-        get { points[key] }
-        set { points[key] = newValue }
+        get {
+            points[key]
+        }
+        set {
+            points[key] = newValue
+        }
     }
 
-    var isEmpty: Bool { points.isEmpty }
+    var isEmpty: Bool {
+        points.isEmpty
+    }
 }
 
 struct ProbeStepPlan {

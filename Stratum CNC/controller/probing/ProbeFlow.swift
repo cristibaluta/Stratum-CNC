@@ -47,30 +47,50 @@ struct ProbeFlow: Equatable {
     // MARK: What is being probed
 
     /// True when XY is probed from inside, moving out (a pocket).
-    var isInside: Bool { kind == .point && feature.isInside }
+    var isInside: Bool {
+        kind == .point && feature.isInside
+    }
 
     /// True when XY finds the middle of the feature.
-    var isCenter: Bool { kind == .point && feature.isCenter }
+    var isCenter: Bool {
+        kind == .point && feature.isCenter
+    }
 
     /// Whether the drawing offers the four corners to choose from.
-    var choosesCorner: Bool { kind == .point && !feature.isCenter }
+    var choosesCorner: Bool {
+        kind == .point && !feature.isCenter
+    }
 
     /// The point actually probed.
-    var effectivePoint: ProbePoint { feature.isCenter ? .center : corner }
+    var effectivePoint: ProbePoint {
+        feature.isCenter ? .center : corner
+    }
 
     // MARK: Choosing
 
     /// The sides the chosen point needs touched, in the order they are
     /// probed. A corner is two sides, the center four.
     var sides: [ProbeEdge] {
-        guard kind == .point else { return [] }
+        guard kind == .point else {
+            return []
+        }
         let chosen = effectivePoint
-        if chosen.isCenter { return [.left, .right, .bottom, .top] }
+        if chosen.isCenter {
+            return [.left, .right, .bottom, .top]
+        }
         var result: [ProbeEdge] = []
-        if chosen.column < 0 { result.append(.left) }
-        if chosen.column > 0 { result.append(.right) }
-        if chosen.row < 0 { result.append(.bottom) }
-        if chosen.row > 0 { result.append(.top) }
+        if chosen.column < 0 {
+            result.append(.left)
+        }
+        if chosen.column > 0 {
+            result.append(.right)
+        }
+        if chosen.row < 0 {
+            result.append(.bottom)
+        }
+        if chosen.row > 0 {
+            result.append(.top)
+        }
         return result
     }
 
@@ -84,12 +104,16 @@ struct ProbeFlow: Equatable {
 
     /// XY first touches the top (or the pocket floor) to know the height: the
     /// sides are touched at a depth below it.
-    var probesZFirst: Bool { kind != .zSurface }
+    var probesZFirst: Bool {
+        kind != .zSurface
+    }
 
     /// Whether Z0 is written during the cycle. The Z mode always sets it. In
     /// XY it is set on the top that was touched, but not on a pocket floor.
     func setsZ(settings: ProbeSettings) -> Bool {
-        if kind == .zSurface { return true }
+        if kind == .zSurface {
+            return true
+        }
         return settings.setsZ && !isInside
     }
 
@@ -103,12 +127,16 @@ struct ProbeFlow: Equatable {
     }
 
     mutating func advance() {
-        guard canAdvance, let next = Step(rawValue: step.rawValue + 1) else { return }
+        guard canAdvance, let next = Step(rawValue: step.rawValue + 1) else {
+            return
+        }
         step = next
     }
 
     mutating func goBack() {
-        guard let previous = Step(rawValue: step.rawValue - 1) else { return }
+        guard let previous = Step(rawValue: step.rawValue - 1) else {
+            return
+        }
         step = previous
     }
 

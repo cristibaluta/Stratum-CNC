@@ -19,24 +19,36 @@ enum LibraryWindow {
 }
 
 private struct OpenToolLibraryKey: EnvironmentKey {
-    static var defaultValue: () -> Void { {} }
+    static var defaultValue: () -> Void {
+        {}
+    }
 }
 
 private struct OpenStockLibraryKey: EnvironmentKey {
-    static var defaultValue: () -> Void { {} }
+    static var defaultValue: () -> Void {
+        {}
+    }
 }
 
 extension EnvironmentValues {
     /// Opens the tool library: a window on macOS (brought to front if already open), a sheet on iOS.
     var stOpenToolLibrary: () -> Void {
-        get { self[OpenToolLibraryKey.self] }
-        set { self[OpenToolLibraryKey.self] = newValue }
+        get {
+            self[OpenToolLibraryKey.self]
+        }
+        set {
+            self[OpenToolLibraryKey.self] = newValue
+        }
     }
 
     /// Opens the stock library: a window on macOS (brought to front if already open), a sheet on iOS.
     var stOpenStockLibrary: () -> Void {
-        get { self[OpenStockLibraryKey.self] }
-        set { self[OpenStockLibraryKey.self] = newValue }
+        get {
+            self[OpenStockLibraryKey.self]
+        }
+        set {
+            self[OpenStockLibraryKey.self] = newValue
+        }
     }
 }
 
@@ -93,14 +105,20 @@ struct StockLibraryWindowContent: View {
 // MARK: - Window chrome
 
 private struct IsLibraryWindowKey: EnvironmentKey {
-    static var defaultValue: Bool { false }
+    static var defaultValue: Bool {
+        false
+    }
 }
 
 extension EnvironmentValues {
     /// True inside a library window, where the window bar owns the title.
     var stIsLibraryWindow: Bool {
-        get { self[IsLibraryWindowKey.self] }
-        set { self[IsLibraryWindowKey.self] = newValue }
+        get {
+            self[IsLibraryWindowKey.self]
+        }
+        set {
+            self[IsLibraryWindowKey.self] = newValue
+        }
     }
 }
 

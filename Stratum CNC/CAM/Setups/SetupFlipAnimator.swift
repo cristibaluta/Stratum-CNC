@@ -53,7 +53,7 @@ extension SetupFrame {
         // result * p = R (p - center) + position
         let turned = result * SIMD4<Float>(center.x, center.y, center.z, 0)
         result.columns.3 = SIMD4<Float>(position.x - turned.x, position.y - turned.y, position.z - turned.z, 1)
-        
+
         return result
     }
 }

@@ -79,7 +79,11 @@ struct HeightmapMesh {
         /// established) with a single constant `normal` for all four
         /// corners — that's what keeps the face flat-shaded rather than
         /// blending into its neighbors.
-        func appendQuad(_ a: SIMD3<Float>, _ b: SIMD3<Float>, _ c: SIMD3<Float>, _ d: SIMD3<Float>, normal: SIMD3<Float>) {
+        func appendQuad(_ a: SIMD3<Float>,
+                        _ b: SIMD3<Float>,
+                        _ c: SIMD3<Float>,
+                        _ d: SIMD3<Float>,
+                        normal: SIMD3<Float>) {
             let base = UInt32(vertices.count)
             vertices.append(Vertex(position: a, normal: normal))
             vertices.append(Vertex(position: b, normal: normal))
@@ -101,9 +105,13 @@ struct HeightmapMesh {
         /// wall, same as the old skirt.
         func neighborTop(col: Int, row: Int, dCol: Int, dRow: Int) -> Float {
             let nc = col + dCol, nr = row + dRow
-            guard nc >= 0, nc < columns, nr >= 0, nr < rows else { return bottomZ }
+            guard nc >= 0, nc < columns, nr >= 0, nr < rows else {
+                return bottomZ
+            }
             let neighborIndex = nr * columns + nc
-            if let mask, !mask[neighborIndex] { return bottomZ }
+            if let mask, !mask[neighborIndex] {
+                return bottomZ
+            }
             return grid.heights[neighborIndex]
         }
 
@@ -111,7 +119,9 @@ struct HeightmapMesh {
             for col in 0..<columns {
                 // Cells with no stock draw nothing — no top face, and the
                 // solid neighbors next to them already own the walls.
-                if let mask, !mask[row * columns + col] { continue }
+                if let mask, !mask[row * columns + col] {
+                    continue
+                }
 
                 let h = grid.heights[row * columns + col]
                 let x0 = grid.originX + Float(col) * cellSize

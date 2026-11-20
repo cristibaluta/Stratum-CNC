@@ -68,15 +68,21 @@ final class ToolsStore: ObservableObject {
 
     /// Bundled, custom, then one per import.
     @Published private(set) var sources: [ToolSourceInfo] = [] {
-        didSet { refreshUnsavedChanges() }
+        didSet {
+            refreshUnsavedChanges()
+        }
     }
 
     /// Snapshot of what is on disk. Edits are live in `tools`; `save()` writes them out.
     private var savedTools: [Tool] = [] {
-        didSet { refreshUnsavedChanges() }
+        didSet {
+            refreshUnsavedChanges()
+        }
     }
     private var savedSources: [ToolSourceInfo] = [] {
-        didSet { refreshUnsavedChanges() }
+        didSet {
+            refreshUnsavedChanges()
+        }
     }
 
     /// Whether `tools` or `sources` differ from what is on disk. Worked out when they change,
@@ -214,7 +220,9 @@ final class ToolsStore: ObservableObject {
     @discardableResult
     func importTools(_ imported: [Tool], fileName: String) throws -> ImportCounts {
         var indexByID: [UUID: Int] = [:]
-        for (index, tool) in tools.enumerated() { indexByID[tool.id] = index }
+        for (index, tool) in tools.enumerated() {
+            indexByID[tool.id] = index
+        }
 
         // One batch per import. It is only kept if the import adds tools.
         let batch = ToolSourceInfo(name: fileName, kind: .imported, date: Date(), fileName: fileName)
@@ -245,7 +253,9 @@ final class ToolsStore: ObservableObject {
         if added > 0 {
             sources.append(batch)
         }
-        if added + updated > 0 { try save() }
+        if added + updated > 0 {
+            try save()
+        }
         return ImportCounts(added: added, updated: updated, skipped: skipped, batch: added > 0 ? batch : nil)
     }
 
@@ -268,12 +278,16 @@ final class ToolsStore: ObservableObject {
     /// the bundled and custom sources are ignored.
     @discardableResult
     func removeImport(_ source: ToolSourceInfo) -> Int {
-        guard source.kind == .imported else { return 0 }
+        guard source.kind == .imported else {
+            return 0
+        }
         let before = tools.count
         tools.removeAll { $0.sourceID == source.id }
         sources.removeAll { $0.id == source.id }
         // A filter on a source that no longer exists would show nothing.
-        if filter.source == .source(source.id) { filter.source = .any }
+        if filter.source == .source(source.id) {
+            filter.source = .any
+        }
         return before - tools.count
     }
 

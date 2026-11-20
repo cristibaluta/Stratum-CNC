@@ -158,7 +158,9 @@ struct StocksLib_Sheet: View {
     }
 
     private var hasUnsavedChanges: Bool {
-        guard let draft, let selectedStock else { return false }
+        guard let draft, let selectedStock else {
+            return false
+        }
         return draft != selectedStock
     }
 
@@ -180,7 +182,9 @@ struct StocksLib_Sheet: View {
                 }
 
                 Button {
-                    guard let draft else { return }
+                    guard let draft else {
+                        return
+                    }
                     do {
                         try store.update(draft)
                     } catch {
@@ -245,21 +249,31 @@ struct StocksLib_Sheet: View {
 
     /// Selects the first item as displayed in the list.
     private func selectFirstIfNeeded() {
-        guard selectedStockID == nil else { return }
+        guard selectedStockID == nil else {
+            return
+        }
         selectedStockID = visibleStocks.first?.id
     }
 
     /// After adding or duplicating, make sure the new stock isn't hidden by the current filters
     /// (a new stock has no quantity, and its name may not match the search).
     private func ensureVisible(_ id: StockMaterial.ID) {
-        func isVisible() -> Bool { visibleStocks.contains { $0.id == id } }
-        if isVisible() { return }
+        func isVisible() -> Bool {
+            visibleStocks.contains { $0.id == id }
+        }
+        if isVisible() {
+            return
+        }
         // Widen step by step: the search, then "In stock" (a new stock has none),
         // then the material selection.
         store.filter.clearRefinements()
-        if isVisible() { return }
+        if isVisible() {
+            return
+        }
         store.filter.stockOnly = false
-        if isVisible() { return }
+        if isVisible() {
+            return
+        }
         store.filter.clearAll()
     }
 
@@ -285,7 +299,9 @@ struct StocksLib_Sheet: View {
             return
         }
 
-        guard selectedStockID == stock.id else { return }
+        guard selectedStockID == stock.id else {
+            return
+        }
         let remaining = visibleStocks
         if let position, !remaining.isEmpty {
             selectedStockID = remaining[min(position, remaining.count - 1)].id

@@ -70,7 +70,11 @@ final class OpenHistory: ObservableObject {
     /// available, since the bookmark is made from it.
     func recordGCode(url: URL) {
         let didAccess = url.startAccessingSecurityScopedResource()
-        defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
 
         let path = url.standardizedFileURL.path
         let bookmark = try? ProjectBookmark.make(for: url)
@@ -125,7 +129,11 @@ final class OpenHistory: ObservableObject {
         if resolved.isStale || url.standardizedFileURL.path != entry.path,
            let index = entries.firstIndex(where: { $0.id == entry.id }) {
             let didAccess = url.startAccessingSecurityScopedResource()
-            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
             if resolved.isStale, let fresh = try? ProjectBookmark.make(for: url) {
                 entries[index].bookmark = fresh
             }

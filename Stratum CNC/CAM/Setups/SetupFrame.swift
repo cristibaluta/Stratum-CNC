@@ -37,7 +37,9 @@ struct SetupFrame: Sendable, Equatable {
 
     static let identity = SetupFrame(angle: 0, axis: .x, pivot: 0, axisZ: 0, surfaceDistance: 0)
 
-    var isIdentity: Bool { quarterTurns == 0 }
+    var isIdentity: Bool {
+        quarterTurns == 0
+    }
 
     /// 0…3 for the four faces; nil for any other angle.
     private var quarterTurns: Int? {

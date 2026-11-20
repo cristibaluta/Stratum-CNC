@@ -111,7 +111,9 @@ struct CanvasCoordinateLabels: View {
 
     private static func number(_ value: Float) -> String {
         let v = Double(value)
-        if v == 0 { return "0" }
+        if v == 0 {
+            return "0"
+        }
         return v.truncatingRemainder(dividingBy: 1) == 0
             ? v.fixed(0)
             : v.fixed(2)

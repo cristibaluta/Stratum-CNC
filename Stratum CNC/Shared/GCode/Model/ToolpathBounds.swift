@@ -19,7 +19,9 @@ struct ToolpathBounds: Equatable {
     /// Top-right corner.
     var max: SIMD2<Float>
 
-    var size: SIMD2<Float> { max - min }
+    var size: SIMD2<Float> {
+        max - min
+    }
 
     /// The bounds of `segments`' cutting moves, each grown by the radius of
     /// the tool that makes it.

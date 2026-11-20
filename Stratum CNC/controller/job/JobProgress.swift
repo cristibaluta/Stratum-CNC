@@ -65,7 +65,9 @@ struct JobProgress: Codable, Equatable {
     var lineOffset: Int?
 
     /// `lastLine` in the original program, also when the machine runs a resume file.
-    var sourceLine: Int { lastLine + (lineOffset ?? 0) }
+    var sourceLine: Int {
+        lastLine + (lineOffset ?? 0)
+    }
 
     var startedAt: Date
     var updatedAt: Date
@@ -139,7 +141,9 @@ struct JobProgress: Codable, Equatable {
 
         case .running, .held, .suspended:
             if let live = Self.livePhase(for: base) {
-                guard let active else { return .unchanged }
+                guard let active else {
+                    return .unchanged
+                }
                 let before = (phase, lastLine, percent)
                 phase = live
                 record(active, at: now)
@@ -212,7 +216,9 @@ final class JobProgressStore {
     }
 
     func load() -> JobProgress? {
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        guard let data = try? Data(contentsOf: fileURL) else {
+            return nil
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(JobProgress.self, from: data)
@@ -221,7 +227,9 @@ final class JobProgressStore {
     func save(_ progress: JobProgress) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(progress) else { return }
+        guard let data = try? encoder.encode(progress) else {
+            return
+        }
         try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
         try? data.write(to: fileURL, options: .atomic)

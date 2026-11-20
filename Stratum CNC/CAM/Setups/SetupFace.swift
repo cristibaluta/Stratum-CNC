@@ -17,7 +17,9 @@ enum SetupFace: String, Codable, CaseIterable, Identifiable, Sendable {
     case left
     case right
 
-    var id: Self { self }
+    var id: Self {
+        self
+    }
 
     var angle: Double {
         switch self {
@@ -37,7 +39,9 @@ enum SetupFace: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     /// The faces that can be reached about more than one axis: which one decides what mirrors.
-    var hasChoiceOfAxis: Bool { self == .bottom }
+    var hasChoiceOfAxis: Bool {
+        self == .bottom
+    }
 
     /// The side faces stand the stock on its edge: they need a 3D model to make sense of.
     var isSide: Bool {

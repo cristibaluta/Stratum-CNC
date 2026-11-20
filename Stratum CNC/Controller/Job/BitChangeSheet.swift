@@ -207,7 +207,9 @@ struct BitChangeSheet: View {
     // MARK: Step 2: replace
 
     private var isAutomatic: Bool {
-        if case .automatic = flow.installation { return true }
+        if case .automatic = flow.installation {
+            return true
+        }
         return false
     }
 
@@ -332,7 +334,9 @@ struct BitChangeSheet: View {
         }
     }
 
-    private enum RestartKind: Hashable { case passStart, backUp, exactLine }
+    private enum RestartKind: Hashable {
+        case passStart, backUp, exactLine
+    }
 
     private var restartKind: RestartKind {
         switch flow.restart {
@@ -429,7 +433,9 @@ struct BitChangeSheet: View {
     }
 
     private func refreshPreview() {
-        guard let resolver else { return }
+        guard let resolver else {
+            return
+        }
         let point = flow.resumePoint(using: resolver)
         resumePoint = point
         preview = ResumeFileBuilder.build(lines: programLines,
@@ -438,7 +444,9 @@ struct BitChangeSheet: View {
     }
 
     private func resume() {
-        guard let point = resumePoint, canResume else { return }
+        guard let point = resumePoint, canResume else {
+            return
+        }
         model.resumeJobWithGeneratedFile(programLines: programLines,
                                          fileName: gCodeModel.document.fileName,
                                          fromLine: point.line,

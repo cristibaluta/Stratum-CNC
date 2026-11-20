@@ -44,7 +44,9 @@ struct CanvasClick {
     let clickCount: Int
 
     /// The second (or later) click of a quick series on the same spot.
-    var isDoubleClick: Bool { clickCount >= 2 }
+    var isDoubleClick: Bool {
+        clickCount >= 2
+    }
 
     /// Shift or Cmd extends / toggles the selection instead of replacing it.
     var extendsSelection: Bool {
@@ -76,5 +78,7 @@ protocol CanvasPointerHandler: AnyObject {
 }
 
 extension CanvasPointerHandler {
-    var liveRenderObjects: [RenderObject]? { nil }
+    var liveRenderObjects: [RenderObject]? {
+        nil
+    }
 }

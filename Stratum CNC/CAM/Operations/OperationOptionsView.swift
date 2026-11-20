@@ -338,9 +338,13 @@ struct OperationOptionsView: View {
             }
             switch field {
                 case .row(let f):
-                    if let found = Self.field(withID: id, in: f.fields) { return found }
+                    if let found = Self.field(withID: id, in: f.fields) {
+                        return found
+                    }
                 case .group(let f):
-                    if let found = Self.field(withID: id, in: f.fields) { return found }
+                    if let found = Self.field(withID: id, in: f.fields) {
+                        return found
+                    }
                 default:
                     break
             }
@@ -531,7 +535,8 @@ struct OperationOptionsView: View {
         Self.displayedFields(of: fields, kind: kind)
     }
 
-    private static func displayedFields(of fields: [SC.ParameterField], kind: SC.MachiningOperation.Kind) -> [SC.ParameterField] {
+    private static func displayedFields(of fields: [SC.ParameterField],
+                                        kind: SC.MachiningOperation.Kind) -> [SC.ParameterField] {
         guard kind == .chamfer else {
             return fields
         }

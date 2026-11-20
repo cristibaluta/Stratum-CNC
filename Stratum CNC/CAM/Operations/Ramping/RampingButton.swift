@@ -15,7 +15,9 @@ struct RampingButton: View {
     var isCompact: Bool = false
     let action: () -> Void
 
-    private var shownType: RampType { ramping.enabled ? ramping.type : .none }
+    private var shownType: RampType {
+        ramping.enabled ? ramping.type : .none
+    }
 
     var body: some View {
         if isCompact {

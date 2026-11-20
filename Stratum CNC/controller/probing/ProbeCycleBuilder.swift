@@ -44,7 +44,9 @@ struct ProbeCycleBuilder {
     /// Reasons the cycle can't run with this choice and these settings.
     static func problems(flow: ProbeFlow, settings: ProbeSettings) -> [String] {
         var result = settings.problems
-        guard flow.kind == .point else { return result }
+        guard flow.kind == .point else {
+            return result
+        }
 
         if settings.edgeDepth <= 0 {
             result.append("The side depth must be above 0.")
@@ -81,14 +83,18 @@ struct ProbeCycleBuilder {
 
     // MARK: Numbers
 
-    private var radius: Double { settings.ballRadius }
+    private var radius: Double {
+        settings.ballRadius
+    }
 
     /// 10 → "10", 1.5 → "1.5", −0.0004 → "0".
     static func number(_ value: Double) -> String {
         value.trimmedString()
     }
 
-    private func n(_ value: Double) -> String { Self.number(value) }
+    private func n(_ value: Double) -> String {
+        Self.number(value)
+    }
 
     /// How far the dot is from each side it touches: the dot distance for a
     /// corner, the search distance (how far it reaches) for a center.
@@ -108,7 +114,9 @@ struct ProbeCycleBuilder {
 
     /// Back to where a pass began, in machine coordinates (X and Y only).
     private func returnToOrigin(_ key: String, _ contacts: ProbeContacts) -> [String] {
-        guard let origin = contacts[key] else { return ["; back to where the pass began"] }
+        guard let origin = contacts[key] else {
+            return ["; back to where the pass began"]
+        }
         return ["G90", "G53 G0 X\(n(origin.x)) Y\(n(origin.y))", "G91"]
     }
 
@@ -147,7 +155,9 @@ struct ProbeCycleBuilder {
     /// Touch down on whatever is under the tip.
     private func topSteps(title: String) -> [ProbeStepPlan] {
         var lines = touchLines("Z", -1, distance: settings.searchDistance)
-        if flow.setsZ(settings: settings) { lines.append(zeroLine) }
+        if flow.setsZ(settings: settings) {
+            lines.append(zeroLine)
+        }
         lines.append("G0 Z\(n(settings.safeZ))")
 
         return [ProbeStepPlan(title,
@@ -166,7 +176,9 @@ struct ProbeCycleBuilder {
 
     /// A probe that did not move before it "touched" is already triggered.
     private static func movedBeforeTouching(_ contacts: ProbeContacts) -> String? {
-        guard let start = contacts[ProbeKey.start], let top = contacts[ProbeKey.zTop] else { return nil }
+        guard let start = contacts[ProbeKey.start], let top = contacts[ProbeKey.zTop] else {
+            return nil
+        }
         if start.z - top.z < 0.05 {
             return "The probe did not move before it touched. It may already be triggered: check the probe and its cable or battery."
         }
@@ -176,7 +188,9 @@ struct ProbeCycleBuilder {
     // MARK: Pocket floor
 
     /// How far above the floor the walls are touched.
-    private var wallHeight: Double { flow.wallHeight(settings: settings) }
+    private var wallHeight: Double {
+        flow.wallHeight(settings: settings)
+    }
 
     /// Touch the floor of a pocket, only to know the height the walls are
     /// touched at (the probe stays just above the floor).
@@ -194,7 +208,9 @@ struct ProbeCycleBuilder {
     /// Back up to the height the cycle started at, which is above the stock.
     private var leavePocket: ProbeStepPlan {
         ProbeStepPlan("Raise out of the pocket") { contacts in
-            guard let start = contacts[ProbeKey.start] else { return ["; raise to the height the cycle started at"] }
+            guard let start = contacts[ProbeKey.start] else {
+                return ["; raise to the height the cycle started at"]
+            }
             return ["G90", "G53 G0 Z\(n(start.z))", "G91"]
         }
     }
@@ -210,8 +226,13 @@ struct ProbeCycleBuilder {
     /// `distance` is how far the dot is from that side. A corner comes back
     /// by that distance; a center (`origin` set) comes back to where its pass
     /// began, because the distance is only a reach.
-    private func sideSteps(axis: ProbeAxis, direction: Int, distance: Double,
-                           depth: Double, pass: Int, name: String, origin: String?) -> [ProbeStepPlan] {
+    private func sideSteps(axis: ProbeAxis,
+                           direction: Int,
+                           distance: Double,
+                           depth: Double,
+                           pass: Int,
+                           name: String,
+                           origin: String?) -> [ProbeStepPlan] {
         let letter = axis.letter
         let sign = Double(direction)
         let outside = -sign * (distance + settings.outsideClearance)
@@ -250,7 +271,9 @@ struct ProbeCycleBuilder {
 
     private func loweredCheck(key: String, depth: Double) -> (ProbeContacts) -> String? {
         { contacts in
-            guard let top = contacts[ProbeKey.zTop], let lowered = contacts[key] else { return nil }
+            guard let top = contacts[ProbeKey.zTop], let lowered = contacts[key] else {
+                return nil
+            }
             // It should have gone all the way down. Stopping higher means it
             // touched something on the way.
             if lowered.z > top.z - depth + 0.3 {
@@ -283,7 +306,9 @@ struct ProbeCycleBuilder {
                               recovery: raiseLines,
                               fixed: touchLines(axis.letter, direction, distance: travel)),
                 ProbeStepPlan("Back to the start") { contacts in
-                    if let origin { return returnToOrigin(origin, contacts) }
+                    if let origin {
+                        return returnToOrigin(origin, contacts)
+                    }
                     return ["G0 \(axis.letter)\(n(-sign * (sideDistance - radius)))"]
                 },
             ]
@@ -300,7 +325,9 @@ struct ProbeCycleBuilder {
                   let right = contacts[ProbeKey.side(.x, -1, pass: pass)],
                   let bottom = contacts[ProbeKey.side(.y, 1, pass: pass)],
                   let top = contacts[ProbeKey.side(.y, -1, pass: pass)]
-            else { return ["; move to the middle of the four touches"] }
+            else {
+                return ["; move to the middle of the four touches"]
+            }
             return ["G90",
                     "G53 G0 X\(n((left.x + right.x) / 2)) Y\(n((bottom.y + top.y) / 2))",
                     "G91"]

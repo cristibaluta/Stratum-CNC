@@ -170,11 +170,9 @@ private struct IsoProjector {
 
 /// Projects a set of representative 3D points at scale 1 to work out
 /// how much to scale + shift so the shape fits the canvas with padding.
-private func fittedProjector(
-    forPoints points: [(Double, Double, Double)],
-    canvasSize: CGSize,
-    padding: CGFloat
-) -> IsoProjector {
+private func fittedProjector(forPoints points: [(Double, Double, Double)],
+                             canvasSize: CGSize,
+                             padding: CGFloat) -> IsoProjector {
 
     let probe = IsoProjector(scale: 1, origin: .zero)
     let projected = points.map { probe.project($0.0, $0.1, $0.2) }
@@ -212,7 +210,9 @@ private func decorate(face: Path, texture: StockTexture, in context: GraphicsCon
     var layer = context
     layer.clip(to: face)
     let bounds = face.boundingRect
-    guard bounds.width.isFinite, bounds.height.isFinite, bounds.width > 0, bounds.height > 0 else { return }
+    guard bounds.width.isFinite, bounds.height.isFinite, bounds.width > 0, bounds.height > 0 else {
+        return
+    }
 
     if texture.isWood {
         // ... unchanged
@@ -243,18 +243,22 @@ private func decorate(face: Path, texture: StockTexture, in context: GraphicsCon
 
 // MARK: - Shape drawing
 
-private func drawBox(
-    width: Double, height: Double, depth: Double,
-    texture: StockTexture, canvasSize: CGSize, padding: CGFloat,
-    in context: GraphicsContext
-) {
+private func drawBox(width: Double,
+                     height: Double,
+                     depth: Double,
+                     texture: StockTexture,
+                     canvasSize: CGSize,
+                     padding: CGFloat,
+                     in context: GraphicsContext) {
     // X = width (right), Y = depth/thickness (up), Z = height (into screen)
     let corners: [(Double, Double, Double)] = [
         (0, 0, 0), (width, 0, 0), (width, 0, height), (0, 0, height),
         (0, depth, 0), (width, depth, 0), (width, depth, height), (0, depth, height)
     ]
     let projector = fittedProjector(forPoints: corners, canvasSize: canvasSize, padding: padding)
-    func p(_ i: Int) -> CGPoint { projector.project(corners[i].0, corners[i].1, corners[i].2) }
+    func p(_ i: Int) -> CGPoint {
+        projector.project(corners[i].0, corners[i].1, corners[i].2)
+    }
 
     var top = Path(); top.move(to: p(4)); top.addLine(to: p(5)); top.addLine(to: p(6)); top.addLine(to: p(7)); top.closeSubpath()
     var front = Path(); front.move(to: p(3)); front.addLine(to: p(2)); front.addLine(to: p(6)); front.addLine(to: p(7)); front.closeSubpath()
@@ -273,9 +277,10 @@ private func drawBox(
 }
 
 /// Shared cylinder-wall + top-cap drawing, used by both round bars and tubes.
-private func cylinderPaths(
-    radius: Double, length: Double, segments: Int, projector: IsoProjector
-) -> (frontWall: [CGPoint], topRing: [CGPoint], bottomFrontArc: [CGPoint]) {
+private func cylinderPaths(radius: Double,
+                           length: Double,
+                           segments: Int,
+                           projector: IsoProjector) -> (frontWall: [CGPoint], topRing: [CGPoint], bottomFrontArc: [CGPoint]) {
 
     func circlePoints(y: Double) -> [(Double, Double, Double)] {
         (0..<segments).map { i in
@@ -298,11 +303,12 @@ private func cylinderPaths(
     return (frontTop, topPts, frontBottom)
 }
 
-private func drawCylinder(
-    diameter: Double, length: Double,
-    texture: StockTexture, canvasSize: CGSize, padding: CGFloat,
-    in context: GraphicsContext
-) {
+private func drawCylinder(diameter: Double,
+                          length: Double,
+                          texture: StockTexture,
+                          canvasSize: CGSize,
+                          padding: CGFloat,
+                          in context: GraphicsContext) {
     let r = diameter / 2
     let segments = 48
 
@@ -335,11 +341,13 @@ private func drawCylinder(
 
 }
 
-private func drawTube(
-    outerDiameter: Double, innerDiameter: Double, length: Double,
-    texture: StockTexture, canvasSize: CGSize, padding: CGFloat,
-    in context: GraphicsContext
-) {
+private func drawTube(outerDiameter: Double,
+                      innerDiameter: Double,
+                      length: Double,
+                      texture: StockTexture,
+                      canvasSize: CGSize,
+                      padding: CGFloat,
+                      in context: GraphicsContext) {
     let rOuter = outerDiameter / 2
     let rInner = min(innerDiameter / 2, rOuter * 0.95)
     let segments = 48

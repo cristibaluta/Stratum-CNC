@@ -35,7 +35,9 @@ struct ResumePoint: Equatable {
     var line: Int
     var reason: Reason
 
-    var isSnapped: Bool { line != requestedLine }
+    var isSnapped: Bool {
+        line != requestedLine
+    }
 
     /// For the button's help text.
     var explanation: String {
@@ -90,7 +92,9 @@ struct ResumePointResolver {
             cutLengths.append(cutLength)
 
             let words = GCodeModalScanner.words(in: text)
-            guard !words.isEmpty else { continue }
+            guard !words.isEmpty else {
+                continue
+            }
 
             beforeLine.append((index + 1, scanner.state.z))
             scanner.apply(text)
@@ -174,7 +178,11 @@ struct ResumePointResolver {
         var high = requested + 1
         while low < high {
             let middle = (low + high) / 2
-            if cutLengthBefore[middle] <= target { low = middle + 1 } else { high = middle }
+            if cutLengthBefore[middle] <= target {
+                low = middle + 1
+            } else {
+                high = middle
+            }
         }
         let line = max(passStart, low - 1)
         return ResumePoint(requestedLine: requested, line: min(line, requested),
@@ -191,7 +199,11 @@ struct ResumePointResolver {
         var high = sorted.count
         while low < high {
             let middle = (low + high) / 2
-            if sorted[middle] <= value { low = middle + 1 } else { high = middle }
+            if sorted[middle] <= value {
+                low = middle + 1
+            } else {
+                high = middle
+            }
         }
         return low == 0 ? nil : sorted[low - 1]
     }

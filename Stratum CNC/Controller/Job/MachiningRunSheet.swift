@@ -52,7 +52,9 @@ struct MachiningRunSheet: View {
         !readinessChecks.contains { $0.state == .blocked }
     }
 
-    private enum CheckState { case ok, warning, blocked }
+    private enum CheckState {
+        case ok, warning, blocked
+    }
 
     private struct ReadinessCheck: Identifiable {
         let id: String
@@ -151,7 +153,9 @@ struct MachiningRunSheet: View {
 
     /// What gets sent: where the G-code's own 0,0 goes. Derived from the job
     /// area's position (see `CanvasSceneModel.jobAreaOffset`).
-    private var offset: SIMD2<Float> { model.scene.xyOffset }
+    private var offset: SIMD2<Float> {
+        model.scene.xyOffset
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -416,7 +420,9 @@ struct MachiningRunSheet: View {
 
     // MARK: - Shared row/section helpers
 
-    private func section<Content: View>(_ title: String, systemImage: String, @ViewBuilder content: () -> Content) -> some View {
+    private func section<Content: View>(_ title: String,
+                                        systemImage: String,
+                                        @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(title, systemImage: systemImage)
                 .font(.caption.bold())

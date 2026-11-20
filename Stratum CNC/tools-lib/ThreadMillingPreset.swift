@@ -14,12 +14,10 @@ struct ThreadMillingPreset: Identifiable, Codable, Hashable {
     var threadPitch: Double
     var tappingDrillSize: Double
 
-    init(
-        id: UUID = UUID(),
-        nominalSize: String,
-        threadPitch: Double,
-        tappingDrillSize: Double
-    ) {
+    init(id: UUID = UUID(),
+         nominalSize: String,
+         threadPitch: Double,
+         tappingDrillSize: Double) {
         self.id = id
         self.nominalSize = nominalSize
         self.threadPitch = threadPitch

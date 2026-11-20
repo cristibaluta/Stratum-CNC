@@ -26,7 +26,9 @@ struct ProbeResult: Equatable {
     struct Row: Equatable, Identifiable {
         let label: String
         let value: String
-        var id: String { label }
+        var id: String {
+            label
+        }
     }
 
     /// What was measured, for the table.
@@ -41,7 +43,9 @@ struct ProbeResult: Equatable {
     /// Things that look wrong, in plain words.
     private(set) var warnings: [String] = []
 
-    var hasOrigin: Bool { originX != nil || originY != nil }
+    var hasOrigin: Bool {
+        originX != nil || originY != nil
+    }
 
     // MARK: Compute
 
@@ -103,7 +107,9 @@ struct ProbeResult: Equatable {
                   let right = Self.surface(flow, .right, contacts, pass: pass, radius: radius),
                   let bottom = Self.surface(flow, .bottom, contacts, pass: pass, radius: radius),
                   let top = Self.surface(flow, .top, contacts, pass: pass, radius: radius)
-            else { continue }
+            else {
+                continue
+            }
 
             originX = (left + right) / 2
             originY = (bottom + top) / 2
@@ -130,16 +136,24 @@ struct ProbeResult: Equatable {
     // MARK: Edges
 
     /// The surface of `side` of the feature, from the touch that found it.
-    static func surface(_ flow: ProbeFlow, _ side: ProbeEdge, _ contacts: ProbeContacts,
-                        pass: Int, radius: Double) -> Double? {
+    static func surface(_ flow: ProbeFlow,
+                        _ side: ProbeEdge,
+                        _ contacts: ProbeContacts,
+                        pass: Int,
+                        radius: Double) -> Double? {
         let (axis, direction) = flow.probeDirection(for: side)
         return edge(contacts, axis, direction, pass: pass, radius: radius)
     }
 
     /// The surface found by a touch: contact + direction · radius.
-    static func edge(_ contacts: ProbeContacts, _ axis: ProbeAxis, _ direction: Int,
-                     pass: Int, radius: Double) -> Double? {
-        guard let contact = contacts[ProbeKey.side(axis, direction, pass: pass)] else { return nil }
+    static func edge(_ contacts: ProbeContacts,
+                     _ axis: ProbeAxis,
+                     _ direction: Int,
+                     pass: Int,
+                     radius: Double) -> Double? {
+        guard let contact = contacts[ProbeKey.side(axis, direction, pass: pass)] else {
+            return nil
+        }
         let value = axis == .x ? contact.x : contact.y
         return value + Double(direction) * radius
     }
@@ -150,10 +164,16 @@ struct ProbeResult: Equatable {
     /// Absolute, so it doesn't depend on where the tool is. Only the axes that
     /// were measured are written.
     func originCommand(workCoordinateSystem: Int) -> String? {
-        guard hasOrigin else { return nil }
+        guard hasOrigin else {
+            return nil
+        }
         var command = "G10 L2 P\(workCoordinateSystem)"
-        if let originX { command += " X\(ProbeCycleBuilder.number(originX))" }
-        if let originY { command += " Y\(ProbeCycleBuilder.number(originY))" }
+        if let originX {
+            command += " X\(ProbeCycleBuilder.number(originX))"
+        }
+        if let originY {
+            command += " Y\(ProbeCycleBuilder.number(originY))"
+        }
         return command
     }
 
@@ -169,7 +189,9 @@ struct ProbeResult: Equatable {
     /// carry the origin measured here. If not, starting a run would move the
     /// origin somewhere else.
     func isCarried(by lines: [String]) -> Bool {
-        guard hasOrigin else { return true }
+        guard hasOrigin else {
+            return true
+        }
         let origin = lines.filter { $0.uppercased().contains("G10") }
         return origin.contains { line in
             let x = Self.number(after: "X", in: line)
@@ -209,10 +231,16 @@ struct ProbeAppliedOrigin: Equatable {
 
     /// Puts the previous origin back on the machine, for the axes Apply changed.
     var revertCommand: String? {
-        guard let previous = previousMachineOrigin, changedX || changedY else { return nil }
+        guard let previous = previousMachineOrigin, changedX || changedY else {
+            return nil
+        }
         var command = "G10 L2 P\(workCoordinateSystem)"
-        if changedX { command += " X\(ProbeCycleBuilder.number(previous.x))" }
-        if changedY { command += " Y\(ProbeCycleBuilder.number(previous.y))" }
+        if changedX {
+            command += " X\(ProbeCycleBuilder.number(previous.x))"
+        }
+        if changedY {
+            command += " Y\(ProbeCycleBuilder.number(previous.y))"
+        }
         return command
     }
 }

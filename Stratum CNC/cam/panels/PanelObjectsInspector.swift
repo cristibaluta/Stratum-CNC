@@ -579,10 +579,8 @@ private struct SmallButton: View {
     let title: String
     let action: () -> Void
 
-    init(
-        _ title: String,
-        action: @escaping () -> Void
-    ) {
+    init(_ title: String,
+         action: @escaping () -> Void) {
         self.title = title
         self.action = action
     }

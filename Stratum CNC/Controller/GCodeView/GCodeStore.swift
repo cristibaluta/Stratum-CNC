@@ -146,7 +146,9 @@ class GCodeStore: ObservableObject {
         }
     }
 
-    var allowedContentTypes: [UTType] { Self.allowedContentTypes }
+    var allowedContentTypes: [UTType] {
+        Self.allowedContentTypes
+    }
 
     /// Static so the projects page can offer the same file picker without a store.
     static var allowedContentTypes: [UTType] {
@@ -517,7 +519,11 @@ class GCodeStore: ObservableObject {
                     }
 
                     let isCCW: Bool
-                    if case .arcCCW = wp.motion { isCCW = true } else { isCCW = false }
+                    if case .arcCCW = wp.motion {
+                        isCCW = true
+                    } else {
+                        isCCW = false
+                    }
 
                     let cx = Double(center.x)
                     let cy = Double(center.y)
@@ -528,9 +534,13 @@ class GCodeStore: ObservableObject {
                     // Walk from startAngle to endAngle in the requested direction, wrapping
                     // around as needed so a full sweep is taken rather than the short way.
                     if isCCW {
-                        while endAngle <= startAngle { endAngle += 2 * .pi }
+                        while endAngle <= startAngle {
+                            endAngle += 2 * .pi
+                        }
                     } else {
-                        while endAngle >= startAngle { endAngle -= 2 * .pi }
+                        while endAngle >= startAngle {
+                            endAngle -= 2 * .pi
+                        }
                     }
 
                     let steps = max(2, segmentsPerArc)

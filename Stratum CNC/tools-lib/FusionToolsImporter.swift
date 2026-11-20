@@ -76,12 +76,16 @@ enum FusionToolsImporter {
     private static func convert(_ f: FusionTool) -> Tool? {
         guard let g = f.geometry,
               let diameter = g.DC, diameter > 0,
-              let type = mapType(f) else { return nil }
+              let type = mapType(f) else {
+            return nil
+        }
 
         // Our library is in millimetres; Fusion stores values in the tool's own unit.
         let scale = f.unit?.lowercased().hasPrefix("inch") == true ? 25.4 : 1.0
         func mm(_ value: Double?) -> Double? {
-            guard let value, value > 0 else { return nil }
+            guard let value, value > 0 else {
+                return nil
+            }
             return (value * scale).rounded(toPlaces: 3)
         }
 
@@ -137,12 +141,16 @@ enum FusionToolsImporter {
         let speedScale = scale == 25.4 ? 0.3048 : 1.0
 
         func scaled(_ value: Double?, scale: Double = 1, decimals: Double = 1) -> Double? {
-            guard let value, value > 0 else { return nil }
+            guard let value, value > 0 else {
+                return nil
+            }
             let factor = pow(10, decimals)
             return (value * scale * factor).rounded() / factor
         }
         func rpm(_ value: Double?) -> Int? {
-            guard let value, value > 0 else { return nil }
+            guard let value, value > 0 else {
+                return nil
+            }
             return Int(exactly: value.rounded())
         }
 
@@ -178,18 +186,26 @@ enum FusionToolsImporter {
     /// "Upcut"). Anything that doesn't say, and compression bits (both at once), stays unknown.
     private static func cuttingDirection(from description: String?) -> CuttingDirection? {
         let text = (description ?? "").lowercased()
-        guard !text.contains("compression") else { return nil }
+        guard !text.contains("compression") else {
+            return nil
+        }
         func mentions(_ pattern: String) -> Bool {
             text.range(of: pattern, options: .regularExpression) != nil
         }
-        if mentions("down[ -]?(cut|shear)") { return .downCut }
-        if mentions("up[ -]?(cut|shear)") { return .upCut }
+        if mentions("down[ -]?(cut|shear)") {
+            return .downCut
+        }
+        if mentions("up[ -]?(cut|shear)") {
+            return .upCut
+        }
         return nil
     }
 
     /// Number of flutes (`NOF`), when the library gives a sensible one.
     private static func flutes(from g: FusionGeometry) -> Int? {
-        guard let nof = g.NOF, nof >= 1, nof <= 99 else { return nil }
+        guard let nof = g.NOF, nof >= 1, nof <= 99 else {
+            return nil
+        }
         return Int(exactly: nof.rounded())
     }
 
@@ -198,14 +214,18 @@ enum FusionToolsImporter {
     private static func cornerRadius(from g: FusionGeometry,
                                      diameter: Double,
                                      mm: (Double?) -> Double?) -> Double? {
-        guard let re = mm(g.RE), re <= mm(diameter)! / 2 + 0.001 else { return nil }
+        guard let re = mm(g.RE), re <= mm(diameter)! / 2 + 0.001 else {
+            return nil
+        }
         return re
     }
 
     /// Pitch range, profile angle and tooth count of a thread mill; nil when the library has no pitch.
     private static func threadProfile(from g: FusionGeometry,
                                       mm: (Double?) -> Double?) -> ThreadProfile? {
-        guard let minPitch = mm(g.TPN) ?? mm(g.TPX) else { return nil }
+        guard let minPitch = mm(g.TPN) ?? mm(g.TPX) else {
+            return nil
+        }
         let maxPitch = mm(g.TPX) ?? minPitch
         let teeth = g.NT.flatMap { $0 >= 1 ? Int(exactly: $0.rounded()) : nil } ?? 1
         let angle = (g.threadProfileAngle ?? 0) > 0 ? g.threadProfileAngle! : 60
@@ -238,11 +258,17 @@ enum FusionToolsImporter {
     private static func tipAngle(for type: ToolType, geometry g: FusionGeometry) -> Double? {
         switch type {
         case .chamfer, .engraving:
-            guard let ta = g.TA, ta > 0 else { return nil }
+            guard let ta = g.TA, ta > 0 else {
+                return nil
+            }
             return ta * 2                       // Fusion stores the half angle
         case .vBit, .drill:
-            if let sig = g.SIG, sig > 0 { return sig }
-            if let ta = g.TA, ta > 0 { return ta * 2 }
+            if let sig = g.SIG, sig > 0 {
+                return sig
+            }
+            if let ta = g.TA, ta > 0 {
+                return ta * 2
+            }
             return nil
         default:
             return nil
@@ -397,18 +423,29 @@ private enum ZipReader {
     static func extract(named wanted: String, from data: Data) throws -> Data {
         let b = [UInt8](data)
 
-        func u16(_ o: Int) -> Int { Int(b[o]) | Int(b[o + 1]) << 8 }
-        func u32(_ o: Int) -> Int { u16(o) | u16(o + 2) << 16 }
+        func u16(_ o: Int) -> Int {
+            Int(b[o]) | Int(b[o + 1]) << 8
+        }
+        func u32(_ o: Int) -> Int {
+            u16(o) | u16(o + 2) << 16
+        }
 
         // End of central directory record, searched from the end of the file.
-        guard b.count >= 22 else { throw FusionImportError.notAnArchive }
+        guard b.count >= 22 else {
+            throw FusionImportError.notAnArchive
+        }
         var eocd = -1
         var i = b.count - 22
         while i >= max(0, b.count - 22 - 65_535) {
-            if u32(i) == 0x0605_4B50 { eocd = i; break }
+            if u32(i) == 0x0605_4B50 {
+                eocd = i
+                break
+            }
             i -= 1
         }
-        guard eocd >= 0 else { throw FusionImportError.notAnArchive }
+        guard eocd >= 0 else {
+            throw FusionImportError.notAnArchive
+        }
 
         let entryCount = u16(eocd + 10)
         var offset = u32(eocd + 16)
@@ -424,18 +461,24 @@ private enum ZipReader {
             let commentLength = u16(offset + 32)
             let localOffset = u32(offset + 42)
             let entryEnd = offset + 46 + nameLength + extraLength + commentLength
-            guard entryEnd <= b.count else { throw FusionImportError.notAnArchive }
+            guard entryEnd <= b.count else {
+                throw FusionImportError.notAnArchive
+            }
             let nameBytes = b[(offset + 46)..<(offset + 46 + nameLength)]
             let name = String(decoding: nameBytes, as: UTF8.self)
             offset = entryEnd
 
-            guard (name as NSString).lastPathComponent.lowercased() == wanted else { continue }
+            guard (name as NSString).lastPathComponent.lowercased() == wanted else {
+                continue
+            }
 
             guard localOffset + 30 <= b.count, u32(localOffset) == 0x0403_4B50 else {
                 throw FusionImportError.notAnArchive
             }
             let start = localOffset + 30 + u16(localOffset + 26) + u16(localOffset + 28)
-            guard start + compressedSize <= b.count else { throw FusionImportError.notAnArchive }
+            guard start + compressedSize <= b.count else {
+                throw FusionImportError.notAnArchive
+            }
             let payload = Data(b[start..<(start + compressedSize)])
 
             switch method {

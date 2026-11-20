@@ -51,7 +51,9 @@ struct ToolChipsView: View {
                 }
                 .scrollIndicators(.automatic)
                 .onChange(of: currentTool) { _, newValue in
-                    guard let newValue else { return }
+                    guard let newValue else {
+                        return
+                    }
                     withAnimation(.easeInOut(duration: 0.2)) {
                         proxy.scrollTo(newValue, anchor: .center)
                     }

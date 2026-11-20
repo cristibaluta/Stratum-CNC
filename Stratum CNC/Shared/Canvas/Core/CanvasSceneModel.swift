@@ -162,8 +162,12 @@ class CanvasSceneModel: ObservableObject {
     /// (`xyOffset = jobAreaOffset - toolpathBoundsMin`). Equal to `xyOffset`
     /// when no program is loaded.
     var jobAreaOffset: SIMD2<Float> {
-        get { xyOffset + toolpathBoundsMin }
-        set { xyOffset = newValue - toolpathBoundsMin }
+        get {
+            xyOffset + toolpathBoundsMin
+        }
+        set {
+            xyOffset = newValue - toolpathBoundsMin
+        }
     }
 
     /// Base color the heightmap surface is shaded with — the selected
@@ -537,7 +541,11 @@ class CanvasSceneModel: ObservableObject {
     ///
     /// A forced call cancels any carve still running; an unforced one waits
     /// its turn behind it (see `updateHeightmap`'s `supersedesRunning`).
-    func scrubHeightmap(stock: StockMaterial, document: NCFileDocument, line: Int, tools: ToolSchedule, force: Bool = false) {
+    func scrubHeightmap(stock: StockMaterial,
+                        document: NCFileDocument,
+                        line: Int,
+                        tools: ToolSchedule,
+                        force: Bool = false) {
         // See `updateHeightmap`: no surface is drawn in wireframe mode, so a
         // scrub there shouldn't touch the heightmap at all.
         guard renderMode == .heightmap else {

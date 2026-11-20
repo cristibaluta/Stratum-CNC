@@ -56,7 +56,9 @@ struct MachineConnectSheet: View {
         // off straight to the review sheet instead of leaving the person to
         // notice and tap Play a second time.
         .onChange(of: connection.isConnected) { _, isConnected in
-            guard isConnected else { return }
+            guard isConnected else {
+                return
+            }
             dismiss()
             model.isShowingRunReview = true
         }

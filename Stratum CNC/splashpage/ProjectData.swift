@@ -45,7 +45,7 @@ struct ProjectData: Identifiable, Codable, Hashable {
          assets: [AssetData]?,
          xyOffset: SIMD2<Float>? = nil,
          setups: [Setup]? = nil) {
-        
+
         self.id = id
         self.name = name
         self.stock = stock

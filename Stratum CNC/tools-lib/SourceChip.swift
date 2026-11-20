@@ -30,7 +30,9 @@ struct SourceChip: View {
 
     /// "shop.tools · imported 31 Oct 2026" for an import, just the name otherwise.
     private var help: String {
-        guard source.kind == .imported, let date = source.date else { return source.name }
+        guard source.kind == .imported, let date = source.date else {
+            return source.name
+        }
         return "\(source.name) · imported \(date.formatted(date: .abbreviated, time: .omitted))"
     }
 

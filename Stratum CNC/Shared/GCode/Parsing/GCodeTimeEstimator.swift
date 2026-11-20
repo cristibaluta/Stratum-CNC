@@ -67,7 +67,9 @@ enum GCodeTimeEstimator {
                 case "G":
                     // `Int(exactly:)` leaves out G91.1, G0.1…, which are not the codes they start with.
                     switch Int(exactly: value) ?? -1 {
-                    case 0, 1, 2, 3: mode = Int(value); isDwell = false
+                    case 0, 1, 2, 3:
+                        mode = Int(value)
+                        isDwell = false
                     case 4: isDwell = true
                     case 17, 18, 19: plane = Int(value)
                     case 20: usesInches = true
@@ -80,9 +82,15 @@ enum GCodeTimeEstimator {
                 case "P": pWord = value
                 case "S": sWord = value
                 // In relative mode the words are offsets from where the tool is.
-                case "X": target.x = isRelative ? x + value : value; moves = true
-                case "Y": target.y = isRelative ? y + value : value; moves = true
-                case "Z": target.z = isRelative ? z + value : value; moves = true
+                case "X":
+                    target.x = isRelative ? x + value : value
+                    moves = true
+                case "Y":
+                    target.y = isRelative ? y + value : value
+                    moves = true
+                case "Z":
+                    target.z = isRelative ? z + value : value
+                    moves = true
                 case "I": i = value
                 case "J": j = value
                 case "R": r = value
@@ -119,7 +127,9 @@ enum GCodeTimeEstimator {
         /// (the move is then measured as a straight line).
         private static func arcLength(from start: (x: Double, y: Double),
                                       to end: (x: Double, y: Double),
-                                      i: Double, j: Double, r: Double?,
+                                      i: Double,
+                                      j: Double,
+                                      r: Double?,
                                       clockwise: Bool) -> Double? {
             let dx = end.x - start.x, dy = end.y - start.y
 
@@ -163,11 +173,17 @@ enum GCodeTimeEstimator {
             var current = chars.next()
             var depth = 0
 
-            func advance() { current = chars.next() }
+            func advance() {
+                current = chars.next()
+            }
 
             while let c = current {
                 if depth > 0 {
-                    if c == "(" { depth += 1 } else if c == ")" { depth -= 1 }
+                    if c == "(" {
+                        depth += 1
+                    } else if c == ")" {
+                        depth -= 1
+                    }
                     advance()
                     continue
                 }
@@ -186,7 +202,9 @@ enum GCodeTimeEstimator {
 
                 let letter = Character(c.uppercased())
                 advance()
-                while current == " " || current == "\t" { advance() }
+                while current == " " || current == "\t" {
+                    advance()
+                }
 
                 var number = ""
                 if current == "-" || current == "+" {

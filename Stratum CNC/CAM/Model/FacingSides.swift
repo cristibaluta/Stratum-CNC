@@ -33,7 +33,9 @@ struct FacingSides: Codable, Hashable {
     enum Side: String, CaseIterable, Identifiable {
         case left, right, front, back
 
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
 
         var title: String {
             switch self {
@@ -79,8 +81,12 @@ struct FacingSides: Codable, Hashable {
 
     /// "All sides", "No sides" or "Left, Back".
     var summary: String {
-        if isAll { return "All sides" }
-        if isNone { return "No sides" }
+        if isAll {
+            return "All sides"
+        }
+        if isNone {
+            return "No sides"
+        }
         return extended.map(\.title).joined(separator: ", ")
     }
 

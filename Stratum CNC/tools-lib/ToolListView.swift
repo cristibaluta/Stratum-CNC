@@ -161,7 +161,9 @@ private struct ToolRow: View, Equatable {
 
     private var stockHelp: String {
         let stock = "\(tool.quantity) in stock"
-        guard let sourceName else { return stock }
+        guard let sourceName else {
+            return stock
+        }
         return "\(stock) · \(sourceName)"
     }
 

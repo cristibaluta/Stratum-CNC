@@ -111,10 +111,18 @@ struct ChipLoadAnalysis {
     }
 
     var verdict: Verdict {
-        guard isComplete else { return .incomplete }
-        if isHeavy { return .heavy }
-        if heat >= 0.66 { return .hot }
-        if heat >= 0.33 { return .warm }
+        guard isComplete else {
+            return .incomplete
+        }
+        if isHeavy {
+            return .heavy
+        }
+        if heat >= 0.66 {
+            return .hot
+        }
+        if heat >= 0.33 {
+            return .warm
+        }
         return .good
     }
 

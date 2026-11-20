@@ -17,8 +17,12 @@ struct MacroParameter: Identifiable, Hashable, Sendable {
 
 struct MacroError: LocalizedError, Sendable {
     let message: String
-    init(_ message: String) { self.message = message }
-    var errorDescription: String? { message }
+    init(_ message: String) {
+        self.message = message
+    }
+    var errorDescription: String? {
+        message
+    }
 }
 
 struct Macro: Identifiable, Sendable {
@@ -40,7 +44,9 @@ enum GCodeNumber {
     }
 }
 
-private func n(_ value: Double) -> String { GCodeNumber.string(value) }
+private func n(_ value: Double) -> String {
+    GCodeNumber.string(value)
+}
 
 // MARK: - Built-in macros
 
@@ -72,13 +78,27 @@ extension Macro {
             let feed = values["feed"] ?? 0
             let rpm = values["rpm"] ?? 0
 
-            guard depth > 0 else { return .failure(.init("Hole depth must be greater than 0.")) }
-            guard peck > 0 else { return .failure(.init("Peck depth must be greater than 0.")) }
-            guard retract >= 0 else { return .failure(.init("Retract height can't be negative.")) }
-            guard gap >= 0 else { return .failure(.init("Re-entry gap can't be negative.")) }
-            guard feed > 0 else { return .failure(.init("Plunge feed must be greater than 0.")) }
-            guard rpm >= 0 else { return .failure(.init("Spindle speed can't be negative.")) }
-            guard depth / peck <= 500 else { return .failure(.init("Too many pecks (max 500).")) }
+            guard depth > 0 else {
+                return .failure(.init("Hole depth must be greater than 0."))
+            }
+            guard peck > 0 else {
+                return .failure(.init("Peck depth must be greater than 0."))
+            }
+            guard retract >= 0 else {
+                return .failure(.init("Retract height can't be negative."))
+            }
+            guard gap >= 0 else {
+                return .failure(.init("Re-entry gap can't be negative."))
+            }
+            guard feed > 0 else {
+                return .failure(.init("Plunge feed must be greater than 0."))
+            }
+            guard rpm >= 0 else {
+                return .failure(.init("Spindle speed can't be negative."))
+            }
+            guard depth / peck <= 500 else {
+                return .failure(.init("Too many pecks (max 500)."))
+            }
 
             var lines = [
                 "(Peck drilling: depth \(n(depth)), peck \(n(peck)))",
@@ -86,7 +106,9 @@ extension Macro {
                 "G90",
                 "G94"
             ]
-            if rpm > 0 { lines.append("M3 S\(Int(rpm))") }
+            if rpm > 0 {
+                lines.append("M3 S\(Int(rpm))")
+            }
             lines.append("G0 Z\(n(retract))")
 
             var previous = 0.0
@@ -100,7 +122,9 @@ extension Macro {
                 previous = target
             }
 
-            if rpm > 0 { lines.append("M5") }
+            if rpm > 0 {
+                lines.append("M5")
+            }
             return .success(lines)
         }
     )
@@ -135,13 +159,27 @@ extension Macro {
             let safe = values["safe"] ?? 0
             let rpm = values["rpm"] ?? 0
 
-            guard depth > 0 else { return .failure(.init("Thread length must be greater than 0.")) }
-            guard cutter > 0 else { return .failure(.init("Cutter diameter must be greater than 0.")) }
-            guard cutter < pilot else { return .failure(.init("Cutter must be smaller than the ⌀\(n(pilot)) pilot hole.")) }
-            guard cutter < major else { return .failure(.init("Cutter must be smaller than the thread.")) }
-            guard feed > 0 else { return .failure(.init("Feed must be greater than 0.")) }
-            guard safe >= 0 else { return .failure(.init("Safe height can't be negative.")) }
-            guard rpm >= 0 else { return .failure(.init("Spindle speed can't be negative.")) }
+            guard depth > 0 else {
+                return .failure(.init("Thread length must be greater than 0."))
+            }
+            guard cutter > 0 else {
+                return .failure(.init("Cutter diameter must be greater than 0."))
+            }
+            guard cutter < pilot else {
+                return .failure(.init("Cutter must be smaller than the ⌀\(n(pilot)) pilot hole."))
+            }
+            guard cutter < major else {
+                return .failure(.init("Cutter must be smaller than the thread."))
+            }
+            guard feed > 0 else {
+                return .failure(.init("Feed must be greater than 0."))
+            }
+            guard safe >= 0 else {
+                return .failure(.init("Safe height can't be negative."))
+            }
+            guard rpm >= 0 else {
+                return .failure(.init("Spindle speed can't be negative."))
+            }
 
             // Radius of the cutter's centre path around the hole centre.
             let radius = (major - cutter) / 2
@@ -154,7 +192,9 @@ extension Macro {
                 "G90",
                 "G94"
             ]
-            if rpm > 0 { lines.append("M3 S\(Int(rpm))") }
+            if rpm > 0 {
+                lines.append("M3 S\(Int(rpm))")
+            }
             lines.append("G0 Z\(n(safe))")
             lines.append("G1 Z\(n(-depth)) F\(n(feed))")
 
@@ -170,7 +210,9 @@ extension Macro {
             lines.append("G90")
 
             lines.append("G0 Z\(n(safe))")
-            if rpm > 0 { lines.append("M5") }
+            if rpm > 0 {
+                lines.append("M5")
+            }
             return .success(lines)
         }
     )

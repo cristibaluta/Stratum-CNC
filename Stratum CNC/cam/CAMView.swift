@@ -81,7 +81,9 @@ struct CAMView: View {
                                },
                                onEmptyDoubleClick: {
                                    // Closes the open toolpath's details, like its Done button
-                                   guard camModel.selectedToolpathID != nil else { return }
+                                   guard camModel.selectedToolpathID != nil else {
+                                       return
+                                   }
                                    projectModel.saveIfNeeded()
                                    withAnimation(.easeOut(duration: 0.15)) {
                                        camModel.selectedToolpathID = nil
@@ -218,7 +220,9 @@ struct CAMView: View {
                         fileError = "Could not access \(url.lastPathComponent)"
                         return
                     }
-                    defer { url.stopAccessingSecurityScopedResource() }
+                    defer {
+                        url.stopAccessingSecurityScopedResource()
+                    }
                     // Imports asset to project directory
                     do {
                         let asset = try projectModel.importAsset(from: url)
@@ -372,7 +376,9 @@ struct CAMView: View {
             },
             onGeneratePreview: { id in
                 // Just this object, even while it is hidden on the canvas
-                guard let object = camModel.canvasState.object(withID: id) else { return }
+                guard let object = camModel.canvasState.object(withID: id) else {
+                    return
+                }
                 projectModel.updatePreview(from: [object], ignoringVisibility: true)
             },
             stepModels: stepModelItems,
@@ -415,8 +421,12 @@ struct CAMView: View {
                 camModel.stepWorkspace.scaleModel(id, factor: factor)
             },
             onDeleteStepModel: { id in
-                do { try projectModel.removeSTEPModel(id) }
-                catch { fileError = String(describing: error) }
+                do {
+                    try projectModel.removeSTEPModel(id)
+                }
+                catch {
+                    fileError = String(describing: error)
+                }
             }
         )
     }
