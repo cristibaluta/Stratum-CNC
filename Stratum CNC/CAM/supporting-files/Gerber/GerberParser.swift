@@ -73,13 +73,14 @@ enum GerberParser {
     static func parseFile(_ text: String, name: String) -> ParsedFile {
         let ext = (name as NSString).pathExtension.lowercased()
         let entities: [DXF.Entity]
+        
         switch ext {
-        case "drl":
-            entities = ExcellonParser(source: text, layer: name).parse()
-        case "gtl", "gbl":
-            entities = CopperGerberParser(source: text, layer: name).parse()
-        default:
-            entities = SingleGerberParser(source: text, layer: name).parse()
+            case "drl":
+                entities = ExcellonParser(source: text, layer: name).parse()
+            case "gtl", "gbl":
+                entities = CopperGerberParser(source: text, layer: name).parse()
+            default:
+                entities = SingleGerberParser(source: text, layer: name).parse()
         }
         return ParsedFile(name: name, entities: entities)
     }

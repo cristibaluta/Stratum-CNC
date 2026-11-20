@@ -184,7 +184,9 @@ final class CopperGerberParser {
     }
 
     private func parseFormat(_ command: String) {
-        guard let range = command.range(of: "FSLAX") else { return }
+        guard let range = command.range(of: "FSLAX") else {
+            return
+        }
         let suffix = command[range.upperBound...]
         let digits = suffix.filter(\.isNumber)
         guard digits.count >= 4 else { return }
@@ -200,35 +202,47 @@ final class CopperGerberParser {
             .replacingOccurrences(of: "%", with: "")
             .replacingOccurrences(of: "*", with: "")
 
-        guard let addRange = cleaned.range(of: "ADD") else { return }
+        guard let addRange = cleaned.range(of: "ADD") else {
+            return
+        }
         let body = String(cleaned[addRange.upperBound...])
 
-        guard let comma = body.firstIndex(of: ",") else { return }
+        guard let comma = body.firstIndex(of: ",") else {
+            return
+        }
         let header = String(body[..<comma])
         let definition = String(body[body.index(after: comma)...])
 
         // Find the aperture number at the start of the ADD definition.
         let digits = header.prefix(while: \.isNumber)
-        guard let number = Int(digits) else { return }
+        guard let number = Int(digits) else {
+            return
+        }
         let type = String(header.dropFirst(digits.count))
 
         switch type {
         case "C":
-            guard let diameter = Double(definition) else { return }
+            guard let diameter = Double(definition) else {
+                return
+            }
             apertures[number] = .circle(diameter: diameter)
 
         case "R":
             let values = definition
                 .split(separator: "X")
                 .compactMap { Double($0) }
-            guard values.count >= 2 else { return }
+                guard values.count >= 2 else {
+                    return
+                }
             apertures[number] = .rectangle(width: values[0], height: values[1])
 
         case "RoundRect":
             let values = definition
                 .split(separator: "X")
                 .compactMap { Double($0) }
-            guard values.count >= 9 else { return }
+                guard values.count >= 9 else {
+                    return
+                }
 
             let radius = values[0]
             let corners = stride(from: 1, through: 8, by: 2).map {
@@ -250,7 +264,9 @@ final class CopperGerberParser {
             .trimmed
 
         let parsed = parseCoordinateFields(cleaned)
-        guard let dCode = parsed.dCode else { return }
+        guard let dCode = parsed.dCode else {
+            return
+        }
 
         let oldPoint = currentPoint
         let x = parsed.x.flatMap(parseCoordinate) ?? currentPoint.x
@@ -310,12 +326,12 @@ final class CopperGerberParser {
 
             let value = String(command[next..<end])
             switch c {
-            case "X": result.x = value
-            case "Y": result.y = value
-            case "I": result.i = value
-            case "J": result.j = value
-            case "D": result.dCode = Int(value)
-            default: break
+                case "X": result.x = value
+                case "Y": result.y = value
+                case "I": result.i = value
+                case "J": result.j = value
+                case "D": result.dCode = Int(value)
+                default: break
             }
             index = end
         }
@@ -324,7 +340,9 @@ final class CopperGerberParser {
     }
 
     private func parseCoordinate(_ value: String) -> Double? {
-        guard !value.isEmpty, let integer = Int(value) else { return nil }
+        guard !value.isEmpty, let integer = Int(value) else {
+            return nil
+        }
         return Double(integer) / pow(10.0, Double(formatDecimalDigits)) * unitScale
     }
 
@@ -360,7 +378,9 @@ final class CopperGerberParser {
             let xs = corners.map(\.x)
             let ys = corners.map(\.y)
             guard let minX = xs.min(), let maxX = xs.max(),
-                  let minY = ys.min(), let maxY = ys.max() else { return }
+                  let minY = ys.min(), let maxY = ys.max() else {
+                return
+            }
             let halfWidth = max(maxX - minX, maxY - minY) * scale / 2.0
             _ = radius
             add(path: capsule(from: a, to: b, radius: halfWidth))
@@ -369,7 +389,9 @@ final class CopperGerberParser {
 
     private func flash(at point: CGPoint) {
         guard let apertureNumber = currentAperture,
-              let aperture = apertures[apertureNumber] else { return }
+              let aperture = apertures[apertureNumber] else {
+            return
+        }
 
         switch aperture {
         case .circle(let diameter):
@@ -390,7 +412,9 @@ final class CopperGerberParser {
 
             // The macro in this KiCad output describes four corner centers. The
             // rounded rectangle is the union of four round-capped edge sweeps.
-            guard centers.count == 4 else { return }
+            guard centers.count == 4 else {
+                return
+            }
             for index in 0..<4 {
                 let a = centers[index]
                 let b = centers[(index + 1) % 4]
@@ -420,7 +444,9 @@ final class CopperGerberParser {
     }
 
     private func add(path: [CGPoint]) {
-        guard path.count >= 3 else { return }
+        guard path.count >= 3 else {
+            return
+        }
         // iOverlay's `.union` runs under the `nonZero` fill rule, which counts
         // signed winding contributions per contour rather than simple nesting
         // depth. That's the right rule for merging arbitrarily-overlapping
@@ -444,8 +470,8 @@ final class CopperGerberParser {
         // copper is always treated as solid.
         let normalized = orientedCounterClockwise(path)
         switch polarity {
-        case .dark: positivePaths.append(normalized)
-        case .clear: negativePaths.append(normalized)
+            case .dark: positivePaths.append(normalized)
+            case .clear: negativePaths.append(normalized)
         }
     }
 
@@ -457,7 +483,9 @@ final class CopperGerberParser {
     }
 
     private func signedArea(_ path: [CGPoint]) -> Double {
-        guard path.count >= 3 else { return 0 }
+        guard path.count >= 3 else {
+            return 0
+        }
         var sum = 0.0
         for index in path.indices {
             let next = path.index(after: index) == path.endIndex
@@ -471,7 +499,9 @@ final class CopperGerberParser {
     // MARK: - Polygon primitives
 
     private func circle(center: CGPoint, radius: Double, segments: Int = 48) -> [CGPoint] {
-        guard radius > 0 else { return [] }
+        guard radius > 0 else {
+            return []
+        }
         return (0..<segments).map { index in
             let angle = Double(index) * 2.0 * .pi / Double(segments)
             return CGPoint(x: center.x + cos(angle) * radius,
@@ -479,12 +509,13 @@ final class CopperGerberParser {
         }
     }
 
-    private func capsule(from a: CGPoint, to b: CGPoint, radius: Double,
-                         arcSegments: Int = 16) -> [CGPoint] {
+    private func capsule(from a: CGPoint, to b: CGPoint, radius: Double, arcSegments: Int = 16) -> [CGPoint] {
         let dx = b.x - a.x
         let dy = b.y - a.y
         let length = hypot(dx, dy)
-        guard length > 0, radius > 0 else { return [] }
+        guard length > 0, radius > 0 else {
+            return []
+        }
 
         let nx = -dy / length
         let ny = dx / length
@@ -509,15 +540,17 @@ final class CopperGerberParser {
 
         _ = nx
         _ = ny
+
         return result
     }
 
-    private func rectangularSweep(from a: CGPoint, to b: CGPoint,
-                                  width: Double, height: Double) -> [CGPoint] {
+    private func rectangularSweep(from a: CGPoint, to b: CGPoint,  width: Double, height: Double) -> [CGPoint] {
         let dx = b.x - a.x
         let dy = b.y - a.y
         let length = hypot(dx, dy)
-        guard length > 0 else { return [] }
+        guard length > 0 else {
+            return []
+        }
 
         let ux = dx / length
         let uy = dy / length
@@ -637,10 +670,11 @@ final class CopperGerberParser {
             shapes = shapes.map { shape in
                 let paths = shape.filter { $0.count >= 3 }
                 return paths.filter { candidate in
-                    guard !candidate.isEmpty else { return false }
+                    guard !candidate.isEmpty else {
+                        return false
+                    }
                     return !allPaths.contains { other in
-                        guard !samePath(candidate, other),
-                              polygonArea(other) > polygonArea(candidate) else {
+                        guard !samePath(candidate, other), polygonArea(other) > polygonArea(candidate) else {
                             return false
                         }
                         // Require the whole candidate contour to be contained, not
@@ -683,7 +717,9 @@ final class CopperGerberParser {
 
 
     private func samePath(_ a: [CGPoint], _ b: [CGPoint]) -> Bool {
-        guard a.count == b.count, !a.isEmpty else { return false }
+        guard a.count == b.count, !a.isEmpty else {
+            return false
+        }
         return polygonArea(a) == polygonArea(b) && a[0] == b[0]
     }
 
@@ -700,7 +736,9 @@ final class CopperGerberParser {
     private static let containmentEpsilon = 1.0e-4
 
     private func point(_ point: CGPoint, isInside polygon: [CGPoint]) -> Bool {
-        guard polygon.count >= 3 else { return false }
+        guard polygon.count >= 3 else {
+            return false
+        }
 
         // Ray-casting test. Points on the boundary are considered inside so a
         // coincident/contained trace cannot survive as a redundant contour.

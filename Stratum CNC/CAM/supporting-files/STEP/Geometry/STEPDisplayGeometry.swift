@@ -103,13 +103,21 @@ struct STEPDisplayGeometry: Sendable {
     /// depth 0...1); an edge it rejects cannot be picked, the next best one is tried.
     /// - Parameter offsets: where each body sits on the canvas; `matrix` sees the bodies at the origin,
     ///   so each is moved into place first. A body without an entry is not moved.
-    func hitTest(at point: CGPoint, viewport: CGSize, matrix: simd_float4x4,
-                 hiddenBodies: Set<STEP.BodyID> = [], offsets: [STEP.BodyID: SIMD3<Float>] = [:],
-                 tolerance: CGFloat = 6, isVisible: ((SIMD3<Float>) -> Bool)? = nil) -> STEP.EdgeID? {
-        guard viewport.width > 0, viewport.height > 0, tolerance >= 0 else { return nil }
+    func hitTest(at point: CGPoint,
+                 viewport: CGSize,
+                 matrix: simd_float4x4,
+                 hiddenBodies: Set<STEP.BodyID> = [],
+                 offsets: [STEP.BodyID: SIMD3<Float>] = [:],
+                 tolerance: CGFloat = 6,
+                 isVisible: ((SIMD3<Float>) -> Bool)? = nil) -> STEP.EdgeID? {
+
+        guard viewport.width > 0, viewport.height > 0, tolerance >= 0 else {
+            return nil
+        }
         var best: (id: STEP.EdgeID, distance: Float, depth: Float)?
         let cursor = SIMD2<Float>(Float(point.x), Float(point.y))
         let limit = Float(tolerance * tolerance)
+
         for body in bodies where !hiddenBodies.contains(body.id) {
             let bodyMatrix = offsets[body.id].map { matrix * Self.translation($0) } ?? matrix
             for edge in body.edges {
@@ -120,7 +128,9 @@ struct STEPDisplayGeometry: Sendable {
                     let length = simd_length_squared(delta)
                     let t = length > 1e-12 ? min(1, max(0, simd_dot(offset, delta) / length)) : 0
                     let distance = simd_length_squared(offset - delta * t)
-                    guard distance <= limit else { continue }
+                    guard distance <= limit else {
+                        continue
+                    }
                     let depth = a.z + (b.z - a.z) * t
                     if let previous = best,
                        distance > previous.distance + 1e-4 || (abs(distance - previous.distance) <= 1e-4 && depth >= previous.depth) {
@@ -128,7 +138,9 @@ struct STEPDisplayGeometry: Sendable {
                     }
                     if let isVisible {
                         let nearest = SIMD3<Float>(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, depth)
-                        guard isVisible(nearest) else { continue }
+                        guard isVisible(nearest) else {
+                            continue
+                        }
                     }
                     best = (edge.id, distance, depth)
                 }
@@ -139,22 +151,35 @@ struct STEPDisplayGeometry: Sendable {
 
     /// Homogeneous clipping against Metal's volume: -w...w for XY, 0...w
     /// for Z. Clip before dividing, including segments crossing near/far planes.
-    static func projectSegment(_ start: SIMD3<Float>, _ end: SIMD3<Float>, matrix: simd_float4x4,
+    static func projectSegment(_ start: SIMD3<Float>,
+                               _ end: SIMD3<Float>,
+                               matrix: simd_float4x4,
                                viewport: CGSize) -> (SIMD3<Float>, SIMD3<Float>)? {
+
         let a = matrix * SIMD4<Float>(start, 1)
         let b = matrix * SIMD4<Float>(end, 1)
-        guard (0..<4).allSatisfy({ a[$0].isFinite && b[$0].isFinite }) else { return nil }
+
+        guard (0..<4).allSatisfy({ a[$0].isFinite && b[$0].isFinite }) else {
+            return nil
+        }
+
         let planesA = [a.w+a.x, a.w-a.x, a.w+a.y, a.w-a.y, a.z, a.w-a.z, a.w-1e-7]
         let planesB = [b.w+b.x, b.w-b.x, b.w+b.y, b.w-b.y, b.z, b.w-b.z, b.w-1e-7]
         var low: Float = 0
         var high: Float = 1
+
         for i in planesA.indices {
             let f = planesA[i], g = planesB[i]
-            if f < 0 && g < 0 { return nil }
+            if f < 0 && g < 0 {
+                return nil
+            }
             if f < 0 { low = max(low, f / (f - g)) }
             if g < 0 { high = min(high, f / (f - g)) }
-            if low > high { return nil }
+            if low > high {
+                return nil
+            }
         }
+
         func screen(_ t: Float) -> SIMD3<Float> {
             let clip = a + (b - a) * t
             return SIMD3<Float>((clip.x / clip.w + 1) * Float(viewport.width) / 2,
@@ -169,15 +194,25 @@ struct STEPDisplayGeometry: Sendable {
 struct CanvasClickTracker {
     private var start: CGPoint?
     private var dragged = false
-    mutating func begin(at point: CGPoint) { start = point; dragged = false }
-    mutating func move(to point: CGPoint) {
-        if let start, hypot(point.x - start.x, point.y - start.y) > 3 { dragged = true }
+
+    mutating func begin(at point: CGPoint) {
+        start = point; dragged = false
     }
+
+    mutating func move(to point: CGPoint) {
+        if let start, hypot(point.x - start.x, point.y - start.y) > 3 {
+            dragged = true
+        }
+    }
+
     mutating func end(at point: CGPoint) -> Bool {
         move(to: point)
         let clicked = start != nil && !dragged
         start = nil
         return clicked
     }
-    var isDragging: Bool { dragged }
+
+    var isDragging: Bool {
+        dragged
+    }
 }

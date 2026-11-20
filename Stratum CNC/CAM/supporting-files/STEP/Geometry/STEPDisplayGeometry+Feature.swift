@@ -11,22 +11,6 @@ import simd
 import SwiftSTEP
 import StratumCAM
 
-/// The kind of feature a selection of edges forms.
-enum STEPSelectionFeature: Equatable, Sendable {
-    /// Only full circles: the rims of holes or studs.
-    case holes
-    /// Edges that join into closed outlines (a face's contour, a pocket, a boss).
-    /// `horizontal`: they lie in a plane facing up or down.
-    case closedProfile(horizontal: Bool)
-    /// One straight edge.
-    case line
-    /// Anything else: open chains of edges, arcs, curves.
-    case openPath
-    /// The two rails of a chamfer face (picked through the face). The toolpath cuts the sharp
-    /// edge the chamfer replaced, not these.
-    case chamfer
-}
-
 extension STEPDisplayGeometry {
 
     /// What `ids` form, given their measures and the plane they lie in (both already worked
@@ -49,7 +33,9 @@ extension STEPDisplayGeometry {
     /// The edges join into closed outlines: every point where edges meet has an even number of
     /// them (a circle closes on itself). Checked per body.
     func isClosed(_ ids: Set<STEP.EdgeID>) -> Bool {
-        struct Key: Hashable { let x: Int32, y: Int32, z: Int32 }
+        struct Key: Hashable {
+            let x: Int32, y: Int32, z: Int32
+        }
         func key(_ p: SIMD3<Float>) -> Key {
             let q = Self.measureTolerance
             return Key(x: Int32((p.x / q).rounded()), y: Int32((p.y / q).rounded()), z: Int32((p.z / q).rounded()))
@@ -67,29 +53,10 @@ extension STEPDisplayGeometry {
                     degree[b, default: 0] += 1
                 }
             }
-            if degree.values.contains(where: { $0 % 2 != 0 }) { return false }
+            if degree.values.contains(where: { $0 % 2 != 0 }) {
+                return false
+            }
         }
         return any
-    }
-}
-
-extension SC.MachiningOperation.Kind {
-
-    /// The operations offered for a selection of STEP edges, most likely first.
-    static func operations(for feature: STEPSelectionFeature) -> [SC.MachiningOperation.Kind] {
-        switch feature {
-            case .holes:
-                return [.drilling, .threadMilling, .counterbore, .boring, .pocket, .contour, .chamfer]
-            case .closedProfile(let horizontal):
-                return horizontal
-                    ? [.pocket, .contour, .facing, .chamfer, .engrave]
-                    : [.pocket, .contour, .chamfer, .engrave]
-            case .line:
-                return [.contour, .slotting, .engrave, .chamfer]
-            case .openPath:
-                return [.contour, .engrave, .chamfer]
-            case .chamfer:
-                return [.chamfer, .contour]
-        }
     }
 }

@@ -6,7 +6,9 @@ enum ArchiveEntryPath {
     static func destination(for entry: String, in directory: URL) -> URL? {
         let root = directory.standardizedFileURL
         let destination = root.appendingPathComponent(entry).standardizedFileURL
-        guard destination.path.hasPrefix(root.path + "/") else { return nil }
+        guard destination.path.hasPrefix(root.path + "/") else {
+            return nil 
+        }
         return destination
     }
 }
