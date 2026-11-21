@@ -293,24 +293,39 @@ struct ControllerView: View {
         .machineAlerts(model.alerts, onResume: model.resumeJob)
     }
 
-    /// A program that declares its own stock (`; Stock Size: 100(X) * 100(Y) * 15(Z) mm`)
+    /// A program that declares its own stock (`;@MKR|STOCK|…`, `; Stock Size: 100(X) * 100(Y) * 15(Z) mm`)
     /// replaces the stock on the canvas, so the box, the heightmap and the stock chip match
-    /// the file. Saved projects keep their own stock: their program comes from it, not the reverse.
-    /// A header that says nothing about stock leaves the current one alone.
+    /// the file. A program that says nothing about stock shows the stock the user last set by
+    /// hand. Saved projects keep their own stock: their program comes from it, not the reverse.
+    ///
+    /// `projectData.stock` is that hand-set stock: a header's stock is shown on the canvas but
+    /// never saved over it. While the canvas shows something else, it is a header's stock.
     private func applyHeaderStock(_ header: GCodeHeader?) {
-        guard canImportGCode, let spec = header?.stock else {
+        guard canImportGCode else {
             return
         }
+        let manual = projectModel.projectData.stock
         let current = camModel.selectedStockMaterial
-        let isAluminum = spec.material?.lowercased().hasPrefix("alumin") == true
 
-        let stock = StockMaterial(name: current.name,
-                                  material: isAluminum ? .aluminum : current.material,
+        guard let spec = header?.stock else {
+            if let manual, manual != current {
+                camModel.selectedStockMaterial = manual
+            }
+            return
+        }
+
+        let base = manual ?? current
+        let isAluminum = spec.material?.lowercased().hasPrefix("alumin") == true
+        let stock = StockMaterial(id: base.id,
+                                  name: base.name,
+                                  material: isAluminum ? .aluminum : base.material,
                                   geometry: .rectangular(width: spec.sizeX,
                                                          height: spec.sizeY,
                                                          depth: spec.sizeZ))
         if stock != current {
             camModel.selectedStockMaterial = stock
+            // Setting the canvas stock saved it into the project: put the hand-set one back.
+            projectModel.projectData.stock = manual
         }
     }
 

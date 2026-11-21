@@ -11,12 +11,15 @@ import Foundation
 /// programs:
 ///
 ///     ;@MKR|BEGIN
+///     ;@MKR|MATERIAL|id=|name=other
+///     ;@MKR|STOCK|id=cuboid|length=152|width=102|height=5.15|diameter=50
 ///     ;@MKR|TOOL|number=4|name=3.175*2*8mm Flat End(Metal)|type=Flat End|diameter=2|...
 ///     ;@MKR|END
 ///
-/// Each line is `;@MKR|<RECORD>|key=value|key=value…`. Only `TOOL` records
-/// are read for now; everything else is skipped. Not a Makera file (no
-/// `BEGIN`) → `nil`.
+/// Each line is `;@MKR|<RECORD>|key=value|key=value…`. `TOOL`, `STOCK` and
+/// `MATERIAL` records are read; everything else is skipped. A `cuboid` stock
+/// is the only shape `StockSpec` can describe: `length` runs along X, `width`
+/// along Y and `height` along Z. Not a Makera file (no `BEGIN`) → `nil`.
 struct MakeraHeaderParser: GCodeHeaderParser {
 
     private static let linePrefix = ";@MKR|"
@@ -24,6 +27,8 @@ struct MakeraHeaderParser: GCodeHeaderParser {
     func parse(headerLines: [String]) -> GCodeHeader? {
         var sawBegin = false
         var tools: [Int: Tool] = [:]
+        var stock: StockSpec?
+        var materialName: String?
 
         for rawLine in headerLines {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -40,7 +45,19 @@ struct MakeraHeaderParser: GCodeHeaderParser {
             case "BEGIN":
                 sawBegin = true
             case "END":
-                return sawBegin ? GCodeHeader(tools: tools) : nil
+                return sawBegin ? Self.header(tools: tools, stock: stock, materialName: materialName) : nil
+            case "MATERIAL":
+                guard sawBegin else {
+                    continue
+                }
+                let name = Self.keyValues(fields.dropFirst())["name"] ?? ""
+                materialName = name.isEmpty ? nil : name
+            case "STOCK":
+                guard sawBegin,
+                      let spec = Self.stock(from: Self.keyValues(fields.dropFirst())) else {
+                    continue
+                }
+                stock = spec
             case "TOOL":
                 guard sawBegin,
                       let (number, spec) = Self.tool(from: Self.keyValues(fields.dropFirst())),
@@ -54,10 +71,32 @@ struct MakeraHeaderParser: GCodeHeaderParser {
         }
 
         // No END line (truncated header) — still usable if it began properly.
-        return sawBegin ? GCodeHeader(tools: tools) : nil
+        return sawBegin ? Self.header(tools: tools, stock: stock, materialName: materialName) : nil
     }
 
     // MARK: Helpers
+
+    /// The stock carries the material name, but only when the header declared a stock: a
+    /// material on its own says nothing about the size.
+    private static func header(tools: [Int: Tool],
+                               stock: StockSpec?,
+                               materialName: String?) -> GCodeHeader {
+        var spec = stock
+        spec?.material = materialName
+        return GCodeHeader(tools: tools, stock: spec)
+    }
+
+    /// Builds a `StockSpec` from one `STOCK` record. `nil` for a shape other than `cuboid`, or
+    /// when a size is missing or not positive: the header then says nothing about the stock.
+    private static func stock(from values: [String: String]) -> StockSpec? {
+        guard values["id"]?.lowercased() == "cuboid",
+              let length = values["length"].flatMap({ Double($0) }), length > 0,
+              let width = values["width"].flatMap({ Double($0) }), width > 0,
+              let height = values["height"].flatMap({ Double($0) }), height > 0 else {
+            return nil
+        }
+        return StockSpec(sizeX: length, sizeY: width, sizeZ: height)
+    }
 
     private static func keyValues(_ fields: ArraySlice<Substring>) -> [String: String] {
         var result: [String: String] = [:]
