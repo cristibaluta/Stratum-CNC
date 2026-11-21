@@ -66,6 +66,40 @@ enum OrientationCube {
         return CGRect(x: x, y: y, width: size, height: size)
     }
 
+    /// The standard view of the cube face under `point` (view coordinates, origin at the
+    /// bottom-left, like `hitRect`), for a canvas of `viewSize` points. `nil` when the point
+    /// is not on the cube: outside its square, or in the corners of the square around it.
+    ///
+    /// The cube is projected orthographically, so a point of the square is a ray along the
+    /// camera's view direction. The ray is slid onto the plane of each face turned toward the
+    /// camera, and that face is hit when the spot is still inside the cube.
+    static func face(at point: CGPoint, in viewSize: CGSize, camera: Camera) -> StandardView? {
+        guard let rect = hitRect(in: viewSize), rect.contains(point) else {
+            return nil
+        }
+        // The square is `2 * halfExtent` cube units wide with the cube at its center.
+        let x = Float((point.x - rect.midX) / rect.width) * 2 * halfExtent
+        let y = Float((point.y - rect.midY) / rect.height) * 2 * halfExtent
+        let onScreen = camera.right * x + camera.up * y
+
+        var nearest: (view: StandardView, depth: Float)?
+        for view in StandardView.allCases {
+            let facing = simd_dot(view.eye, camera.back)
+            guard facing > 0.001 else {
+                continue
+            }
+            let depth = (1 - simd_dot(onScreen, view.eye)) / facing
+            let spot = onScreen + camera.back * depth
+            // On the face's plane one coordinate is 1, so this is inside the cube when the
+            // other two are within it too.
+            let isOnFace = max(abs(spot.x), abs(spot.y), abs(spot.z)) <= 1.0001
+            if isOnFace, depth > (nearest?.depth ?? -Float.infinity) {
+                nearest = (view, depth)
+            }
+        }
+        return nearest?.view
+    }
+
     // MARK: - Geometry
 
     /// Every triangle of the cube (three faces of it are visible at once;

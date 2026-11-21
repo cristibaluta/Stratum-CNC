@@ -564,6 +564,19 @@ struct MetalCanvasView: STViewRepresentable {
             return rect.contains(point)
         }
 
+        /// A click on the orientation cube: squares the camera up on the face that was clicked,
+        /// keeping the target and zoom. A click beside the cube, in the corners of its square,
+        /// does nothing.
+        private func snapToCubeFace(at point: CGPoint) {
+            guard let camera = renderer?.camera,
+                  let size = metalView?.bounds.size,
+                  let face = OrientationCube.face(at: point, in: size, camera: camera) else {
+                return
+            }
+            camera.snap(to: face)
+            metalView?.draw()
+        }
+
         /// The pan-gesture counterpart of the cube handling in `handleMouseDown`: canvases without a
         /// pointer handler (the Controller) drag through a pan recognizer, not through the mouse
         /// events, and would otherwise treat a drag that starts on the cube like any other drag
@@ -596,6 +609,7 @@ struct MetalCanvasView: STViewRepresentable {
             }
             lastMousePosition = event.location
             if isOnOrientationCube(event.location) {
+                clickTracker.begin(at: lastMousePosition)
                 isDraggingCube = true
                 dragAction = .handled
                 view.draw()
@@ -656,9 +670,14 @@ struct MetalCanvasView: STViewRepresentable {
                 return
             }
             if isDraggingCube {
-                // Orbiting the cube is not a click on the canvas behind it.
+                // Orbiting the cube is not a click on the canvas behind it. Pressing and
+                // releasing without moving is a click on the cube itself: snap to that face.
+                let clicked = clickTracker.end(at: event.location)
                 isDraggingCube = false
                 dragAction = .camera
+                if clicked, !cancelled {
+                    snapToCubeFace(at: event.location)
+                }
                 view.draw()
                 return
             }
@@ -1056,6 +1075,11 @@ extension MetalCanvasView.Coordinator {
         if !usesPointerHandler {
             let panGesture = NSPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
             view.addGestureRecognizer(panGesture)
+
+            // A press that doesn't move never starts the pan recognizer: this is how a click
+            // on the orientation cube gets here.
+            let clickGesture = NSClickGestureRecognizer(target: self, action: #selector(handleClick(_:)))
+            view.addGestureRecognizer(clickGesture)
         }
 
         // Middle-button drag, its own recognizer so handlePan can tell it
@@ -1097,6 +1121,16 @@ extension MetalCanvasView.Coordinator {
         gesture.setTranslation(.zero, in: gesture.view)
     }
 
+    @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
+        guard gesture.state == .ended, let view = gesture.view else {
+            return
+        }
+        let location = gesture.location(in: view)
+        if isOnOrientationCube(location) {
+            snapToCubeFace(at: location)
+        }
+    }
+
     @objc func handleMagnification(_ gesture: NSMagnificationGestureRecognizer) {
         guard gesture.state == .changed, let view = gesture.view else {
             return
@@ -1120,6 +1154,10 @@ extension MetalCanvasView.Coordinator: UIGestureRecognizerDelegate {
             panGesture.maximumNumberOfTouches = 1
             panGesture.delegate = self
             view.addGestureRecognizer(panGesture)
+
+            let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+            tapGesture.delegate = self
+            view.addGestureRecognizer(tapGesture)
         }
 
         let twoFingerPan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
@@ -1160,6 +1198,18 @@ extension MetalCanvasView.Coordinator: UIGestureRecognizerDelegate {
         }
         applyDrag(trigger: trigger, translation: flipped, location: location)
         gesture.setTranslation(.zero, in: view)
+    }
+
+    /// A tap on the orientation cube. Canvases with a pointer handler get their taps through
+    /// `handleMouseUp` instead.
+    @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended, let view = gesture.view else {
+            return
+        }
+        let location = view.canvasPoint(gesture.location(in: view))
+        if isOnOrientationCube(location) {
+            snapToCubeFace(at: location)
+        }
     }
 
     @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {

@@ -163,6 +163,14 @@ class Camera {
         turntableAxis = Camera.preferredTurntableAxis(for: orientation)
     }
 
+    /// The standard view whose eye direction the camera is closest to. Snapping to it changes
+    /// the least: from a free orbit it is the face most turned toward the viewer.
+    var nearestStandardView: StandardView {
+        StandardView.allCases.max {
+            simd_dot(back, $0.eye) < simd_dot(back, $1.eye)
+        } ?? .top
+    }
+
     /// Whether the camera is currently squared up on one of the six
     /// axis-aligned standard views, as opposed to some free-orbited angle
     /// in between. `snapToFace(forSwipe:_:)` only takes a 90° step when
