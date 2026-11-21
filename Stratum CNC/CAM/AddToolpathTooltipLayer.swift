@@ -26,7 +26,7 @@ struct AddToolpathTooltipLayer: View {
     /// Keeps the tooltip on screen when the shape is at (or above) the top
     /// edge: roughly its own height plus a margin.
     private static let minAnchorY: CGFloat = 56
-    private static let horizontalMargin: CGFloat = 110
+    private static let horizontalMargin: CGFloat = 200
 
     var body: some View {
         let _ = frameTick

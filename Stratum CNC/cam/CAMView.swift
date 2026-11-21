@@ -48,167 +48,17 @@ struct CAMView: View {
 
     var body: some View {
         let _ = Self._printChanges()
-        ZStack {
+        Group {
             if camModel.canvasState.objects.isEmpty && camModel.stepWorkspace.sources.isEmpty {
                 emptyView
             } else {
-                // The "Add toolpath" tooltip sits on the selected shapes, inside the canvas
-                // view (it needs the camera). Hidden while a toolpath is open.
-                // One 3D canvas for everything. Flat shapes (SVG, DXF, Gerber) sit at z0 and start
-                // from a top view; with a STEP model it starts from the orbited 3D view.
-                CAM_Metal_View(canvasState: camModel.canvasState,
-                               zoomModel: camModel.canvasZoomModel,
-                               stepWorkspace: camModel.stepWorkspace,
-                               startsTopDown: !hasSTEP,
-                               partFrame: camModel.activeSetupFrame,
-                               addToolpathShapeCount: camModel.shapesForNewToolpath.count,
-                               canAddToolpathFromEdges: camModel.selectedToolpathID == nil,
-                               fitRequest: fitRequest,
-                               // A selected 2D object wins, like in the objects list
-                               selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
-                                   ? camModel.stepWorkspace.selectedModelID : nil,
-                               selectedStepBody: camModel.canvasState.selectedObjectIDs.isEmpty
-                                   ? camModel.stepWorkspace.selectedModelID.flatMap { camModel.stepWorkspace.body(ofModel: $0) }
-                                   : nil,
-                               onMoveStepModel: { id, dx, dy in
-                                   var position = camModel.stepWorkspace.position(of: id)
-                                   position.x += Float(dx)
-                                   position.y += Float(dy)
-                                   camModel.stepWorkspace.setPosition(position, for: id)
-                               },
-                               onDeselectStepModel: {
-                                   camModel.stepWorkspace.selectedModelID = nil
-                               },
-                               onEmptyDoubleClick: {
-                                   // Closes the open toolpath's details, like its Done button
-                                   guard camModel.selectedToolpathID != nil else {
-                                       return
-                                   }
-                                   projectModel.saveIfNeeded()
-                                   withAnimation(.easeOut(duration: 0.15)) {
-                                       camModel.selectedToolpathID = nil
-                                   }
-                               },
-                               onAddToolpath: {
-                                   withAnimation(.easeOut(duration: 0.15)) {
-                                       camModel.addToolpathFromSelection()
-                                   }
-                               },
-                               onAddStepToolpath: { operation in
-                                   withAnimation(.easeOut(duration: 0.15)) {
-                                       camModel.addToolpathFromSelection(operation: operation)
-                                   }
-                               })
-                    .id(ObjectIdentifier(camModel.canvasState))
-
-                // Centered at the bottom of the canvas, above everything else.
-                VStack {
-                    Spacer()
-                    HStack(spacing: 8) {
-                        Button {
-                            fitRequest &+= 1
-                        } label: {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        }
-                        .buttonStyle(.bordered)
-                        .help("Fit to view")
-
-                        CanvasZoomButton(zoomModel: camModel.canvasZoomModel)
-
-                        // The options are shared by every file on the canvas
-                        let stepScenes = camModel.stepWorkspace.loadedScenes
-                        if let primary = stepScenes.first(where: \.hasSurfaces) ?? stepScenes.first {
-                            STEPDisplayOptionsButton(scene: primary,
-                                                     others: stepScenes.filter { $0 !== primary })
-                        }
-
-                        Button {
-                            SettingsTab.canvas.select()
-                            openSettings()
-                        } label: {
-                            Image(systemName: "computermouse")
-                        }
-                        .buttonStyle(.bordered)
-                        .help("Mouse Controls")
-                    }
-                    .padding(.bottom, 16)
-                }
-
-                // Align inspector to top-left
-                // Align materials and toolpaths to top-right
-                HStack(alignment: .top) {
-                    // Scrolls when the two panels are taller than the room above the legend, which
-                    // stays where it is (bottom-left): the scroll view ends right over it.
-                    FittingScrollView {
-                        VStack(spacing: 12) {
-                            inspectorPanel
-                            toolpathListPanel
-                        }
-                        .frame(minWidth: 200, maxWidth: 260)
-                        .padding(16)
-                    }
-                    .frame(minWidth: 232, maxWidth: 292)
-                    // The legend's own bottom margin (16) and its height
-                    .padding(.bottom, legendHeight + 16)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    Spacer()
-//                    VStack {
-//                        CanvasZoomToolbar(viewModel: camModel)
-//                        Spacer()
-//                    }
-                    Spacer()
-                    // The scroll view takes the whole height it is given, so it is only there while
-                    // a toolpath's settings are open (the column can then be taller than the window).
-                    // Without it the stock panel is all there is, and the empty space under it
-                    // passes clicks and scrolls to the canvas.
-                    if selectedToolpath != nil {
-                        ScrollView(.vertical, showsIndicators: true) {
-                            rightPanels
-                        }
-                        .fixedSize(horizontal: true, vertical: false)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                    } else {
-                        rightPanels
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                }
-
-                // The canvas's objects list (and the Z0 projections option): only what this
-                // project's canvas has. Floats at the canvas's bottom-left.
-                VStack {
-                    Spacer()
-                    HStack {
-                        CAMLayersOverlay(canvasState: camModel.canvasState,
-                                         workspace: camModel.stepWorkspace,
-                                         isStockVisible: stockVisibleBinding,
-                                         showsAllToolpaths: $camModel.showsAllToolpaths,
-                                         hasToolpaths: !camModel.toolpaths.isEmpty)
-                        .onGeometryChange(for: CGFloat.self) {
-                            $0.size.height
-                        } action: {
-                            legendHeight = $0
-                        }
-                        Spacer()
-                    }
-                }
-                .padding(16)
+                camView
             }
-        }
-        .onAppear {
-            camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
         .alert("File operation failed", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
             Button("OK", role: .cancel) { fileError = nil }
         } message: {
             Text(fileError ?? "")
-        }
-        .sheet(isPresented: $showingAlignmentPins) {
-            AlignmentPinsSheet(stock: camModel.canvasState.stock,
-                               onCreate: { diameter, offset in
-                                   showingAlignmentPins = false
-                                   createAlignmentPins(diameter: diameter, offset: offset)
-                               },
-                               onCancel: { showingAlignmentPins = false })
         }
         .fileImporter(isPresented: $camModel.showingFilePicker,
                       allowedContentTypes: camModel.supportedFiles,
@@ -297,6 +147,158 @@ struct CAMView: View {
             }
             .padding(8)
             Spacer()
+        }
+    }
+
+    private var camView: some View {
+        ZStack {
+            CAM_Metal_View(canvasState: camModel.canvasState,
+                           zoomModel: camModel.canvasZoomModel,
+                           stepWorkspace: camModel.stepWorkspace,
+                           startsTopDown: !hasSTEP,
+                           partFrame: camModel.activeSetupFrame,
+                           addToolpathShapeCount: camModel.shapesForNewToolpath.count,
+                           canAddToolpathFromEdges: camModel.selectedToolpathID == nil,
+                           fitRequest: fitRequest,
+                           // A selected 2D object wins, like in the objects list
+                           selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
+                               ? camModel.stepWorkspace.selectedModelID : nil,
+                           selectedStepBody: camModel.canvasState.selectedObjectIDs.isEmpty
+                               ? camModel.stepWorkspace.selectedModelID.flatMap { camModel.stepWorkspace.body(ofModel: $0) }
+                               : nil,
+                           onMoveStepModel: { id, dx, dy in
+                               var position = camModel.stepWorkspace.position(of: id)
+                               position.x += Float(dx)
+                               position.y += Float(dy)
+                               camModel.stepWorkspace.setPosition(position, for: id)
+                           },
+                           onDeselectStepModel: {
+                               camModel.stepWorkspace.selectedModelID = nil
+                           },
+                           onEmptyDoubleClick: {
+                               // Closes the open toolpath's details, like its Done button
+                               guard camModel.selectedToolpathID != nil else {
+                                   return
+                               }
+                               projectModel.saveIfNeeded()
+                               withAnimation(.easeOut(duration: 0.15)) {
+                                   camModel.selectedToolpathID = nil
+                               }
+                           },
+                           onAddToolpath: {
+                               withAnimation(.easeOut(duration: 0.15)) {
+                                   camModel.addToolpathFromSelection()
+                               }
+                           },
+                           onAddStepToolpath: { operation in
+                               withAnimation(.easeOut(duration: 0.15)) {
+                                   camModel.addToolpathFromSelection(operation: operation)
+                               }
+                           })
+                .id(ObjectIdentifier(camModel.canvasState))
+
+            // Centered at the bottom of the canvas, above everything else.
+            VStack {
+                Spacer()
+                HStack(spacing: 8) {
+                    Button {
+                        fitRequest &+= 1
+                    } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Fit to view")
+
+                    CanvasZoomButton(zoomModel: camModel.canvasZoomModel)
+
+                    // The options are shared by every file on the canvas
+                    let stepScenes = camModel.stepWorkspace.loadedScenes
+                    if let primary = stepScenes.first(where: \.hasSurfaces) ?? stepScenes.first {
+                        STEPDisplayOptionsButton(scene: primary,
+                                                 others: stepScenes.filter { $0 !== primary })
+                    }
+
+                    Button {
+                        SettingsTab.canvas.select()
+                        openSettings()
+                    } label: {
+                        Image(systemName: "computermouse")
+                    }
+                    .buttonStyle(.bordered)
+                    .help("Mouse Controls")
+                }
+                .padding(.bottom, 16)
+            }
+
+            // Align inspector to top-left
+            // Align materials and toolpaths to top-right
+            HStack(alignment: .top) {
+                // Scrolls when the two panels are taller than the room above the legend, which
+                // stays where it is (bottom-left): the scroll view ends right over it.
+                FittingScrollView {
+                    VStack(spacing: 12) {
+                        inspectorPanel
+                        toolpathListPanel
+                    }
+                    .frame(minWidth: 200, maxWidth: 260)
+                    .padding(16)
+                }
+                .frame(minWidth: 232, maxWidth: 292)
+                // The legend's own bottom margin (16) and its height
+                .padding(.bottom, legendHeight + 16)
+                .frame(maxHeight: .infinity, alignment: .top)
+                Spacer()
+//                    VStack {
+//                        CanvasZoomToolbar(viewModel: camModel)
+//                        Spacer()
+//                    }
+                Spacer()
+                // The scroll view takes the whole height it is given, so it is only there while
+                // a toolpath's settings are open (the column can then be taller than the window).
+                // Without it the stock panel is all there is, and the empty space under it
+                // passes clicks and scrolls to the canvas.
+                if selectedToolpath != nil {
+                    ScrollView(.vertical, showsIndicators: true) {
+                        rightPanels
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                } else {
+                    rightPanels
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+
+            // The canvas's objects list (and the Z0 projections option): only what this
+            // project's canvas has. Floats at the canvas's bottom-left.
+            VStack {
+                Spacer()
+                HStack {
+                    CAMLayersOverlay(canvasState: camModel.canvasState,
+                                     workspace: camModel.stepWorkspace,
+                                     isStockVisible: stockVisibleBinding,
+                                     showsAllToolpaths: $camModel.showsAllToolpaths,
+                                     hasToolpaths: !camModel.toolpaths.isEmpty)
+                    .onGeometryChange(for: CGFloat.self) {
+                        $0.size.height
+                    } action: {
+                        legendHeight = $0
+                    }
+                    Spacer()
+                }
+            }
+            .padding(16)
+        }
+        .onAppear {
+            camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
+        }
+        .sheet(isPresented: $showingAlignmentPins) {
+            AlignmentPinsSheet(stock: camModel.canvasState.stock,
+                               onCreate: { diameter, offset in
+                                   showingAlignmentPins = false
+                                   createAlignmentPins(diameter: diameter, offset: offset)
+                               },
+                               onCancel: { showingAlignmentPins = false })
         }
     }
 

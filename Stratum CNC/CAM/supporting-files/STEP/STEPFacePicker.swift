@@ -54,10 +54,12 @@ enum STEPFacePicker {
                              at point: CGPoint,
                              viewport: CGSize,
                              matrix: simd_float4x4) -> (triangle: Int, depth: Float)? {
+
         guard viewport.width > 0, viewport.height > 0 else {
             return nil
         }
         let screen = project(positions: positions, matrix: matrix, viewport: viewport)
+        
         return pickTriangle(screen: screen, indices: indices, at: point)
     }
 
@@ -82,9 +84,10 @@ enum STEPFacePicker {
                              indices: [Int],
                              at point: CGPoint,
                              slack: Float = 0) -> (triangle: Int, depth: Float)? {
-        let cursor = SIMD2<Float>(Float(point.x), Float(point.y))
 
+        let cursor = SIMD2<Float>(Float(point.x), Float(point.y))
         var best: (triangle: Int, depth: Float)?
+
         for t in 0..<(indices.count / 3) {
             let a = screen[indices[3 * t]], b = screen[indices[3 * t + 1]], c = screen[indices[3 * t + 2]]
             guard a.x.isFinite, b.x.isFinite, c.x.isFinite else {
@@ -138,9 +141,11 @@ enum STEPFacePicker {
         func corners(_ t: Int) -> (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>) {
             (positions[indices[3 * t]], positions[indices[3 * t + 1]], positions[indices[3 * t + 2]])
         }
+
         let (a, b, c) = corners(triangle)
         let cross = simd_cross(b - a, c - a)
         let area = simd_length(cross)
+
         guard area > 1e-9 else {
             return nil
         }
@@ -153,6 +158,7 @@ enum STEPFacePicker {
         // Triangles in the same plane (either way up) that have an area.
         var edgeToTriangles: [EdgeKey: [Int]] = [:]
         var segments: [EdgeKey: (SIMD3<Float>, SIMD3<Float>)] = [:]
+
         for t in 0..<(indices.count / 3) {
             let (p, q, r) = corners(t)
             guard plane.distance(to: p) <= planeTolerance,
@@ -221,6 +227,7 @@ enum STEPFacePicker {
                                      indices: [Int]) -> [OutlineSegment] {
         // Loops: union-find over the segments' vertices.
         var parent: [Key: Key] = [:]
+
         func find(_ k: Key) -> Key {
             var root = k
             while let p = parent[root], p != root {
@@ -245,6 +252,7 @@ enum STEPFacePicker {
 
         var loopOf: [EdgeKey: Key] = [:]
         var extent: [Key: (low: SIMD3<Float>, high: SIMD3<Float>)] = [:]
+
         for item in outline {
             let loop = find(item.edge.a)
             loopOf[item.edge] = loop
@@ -253,6 +261,7 @@ enum STEPFacePicker {
             box.high = simd_max(box.high, simd_max(item.segment.0, item.segment.1))
             extent[loop] = box
         }
+
         guard extent.count > 1,
               let outer = extent.max(by: { simd_length($0.value.high - $0.value.low) < simd_length($1.value.high - $1.value.low) })?.key
         else {
@@ -272,6 +281,7 @@ enum STEPFacePicker {
                     continue
                 }
                 let height = simd_dot(plane.normal, corner[(i + 2) % 3] - plane.origin)
+
                 if height > planeTolerance {
                     votes[loop, default: (up: 0, down: 0)].up += 1
                 } else if height < -planeTolerance {
@@ -281,6 +291,7 @@ enum STEPFacePicker {
         }
 
         let holes = Set(votes.filter { $0.value.down > $0.value.up }.keys)
+
         return outline.filter { !holes.contains(loopOf[$0.edge] ?? outer) }
     }
 

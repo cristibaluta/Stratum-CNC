@@ -53,7 +53,6 @@ extension STEP.BodyID {
     }
 }
 
-
 @MainActor
 final class STEPWorkspace: ObservableObject {
 
@@ -109,7 +108,9 @@ final class STEPWorkspace: ObservableObject {
 
     private func observe(_ scene: STEPDocumentScene, for source: UUID) {
         sceneObservers[source] = scene.objectWillChange
-            .sink { [weak self] _ in self?.sceneChanges.send() }
+            .sink { [weak self] _ in
+                self?.sceneChanges.send()
+            }
     }
 
     init(loader: @escaping Loader = { try await STEPViewerContent.load(url: $0, importID: $1) }) {

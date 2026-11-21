@@ -52,25 +52,11 @@ enum SetupFace: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 
     var title: String {
-        switch self {
-            case .top:    return "Top"
-            case .front:  return "Front"
-            case .bottom: return "Bottom"
-            case .back:   return "Back"
-            case .left:   return "Left"
-            case .right:  return "Right"
-        }
+        self.rawValue.capitalized
     }
 
     var persistedName: String {
-        switch self {
-            case .top: return "top"
-            case .front: return "front"
-            case .bottom: return "bottom"
-            case .back: return "back"
-            case .left: return "left"
-            case .right: return "right"
-        }
+        self.rawValue
     }
 
     /// The face a stored rotation is (to the nearest degree), or nil for an angle between faces.

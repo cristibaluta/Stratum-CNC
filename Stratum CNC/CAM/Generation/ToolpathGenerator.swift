@@ -315,6 +315,7 @@ enum ToolpathGenerator {
     static func message(for error: Error,
                         operation: SC.MachiningOperation.Kind? = nil,
                         toolpath: ToolpathData? = nil) -> String {
+
         if let error = error as? GenerationError {
             return error.errorDescription ?? "Couldn't generate the toolpath."
         }
@@ -326,7 +327,7 @@ enum ToolpathGenerator {
                 return "A selected shape has no usable geometry."
             case .missingDrillPoint:
                 return "A selected shape isn't a point or a closed circle. "
-                    + "SVG circles are stored as lines and aren't recognised — use a DXF or drill-file circle."
+                    + "SVG circles are stored as lines and aren't recognised - use a DXF or drill-file circle."
             case .toolIncompatible:
                 switch operation {
                     case .chamfer:
@@ -345,8 +346,10 @@ enum ToolpathGenerator {
             case .invalidParameter(let name):
                 return parameterMessage(for: name)
             case .geometryCollapsed:
-                return "The tool is too large for the selected shapes (with the stock to leave, if any, on each wall) — nothing is left after offsetting."
-            @unknown default:
+                return "The tool is too large for the selected shapes (with the stock to leave, if any, on each wall) - nothing is left after offsetting."
+                case .chamferExceedsToolReach(required: let required, available: let available):
+                    return "The tool is too short to chamfer this shape: the required reach is \(required) mm, but the available reach is only \(available) mm."
+                @unknown default:
                 return "Couldn't generate the toolpath (\(error))."
             }
         }
