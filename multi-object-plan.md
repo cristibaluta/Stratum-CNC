@@ -82,13 +82,19 @@ Each step should leave the app building and usable.
 - Context menu: rename, duplicate entry, delete, new setup.
 - Done when: a project with 2 objects shows both with their own setups; switching setups switches the toolpath list.
 
-### Step 4: Right-side panels (done)
+### Step 4: Right-side panels (done for 2D objects, not compiled yet)
+- Done: the canvas shows the active setup's placement (`cam/Model/SetupPlacement.swift`). The Position panel of a 2D object has "Project / This setup" (with more than one setup) and "Reset to global". Edits go to the override when the setup has one, else to the global placement; the project file always gets the global one.
+- Not done: STEP bodies (their state lives in `STEPWorkspace`); Material stays on the right and Toolpaths on the left, not stacked.
+- Original plan:
 - Object selected: Position / Scale / Rotation panel.
 - Setup selected: Material panel on top, Toolpaths panel below.
 - Transform panel for a setup shows the effective values, with a "Reset to global" action once overridden.
 - Done when: editing the global transform moves the object in every setup that has no override; editing in a setup changes only that setup.
 
-### Step 5: Toolpath panel, one row per item
+### Step 5: Toolpath panel, one row per item (done, not compiled yet)
+- Done: `PanelToolpaths` has no setups dropdown or add/remove menu any more; the tree owns them. It lists the active setup's toolpaths, one row each: icon, name, tool diameter, final Z. The count in the header is the active setup's. "Move to setup" stays in the row's menu.
+- Lost for now: "Add setup > On different stock" and the choice of flip axis for the bottom (the tree's "New Setup" offers faces only). Step 6 brings own-stock back.
+- Original plan:
 - Remove the setups level from the panel (the tree owns it).
 - Row: icon, name, tool diameter, final Z. Nothing else for now.
 - Candidates to drop later: status badges, shape counts, inline buttons. Decide after seeing it.

@@ -14,19 +14,10 @@ struct PanelToolpaths: View {
     let toolpaths: [ToolpathData]
     let selectedID: UUID?
 
-    // Setups (the faces the stock is held on, each cut from the project's stock or from a stock of
-    // its own). A "Setups" dropdown lists the project's setups and shows the active one, with its
-    // own stock in parentheses; clicking a row makes it the active one, whose toolpaths the list
-    // shows. The "+" next to it adds a setup (on the project stock, or "On different stock") or
-    // removes the active one.
+    // The setups are listed in the Objects panel, which owns choosing, adding and removing them.
+    // This panel only shows the active setup's toolpaths.
     var setups: [Setup] = []
     var activeSetupID: UUID?
-    /// The side faces (front, back, left, right) stand the stock on its edge, which only makes sense
-    /// for a 3D model: a project of flat shapes only offers the top and the bottom.
-    var sideFacesAvailable = true
-    /// And only a rectangular block can stand on a side: with another project stock, the side faces
-    /// are listed disabled.
-    var projectStockAllowsSideFaces = true
 
     var onSelect: ((UUID) -> Void)?
     var onDelete: ((UUID) -> Void)?
@@ -36,23 +27,12 @@ struct PanelToolpaths: View {
     var onMove: ((UUID, Int) -> Void)?
     /// (toolpath, setup): "Move to" in a row's menu.
     var onMoveToSetup: ((UUID, UUID) -> Void)?
-    var onSelectSetup: ((UUID) -> Void)?
-    /// (face, the axis it is turned about): the axis only matters for the bottom.
-    var onAddSetup: ((SetupFace, SetupAxis) -> Void)?
-    /// (face, axis): "Add setup > On different stock". The setup starts with a copy of the project stock.
-    var onAddSetupOnDifferentStock: ((SetupFace, SetupAxis) -> Void)?
-    /// (setup, axis): which axis a flipped face turns about, so which way its shapes mirror.
-    var onSetSetupAxis: ((UUID, SetupAxis) -> Void)?
-    var onDeleteSetup: ((UUID) -> Void)?
 
     @StateObject private var reorder = ToolpathReorderModel()
-    @State private var setupToDelete: Setup?
     /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
     @State private var isExpanded = true
     /// The "+" opens the operations to choose what the new toolpath does.
     @State private var isChoosingOperation = false
-    /// The Setups dropdown is open.
-    @State private var isChoosingSetup = false
 
     /// The face the list shows: the active one, or the first when the active id is unknown.
     private var activeSetup: Setup? {
@@ -73,8 +53,6 @@ struct PanelToolpaths: View {
 
             if isExpanded {
                 Divider()
-
-                setupPicker
 
                 if visibleToolpaths.isEmpty {
                     Text("No toolpaths")
@@ -97,16 +75,6 @@ struct PanelToolpaths: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .canvasChrome()
-        .confirmationDialog(setupToDelete.map { "Delete \($0.displayTitle)?" } ?? "",
-                            isPresented: Binding(get: { setupToDelete != nil },
-                                                 set: { if !$0 { setupToDelete = nil } }),
-                            presenting: setupToDelete) { setup in
-            Button("Delete setup and its \(toolpathsOf(setup).count) toolpaths", role: .destructive) {
-                onDeleteSetup?(setup.id)
-            }
-        } message: { _ in
-            Text("The setup's toolpaths are deleted with it. This can't be undone.")
-        }
     }
 
     // MARK: - Header
@@ -123,8 +91,8 @@ struct PanelToolpaths: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
 
-                if !toolpaths.isEmpty {
-                    Text("\(toolpaths.count)")
+                if !visibleToolpaths.isEmpty {
+                    Text("\(visibleToolpaths.count)")
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                 }
@@ -177,216 +145,6 @@ struct PanelToolpaths: View {
         return toolpaths.filter { toolpath in
             let id = toolpath.setupID.flatMap { known.contains($0) ? $0 : nil } ?? first
             return id == setup.id
-        }
-    }
-
-    /// One face the "+" menu can add: a face, or the bottom once per flip axis.
-    private struct FaceEntry: Identifiable {
-        let id: String
-        var title: String
-        let face: SetupFace
-        let axis: SetupAxis
-        /// A face that can't be added to this stock (a side face needs a rectangular block).
-        var isDisabled = false
-        /// The project already has a bottom on this stock: this entry turns it about the other axis.
-        var turnsExistingBottom = false
-    }
-
-    private func axes(of face: SetupFace) -> [SetupAxis] {
-        face.hasChoiceOfAxis ? SetupAxis.allCases : [face.axis]
-    }
-
-    private func title(of face: SetupFace, axis: SetupAxis) -> String {
-        face.hasChoiceOfAxis ? "\(face.title) (flip \(axis.title))" : face.title
-    }
-
-    /// What "Add setup" offers: the faces the project doesn't have yet on its own stock. The same
-    /// face can exist once per stock, so a "Top (Acrylic 3 mm)" doesn't hide the project's Top.
-    /// The project has one bottom per stock: asking for the other flip axis turns the existing one
-    /// about it (its toolpaths stay, mirrored), instead of adding a second.
-    private var projectStockEntries: [FaceEntry] {
-        var entries: [FaceEntry] = []
-        for face in SetupFace.allCases where sideFacesAvailable || !face.isSide {
-            let onProjectStock = setups.filter { $0.stock == nil && $0.face == face }
-            for axis in axes(of: face) {
-                if onProjectStock.contains(where: { $0.axis == axis }) {
-                    continue
-                }
-                var entry = FaceEntry(id: "\(face.rawValue)-\(axis.rawValue)",
-                                      title: title(of: face, axis: axis),
-                                      face: face,
-                                      axis: axis)
-                if face.hasChoiceOfAxis, !onProjectStock.isEmpty {
-                    entry.turnsExistingBottom = true
-                    entry.title = "Bottom: flip about \(axis.title) instead"
-                }
-                if face.isSide, !projectStockAllowsSideFaces {
-                    entry.title += " – needs a rectangular stock"
-                    entry.isDisabled = true
-                }
-                entries.append(entry)
-            }
-        }
-        return entries
-    }
-
-    /// What "On different stock" offers: every face, whatever the project already has. The new
-    /// stock starts as a copy of the project's, which is rectangular when this is enabled.
-    private var differentStockEntries: [FaceEntry] {
-        var entries: [FaceEntry] = []
-        for face in SetupFace.allCases where sideFacesAvailable || !face.isSide {
-            for axis in axes(of: face) {
-                var entry = FaceEntry(id: "\(face.rawValue)-\(axis.rawValue)",
-                                      title: title(of: face, axis: axis),
-                                      face: face,
-                                      axis: axis)
-                if face.isSide, !projectStockAllowsSideFaces {
-                    entry.title += " – needs a rectangular stock"
-                    entry.isDisabled = true
-                }
-                entries.append(entry)
-            }
-        }
-        return entries
-    }
-
-    /// "Setups", the dropdown with the project's setups (the active one on the button, its own
-    /// stock in parentheses when it has one) and the "+" menu to add or remove one.
-    private var setupPicker: some View {
-        HStack(spacing: 8) {
-            Text("Setups")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-
-            Button {
-                isChoosingSetup.toggle()
-            } label: {
-                HStack(spacing: 4) {
-                    Text(activeSetup?.displayTitle ?? "No setup")
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Spacer(minLength: 4)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .help("Choose a setup")
-            .popover(isPresented: $isChoosingSetup, arrowEdge: .bottom) {
-                setupList
-            }
-
-            setupMenu
-        }
-    }
-
-    /// Add a setup (on the project stock, or on a different one) or remove the active one.
-    private var setupMenu: some View {
-        Menu {
-            Menu("Add setup") {
-                let entries = projectStockEntries
-                if entries.isEmpty {
-                    Text("Every face is already in the project")
-                }
-                ForEach(entries) { entry in
-                    Button(entry.title) {
-                        add(entry)
-                    }
-                    .disabled(entry.isDisabled)
-                }
-
-                Divider()
-
-                Menu("On different stock") {
-                    ForEach(differentStockEntries) { entry in
-                        Button(entry.title) {
-                            onAddSetupOnDifferentStock?(entry.face, entry.axis)
-                        }
-                        .disabled(entry.isDisabled)
-                    }
-                }
-            }
-
-            if let activeSetup {
-                Divider()
-
-                Button("Remove \(activeSetup.displayTitle)", role: .destructive) {
-                    requestRemove(activeSetup)
-                }
-                .disabled(setups.count < 2)
-            }
-        } label: {
-            Image(systemName: "plus")
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 20, height: 16)
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .foregroundStyle(.secondary)
-        .help("Add or remove a setup")
-    }
-
-    /// The project's setups only: choosing one makes it the active one.
-    private var setupList: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(setups) { setup in
-                setupRow(setup)
-            }
-        }
-        .padding(8)
-        .frame(width: 260)
-    }
-
-    private func setupRow(_ setup: Setup) -> some View {
-        Button {
-            onSelectSetup?(setup.id)
-            isChoosingSetup = false
-        } label: {
-            HStack(spacing: 6) {
-                Text(setup.displayTitle)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Spacer(minLength: 4)
-                let count = toolpathsOf(setup).count
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 11).monospacedDigit())
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .inspectorListRow(isSelected: setup.id == activeSetup?.id)
-    }
-
-    /// Removes a setup, asking first when it has toolpaths, which go with it. The last one stays.
-    private func requestRemove(_ setup: Setup) {
-        guard setups.count > 1 else {
-            return
-        }
-        if toolpathsOf(setup).isEmpty {
-            onDeleteSetup?(setup.id)
-        } else {
-            setupToDelete = setup
-        }
-    }
-
-    private func add(_ entry: FaceEntry) {
-        if entry.turnsExistingBottom,
-           let bottom = setups.first(where: { $0.face == entry.face && $0.stock == nil }) {
-            onSetSetupAxis?(bottom.id, entry.axis)
-            onSelectSetup?(bottom.id)
-        } else {
-            onAddSetup?(entry.face, entry.axis)
         }
     }
 
@@ -477,73 +235,19 @@ struct PanelToolpaths: View {
 
     // MARK: - Subtitle
 
-    /// What the toolpath does, without the operation's name (the title already says it): the
-    /// tool, how it enters, how a pocket is cleared and where it ends.
+    /// The row's second line: the tool's diameter and where the toolpath ends.
     private func subtitle(for toolpath: ToolpathData) -> some View {
-        let requirements = toolpath.machiningOperation.requirements
-        let entryType: RampType = toolpath.ramping.enabled ? toolpath.ramping.type : .none
-        let toolText = "Ø\(Self.number(Double(toolpath.tool.toolDiameter))) \(Self.title(of: toolpath.tool.type))"
-
-        return HStack(spacing: 6) {
-            // The one that gives way when the row is narrow; the icons and the depth keep their size
-            Text(toolText)
+        HStack(spacing: 6) {
+            Text("Ø\(Self.number(Double(toolpath.tool.toolDiameter)))")
                 .lineLimit(1)
                 .help("Tool: \(toolpath.tool.name)")
-
-            if let side = Self.cutSide(of: toolpath) {
-                ContourTypeGlyph(position: side, tint: .secondary)
-                    .frame(width: 20, height: 13)
-                    .help("Side: \(side.label)")
-            }
-
-            if requirements.usesEntry {
-                // The glyph is drawn in absolute points (18x14), so it is scaled down, not resized
-                RampTypeGlyph(type: entryType, tint: .secondary)
-                    .frame(width: 18, height: 14)
-                    .scaleEffect(0.65)
-                    .frame(width: 12, height: 9)
-                    .help("Entry: \(entryType.title)")
-            }
-
-            if !requirements.pocketPatterns.isEmpty {
-                PatternGlyph(pattern: toolpath.operation.pocketPattern, tint: .secondary)
-                    .frame(width: 18, height: 14)
-                    .help("Pocketing: \(toolpath.operation.pocketPattern.title)")
-            }
-
-            if toolpath.operation.isRest {
-                // Linked to a pocket instead of shapes
-                let source = toolpaths.first { $0.id == toolpath.operation.restSourceID }
-                Label(source?.name ?? "Source missing", systemImage: "link")
-                    .labelStyle(CompactLabelStyle())
-                    .foregroundStyle(source == nil ? Color.orange : Color.secondary)
-                    .lineLimit(1)
-                    .help(source.map { "Cuts the corners of \($0.name)" } ?? "The pocket this belongs to was deleted")
-            } else if !toolpath.cutsWholeStock {
-                // The same hint as in the details panel: orange while nothing is selected yet
-                Label("\(toolpath.targets.count + toolpath.stepTargets.count)", systemImage: "cursorarrow.click")
-                    .labelStyle(CompactLabelStyle())
-                    .foregroundStyle(toolpath.hasGeometry ? Color.secondary : Color.orange)
-                    .fixedSize()
-                    .help(toolpath.selectionSummary)
-            }
-
             Text(Self.endZText(of: toolpath))
                 .lineLimit(1)
                 .fixedSize()
-                .help("End Z")
+                .help("Final Z")
         }
         .font(.system(size: 11))
         .foregroundStyle(.secondary)
-    }
-
-    /// The side of the shape the tool follows, for the operations that have one.
-    private static func cutSide(of toolpath: ToolpathData) -> SC.CutSide? {
-        switch toolpath.operation.kind {
-            case .contour: return toolpath.contour
-            case .chamfer: return toolpath.operation.chamferSide.position
-            default:       return nil
-        }
     }
 
     /// A counterbore keeps its depth apart from `endZ`, as a positive number below the top.

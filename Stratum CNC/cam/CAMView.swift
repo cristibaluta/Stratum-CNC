@@ -545,9 +545,6 @@ struct CAMView: View {
             selectedID: camModel.selectedToolpathID,
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
-            // Front, back, left and right need a 3D model: flat shapes only have a top and a bottom
-            sideFacesAvailable: hasSTEP,
-            projectStockAllowsSideFaces: camModel.selectedStockMaterial.allowsSideFaces,
             onSelect: { id in
                 withAnimation(.easeOut(duration: 0.15)) {
                     camModel.toggleToolpathSelection(id)
@@ -568,30 +565,6 @@ struct CAMView: View {
             },
             onMoveToSetup: { id, setupID in
                 camModel.moveToolpath(id, toSetup: setupID)
-            },
-            onSelectSetup: { id in
-                camModel.activateSetup(id)
-            },
-            onAddSetup: { face, axis in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    _ = camModel.addSetup(face: face, axis: axis)
-                }
-            },
-            onAddSetupOnDifferentStock: { face, axis in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    // Starts as a copy of the project's stock (the real piece differs from the
-                    // library's anyway); the stock panel opens to pick or size the actual one
-                    _ = camModel.addSetup(face: face, axis: axis, stock: camModel.selectedStockMaterial)
-                    stockPanelExpandTrigger = UUID()
-                }
-            },
-            onSetSetupAxis: { id, axis in
-                camModel.setSetupAxis(id, to: axis)
-            },
-            onDeleteSetup: { id in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.deleteSetup(id)
-                }
             }
         )
     }
