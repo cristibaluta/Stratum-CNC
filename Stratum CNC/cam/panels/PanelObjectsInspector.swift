@@ -93,11 +93,11 @@ struct PanelObjectsInspector: View {
     var sideFacesAvailable = false
     var onSelectSetup: ((UUID) -> Void)?
     /// A new setup on a face; the object is nil for one that includes every object.
-    var onAddSetup: ((UUID?, SetupFace) -> Void)?
+    var onAddSetup: ((UUID?, SetupFace, SetupAxis?) -> Void)?
     var onRenameSetup: ((UUID, String) -> Void)?
     var onDeleteSetup: ((UUID) -> Void)?
     /// "Combine into one setup": a new setup on a face that includes all the given objects.
-    var onAddCombinedSetup: (([UUID], SetupFace) -> Void)?
+    var onAddCombinedSetup: (([UUID], SetupFace, SetupAxis?) -> Void)?
 
     @State private var renamingSetupID: UUID?
     @State private var renameText = ""
@@ -553,6 +553,23 @@ struct PanelObjectsInspector: View {
         }
     }
 
+    /// What a "new setup" menu offers: each face, with the bottom split in two by the axis it is flipped on.
+    private var setupFaceChoices: [(id: String, title: String, face: SetupFace, axis: SetupAxis?)] {
+        var choices: [(id: String, title: String, face: SetupFace, axis: SetupAxis?)] = []
+        for face in SetupFace.allCases where !face.isSide || sideFacesAvailable {
+            if face.hasChoiceOfAxis {
+                for axis in SetupAxis.allCases {
+                    choices.append((id: "\(face.rawValue)-\(axis.rawValue)",
+                                    title: "\(face.title) (flip on \(axis.title))",
+                                    face: face, axis: axis))
+                }
+            } else {
+                choices.append((id: "\(face.rawValue)", title: face.title, face: face, axis: nil))
+            }
+        }
+        return choices
+    }
+
     /// The selected objects that can be combined: 2D shapes, not the alignment pins.
     private var combinableSelection: [UUID] {
         regularShapes.filter { selectedIDs.contains($0.id) }.map(\.id)
@@ -564,9 +581,9 @@ struct PanelObjectsInspector: View {
         let ids = combinableSelection
         if ids.count >= 2 {
             Menu {
-                ForEach(SetupFace.allCases.filter { !$0.isSide || sideFacesAvailable }) { face in
-                    Button(face.title) {
-                        onAddCombinedSetup?(ids, face)
+                ForEach(setupFaceChoices, id: \.id) { choice in
+                    Button(choice.title) {
+                        onAddCombinedSetup?(ids, choice.face, choice.axis)
                     }
                 }
             } label: {
@@ -579,9 +596,9 @@ struct PanelObjectsInspector: View {
     @ViewBuilder
     private func newSetupMenu(for objectID: UUID?) -> some View {
         Menu {
-            ForEach(SetupFace.allCases.filter { !$0.isSide || sideFacesAvailable }) { face in
-                Button(face.title) {
-                    onAddSetup?(objectID, face)
+            ForEach(setupFaceChoices, id: \.id) { choice in
+                Button(choice.title) {
+                    onAddSetup?(objectID, choice.face, choice.axis)
                 }
             }
         } label: {

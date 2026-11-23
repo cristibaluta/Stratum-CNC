@@ -541,10 +541,10 @@ struct CAMView: View {
                 camModel.activateSetup(id)
                 camModel.isSetupSelected = true
             },
-            onAddSetup: { objectID, face in
+            onAddSetup: { objectID, face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
                     // A new setup of an object is cut from the object's stock
-                    let id = camModel.addSetup(face: face, stock: objectID.flatMap { camModel.ownStock(forObject: $0) })
+                    let id = camModel.addSetup(face: face, axis: axis, stock: objectID.flatMap { camModel.ownStock(forObject: $0) })
                     if let objectID {
                         camModel.setSetupObjects(id, to: [objectID])
                     }
@@ -559,9 +559,9 @@ struct CAMView: View {
                     camModel.deleteSetup(id)
                 }
             },
-            onAddCombinedSetup: { ids, face in
+            onAddCombinedSetup: { ids, face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
-                    let id = camModel.addSetup(face: face)
+                    let id = camModel.addSetup(face: face, axis: axis)
                     camModel.setSetupObjects(id, to: ids)
                     camModel.isSetupSelected = true
                 }
