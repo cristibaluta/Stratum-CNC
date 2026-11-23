@@ -133,6 +133,10 @@ class CAMModel: ObservableObject {
                let setupID = toolpaths.first(where: { $0.id == id })?.setupID,
                setups.contains(where: { $0.id == setupID }) {
                 activeSetupID = setupID
+                // Its setup is the selection now
+                if !isSetupSelected {
+                    isSetupSelected = true
+                }
             }
             // A toolpath and objects are never selected together
             if selectedToolpathID != nil, !canvasState.selectedObjectIDs.isEmpty {
@@ -269,7 +273,18 @@ class CAMModel: ObservableObject {
 
     /// What the tree has selected: a setup (true) or an object (false). Never both. An object
     /// selected shows its position and size on the right; a setup shows its stock.
-    @Published var isSetupSelected = false
+    @Published var isSetupSelected = false {
+        didSet {
+            guard oldValue != isSetupSelected else {
+                return
+            }
+            // Toolpaths belong to the selected setup: deselecting it closes the open one
+            if !isSetupSelected, selectedToolpathID != nil {
+                selectedToolpathID = nil
+            }
+            updateToolpathPreview()
+        }
+    }
 
     /// - Parameter setups: the project's saved setups. Empty when it has none saved yet: it gets
     ///   the top, and every toolpath goes in it.
@@ -1074,6 +1089,7 @@ class CAMModel: ObservableObject {
                              activeSetupID: activeSetupID,
                              selectedToolpathID: selectedToolpathID,
                              showsAllToolpaths: showsAllToolpaths,
+                             isSetupSelected: isSetupSelected,
                              showsRestAreas: showsRestAreas,
                              stock: selectedStockMaterial,
                              generations: generations)

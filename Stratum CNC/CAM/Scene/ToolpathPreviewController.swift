@@ -20,6 +20,8 @@ struct ToolpathPreviewInput {
     let selectedToolpathID: UUID?
     /// The legend's "All toolpaths" (see `CAMModel.showsAllToolpaths`)
     let showsAllToolpaths: Bool
+    /// A setup (not an object) is selected in the Objects list
+    let isSetupSelected: Bool
     /// Draw the corners the open pocket's tool couldn't reach
     let showsRestAreas: Bool
     /// The project's stock; a setup with a stock of its own overrides it (`Setup.resolvedStock`).
@@ -34,6 +36,10 @@ struct ToolpathPreviewInput {
     /// Whether `toolpath`'s result is on the canvas now: the open toolpath, or every one when none
     /// is open and `showsAllToolpaths` is on.
     func isShownOnCanvas(_ toolpath: ToolpathData) -> Bool {
+        // No setup selected (an object is): no toolpaths on the canvas
+        guard isSetupSelected else {
+            return false
+        }
         if let selectedToolpathID {
             return toolpath.id == selectedToolpathID
         }

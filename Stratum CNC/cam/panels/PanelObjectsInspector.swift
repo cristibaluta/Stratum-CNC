@@ -89,6 +89,8 @@ struct PanelObjectsInspector: View {
     /// The project's setups, listed under the object they cut. The active one is highlighted.
     var setups: [Setup] = []
     var activeSetupID: UUID?
+    /// How many toolpaths each setup contains, by setup id
+    var toolpathCounts: [UUID: Int] = [:]
     /// Front, back, left and right need a 3D model.
     var sideFacesAvailable = false
     var onSelectSetup: ((UUID) -> Void)?
@@ -535,6 +537,13 @@ struct PanelObjectsInspector: View {
                     .font(.system(size: 12))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                Spacer(minLength: 4)
+                if let count = toolpathCounts[setup.id], count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .help(count == 1 ? "1 toolpath" : "\(count) toolpaths")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())

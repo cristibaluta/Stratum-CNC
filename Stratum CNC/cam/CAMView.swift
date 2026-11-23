@@ -534,6 +534,9 @@ struct CAMView: View {
             },
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
+            toolpathCounts: Dictionary(camModel.toolpaths.compactMap { toolpath in
+                toolpath.setupID.map { ($0, 1) }
+            }, uniquingKeysWith: +),
             sideFacesAvailable: hasSTEP,
             onSelectSetup: { id in
                 // A setup is selected instead of an object: no object keeps its handles
@@ -649,7 +652,8 @@ struct CAMView: View {
     private var toolpathListPanel: some View {
         PanelToolpaths(
             projectModel: projectModel,
-            toolpaths: camModel.toolpaths,
+            // Only the selected setup shows its toolpaths: selecting an object deselects the setup
+            toolpaths: camModel.isSetupSelected ? camModel.toolpaths : [],
             selectedID: camModel.selectedToolpathID,
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
