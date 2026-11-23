@@ -243,7 +243,7 @@ final class CAMSceneModel: ObservableObject {
             let handleColor = STColor.systemOrange.simdRGBA
 
             for object in canvasState.objects
-                where showsShapes && canvasState.selectedObjectIDs.contains(object.id) && object.isVisible {
+                where showsShapes && canvasState.selectedObjectIDs.contains(object.id) && object.isShownOnCanvas {
                 overlay.append(contentsOf: CAMSelectionOverlay.renderObjects(for: object,
                                                                              boxColor: boxColor,
                                                                              handleColor: handleColor))

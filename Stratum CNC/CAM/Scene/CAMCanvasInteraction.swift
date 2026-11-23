@@ -148,7 +148,7 @@ final class CAMCanvasInteraction: CanvasPointerHandler {
     private func isSelectedObjectHandleHit(_ event: CanvasPointerEvent) -> Bool {
         canvasState.objects.contains { object in
             canvasState.selectedObjectIDs.contains(object.id)
-                && object.isVisible
+                && object.isShownOnCanvas
                 && isRotationCenterHit(event, object: object)
         }
     }

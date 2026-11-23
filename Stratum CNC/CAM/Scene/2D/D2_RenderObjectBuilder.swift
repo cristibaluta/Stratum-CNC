@@ -67,7 +67,7 @@ enum D2_RenderObjectBuilder {
     /// so hiding an object also takes it out of click-selection.
     static func renderPaths(for state: D2_CanvasState) -> [D2_RenderPath] {
         state.objects.flatMap { object -> [D2_RenderPath] in
-            guard object.isVisible else {
+            guard object.isShownOnCanvas else {
                 return []
             }
             return renderPaths(for: object,

@@ -96,6 +96,8 @@ struct PanelObjectsInspector: View {
     var onAddSetup: ((UUID?, SetupFace) -> Void)?
     var onRenameSetup: ((UUID, String) -> Void)?
     var onDeleteSetup: ((UUID) -> Void)?
+    /// "Combine into one setup": a new setup on a face that includes all the given objects.
+    var onAddCombinedSetup: (([UUID], SetupFace) -> Void)?
 
     @State private var renamingSetupID: UUID?
     @State private var renameText = ""
@@ -205,6 +207,7 @@ struct PanelObjectsInspector: View {
                 }
                 Divider()
                 newSetupMenu(for: regularObjectIDs.count == 1 ? regularObjectIDs[0] : nil)
+                combineMenu
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .medium))
@@ -364,6 +367,9 @@ struct PanelObjectsInspector: View {
             if !object.isParametric {
                 newSetupMenu(for: object.id)
             }
+            if !object.isParametric {
+                combineMenu
+            }
             Button {
                 onGeneratePreview?(object.id)
             } label: {
@@ -452,6 +458,28 @@ struct PanelObjectsInspector: View {
                 Label("Delete", systemImage: "trash")
             }
             .disabled(setups.count <= 1)
+        }
+    }
+
+    /// The selected objects that can be combined: 2D shapes, not the alignment pins.
+    private var combinableSelection: [UUID] {
+        regularShapes.filter { selectedIDs.contains($0.id) }.map(\.id)
+    }
+
+    /// "Combine Selected into One Setup" with a face to pick; only with two or more objects selected.
+    @ViewBuilder
+    private var combineMenu: some View {
+        let ids = combinableSelection
+        if ids.count >= 2 {
+            Menu {
+                ForEach(SetupFace.allCases.filter { !$0.isSide || sideFacesAvailable }) { face in
+                    Button(face.title) {
+                        onAddCombinedSetup?(ids, face)
+                    }
+                }
+            } label: {
+                Label("Combine \(ids.count) Selected into One Setup", systemImage: "square.on.square")
+            }
         }
     }
 

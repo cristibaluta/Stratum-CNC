@@ -50,6 +50,16 @@ final class D2_Object {
     /// persisted to `ProjectData`.
     var isVisible: Bool = true
 
+    /// False while the active setup doesn't include this object (see `Setup.includes`): it is then
+    /// neither drawn nor clickable, like a hidden one, but the inspector's eye stays as it was.
+    /// Session-only, set by `CAMModel.applyActivePlacement`.
+    var isInActiveSetup: Bool = true
+
+    /// Drawn and clickable on the canvas right now.
+    var isShownOnCanvas: Bool {
+        isVisible && isInActiveSetup
+    }
+
     /// Set for the alignment pins: a parametric object. Its geometry is built from this (and the
     /// stock) rather than imported, so it has no position or size of its own: the canvas and the
     /// inspector don't move, scale or rotate it, and `adoptGeometry` rebuilds it in place.

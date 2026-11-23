@@ -50,6 +50,18 @@ extension CAMModel {
             return
         }
         var moved = false
+        var membershipChanged = false
+        // Objects the setup doesn't include drop off the canvas (and out of picking)
+        for object in canvasState.objects {
+            let included = object.isParametric || setup.includes(object.id)
+            if object.isInActiveSetup != included {
+                object.isInActiveSetup = included
+                membershipChanged = true
+            }
+        }
+        if membershipChanged {
+            canvasState.objectWillChange.send()
+        }
         for object in placeableObjects {
             if let override = setup.transformOverride(for: object.id) {
                 if globalPlacementShadow[object.id] == nil {

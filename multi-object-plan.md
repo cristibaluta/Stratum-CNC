@@ -107,7 +107,11 @@ Each step should leave the app building and usable.
 - Already supported by `Setup.stock`; this step is mostly UI and clean-up.
 - Done when: two setups of the same face under one object can use different materials.
 
-### Step 7: Combined setups
+### Step 7: Combined setups (partly done, builds)
+- Done: with two or more 2D objects selected (Shift/Cmd-click in the tree), "Combine N Selected into One Setup" (in the "+" menu and the object's context menu) creates a setup with those objects as items. It is listed under "Combined". Each object can be placed apart in it ("This setup", step 4).
+- Also done: the canvas draws, and lets you click, only the active setup's objects (`D2_Object.isInActiveSetup`; the eye toggle is separate). Generation needed no change: a toolpath cuts the shapes it targets, so a setup only cuts what was picked in it.
+- Not done: no collision warning; the stock does not follow the items' bounds; STEP bodies can't be combined; one-toolpath-over-several-objects and the single export are untested.
+- Original plan:
 - Multi-select objects (Shift-click in the tree or canvas) > "Combine into one setup…" (also in the "+" menu).
 - Creates a setup with several `SetupItem`s, listed in the "Combined" group.
 - Canvas: items laid out on the shared stock, draggable, with a collision warning.

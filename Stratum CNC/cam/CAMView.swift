@@ -497,6 +497,12 @@ struct CAMView: View {
                     camModel.deleteSetup(id)
                 }
             },
+            onAddCombinedSetup: { ids, face in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    let id = camModel.addSetup(face: face)
+                    camModel.setSetupObjects(id, to: ids)
+                }
+            },
             overriddenObjectIDs: Set(camModel.setups.first { $0.id == camModel.activeSetupID }?
                 .items.filter { $0.transformOverride != nil }.map(\.objectID) ?? []),
             offersPlacementScope: camModel.setups.count > 1,
