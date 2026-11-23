@@ -25,20 +25,8 @@ struct PanelToolpathDetails: View {
     /// whenever the cell is open: clicking a shape on the canvas adds/removes it.
     var isPicking: Bool = false
 
-    /// Result of the last Generate for this toolpath, if any.
-    var generation: ToolpathGeneration? = nil
-    /// True while the generation is running in the background.
-    var isGenerating: Bool = false
     /// A rest toolpath only: the pocket it is linked to, nil when that one is gone.
     var restSource: ToolpathData? = nil
-    /// Draw the corners a pocket's tool couldn't reach on the canvas.
-    var showsRestAreas: Binding<Bool> = .constant(true)
-    /// Adds a rest toolpath after this pocket and opens it.
-    var onCreateRest: () -> Void = {}
-    /// Rebuilds the toolpath from the selected shapes. Opening the panel already does it (see
-    /// `CAMModel.generateIfNeeded`), so this is for refreshing the result after an edit.
-    var onGenerate: () -> Void = {}
-    var onScrub: (Int) -> Void = { _ in }
     var onDone: () -> Void = {}
     var onDelete: () -> Void = {}
     /// Adds another toolpath after this one and opens it.
@@ -116,10 +104,6 @@ struct PanelToolpathDetails: View {
             }) {
                 rowEntry
             }
-            InspectorSection(title: "Preview", collapsible: true) {
-                rowPreview
-                rowScrub
-            }
             rowBottomBar
         }
         .padding(12)
@@ -128,8 +112,6 @@ struct PanelToolpathDetails: View {
         .onChange(of: toolpath.id) { _, _ in
             model.reset()
         }
-        // A new Generate starts its preview from the end again, like the canvas does
-        .onChange(of: generation?.id) { _, _ in model.resetScrub() }
     }
 
     // MARK: Generate
@@ -211,12 +193,12 @@ struct PanelToolpathDetails: View {
     /// The ramp or helix, the feed going down and, for a contour, the lead-in and lead-out.
     @ViewBuilder
     private var rowEntry: some View {
-        InspectorNumberField(title: "Ramp start Z", value: $toolpath.rampStartZ, suffix: "mm")
-            .help("Height above the stock where the entry starts. The tool rapids down to here, then enters: a ramp or helix starts its angled descent from this height, a plunge feeds straight down from it.")
         // How the tool gets down into the material: ramp, helix or plunge.
         if OperationOptionsView.hasEntry(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, part: .entry)
         }
+        InspectorNumberField(title: "Ramp start Z", value: $toolpath.rampStartZ, suffix: "mm")
+            .help("Height above the stock where the entry starts. The tool rapids down to here, then enters: a ramp or helix starts its angled descent from this height, a plunge feeds straight down from it.")
         // Always available, also for operations without an entry strategy (drill, bore…)
         InspectorNumberField(title: "Entry feed", value: $toolpath.plungeRate, suffix: "mm/min")
             .help(model.plungeFeedHelp(for: toolpath))
@@ -499,78 +481,6 @@ struct PanelToolpathDetails: View {
         .frame(maxHeight: 160)
     }
 
-    /// Generation status on the left, the Preview button on the right. Preview builds the
-    /// toolpath from the selected shapes and shows it on the canvas.
-    @ViewBuilder
-    private var rowPreview: some View {
-        // Without shapes the button is there but disabled; what to do about it is said once,
-        // in orange, under Shapes (see `shapesLabel`).
-        VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
-            HStack(alignment: .center, spacing: 8) {
-                generationStatus
-                Spacer(minLength: 0)
-                Button {
-                    onGenerate()
-                } label: {
-                    if isGenerating {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Generating…")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                    } else {
-                        Text("Generate")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(isGenerating || !toolpath.hasGeometry || toolpath.toolCompatibilityWarning != nil)
-                .help(model.previewButtonHelp(for: toolpath))
-            }
-            if let timeText = model.timeText(for: generation, toolpath: toolpath) {
-                Label(timeText, systemImage: "clock")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .help("Rough estimate from the length of the moves and their feed rates. Acceleration and tool changes aren't included, so the real time is a little longer.")
-            }
-            // Warnings don't stop the toolpath, and only matter while the result is current
-            if let generation, generation.isCurrent(for: toolpath) {
-                ForEach(generation.warningMessages, id: \.self) { message in
-                    InspectorNote(text: message, isWarning: true, isIndented: false)
-                }
-                // The corners this pocket's tool couldn't reach: offer to clean them with a smaller tool
-                if toolpath.operation.kind == .pocket, !toolpath.operation.isRest, generation.errorMessage == nil, !generation.restCorners.isEmpty {
-                    restAreasRows(cornerCount: generation.restCorners.count)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func restAreasRows(cornerCount: Int) -> some View {
-        InspectorNote(text: cornerCount == 1
-                          ? "The tool leaves material in 1 corner."
-                          : "The tool leaves material in \(cornerCount) corners.",
-                      isIndented: false)
-        ToggleField(title: "Show rest areas",
-                    isOn: showsRestAreas,
-                    help: "Outline the corners this tool couldn't reach on the canvas.")
-        HStack {
-            Spacer(minLength: 0)
-            Button {
-                onCreateRest()
-            } label: {
-                Label("Create rest operation", systemImage: "angle")
-                    .font(.system(size: 11))
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .help("Add a toolpath after this one that cuts these corners with a smaller tool")
-        }
-    }
-
     /// The bottom bar: delete on the left, close on the right. (Next toolpath and Preview in
     /// Controller sit under the panel, see `CAMView`.)
     /// Closing is the last step after previewing; Esc does the same.
@@ -593,52 +503,6 @@ struct PanelToolpathDetails: View {
                 doneButton
             }
             .padding(.top, 10)
-        }
-    }
-
-    @ViewBuilder
-    private var generationStatus: some View {
-        if let generation {
-            if let message = generation.errorMessage {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                    .font(.system(size: 11))
-                    .multilineTextAlignment(.trailing)
-            } else if !generation.isCurrent(for: toolpath) {
-                Label("Outdated...", systemImage: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(.orange)
-                    .font(.system(size: 11))
-                    .multilineTextAlignment(.trailing)
-            } else {
-                Label(model.successText(for: generation), systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.system(size: 11))
-                    .multilineTextAlignment(.trailing)
-            }
-        }
-    }
-
-    /// Previews the generated toolpath on the canvas: only this toolpath is shown, drawn up
-    /// to the slider with the cutter at that point. One step is one move of the toolpath,
-    /// like one line in the controller's G-code slider. Only offered while the result
-    /// matches the settings (see `CAMModel.scrubbableGeneration`).
-    @ViewBuilder
-    private var rowScrub: some View {
-        if let generation,
-           generation.isCurrent(for: toolpath),
-           let scrub = generation.scrub,
-           scrub.stepCount > 0 {
-
-            let total = scrub.stepCount
-            HStack(spacing: 10) {
-                Slider(value: model.scrubBinding(total: total, onScrub: onScrub), in: 0...Double(total))
-                    .controlSize(.small)
-
-                Text(model.scrubLabel(total: total))
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .help("Scrub through the generated toolpath")
         }
     }
 

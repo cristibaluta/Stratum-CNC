@@ -257,7 +257,13 @@ struct CAMView: View {
                 // a toolpath's settings are open (the column can then be taller than the window).
                 // Without it the stock panel is all there is, and the empty space under it
                 // passes clicks and scrolls to the canvas.
-                if selectedToolpath != nil {
+                if let toolpath = selectedToolpath {
+                    // The preview is not part of the scrolling column: always in view, top-left
+                    // of the settings, so a change can be checked without scrolling to it.
+                    toolpathPreviewPanel(for: toolpath)
+                        .frame(width: 260)
+                        .padding(.top, 16)
+                        .frame(maxHeight: .infinity, alignment: .top)
                     ScrollView(.vertical, showsIndicators: true) {
                         rightPanels
                     }
@@ -519,17 +525,11 @@ struct CAMView: View {
         )
     }
 
-    private func toolpathSettingsPanel(for toolpath: ToolpathData) -> some View {
-        PanelToolpathDetails(toolpath: binding(for: toolpath),
-                             stockMaterial: camModel.selectedStockMaterial.material,
-                             stockThickness: camModel.selectedStockMaterial.thickness,
-                             siblingNames: Set(camModel.toolpaths.filter { $0.id != toolpath.id }.map(\.name)),
-                             isPicking: camModel.pickingToolpathID == toolpath.id,
+    /// Generate, its status and the scrub slider for the open toolpath, in a panel of its own.
+    private func toolpathPreviewPanel(for toolpath: ToolpathData) -> some View {
+        PanelToolpathPreview(toolpath: camModel.toolpaths.first { $0.id == toolpath.id } ?? toolpath,
                              generation: camModel.generations[toolpath.id],
                              isGenerating: camModel.generatingIDs.contains(toolpath.id),
-                             restSource: toolpath.operation.restSourceID.flatMap { sourceID in
-                                 camModel.toolpaths.first { $0.id == sourceID }
-                             },
                              showsRestAreas: $camModel.showsRestAreas,
                              onCreateRest: {
                                  projectModel.saveIfNeeded()
@@ -541,6 +541,18 @@ struct CAMView: View {
                              },
                              onScrub: { step in
                                  camModel.setToolpathScrubStep(step)
+                             })
+        .id(toolpath.id)
+    }
+
+    private func toolpathSettingsPanel(for toolpath: ToolpathData) -> some View {
+        PanelToolpathDetails(toolpath: binding(for: toolpath),
+                             stockMaterial: camModel.selectedStockMaterial.material,
+                             stockThickness: camModel.selectedStockMaterial.thickness,
+                             siblingNames: Set(camModel.toolpaths.filter { $0.id != toolpath.id }.map(\.name)),
+                             isPicking: camModel.pickingToolpathID == toolpath.id,
+                             restSource: toolpath.operation.restSourceID.flatMap { sourceID in
+                                 camModel.toolpaths.first { $0.id == sourceID }
                              },
                              onDone: {
                                 projectModel.saveIfNeeded()
