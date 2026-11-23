@@ -61,6 +61,8 @@ class CAMModel: ObservableObject {
             onSetupsChanged?(setups)
             // A setup's own stock, or another active setup, changes what the canvas shows
             syncCanvasStock()
+            // So does a placement of its own for an object
+            applyActivePlacement()
             // Renaming or reordering changes nothing that is cut; a different orientation does
             // The objects a setup includes, and where it places them, decide what is cut too
             if Self.orientations(of: oldValue) != Self.orientations(of: setups)
@@ -84,6 +86,8 @@ class CAMModel: ObservableObject {
                 }
                 // Each setup can be cut from another stock: the canvas follows the active one
                 syncCanvasStock()
+                // ...and place the objects its own way
+                applyActivePlacement()
                 updateToolpathPreview()
             }
         }
@@ -253,6 +257,10 @@ class CAMModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
+    /// The global placement of the 2D objects the canvas shows at a setup's own placement right
+    /// now. An object is only here while that is so; see `applyActivePlacement`.
+    var globalPlacementShadow: [UUID: ObjectTransform] = [:]
+
     /// - Parameter setups: the project's saved setups. Empty when it has none saved yet: it gets
     ///   the top, and every toolpath goes in it.
     init(selectedStockMaterial: StockMaterial, toolpaths: [ToolpathData], setups: [Setup] = []) {
@@ -286,10 +294,15 @@ class CAMModel: ObservableObject {
             guard let self else {
                 return
             }
+            // An edit of an object the active setup places itself belongs to that setup
+            self.routeCanvasEditToActiveSetup()
             // Toolpaths are built in world space, so moving/scaling/rotating/
             // removing an object leaves every generated result stale.
             self.discardGenerations()
-            self.onObjectsChanged?(self.canvasState.objects)
+            // The project file keeps the global placement, never a setup's own
+            self.withGlobalPlacement {
+                self.onObjectsChanged?(self.canvasState.objects)
+            }
         }
 
         // Selecting an object closes the open toolpath
@@ -1013,7 +1026,7 @@ class CAMModel: ObservableObject {
     }
 
     /// Drops every result and abandons runs in flight (their tokens no longer match).
-    private func discardGenerations() {
+    func discardGenerations() {
         generationStore.discardAll()
         scheduleAllToolpathsRefresh()
     }

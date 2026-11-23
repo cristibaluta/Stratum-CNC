@@ -100,6 +100,13 @@ struct PanelObjectsInspector: View {
     @State private var renamingSetupID: UUID?
     @State private var renameText = ""
 
+    /// Objects the active setup places itself. Others use the project's (global) placement.
+    var overriddenObjectIDs: Set<UUID> = []
+    /// The Position panel offers "Project / This setup" only when there is more than one setup.
+    var offersPlacementScope = false
+    /// (object, true) = place it in this setup only; (object, false) = back to the global placement.
+    var onPlacementOverrideChanged: ((UUID, Bool) -> Void)?
+
     /// Narrow, left-aligned label column: leaves the width to the fields.
     private static let labelWidth: CGFloat = 56
     /// The horizontal padding of a list row (`inspectorListRow`).
@@ -566,6 +573,9 @@ struct PanelObjectsInspector: View {
 
     private func propertiesSection(for object: D2_Object) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            if offersPlacementScope {
+                placementScopeSection(for: object)
+            }
             InspectorSection(title: "Position") {
                 valueRow("X", value: object.position.x, unit: "mm") {
                     onValueChanged?(object.id, .x, $0)
@@ -609,6 +619,27 @@ struct PanelObjectsInspector: View {
                     }
                     .inspectorField()
                 }
+            }
+        }
+    }
+
+    /// Whose placement the fields below edit: the project's, or this setup's own.
+    private func placementScopeSection(for object: D2_Object) -> some View {
+        let isOverridden = overriddenObjectIDs.contains(object.id)
+        return InspectorSection(title: "Placement") {
+            Picker("", selection: Binding(get: { isOverridden },
+                                          set: { onPlacementOverrideChanged?(object.id, $0) })) {
+                Text("Project").tag(false)
+                Text("This setup").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if isOverridden {
+                Button("Reset to global") {
+                    onPlacementOverrideChanged?(object.id, false)
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 11))
             }
         }
     }

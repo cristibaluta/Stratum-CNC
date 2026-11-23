@@ -75,14 +75,14 @@ Each step should leave the app building and usable.
 - `setSetupObjects(_:to:)` and `setTransformOverride(_:for:inSetup:)` edit them; changing either outdates the setup's toolpaths.
 - Not done: the canvas still draws every object at its global position. Drawing only the active setup's objects with their overrides touches `D2_Object` (it owns its position) and the STEP scenes, and is better done with step 4's transform panel.
 
-### Step 3: Objects panel as a tree
+### Step 3: Objects panel as a tree (done)
 - Replace the flat list with: Object > Setups. Hide the object level when there is only one object.
 - Import (DXF, SVG, Gerber, STEP) lives here: "+" at the top.
 - Selecting a setup makes it active; selecting an object isolates it on the canvas (others ghosted).
 - Context menu: rename, duplicate entry, delete, new setup.
 - Done when: a project with 2 objects shows both with their own setups; switching setups switches the toolpath list.
 
-### Step 4: Right-side panels
+### Step 4: Right-side panels (done)
 - Object selected: Position / Scale / Rotation panel.
 - Setup selected: Material panel on top, Toolpaths panel below.
 - Transform panel for a setup shows the effective values, with a "Reset to global" action once overridden.

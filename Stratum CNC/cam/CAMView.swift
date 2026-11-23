@@ -473,6 +473,12 @@ struct CAMView: View {
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
             sideFacesAvailable: hasSTEP,
+            overriddenObjectIDs: Set(camModel.setups.first { $0.id == camModel.activeSetupID }?
+                .items.filter { $0.transformOverride != nil }.map(\.objectID) ?? []),
+            offersPlacementScope: camModel.setups.count > 1,
+            onPlacementOverrideChanged: { id, enabled in
+                camModel.setPlacementOverride(enabled, for: id)
+            },
             onSelectSetup: { id in
                 camModel.activateSetup(id)
             },
