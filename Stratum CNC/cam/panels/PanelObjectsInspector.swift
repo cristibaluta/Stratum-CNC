@@ -150,11 +150,11 @@ struct PanelObjectsInspector: View {
     private var propertiesPanel: some View {
         let selected = elements.filter { selectedIDs.contains($0.id) }
         if selected.isEmpty, let model = stepModels.first(where: { $0.id == selectedStepModelID }) {
-            propertiesChrome {
+            propertiesChrome(title: model.position != nil ? "Placement" : nil) {
                 stepModelPropertiesSection(for: model)
             }
         } else if selected.count == 1, let object = selected.first {
-            propertiesChrome {
+            propertiesChrome(title: object.alignmentPins == nil ? "Placement" : nil) {
                 if let spec = object.alignmentPins {
                     alignmentPinsSection(for: object, spec: spec)
                 } else {
@@ -162,14 +162,21 @@ struct PanelObjectsInspector: View {
                 }
             }
         } else if selected.count > 1, let bounds = selectionBounds {
-            propertiesChrome {
+            propertiesChrome(title: "Placement") {
                 groupPropertiesSection(count: selected.count, bounds: bounds)
             }
         }
     }
 
-    private func propertiesChrome<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    private func propertiesChrome<Content: View>(title: String? = nil,
+                                                 @ViewBuilder _ content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            if let title {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 2)
+            }
             content()
         }
         .padding(12)
@@ -626,13 +633,13 @@ struct PanelObjectsInspector: View {
         VStack(alignment: .leading, spacing: 0) {
             if let position = model.position {
                 if let orientation = model.orientation {
-                    InspectorSection(title: "Face up") {
+                    InspectorSection(title: "Face up", showsDivider: false) {
                         STEPFaceUpPicker(selection: orientation) { face in
                             onStepModelOrientationChanged?(model.id, face)
                         }
                     }
                 }
-                InspectorSection(title: "Position") {
+                InspectorSection(title: "Position", showsDivider: model.orientation != nil) {
                     stepAxisRow("X", model.id, .x, position.x)
                     stepAxisRow("Y", model.id, .y, position.y)
                     // The top of the model; 0 puts its top at the stock's top surface.
@@ -692,7 +699,7 @@ struct PanelObjectsInspector: View {
             pinsRefresh += 1
         }
         return VStack(alignment: .leading, spacing: 0) {
-            InspectorSection(title: "Alignment pins") {
+            InspectorSection(title: "Alignment pins", showsDivider: false) {
                 valueRow("Diameter", value: CGFloat(spec.diameter), unit: "mm") {
                     apply(diameter: Double($0), offset: spec.offset)
                 } trailing: {
@@ -727,7 +734,7 @@ struct PanelObjectsInspector: View {
             if offersPlacementScope {
                 placementScopeSection(for: object)
             }
-            InspectorSection(title: "Position") {
+            InspectorSection(title: "Position", showsDivider: offersPlacementScope) {
                 valueRow("X", value: object.position.x, unit: "mm") {
                     onValueChanged?(object.id, .x, $0)
                 } trailing: {
@@ -777,7 +784,7 @@ struct PanelObjectsInspector: View {
     /// Whose placement the fields below edit: the project's, or this setup's own.
     private func placementScopeSection(for object: D2_Object) -> some View {
         let isOverridden = overriddenObjectIDs.contains(object.id)
-        return InspectorSection(title: "Placement") {
+        return InspectorSection(title: nil, showsDivider: false) {
             Picker("", selection: Binding(get: { isOverridden },
                                           set: { onPlacementOverrideChanged?(object.id, $0) })) {
                 Text("Project").tag(false)
@@ -799,7 +806,7 @@ struct PanelObjectsInspector: View {
     /// group's bounds; there is no rotation.
     private func groupPropertiesSection(count: Int, bounds: CGRect) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            InspectorSection(title: "Position · \(count) objects") {
+            InspectorSection(title: "Position · \(count) objects", showsDivider: false) {
                 valueRow("X", value: bounds.minX, unit: "mm") {
                     onGroupValueChanged?(.x, $0)
                 } trailing: {

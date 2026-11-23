@@ -354,12 +354,12 @@ struct CAMView: View {
                                expandTrigger: stockPanelExpandTrigger)
                 .frame(width: 320)
             } else {
-                objectPropertiesPanel
-                // Each object can have a stock of its own
+                // Each object can have a stock of its own, shown first
                 if let focus = camModel.focusedObjectID,
                    camModel.canvasState.object(withID: focus)?.isParametric != true {
                     objectStockPanel(for: focus)
                 }
+                objectPropertiesPanel
             }
             // Only while a toolpath is selected in the list
             if let toolpath = selectedToolpath {
