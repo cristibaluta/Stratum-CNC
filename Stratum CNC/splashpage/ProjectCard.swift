@@ -33,6 +33,7 @@ struct ProjectCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
 
+            // Preview
             ProjectPreview(image: previewImage)
                 .frame(height: 150)
                 .frame(maxWidth: .infinity)
@@ -47,6 +48,7 @@ struct ProjectCard: View {
 
             Divider()
 
+            // Footer
             VStack(alignment: .leading, spacing: 1) {
                 Text(project.name)
                     .font(.system(size: 13, weight: .semibold))

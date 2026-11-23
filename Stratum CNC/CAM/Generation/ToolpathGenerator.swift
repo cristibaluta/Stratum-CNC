@@ -306,7 +306,8 @@ enum ToolpathGenerator {
                                   // Only the operations that use them read these (see
                                   // `SC.OperationRequirements.usesAllowance`); the rest ignore them.
                                   allowance: toolpath.operation.stockToLeave,
-                                  finishingPass: toolpath.operation.finishingPass)
+                                  finishingPass: toolpath.operation.finishingPass,
+                                  rampStartZ: toolpath.rampStartZ)
     }
 
     /// A message fit for showing under the Generate button. `operation` (the operation the

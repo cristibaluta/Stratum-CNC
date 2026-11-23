@@ -12,23 +12,19 @@ struct ProjectPreview: View {
     let image: STImage?
 
     var body: some View {
-        Group {
-            if let image {
-                // The preview is a transparent drawing in black: shown as a template in the
-                // text color, it reads on both the light and the dark card background.
-                Image(stImage: image)
-                    .renderingMode(.template)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .foregroundStyle(.primary)
-            } else {
-                ContentUnavailableView(
-                    "No Preview",
-                    systemImage: "photo",
-                    description: Text("A preview will appear here")
-                )
-            }
+        if let image {
+            // The preview is a transparent drawing in black: shown as a template in the
+            // text color, it reads on both the light and the dark card background.
+            Image(stImage: image)
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .foregroundStyle(.primary)
+        } else {
+            // TODO: this cannot be centered vertically even with spacers
+            ContentUnavailableView("No Preview",
+                                   systemImage: "photo",
+                                   description: Text("A preview will appear here"))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -211,8 +211,8 @@ struct PanelToolpathDetails: View {
     /// The ramp or helix, the feed going down and, for a contour, the lead-in and lead-out.
     @ViewBuilder
     private var rowEntry: some View {
-        InspectorNumberField(title: "Entry Z", value: $toolpath.entryZ, suffix: "mm")
-            .help("Height above the stock where the entry starts. The tool rapids down to here, then feeds in and the entry strategy (plunge, ramp or helix) is applied.")
+        InspectorNumberField(title: "Ramp start Z", value: $toolpath.rampStartZ, suffix: "mm")
+            .help("Height above the stock where the entry starts. The tool rapids down to here, then enters: a ramp or helix starts its angled descent from this height, a plunge feeds straight down from it.")
         // How the tool gets down into the material: ramp, helix or plunge.
         if OperationOptionsView.hasEntry(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, part: .entry)
@@ -370,7 +370,7 @@ struct PanelToolpathDetails: View {
     }
 
     /// The Entry section's collapsed form: the strategy, its angle, the feed going down and
-    /// the Entry Z. The lead-in and lead-out are in the full section only.
+    /// the Ramp start Z. The lead-in and lead-out are in the full section only.
     @ViewBuilder
     private var rowEntryCompact: some View {
         HStack(spacing: 6) {
@@ -380,9 +380,9 @@ struct PanelToolpathDetails: View {
             InspectorCompactNumberField(tag: "Feed",
                                         value: $toolpath.plungeRate,
                                         help: "Entry feed (mm/min). \(model.plungeFeedHelp(for: toolpath))")
-            InspectorCompactNumberField(tag: "Entry Z",
-                                        value: $toolpath.entryZ,
-                                        help: "Entry Z (mm): height above the stock where the entry starts. The tool rapids down to here, then feeds in.")
+            InspectorCompactNumberField(tag: "Ramp Z",
+                                        value: $toolpath.rampStartZ,
+                                        help: "Ramp start Z (mm): height above the stock where the entry starts. The tool rapids down to here, then ramps, helixes or plunges from it.")
         }
     }
 
