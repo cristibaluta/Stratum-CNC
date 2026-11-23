@@ -62,10 +62,12 @@ Moving them *into* toolpaths does not fit: a toolpath targets shapes, and the pi
 
 Each step should leave the app building and usable.
 
-### Step 1: Object model
-- Add `ProjectObject` with a global transform; make the existing canvas objects and STEP bodies convert to it.
-- The canvas still shows everything, no UI change.
-- Done when: loading a project still shows the same canvas, objects have an id and transform in one place.
+### Step 1: Object model (done, not compiled yet)
+- Added `ObjectTransform` (x, y, z, scale, rotation, face) and `D2_Object.transform` (read/write, same as setting position, width and rotation).
+- Added `ProjectObject` and `CAMModel.projectObjects`: one read-only list over the 2D shapes and the STEP bodies, with the transform of each.
+- Nothing stores or changes anything yet: edits still go through `D2_CanvasState` and `STEPWorkspace`, and the project is saved as before.
+- Files: `CAM/Objects/ObjectTransform.swift`, `CAM/Objects/ProjectObject.swift`.
+- Left for later: the project file still saves 2D shapes in `AssetData` and STEP bodies in `STEPBodyState`. Merging them needs `ProjectModel`, `ProjectData` and `AssetData`, which are not in the archive.
 
 ### Step 2: Setup items
 - Add `Setup.items` with `objectID` and an optional `transformOverride`.
@@ -127,4 +129,5 @@ Each step should leave the app building and usable.
 
 ## Not verified yet
 
-I read `Setup`, `CAMModel`, `AlignmentPins`, `ObjectFactory` and the top of `STEPWorkspace`. I have not read `D2_CanvasState`, the Objects inspector (`PanelObjectsInspector`) or the toolpath list (`PanelToolpaths`), because they are not in the archive. Steps 3 to 5 are estimated from how `CAMView` uses them and need a look at those files before work starts.
+- The archive has no `ProjectModel`, `ProjectData` or `AssetData`, so the save format, and the "toolpaths in their own file" step, can't be written from here.
+- Nothing has been compiled: there is no Swift toolchain in this environment.
