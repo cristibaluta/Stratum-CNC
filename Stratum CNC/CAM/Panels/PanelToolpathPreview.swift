@@ -31,13 +31,26 @@ struct PanelToolpathPreview: View {
     /// Holds the scrub position and the texts under the button.
     @StateObject private var model = ToolpathDetailsModel()
 
+    /// The panel is one line (the title) when collapsed. Remembered, under the key the section had
+    /// when the preview was part of the settings.
+    @AppStorage("inspector.sectionCollapsed.Preview") private var isCollapsed = false
+
     var body: some View {
+        // Laid out like the Objects and Toolpaths panels: title line, divider, content, 12 around.
         VStack(alignment: .leading, spacing: 8) {
-            // No divider: there is nothing above it to separate it from
-            InspectorSection(title: "Preview", showsDivider: false, collapsible: true) {
-                rowPreview
-                rowScrub
-                rowRestAreas
+            if isCollapsed {
+                collapsedBar
+            } else {
+                header
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
+                    rowPreview
+                    rowScrub
+                    rowRestAreas
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(12)
@@ -48,6 +61,79 @@ struct PanelToolpathPreview: View {
         }
         // A new Generate starts its preview from the end again, like the canvas does
         .onChange(of: generation?.id) { _, _ in model.resetScrub() }
+    }
+
+    /// The collapsed panel: the scrubber and the button that opens the panel, nothing else. While
+    /// there is nothing to scrub (no result, an outdated one, a failed one) the Generate button
+    /// takes the scrubber's place.
+    private var collapsedBar: some View {
+        HStack(spacing: 8) {
+            if let total = scrubTotal {
+                Slider(value: model.scrubBinding(total: total, onScrub: onScrub), in: 0...Double(total))
+                    .controlSize(.small)
+                    .help("Scrub through the generated toolpath")
+            } else {
+                generateButton
+                Spacer(minLength: 0)
+            }
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isCollapsed = false
+                }
+            } label: {
+                InspectorChevron(isExpanded: false)
+                    .frame(width: 20, height: 20)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Show preview")
+        }
+    }
+
+    /// The title and the chevron. The whole line toggles the panel.
+    private var header: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isCollapsed.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("Preview")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 4)
+
+                InspectorChevron(isExpanded: true)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Hide preview")
+    }
+
+    /// Builds the toolpath from the selected shapes and shows it on the canvas.
+    private var generateButton: some View {
+        Button {
+            onGenerate()
+        } label: {
+            if isGenerating {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Generating…")
+                        .font(.system(size: 12, weight: .medium))
+                }
+            } else {
+                Text("Generate")
+                    .font(.system(size: 12, weight: .medium))
+            }
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.small)
+        .disabled(isGenerating || !toolpath.hasGeometry || toolpath.toolCompatibilityWarning != nil)
+        .help(model.previewButtonHelp(for: toolpath))
     }
 
     /// How many points the slider walks through; nil while there is no current result to scrub.
@@ -71,25 +157,7 @@ struct PanelToolpathPreview: View {
             HStack(alignment: .center, spacing: 8) {
                 generationStatus
                 Spacer(minLength: 0)
-                Button {
-                    onGenerate()
-                } label: {
-                    if isGenerating {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Generating…")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                    } else {
-                        Text("Generate")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(isGenerating || !toolpath.hasGeometry || toolpath.toolCompatibilityWarning != nil)
-                .help(model.previewButtonHelp(for: toolpath))
+                generateButton
             }
             if let total = scrubTotal {
                 Label(model.scrubLabel(total: total) + " points", systemImage: "point.topleft.down.to.point.bottomright.curvepath")

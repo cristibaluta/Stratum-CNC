@@ -351,8 +351,8 @@ struct PanelToolpathDetails: View {
         }
     }
 
-    /// The Entry section's collapsed form: the strategy, its angle, the feed going down and
-    /// the Ramp start Z. The lead-in and lead-out are in the full section only.
+    /// The Entry section's collapsed form: the strategy, its angle and the feed going down.
+    /// The Ramp start Z, the lead-in and the lead-out are in the full section only.
     @ViewBuilder
     private var rowEntryCompact: some View {
         HStack(spacing: 6) {
@@ -362,9 +362,6 @@ struct PanelToolpathDetails: View {
             InspectorCompactNumberField(tag: "Feed",
                                         value: $toolpath.plungeRate,
                                         help: "Entry feed (mm/min). \(model.plungeFeedHelp(for: toolpath))")
-            InspectorCompactNumberField(tag: "Ramp Z",
-                                        value: $toolpath.rampStartZ,
-                                        help: "Ramp start Z (mm): height above the stock where the entry starts. The tool rapids down to here, then ramps, helixes or plunges from it.")
         }
     }
 

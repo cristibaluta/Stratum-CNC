@@ -120,6 +120,11 @@ struct PanelObjectsInspector: View {
                         .padding(.top, 10)
                 }
 
+                // Separates the list (and the properties under it) from the + button, like in
+                // the Toolpaths panel
+                Divider()
+                    .padding(.top, 10)
+
                 footer
                     .padding(.top, 8)
             }
