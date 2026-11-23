@@ -69,10 +69,11 @@ Each step should leave the app building and usable.
 - Files: `CAM/Objects/ObjectTransform.swift`, `CAM/Objects/ProjectObject.swift`.
 - Left for later: the project file still saves 2D shapes in `AssetData` and STEP bodies in `STEPBodyState`. Merging them needs `ProjectModel`, `ProjectData` and `AssetData`, which are not in the archive.
 
-### Step 2: Setup items
-- Add `Setup.items` with `objectID` and an optional `transformOverride`.
-- Every setup has exactly one item for now. Resolve the transform in one place: `override ?? object.transform`.
-- Done when: the canvas draws the active setup's items using the resolved transform.
+### Step 2: Setup items (done, not compiled yet)
+- `Setup.items: [SetupItem]` (`objectID`, optional `transformOverride`). Empty means the setup includes every object, so every existing setup and one-object project behaves as before. Old saves still load (`items` is read if present).
+- `CAMModel.placedObjects(in:)` and `resolvedTransform(of:in:)` in `CAM/Objects/SetupObjects.swift`: the one place for "override, else global".
+- `setSetupObjects(_:to:)` and `setTransformOverride(_:for:inSetup:)` edit them; changing either outdates the setup's toolpaths.
+- Not done: the canvas still draws every object at its global position. Drawing only the active setup's objects with their overrides touches `D2_Object` (it owns its position) and the STEP scenes, and is better done with step 4's transform panel.
 
 ### Step 3: Objects panel as a tree
 - Replace the flat list with: Object > Setups. Hide the object level when there is only one object.

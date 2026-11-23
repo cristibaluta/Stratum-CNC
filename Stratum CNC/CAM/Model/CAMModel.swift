@@ -62,7 +62,9 @@ class CAMModel: ObservableObject {
             // A setup's own stock, or another active setup, changes what the canvas shows
             syncCanvasStock()
             // Renaming or reordering changes nothing that is cut; a different orientation does
+            // The objects a setup includes, and where it places them, decide what is cut too
             if Self.orientations(of: oldValue) != Self.orientations(of: setups)
+                || Self.items(of: oldValue) != Self.items(of: setups)
                 || stockGeometryChanged(from: oldValue, to: setups) {
                 discardGenerations()
             }
@@ -670,6 +672,35 @@ class CAMModel: ObservableObject {
         return setup.id
     }
 
+    /// Sets which objects a setup includes. An empty list includes every object. Placements already
+    /// set for objects that stay in are kept. Outdates the setup's toolpaths (see `setups`' `didSet`).
+    func setSetupObjects(_ id: UUID, to objectIDs: [UUID]) {
+        guard let index = setups.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let kept = Dictionary(setups[index].items.map { ($0.objectID, $0.transformOverride) },
+                              uniquingKeysWith: { first, _ in first })
+        var seen = Set<UUID>()
+        let items = objectIDs.filter { seen.insert($0).inserted }
+            .map { SetupItem(objectID: $0, transformOverride: kept[$0] ?? nil) }
+        guard setups[index].items != items else {
+            return
+        }
+        setups[index].items = items
+    }
+
+    /// Gives an object its own placement in a setup, or with nil puts it back on the global one.
+    /// The object must be one the setup lists: a setup that includes everything gets its items
+    /// from `setSetupObjects` first.
+    func setTransformOverride(_ transform: ObjectTransform?, for objectID: UUID, inSetup id: UUID) {
+        guard let index = setups.firstIndex(where: { $0.id == id }),
+              let itemIndex = setups[index].items.firstIndex(where: { $0.objectID == objectID }),
+              setups[index].items[itemIndex].transformOverride != transform else {
+            return
+        }
+        setups[index].items[itemIndex].transformOverride = transform
+    }
+
     func renameSetup(_ id: UUID, to name: String) {
         let trimmed = name.trimmed
         guard !trimmed.isEmpty, let index = setups.firstIndex(where: { $0.id == id }),
@@ -744,6 +775,10 @@ class CAMModel: ObservableObject {
         setups = saved.isEmpty ? [Setup(face: .top)] : saved
         activeSetupID = setups[0].id
         toolpaths = Self.orderedBySetup(toolpaths, setups: setups)
+    }
+
+    private static func items(of setups: [Setup]) -> [UUID: [SetupItem]] {
+        Dictionary(setups.map { ($0.id, $0.items) }, uniquingKeysWith: { first, _ in first })
     }
 
     private static func orientations(of setups: [Setup]) -> [UUID: SetupOrientation] {

@@ -42,6 +42,23 @@ struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
     /// The stock this setup is cut from when it isn't the project's. Nil (the default, and every
     /// project saved before this existed) uses the project stock.
     var stock: StockMaterial? = nil
+    /// The objects this setup includes, each with an optional placement of its own (see `SetupItem`).
+    /// Empty (the default) includes every object of the project.
+    var items: [SetupItem] = []
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, angle, axis, stock, items
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        angle = try c.decode(Double.self, forKey: .angle)
+        axis = try c.decode(SetupAxis.self, forKey: .axis)
+        stock = try c.decodeIfPresent(StockMaterial.self, forKey: .stock)
+        items = try c.decodeIfPresent([SetupItem].self, forKey: .items) ?? []
+    }
 
     init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x, stock: StockMaterial? = nil) {
         self.id = id
