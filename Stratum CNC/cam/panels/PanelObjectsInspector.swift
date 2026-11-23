@@ -86,6 +86,20 @@ struct PanelObjectsInspector: View {
     var onStepModelScale: ((UUID, Int) -> Void)?
     var onDeleteStepModel: ((UUID) -> Void)?
 
+    /// The project's setups, listed under the object they cut. The active one is highlighted.
+    var setups: [Setup] = []
+    var activeSetupID: UUID?
+    /// Front, back, left and right need a 3D model.
+    var sideFacesAvailable = false
+    var onSelectSetup: ((UUID) -> Void)?
+    /// A new setup on a face; the object is nil for one that includes every object.
+    var onAddSetup: ((UUID?, SetupFace) -> Void)?
+    var onRenameSetup: ((UUID, String) -> Void)?
+    var onDeleteSetup: ((UUID) -> Void)?
+
+    @State private var renamingSetupID: UUID?
+    @State private var renameText = ""
+
     /// Narrow, left-aligned label column: leaves the width to the fields.
     private static let labelWidth: CGFloat = 56
     /// The horizontal padding of a list row (`inspectorListRow`).
@@ -182,6 +196,8 @@ struct PanelObjectsInspector: View {
                 } label: {
                     Label("Create Alignment Pins…", systemImage: "circle.grid.2x2")
                 }
+                Divider()
+                newSetupMenu(for: regularObjectIDs.count == 1 ? regularObjectIDs[0] : nil)
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .medium))
@@ -208,16 +224,102 @@ struct PanelObjectsInspector: View {
                     .padding(.vertical, 2)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(elements, id: \.id) { object in
-                        objectRow(object)
-                    }
-                    ForEach(stepModels) { model in
-                        stepModelRow(model)
-                    }
+                    objectTree
                 }
                 // Rows pad their content by 6: grow them outward by as much, so the icons
                 // line up with the header and the other elements
                 .padding(.horizontal, -Self.rowInset)
+            }
+        }
+        .alert("Rename Setup", isPresented: Binding(get: { renamingSetupID != nil },
+                                                    set: { if !$0 { renamingSetupID = nil } })) {
+            TextField("Name", text: $renameText)
+            Button("Rename") {
+                if let id = renamingSetupID {
+                    onRenameSetup?(id, renameText)
+                }
+                renamingSetupID = nil
+            }
+            Button("Cancel", role: .cancel) {
+                renamingSetupID = nil
+            }
+        }
+    }
+
+    // MARK: - Tree (Object > Setups)
+
+    /// The objects that can have setups: everything except the alignment pins.
+    private var regularShapes: [D2_Object] {
+        elements.filter { !$0.isParametric }
+    }
+
+    private var fixtureShapes: [D2_Object] {
+        elements.filter { $0.isParametric }
+    }
+
+    private var regularObjectIDs: [UUID] {
+        regularShapes.map(\.id) + stepModels.map(\.id)
+    }
+
+    /// With a single object the object level is hidden: only its setups are listed.
+    private var hidesObjectLevel: Bool {
+        regularObjectIDs.count <= 1
+    }
+
+    /// The object a setup is listed under: the only object it includes. A setup with several
+    /// objects, or one that includes everything of a multi-object project, is "combined".
+    private func ownerID(of setup: Setup) -> UUID? {
+        let ids = regularObjectIDs
+        if setup.items.isEmpty {
+            return ids.count == 1 ? ids[0] : nil
+        }
+        if setup.items.count == 1, ids.contains(setup.items[0].objectID) {
+            return setup.items[0].objectID
+        }
+        return nil
+    }
+
+    private func setups(under objectID: UUID) -> [Setup] {
+        setups.filter { ownerID(of: $0) == objectID }
+    }
+
+    private var combinedSetups: [Setup] {
+        setups.filter { ownerID(of: $0) == nil }
+    }
+
+    @ViewBuilder
+    private var objectTree: some View {
+        if hidesObjectLevel {
+            ForEach(setups) { setup in
+                setupRow(setup)
+            }
+        } else {
+            ForEach(regularShapes, id: \.id) { object in
+                objectRow(object)
+                ForEach(setups(under: object.id)) { setup in
+                    setupRow(setup)
+                        .padding(.leading, 14)
+                }
+            }
+            ForEach(stepModels) { model in
+                stepModelRow(model)
+                ForEach(setups(under: model.id)) { setup in
+                    setupRow(setup)
+                        .padding(.leading, 14)
+                }
+            }
+            if !combinedSetups.isEmpty {
+                groupTitle("Combined")
+                ForEach(combinedSetups) { setup in
+                    setupRow(setup)
+                }
+            }
+        }
+        // Only once pins exist
+        if !fixtureShapes.isEmpty {
+            groupTitle("Fixtures")
+            ForEach(fixtureShapes, id: \.id) { object in
+                objectRow(object)
             }
         }
     }
@@ -252,6 +354,9 @@ struct PanelObjectsInspector: View {
         }
         .inspectorListRow(isSelected: selectedIDs.contains(object.id))
         .contextMenu {
+            if !object.isParametric {
+                newSetupMenu(for: object.id)
+            }
             Button {
                 onGeneratePreview?(object.id)
             } label: {
@@ -271,18 +376,13 @@ struct PanelObjectsInspector: View {
             Button {
                 onSelectStepModel?(model.id)
             } label: {
-                HStack(spacing: 6) {
-//                    Image(systemName: "cube")
-//                        .font(.system(size: 11))
-//                        .foregroundStyle(.secondary)
-                    Text(model.name)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .opacity(model.isVisible ? 1 : 0.5)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                Text(model.name)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .opacity(model.isVisible ? 1 : 0.5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -295,11 +395,70 @@ struct PanelObjectsInspector: View {
         .inspectorListRow(isSelected: selectedStepModelID == model.id)
         .help(model.detail.map { "\(model.name) — \($0)" } ?? model.name)
         .contextMenu {
+            newSetupMenu(for: model.id)
+            Divider()
             Button(role: .destructive) {
                 onDeleteStepModel?(model.id)
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+        }
+    }
+
+    private func groupTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.tertiary)
+            .padding(.horizontal, Self.rowInset)
+            .padding(.top, 6)
+    }
+
+    private func setupRow(_ setup: Setup) -> some View {
+        Button {
+            onSelectSetup?(setup.id)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "square.stack.3d.down.right")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Text(setup.displayTitle)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .inspectorListRow(isSelected: setup.id == activeSetupID)
+        .contextMenu {
+            Button {
+                renameText = setup.name
+                renamingSetupID = setup.id
+            } label: {
+                Label("Rename…", systemImage: "pencil")
+            }
+            Divider()
+            Button(role: .destructive) {
+                onDeleteSetup?(setup.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .disabled(setups.count <= 1)
+        }
+    }
+
+    /// "New Setup" with a face to pick. `objectID` nil makes a setup of every object.
+    @ViewBuilder
+    private func newSetupMenu(for objectID: UUID?) -> some View {
+        Menu {
+            ForEach(SetupFace.allCases.filter { !$0.isSide || sideFacesAvailable }) { face in
+                Button(face.title) {
+                    onAddSetup?(objectID, face)
+                }
+            }
+        } label: {
+            Label("New Setup", systemImage: "plus.square.on.square")
         }
     }
 

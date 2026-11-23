@@ -469,6 +469,28 @@ struct CAMView: View {
                 catch {
                     fileError = String(describing: error)
                 }
+            },
+            setups: camModel.setups,
+            activeSetupID: camModel.activeSetupID,
+            sideFacesAvailable: hasSTEP,
+            onSelectSetup: { id in
+                camModel.activateSetup(id)
+            },
+            onAddSetup: { objectID, face in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    let id = camModel.addSetup(face: face)
+                    if let objectID {
+                        camModel.setSetupObjects(id, to: [objectID])
+                    }
+                }
+            },
+            onRenameSetup: { id, name in
+                camModel.renameSetup(id, to: name)
+            },
+            onDeleteSetup: { id in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    camModel.deleteSetup(id)
+                }
             }
         )
     }
