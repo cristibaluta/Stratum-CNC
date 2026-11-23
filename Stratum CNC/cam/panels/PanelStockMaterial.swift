@@ -20,6 +20,9 @@ struct PanelStockMaterial: View {
     var scopeTag: String? = nil
     /// Set while the stock belongs to one setup: the details then offer "Use project stock".
     var onUseProjectStock: (() -> Void)? = nil
+    /// Set while the setup uses the project's stock and there are other setups: the details then
+    /// offer "Use own stock", which starts from a copy of the project's.
+    var onUseOwnStock: (() -> Void)? = nil
     /// Why the setup can't be cut from this stock (a side face needs a rectangular block).
     var warning: String? = nil
     /// A new value opens the details: a setup on a different stock was just added, and its stock
@@ -157,6 +160,18 @@ struct PanelStockMaterial: View {
                     Button("Use project stock", action: onUseProjectStock)
                         .controlSize(.small)
                         .help("Drop this setup's own stock and cut it from the project's again")
+                }
+            }
+
+            if let onUseOwnStock {
+                HStack(spacing: 8) {
+                    Text("Shared by every setup without its own stock.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    Button("Use own stock", action: onUseOwnStock)
+                        .controlSize(.small)
+                        .help("Cut only this setup from another stock, starting as a copy of the project's")
                 }
             }
 

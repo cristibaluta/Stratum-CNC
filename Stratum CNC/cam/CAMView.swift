@@ -336,6 +336,11 @@ struct CAMView: View {
                                onUseProjectStock: camModel.activeSetupHasOwnStock ? {
                                    camModel.setSetupStock(camModel.activeSetupID, to: nil)
                                } : nil,
+                               onUseOwnStock: (!camModel.activeSetupHasOwnStock && camModel.setups.count > 1) ? {
+                                   // Starts as a copy of the project's stock; its fields open to edit
+                                   camModel.setSetupStock(camModel.activeSetupID, to: camModel.selectedStockMaterial)
+                                   stockPanelExpandTrigger = UUID()
+                               } : nil,
                                warning: camModel.activeStockWarning,
                                expandTrigger: stockPanelExpandTrigger)
                 .frame(width: 320)

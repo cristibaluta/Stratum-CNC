@@ -100,7 +100,9 @@ Each step should leave the app building and usable.
 - Candidates to drop later: status badges, shape counts, inline buttons. Decide after seeing it.
 - Done when: the panel lists the active setup's toolpaths and nothing else.
 
-### Step 6: Per-setup stock
+### Step 6: Per-setup stock (done, not compiled yet)
+- Done: the stock panel has "Use own stock" (shown while the active setup uses the project's and there are several setups) next to the existing "Use project stock". The own stock starts as a copy of the project's and the panel opens to edit it. Two setups of one object can have different materials.
+- Original plan:
 - Global stock panel stays. A setup's Material panel can switch to "Own stock".
 - Already supported by `Setup.stock`; this step is mostly UI and clean-up.
 - Done when: two setups of the same face under one object can use different materials.
