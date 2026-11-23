@@ -49,6 +49,10 @@ struct ToolpathGeneration {
     /// `sourceSnapshot`, which makes this result outdated too.
     var isLinkedSourceOutdated = false
 
+    /// The setup's frame the result was generated in, so its preview can be rebuilt from `outcome`
+    /// (see `ToolpathGenerationStore.rebuildPreviews`) without running the engine again.
+    var frame: SetupFrame = .identity
+
     /// The sharp corners the pocket's tool left, for the "Create rest operation" button and
     /// the overlay. Only a pocket's result has them.
     var restCorners: [SC.RestCorner] {

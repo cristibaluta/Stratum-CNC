@@ -195,6 +195,19 @@ class CAMModel: ObservableObject {
         }
     }
 
+    /// Preview only the first and the last pass of each toolpath, on the canvas and in the scrub
+    /// slider, instead of every pass. Only the preview: the G-code keeps all passes. Applies to
+    /// the results already on screen (they are redrawn, not generated again) and to the next ones.
+    @Published var showsFirstAndLastPassOnly = false {
+        didSet {
+            guard oldValue != showsFirstAndLastPassOnly else {
+                return
+            }
+            previewOptions.passes = showsFirstAndLastPassOnly ? .firstAndLast : .all
+            generationStore.rebuildPreviews()
+        }
+    }
+
     // ---- CANVAS VIEWPORT STATE ----
     // Persisted between sessions. Not @Published: this is *reported* by the
     // canvas (via CAM_2D_View's onViewportChanged) after the user pans/zooms,

@@ -127,14 +127,16 @@ final class ToolpathGenerationStore: ObservableObject {
                                               scrub: scrub,
                                               previewLines: previewLines,
                                               restPath: restPath,
-                                              estimatedSeconds: estimatedSeconds)
+                                              estimatedSeconds: estimatedSeconds,
+                                              frame: frame)
                 } catch {
                     return ComputedGeneration(outcome: .failure(error),
                                               previewPath: nil,
                                               scrub: nil,
                                               previewLines: nil,
                                               restPath: nil,
-                                              estimatedSeconds: nil)
+                                              estimatedSeconds: nil,
+                                              frame: job.frame)
                 }
             }.value
 
@@ -165,18 +167,63 @@ final class ToolpathGenerationStore: ObservableObject {
         PerfLog.log("gen", "applying result on main thread — \(PerfLog.fmt(PerfLog.ms(since: requestedAt))) after the click")
         let applyStart = PerfLog.now()
         // `onGenerationsChanged` rebuilds the preview, so nothing else to do for it here.
-        generations[id] = ToolpathGeneration(source: source,
-                                             outcome: computed.outcome,
-                                             previewPath: computed.previewPath,
-                                             scrub: computed.scrub,
-                                             previewLines: computed.previewLines,
-                                             restPath: computed.restPath,
-                                             estimatedSeconds: computed.estimatedSeconds,
-                                             sourceSnapshot: linkedSource)
+        var generation = ToolpathGeneration(source: source,
+                                            outcome: computed.outcome,
+                                            previewPath: computed.previewPath,
+                                            scrub: computed.scrub,
+                                            previewLines: computed.previewLines,
+                                            restPath: computed.restPath,
+                                            estimatedSeconds: computed.estimatedSeconds,
+                                            sourceSnapshot: linkedSource)
+        generation.frame = computed.frame
+        generations[id] = generation
         // The pocket may have been edited while this was running
         refreshLinked(toolpaths: currentToolpaths())
         PerfLog.log("gen", "◼ applied in \(PerfLog.fmt(PerfLog.ms(since: applyStart))) (state update + preview overlay); "
                     + "total click → applied: \(PerfLog.fmt(PerfLog.ms(since: requestedAt)))")
+    }
+
+    // MARK: Rebuilding the preview
+
+    /// Redraws every result with the current `previewOptions` (which passes are drawn), from the
+    /// engine output it already has: nothing is generated again, so the G-code, the time and the
+    /// outdated state stay as they are. A result replaced meanwhile (a new Generate) is left alone.
+    /// Each rebuilt result is a new `ToolpathGeneration`, so the scrub slider starts again from the end.
+    func rebuildPreviews() {
+        let options = previewOptions
+        for (id, generation) in generations {
+            guard case .success(let outputs) = generation.outcome else {
+                continue
+            }
+            let frame = generation.frame
+            let oldID = generation.id
+            Task { [weak self] in
+                let built = await Task.detached(priority: .userInitiated) { () -> RebuiltPreview in
+                    let flat = ToolpathPathBuilder.scrubData(for: outputs, options: options)
+                    return RebuiltPreview(previewPath: frame.previewInPartFrame(ToolpathPathBuilder.path(for: outputs, options: options)),
+                                          scrub: frame.isIdentity ? flat : nil,
+                                          previewLines: flat.flatMap { frame.previewLines($0.points) })
+                }.value
+                self?.applyRebuilt(built, for: id, replacing: oldID)
+            }
+        }
+    }
+
+    private func applyRebuilt(_ built: RebuiltPreview, for id: UUID, replacing oldID: UUID) {
+        guard let old = generations[id], old.id == oldID else {
+            return
+        }
+        var new = ToolpathGeneration(source: old.source,
+                                     outcome: old.outcome,
+                                     previewPath: built.previewPath,
+                                     scrub: built.scrub,
+                                     previewLines: built.previewLines,
+                                     restPath: old.restPath,
+                                     estimatedSeconds: old.estimatedSeconds,
+                                     sourceSnapshot: old.sourceSnapshot)
+        new.isLinkedSourceOutdated = old.isLinkedSourceOutdated
+        new.frame = old.frame
+        generations[id] = new
     }
 
     // MARK: Invalidating
@@ -244,4 +291,12 @@ private struct ComputedGeneration: @unchecked Sendable {
     let previewLines: [SIMD3<Float>]?
     let restPath: CGPath?
     let estimatedSeconds: Double?
+    let frame: SetupFrame
+}
+
+/// A preview redrawn from an existing result (see `ToolpathGenerationStore.rebuildPreviews`).
+private struct RebuiltPreview: @unchecked Sendable {
+    let previewPath: CGPath?
+    let scrub: ToolpathScrubData?
+    let previewLines: [SIMD3<Float>]?
 }

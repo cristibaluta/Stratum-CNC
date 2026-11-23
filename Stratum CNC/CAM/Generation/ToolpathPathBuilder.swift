@@ -24,6 +24,8 @@ enum ToolpathPassSelection: Sendable {
     case first
     /// The deepest pass of each toolpath: the one that leaves the finished shape.
     case last
+    /// The shallowest and the deepest pass of each toolpath (one, when it has only one pass).
+    case firstAndLast
 
     /// The passes of `output` this selection keeps, in machining order.
     /// The choice is made per `OutputToolpath`, so a job with several shapes
@@ -36,6 +38,12 @@ enum ToolpathPassSelection: Sendable {
             return output.passes.first.map { [$0] } ?? []
         case .last:
             return output.passes.last.map { [$0] } ?? []
+        case .firstAndLast:
+            guard let first = output.passes.first, let last = output.passes.last,
+                  output.passes.count > 1 else {
+                return output.passes
+            }
+            return [first, last]
         }
     }
 }

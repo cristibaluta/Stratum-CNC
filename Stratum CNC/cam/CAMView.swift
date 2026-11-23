@@ -541,7 +541,8 @@ struct CAMView: View {
                              },
                              onScrub: { step in
                                  camModel.setToolpathScrubStep(step)
-                             })
+                             },
+                             showsFirstAndLastPassOnly: $camModel.showsFirstAndLastPassOnly)
         .id(toolpath.id)
     }
 

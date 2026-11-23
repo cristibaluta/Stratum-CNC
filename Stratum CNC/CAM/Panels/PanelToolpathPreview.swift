@@ -25,15 +25,19 @@ struct PanelToolpathPreview: View {
     /// `CAMModel.generateIfNeeded`), so this is for refreshing the result after an edit.
     var onGenerate: () -> Void = {}
     var onScrub: (Int) -> Void = { _ in }
+    /// Preview only the first and the last pass of each toolpath instead of all of them.
+    var showsFirstAndLastPassOnly: Binding<Bool> = .constant(false)
 
     /// Holds the scrub position and the texts under the button.
     @StateObject private var model = ToolpathDetailsModel()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            InspectorSection(title: "Preview", collapsible: true) {
+            // No divider: there is nothing above it to separate it from
+            InspectorSection(title: "Preview", showsDivider: false, collapsible: true) {
                 rowPreview
                 rowScrub
+                rowRestAreas
             }
         }
         .padding(12)
@@ -44,6 +48,17 @@ struct PanelToolpathPreview: View {
         }
         // A new Generate starts its preview from the end again, like the canvas does
         .onChange(of: generation?.id) { _, _ in model.resetScrub() }
+    }
+
+    /// How many points the slider walks through; nil while there is no current result to scrub.
+    private var scrubTotal: Int? {
+        guard let generation,
+              generation.isCurrent(for: toolpath),
+              let scrub = generation.scrub,
+              scrub.stepCount > 0 else {
+            return nil
+        }
+        return scrub.stepCount
     }
 
     /// Generation status on the left, the Preview button on the right. Preview builds the
@@ -76,6 +91,12 @@ struct PanelToolpathPreview: View {
                 .disabled(isGenerating || !toolpath.hasGeometry || toolpath.toolCompatibilityWarning != nil)
                 .help(model.previewButtonHelp(for: toolpath))
             }
+            if let total = scrubTotal {
+                Label(model.scrubLabel(total: total) + " points", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .help("The point the slider is at, out of all the moves of the toolpath")
+            }
             if let timeText = model.timeText(for: generation, toolpath: toolpath) {
                 Label(timeText, systemImage: "clock")
                     .font(.system(size: 11))
@@ -87,11 +108,23 @@ struct PanelToolpathPreview: View {
                 ForEach(generation.warningMessages, id: \.self) { message in
                     InspectorNote(text: message, isWarning: true, isIndented: false)
                 }
-                // The corners this pocket's tool couldn't reach: offer to clean them with a smaller tool
-                if toolpath.operation.kind == .pocket, !toolpath.operation.isRest, generation.errorMessage == nil, !generation.restCorners.isEmpty {
-                    restAreasRows(cornerCount: generation.restCorners.count)
-                }
             }
+        }
+    }
+
+    /// The corners this pocket's tool couldn't reach: offer to clean them with a smaller tool.
+    /// At the bottom of the panel, under a separator.
+    @ViewBuilder
+    private var rowRestAreas: some View {
+        if let generation,
+           generation.isCurrent(for: toolpath),
+           toolpath.operation.kind == .pocket,
+           !toolpath.operation.isRest,
+           generation.errorMessage == nil,
+           !generation.restCorners.isEmpty {
+            Divider()
+                .padding(.vertical, 2)
+            restAreasRows(cornerCount: generation.restCorners.count)
         }
     }
 
@@ -152,14 +185,11 @@ struct PanelToolpathPreview: View {
            scrub.stepCount > 0 {
 
             let total = scrub.stepCount
-            HStack(spacing: 10) {
-                Slider(value: model.scrubBinding(total: total, onScrub: onScrub), in: 0...Double(total))
-                    .controlSize(.small)
-
-                Text(model.scrubLabel(total: total))
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
+            ToggleField(title: "First & last pass",
+                        isOn: showsFirstAndLastPassOnly,
+                        help: "Preview only the first and the last pass of each toolpath, instead of every pass. The generated G-code is not affected.")
+            Slider(value: model.scrubBinding(total: total, onScrub: onScrub), in: 0...Double(total))
+                .controlSize(.small)
             .help("Scrub through the generated toolpath")
         }
     }
