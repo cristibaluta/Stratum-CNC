@@ -42,6 +42,9 @@ struct CAMView: View {
     @State private var fitRequest = 0
     /// How tall the legend (bottom-left) is right now; the left panels' scroll stops above it.
     @State private var legendHeight: CGFloat = 0
+    /// The widths of the panels over the canvas, so a fit centres the model in the free area between them
+    @State private var leftPanelsWidth: CGFloat = 292
+    @State private var rightPanelsWidth: CGFloat = 352
 
     /// The mouse-icon button opens the Settings window on its Canvas tab, which
     /// edits the same `CanvasInputSettings.shared` as the controller's canvas —
@@ -162,6 +165,8 @@ struct CAMView: View {
                            addToolpathShapeCount: camModel.shapesForNewToolpath.count,
                            canAddToolpathFromEdges: camModel.selectedToolpathID == nil,
                            fitRequest: fitRequest,
+                           fitInsets: CanvasFitInsets(left: leftPanelsWidth, right: rightPanelsWidth,
+                                                      top: 16, bottom: 16),
                            // A selected 2D object wins, like in the objects list
                            selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
                                ? camModel.stepWorkspace.selectedModelID : nil,
@@ -246,6 +251,11 @@ struct CAMView: View {
                     .padding(16)
                 }
                 .frame(minWidth: 232, maxWidth: 292)
+                .onGeometryChange(for: CGFloat.self) {
+                    $0.size.width
+                } action: {
+                    leftPanelsWidth = $0
+                }
                 // The legend's own bottom margin (16) and its height
                 .padding(.bottom, legendHeight + 16)
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -274,6 +284,11 @@ struct CAMView: View {
                 } else {
                     rightPanels
                         .fixedSize(horizontal: true, vertical: false)
+                        .onGeometryChange(for: CGFloat.self) {
+                            $0.size.width
+                        } action: {
+                            rightPanelsWidth = $0
+                        }
                 }
             }
 
@@ -340,13 +355,9 @@ struct CAMView: View {
                 set: { camModel.setActiveStock($0) })
     }
 
-    /// Says which stock the panel edits, once the project has a setup with a stock of its own
-    /// (before that there is only one stock and nothing to tell apart).
+    /// Marks the stock panel while it edits a stock that belongs to the active setup alone.
     private var stockScopeTag: String? {
-        if camModel.activeSetupHasOwnStock {
-            return "This setup only"
-        }
-        return camModel.setups.contains { $0.stock != nil } ? "Project stock" : nil
+        camModel.activeSetupHasOwnStock ? "This setup only" : nil
     }
 
     private var inspectorPanel: some View {

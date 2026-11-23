@@ -36,6 +36,8 @@ struct CAM_Metal_View: View {
     let canAddToolpathFromEdges: Bool
     /// Bumped by the owner to frame the whole scene again.
     let fitRequest: Int
+    /// What the panels over the canvas cover (left, right, top, bottom): a fit centres the model in the rest.
+    let fitInsets: CanvasFitInsets
     let onAddToolpath: () -> Void
     /// An operation was picked in the STEP edges' "Add toolpath" list.
     let onAddStepToolpath: (SC.MachiningOperation.Kind) -> Void
@@ -60,6 +62,7 @@ struct CAM_Metal_View: View {
          addToolpathShapeCount: Int = 0,
          canAddToolpathFromEdges: Bool = false,
          fitRequest: Int = 0,
+         fitInsets: CanvasFitInsets = CanvasFitInsets(),
          selectedStepModelID: UUID? = nil,
          selectedStepBody: STEP.BodyID? = nil,
          onMoveStepModel: @escaping (UUID, CGFloat, CGFloat) -> Void = { _, _, _ in },
@@ -78,6 +81,7 @@ struct CAM_Metal_View: View {
         self.addToolpathShapeCount = addToolpathShapeCount
         self.canAddToolpathFromEdges = canAddToolpathFromEdges
         self.fitRequest = fitRequest
+        self.fitInsets = fitInsets
         self.selectedStepModelID = selectedStepModelID
         self.selectedStepBody = selectedStepBody
         self.onMoveStepModel = onMoveStepModel
@@ -177,6 +181,7 @@ struct CAM_Metal_View: View {
                          addToolpathShapeCount: addToolpathShapeCount,
                          canAddToolpath: canAddToolpathFromEdges,
                          fitRequest: fitRequest,
+                         fitInsets: fitInsets,
                          onAddToolpath: onAddToolpath,
                          onAddStepToolpath: onAddStepToolpath,
                          onEmptyClick: onDeselectStepModel,
@@ -195,7 +200,8 @@ struct CAM_Metal_View: View {
                             previewTransform: partFrame.previewMatrix,
                             startsTopDown: startsTopDown,
                             adaptiveModelFit: true,
-                            fitRequest: fitRequest)
+                            fitRequest: fitRequest,
+                            fitInsets: fitInsets)
                 .overlay {
                     AddToolpathTooltipLayer(scene: scene,
                                             zoomModel: zoomModel,

@@ -29,6 +29,8 @@ struct STEP3DCanvas: View {
     let addToolpathShapeCount: Int
     let canAddToolpath: Bool
     let fitRequest: Int
+    /// What the panels over the canvas cover: the model is framed in the rest
+    var fitInsets = CanvasFitInsets()
     let onAddToolpath: () -> Void
     let onAddStepToolpath: (SC.MachiningOperation.Kind) -> Void
     let onEmptyClick: () -> Void
@@ -50,7 +52,8 @@ struct STEP3DCanvas: View {
                         previewTransform: previewTransform,
                         adaptiveModelFit: true,
                         // Frames everything again when a file is added or removed, or one asks for it
-                        fitRequest: scenes.reduce(0) { $0 &+ $1.fitRequest } &+ scenes.count &+ fitRequest)
+                        fitRequest: scenes.reduce(0) { $0 &+ $1.fitRequest } &+ scenes.count &+ fitRequest,
+                        fitInsets: fitInsets)
             .onAppear { syncSceneSettings() }
             .onChange(of: isDark) { _, _ in syncSceneSettings() }
             // The projection lands on the setup's z0: the part's underside when flipped, a side of

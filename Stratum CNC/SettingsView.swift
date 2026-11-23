@@ -20,6 +20,7 @@ import SwiftUI
 enum SettingsTab: String {
     case appearance
     case canvas
+    case cam
     case machine
 
     static let storageKey = "settings.selectedTab"
@@ -37,6 +38,8 @@ struct SettingsView: View {
     @AppStorage(SettingsTab.storageKey) private var selectedTab: SettingsTab = .appearance
     @State private var confirmingUsageReset = false
     @AppStorage(JobCoordinator.parkAfterSuspendKey) private var parkAfterSuspend = false
+    @AppStorage(CanvasDefaultView.storageKey) private var defaultView = CanvasDefaultView.fallback
+    @AppStorage(CanvasInitialZoom.storageKey) private var initialZoom = CanvasInitialZoom.fallback
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -49,6 +52,10 @@ struct SettingsView: View {
                 .tabItem { Label("Canvas", systemImage: "computermouse") }
                 .tag(SettingsTab.canvas)
 
+            camTab
+                .tabItem { Label("CAM", systemImage: "cube") }
+                .tag(SettingsTab.cam)
+
             machineTab
                 .tabItem { Label("Machine", systemImage: "gearshape.2") }
                 .tag(SettingsTab.machine)
@@ -59,6 +66,43 @@ struct SettingsView: View {
         // The Settings window is its own scene, outside ContentView, so it has
         // to apply the app-wide appearance itself.
         .preferredColorScheme(appModel.isDarkMode ? .dark : .light)
+    }
+
+    private var camTab: some View {
+        Form {
+            Section {
+                Picker("Default view", selection: $defaultView) {
+                    ForEach(CanvasDefaultView.allCases) { view in
+                        Text(view.title).tag(view)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text("\(defaultView.detail). The canvas opens in this view when the project has a 3D model, including when you import one. Projects with flat shapes only always open from the top.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("3D Canvas")
+            }
+
+            Section {
+                Picker("Initial zoom", selection: $initialZoom) {
+                    ForEach(CanvasInitialZoom.allCases) { zoom in
+                        Text(zoom.title).tag(zoom)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text("\(initialZoom.detail). Used the first time a project opens; the model is centred in the area the panels leave free. The Fit to view and 100% buttons on the canvas do the same on demand.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } header: {
+                Text("Zoom")
+            }
+        }
+        .formStyle(.grouped)
     }
 
     private var machineTab: some View {

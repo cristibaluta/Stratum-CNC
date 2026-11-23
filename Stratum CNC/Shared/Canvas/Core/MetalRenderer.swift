@@ -191,6 +191,11 @@ class MetalRenderer: NSObject {
 
     var camera = Camera()
     var adaptiveModelFit = false
+    /// What the panels over the canvas cover: the first fit (and "Fit to view") centres the model in
+    /// the rest. Set by `MetalCanvasView`.
+    var fitInsets = CanvasFitInsets()
+    /// Only the very first fit follows Settings ▸ CAM ▸ initial zoom; later ones always fit.
+    private var isFirstFit = true
 
     func requestFit() {
         hasFittedInitialContent = false
@@ -729,30 +734,64 @@ class MetalRenderer: NSObject {
     /// untouched default target of (0, 0, 0). `draw(in:)` runs every frame
     /// with a guaranteed-current `drawableSize`, so this is self-correcting
     /// regardless of whether geometry or layout arrives first.
-    private func attemptInitialFit(viewSize: CGSize, padding: Float = 1.3) {
+    private func attemptInitialFit(viewSize: CGSize,
+                                   pointSize: CGSize,
+                                   truePointsPerMM: Float,
+                                   padding: Float = 1.3) {
         guard !hasFittedInitialContent else {
             return
         }
-        guard viewSize.width > 0, viewSize.height > 0 else {
+        guard viewSize.width > 0, viewSize.height > 0, pointSize.width > 0, pointSize.height > 0 else {
             return
         }
-        guard let (center, radius) = boundingSphere(of: lastObjects) else {
+        guard let extents = contentExtents(of: lastObjects) else {
             return
         }
 
-        let aspect = Float(viewSize.width / viewSize.height)
-        camera.fit(center: center, radius: radius, aspect: aspect, padding: padding, adaptive: adaptiveModelFit)
+        if adaptiveModelFit {
+            // CAM: as large as the free area between the panels allows, or true to life, centred there
+            let trueToLife = isFirstFit && CanvasInitialZoom.current == .trueToLife
+            camera.fit(extents,
+                       viewSize: pointSize,
+                       insets: fitInsets,
+                       scale: trueToLife ? truePointsPerMM : nil,
+                       adaptive: true)
+        } else {
+            let center = (extents.min + extents.max) * 0.5
+            let radius = max(simd_length(extents.max - extents.min) * 0.5, 0.001)
+            let aspect = Float(viewSize.width / viewSize.height)
+            camera.fit(center: center, radius: radius, aspect: aspect, padding: padding, adaptive: false)
+        }
 
         hasFittedInitialContent = true
+        isFirstFit = false
     }
 
     /// Bounding sphere (center + radius) of every point across `objects`,
     /// used only for framing the camera — rotation-invariant, so it doesn't
     /// matter that the camera can orbit.
-    private func boundingSphere(of objects: [RenderObject]) -> (center: SIMD3<Float>, radius: Float)? {
+    private func contentExtents(of objects: [RenderObject]) -> CanvasContentExtents? {
         var minPoint = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
         var maxPoint = SIMD3<Float>(repeating: -.greatestFiniteMagnitude)
         var found = false
+        // Along the camera's own axes too, for a fit that follows the view
+        let cameraRight = camera.right, cameraUp = camera.up
+        var rightRange: ClosedRange<Float> = .greatestFiniteMagnitude ... .greatestFiniteMagnitude
+        var upRange: ClosedRange<Float> = .greatestFiniteMagnitude ... .greatestFiniteMagnitude
+        var first = true
+        func include(_ point: SIMD3<Float>) {
+            minPoint = simd_min(minPoint, point)
+            maxPoint = simd_max(maxPoint, point)
+            let r = simd_dot(point, cameraRight), u = simd_dot(point, cameraUp)
+            if first {
+                rightRange = r...r
+                upRange = u...u
+                first = false
+            } else {
+                rightRange = min(rightRange.lowerBound, r)...max(rightRange.upperBound, r)
+                upRange = min(upRange.lowerBound, u)...max(upRange.upperBound, u)
+            }
+        }
 
         for object in objects {
             if let role = object.role, fitExcludedRoles.contains(role) {
@@ -769,23 +808,18 @@ class MetalRenderer: NSObject {
             }
             for point in object.points {
                 found = true
-                minPoint = simd_min(minPoint, placed(point))
-                maxPoint = simd_max(maxPoint, placed(point))
+                include(placed(point))
             }
             for vertex in object.solidTriangles {
                 found = true
-                minPoint = simd_min(minPoint, placed(vertex.position))
-                maxPoint = simd_max(maxPoint, placed(vertex.position))
+                include(placed(vertex.position))
             }
         }
 
         guard found else {
             return nil
         }
-
-        let center = (minPoint + maxPoint) * 0.5
-        let radius = max(simd_length(maxPoint - minPoint) * 0.5, 0.001)
-        return (center, radius)
+        return CanvasContentExtents(min: minPoint, max: maxPoint, right: rightRange, up: upRange)
     }
 
 }
@@ -1010,7 +1044,9 @@ extension MetalRenderer: MTKViewDelegate {
         pixelScale = view.bounds.width > 0 ? Float(view.drawableSize.width / view.bounds.width) : 1
         let halfHeight = camera.distance * tan(camera.fov * 0.5)
         pixelsPerUnit = halfHeight > 0 ? Float(view.drawableSize.height) / (2 * halfHeight) : 1
-        attemptInitialFit(viewSize: view.drawableSize)
+        attemptInitialFit(viewSize: view.drawableSize,
+                          pointSize: view.bounds.size,
+                          truePointsPerMM: Float(view.window.map { TrueToLife.pointsPerMM(in: $0) } ?? TrueToLife.fallbackPointsPerMM))
 
         guard let descriptor = view.currentRenderPassDescriptor,
               let commandBuffer = commandQueue.makeCommandBuffer(),

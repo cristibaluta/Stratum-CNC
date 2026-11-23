@@ -62,6 +62,65 @@ class Camera {
         distance = min(max(required, zoomLimits.lowerBound), zoomLimits.upperBound)
     }
 
+    /// Frames `content` in the part of the view that panels leave free: the model is as large as
+    /// that area allows (with `margin` of air around it, 1.15 = 15%) and centred in it, not in the
+    /// whole view. With a `scale` (points per mm) the zoom is that instead, still centred there.
+    /// The projection is orthographic, so the model's extent along the screen's axes decides the
+    /// zoom — not a bounding sphere, which makes a flat part look much smaller than it has to.
+    func fit(_ content: CanvasContentExtents,
+             viewSize: CGSize,
+             insets: CanvasFitInsets,
+             margin: Float = 1.15,
+             scale: Float? = nil,
+             adaptive: Bool = false) {
+        let width = Float(viewSize.width), height = Float(viewSize.height)
+        guard width > 0, height > 0 else {
+            return
+        }
+        // Panels that leave (almost) nothing free are ignored rather than obeyed
+        var insets = insets
+        let freeWidth = width - Float(insets.left + insets.right)
+        let freeHeight = height - Float(insets.top + insets.bottom)
+        if freeWidth < width * 0.25 || freeHeight < height * 0.25 {
+            insets = CanvasFitInsets()
+        }
+        let visibleWidth = width - Float(insets.left + insets.right)
+        let visibleHeight = height - Float(insets.top + insets.bottom)
+
+        let center = (content.min + content.max) * 0.5
+        let radius = max(simd_length(content.max - content.min) * 0.5, 0.001)
+        // A line or a point still needs a finite zoom
+        let floorSize = radius * 0.02
+        let modelWidth = max(content.right.upperBound - content.right.lowerBound, floorSize)
+        let modelHeight = max(content.up.upperBound - content.up.lowerBound, floorSize)
+
+        let pointsPerUnit = scale ?? min(visibleWidth / (modelWidth * margin),
+                                         visibleHeight / (modelHeight * margin))
+        guard pointsPerUnit.isFinite, pointsPerUnit > 0 else {
+            return
+        }
+        let required = height / (2 * tan(fov * 0.5) * pointsPerUnit)
+        guard required.isFinite else {
+            return
+        }
+        if adaptive {
+            viewStandoff = max(1000, radius * 2)
+            farZ = viewStandoff * 2
+            zoomLimits = 0.001...max(2000, required * 100)
+        }
+
+        // The model's middle belongs at the middle of the free area: a little right of the view's
+        // centre when the left panels are wider, and so on. The target is what sits at the view's centre.
+        let sideShift = Float(insets.left - insets.right) * 0.5
+        let upShift = Float(insets.bottom - insets.top) * 0.5
+        let rightMid = (content.right.lowerBound + content.right.upperBound) * 0.5
+        let upMid = (content.up.lowerBound + content.up.upperBound) * 0.5
+        target = center
+            + right * ((rightMid - simd_dot(center, right)) - sideShift / pointsPerUnit)
+            + up * ((upMid - simd_dot(center, up)) - upShift / pointsPerUnit)
+        distance = min(max(required, zoomLimits.lowerBound), zoomLimits.upperBound)
+    }
+
     /// Which way the camera faces, as a rotation of world space: its
     /// columns are the camera's right, up and back (target → eye) directions
     /// in world coordinates. Identity is the default view — straight down
@@ -160,6 +219,17 @@ class Camera {
     /// and zoom.
     func snap(to view: StandardView) {
         orientation = view.orientation
+        turntableAxis = Camera.preferredTurntableAxis(for: orientation)
+    }
+
+    /// Looks at the target from `eye` (a direction from the target toward the camera), with the
+    /// machine's Z up on screen. Keeps the current target and zoom. `eye` must not be vertical:
+    /// use `snap(to: .top)` for that.
+    func setView(eye: SIMD3<Float>) {
+        let back = simd_normalize(eye)
+        let right = simd_normalize(simd_cross(Camera.machineUp, back))
+        let screenUp = simd_cross(back, right)
+        orientation = simd_quatf(simd_float3x3(columns: (right, screenUp, back)))
         turntableAxis = Camera.preferredTurntableAxis(for: orientation)
     }
 

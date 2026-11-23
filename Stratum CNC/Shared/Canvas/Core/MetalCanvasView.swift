@@ -212,6 +212,8 @@ struct MetalCanvasView: STViewRepresentable {
 
     var adaptiveModelFit = false
     var fitRequest = 0
+    /// What the panels over the canvas cover; a fit centres the model in the rest.
+    var fitInsets = CanvasFitInsets()
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -250,7 +252,8 @@ struct MetalCanvasView: STViewRepresentable {
             if startsTopDown {
                 renderer.camera.snap(to: .top)
             } else {
-                renderer.camera.orbit(yaw: -.pi / 4, pitch: .pi / 4)
+                // A 3D model: Settings ▸ CAM chooses the view it opens in
+                CanvasDefaultView.current.apply(to: renderer.camera)
             }
         }
 
@@ -358,6 +361,7 @@ struct MetalCanvasView: STViewRepresentable {
         }
         context.coordinator.renderer?.partTransform = partTransform
         context.coordinator.renderer?.previewTransform = previewTransform
+        context.coordinator.renderer?.fitInsets = fitInsets
         context.coordinator.renderer?.updateGeometry(objects: objects)
         if context.coordinator.lastFitRequest != fitRequest {
             context.coordinator.lastFitRequest = fitRequest
