@@ -293,7 +293,12 @@ struct PanelObjectsInspector: View {
         }
         .onChange(of: focusedObjectID) { _, new in
             if let new {
-                expandedObjects.insert(new)
+                // Opening the new object's setups is part of the switch: no animation
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    expandedObjects.insert(new)
+                }
             }
         }
         .alert("Rename Setup", isPresented: Binding(get: { renamingSetupID != nil },

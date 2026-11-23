@@ -677,6 +677,19 @@ class CAMModel: ObservableObject {
         return (try? SetupFrame.make(setup: setup, stock: stock(for: setup))) ?? .identity
     }
 
+    /// Set while the view switches to another object's setup: the canvas shows its face at once
+    /// instead of flipping the stock. Not published; cleared on the next run loop turn.
+    var skipsFlipAnimation = false
+
+    /// Runs a change that may move the canvas to another object's setup, without the flip.
+    func withoutFlipAnimation(_ change: () -> Void) {
+        skipsFlipAnimation = true
+        change()
+        DispatchQueue.main.async { [weak self] in
+            self?.skipsFlipAnimation = false
+        }
+    }
+
     func activateSetup(_ id: UUID) {
         guard setups.contains(where: { $0.id == id }) else {
             return

@@ -52,6 +52,8 @@ struct CAM_Metal_View: View {
     let onDeselectStepModel: () -> Void
     /// A double click on empty canvas: closes the open toolpath's details (the selection is cleared too).
     let onEmptyDoubleClick: () -> Void
+    /// Asked when the frame changes: true shows the new face at once instead of flipping the stock.
+    let skipsFlip: () -> Bool
     @Environment(\.colorScheme) private var colorScheme
 
     init(canvasState: D2_CanvasState,
@@ -63,6 +65,7 @@ struct CAM_Metal_View: View {
          canAddToolpathFromEdges: Bool = false,
          fitRequest: Int = 0,
          fitInsets: CanvasFitInsets = CanvasFitInsets(),
+         skipsFlip: @escaping () -> Bool = { false },
          selectedStepModelID: UUID? = nil,
          selectedStepBody: STEP.BodyID? = nil,
          onMoveStepModel: @escaping (UUID, CGFloat, CGFloat) -> Void = { _, _, _ in },
@@ -87,6 +90,7 @@ struct CAM_Metal_View: View {
         self.onMoveStepModel = onMoveStepModel
         self.onDeselectStepModel = onDeselectStepModel
         self.onEmptyDoubleClick = onEmptyDoubleClick
+        self.skipsFlip = skipsFlip
         self.onAddToolpath = onAddToolpath
         self.onAddStepToolpath = onAddStepToolpath
     }
@@ -100,7 +104,11 @@ struct CAM_Metal_View: View {
                 scene.setColorScheme(newScheme)
             }
             .onChange(of: partFrame) { _, newFrame in
-                flip.start(to: newFrame)
+                if skipsFlip() {
+                    flip.jump(to: newFrame)
+                } else {
+                    flip.start(to: newFrame)
+                }
             }
             .onAppear {
                 scene.interaction.onStepModelMoved = onMoveStepModel

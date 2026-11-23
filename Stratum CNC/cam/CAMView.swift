@@ -173,6 +173,7 @@ struct CAMView: View {
                            fitRequest: fitRequest,
                            fitInsets: CanvasFitInsets(left: leftPanelsWidth, right: rightPanelsWidth,
                                                       top: 16, bottom: 16),
+                           skipsFlip: { camModel.skipsFlipAnimation },
                            // A selected 2D object wins, like in the objects list
                            selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
                                ? camModel.stepWorkspace.selectedModelID : nil,
@@ -536,10 +537,25 @@ struct CAMView: View {
             sideFacesAvailable: hasSTEP,
             onSelectSetup: { id in
                 // A setup is selected instead of an object: no object keeps its handles
-                camModel.canvasState.clearSelection()
-                camModel.stepWorkspace.selectedModelID = nil
-                camModel.activateSetup(id)
-                camModel.isSetupSelected = true
+                // A setup of another object than the focused one replaces the whole view of the
+                // canvas and the panels: it appears at once, not animated
+                let owner = camModel.setups.first { $0.id == id }?.items.first?.objectID
+                let changesObject = owner != nil && owner != camModel.focusedObjectID
+                let select = {
+                    camModel.canvasState.clearSelection()
+                    camModel.stepWorkspace.selectedModelID = nil
+                    camModel.activateSetup(id)
+                    camModel.isSetupSelected = true
+                }
+                if changesObject {
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        camModel.withoutFlipAnimation(select)
+                    }
+                } else {
+                    select()
+                }
             },
             onAddSetup: { objectID, face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
@@ -574,6 +590,11 @@ struct CAMView: View {
             },
             focusedObjectID: focus,
             onSelectObject: { id in
+                let focusChanges = id != camModel.focusedObjectID
+                if focusChanges {
+                    camModel.skipsFlipAnimation = true
+                    DispatchQueue.main.async { camModel.skipsFlipAnimation = false }
+                }
                 camModel.focusObject(id, keepingActiveSetup: false)
                 if camModel.canvasState.object(withID: id) != nil {
                     camModel.stepWorkspace.selectedModelID = nil

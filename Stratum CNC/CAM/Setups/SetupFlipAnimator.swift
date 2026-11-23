@@ -97,6 +97,15 @@ final class SetupFlipAnimator: ObservableObject {
         return progress < 1 ? SetupFrame.flipMatrix(from: from, to: to, t: Self.eased(progress)) : target.matrix
     }
 
+    /// Shows `target` at once, without the flip (another object's setup is not a turn of the same part).
+    func jump(to target: SetupFrame) {
+        timer?.invalidate()
+        timer = nil
+        from = target
+        to = target
+        progress = 1
+    }
+
     func start(to target: SetupFrame) {
         guard target != to else {
             return
