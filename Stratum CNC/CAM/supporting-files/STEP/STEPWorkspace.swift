@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Combine
 import simd
 import SwiftSTEP
@@ -159,11 +160,20 @@ final class STEPWorkspace: ObservableObject {
         if let id = modelIDs[key] {
             return id
         }
-        let id = UUID()
+        let id = Self.stableID(source: source, body: body)
         modelIDs[key] = id
         modelKeys[id] = key
 
         return id
+    }
+
+    /// The same file and body always give the same id, so what refers to a body (a setup's objects)
+    /// still finds it after the project is opened again.
+    private static func stableID(source: UUID, body: STEP.BodyID) -> UUID {
+        let digest = SHA256.hash(data: Data("\(source.uuidString)|\(body.stateKey)".utf8))
+        let b = Array(digest.prefix(16))
+        return UUID(uuid: (b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
+                           b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]))
     }
 
     /// The body a row stands for; `nil` for the row of a file that has not loaded.

@@ -109,6 +109,23 @@ struct PanelObjectsInspector: View {
     /// (object, true) = place it in this setup only; (object, false) = back to the global placement.
     var onPlacementOverrideChanged: ((UUID, Bool) -> Void)?
 
+    /// The object whose setups are open; its face up, position and size are in the right-hand panel.
+    var focusedObjectID: UUID?
+    /// A plain click on an object's row: focuses it and opens its first setup.
+    var onSelectObject: ((UUID) -> Void)?
+    /// A setup is the selection (and not an object): only one of the two is highlighted.
+    var isSetupSelected = false
+
+    /// The same view is used twice: the list on the left, the selected object's properties on the right.
+    enum Part {
+        case list
+        case properties
+    }
+    var part: Part = .list
+
+    /// Objects whose setups are shown under them.
+    @State private var expandedObjects: Set<UUID> = []
+
     /// Narrow, left-aligned label column: leaves the width to the fields.
     private static let labelWidth: CGFloat = 56
     /// The horizontal padding of a list row (`inspectorListRow`).
@@ -117,6 +134,51 @@ struct PanelObjectsInspector: View {
     // MARK: - Body
 
     var body: some View {
+        switch part {
+            case .list:
+                listPanel
+            case .properties:
+                propertiesPanel
+        }
+    }
+
+    // MARK: - Properties panel (right side)
+
+    @ViewBuilder
+    private var propertiesPanel: some View {
+        let selected = elements.filter { selectedIDs.contains($0.id) }
+        if selected.isEmpty, let model = stepModels.first(where: { $0.id == selectedStepModelID }) {
+            propertiesChrome {
+                stepModelPropertiesSection(for: model)
+            }
+        } else if selected.count == 1, let object = selected.first {
+            propertiesChrome {
+                if let spec = object.alignmentPins {
+                    alignmentPinsSection(for: object, spec: spec)
+                } else {
+                    propertiesSection(for: object)
+                }
+            }
+        } else if selected.count > 1, let bounds = selectionBounds {
+            propertiesChrome {
+                groupPropertiesSection(count: selected.count, bounds: bounds)
+            }
+        }
+    }
+
+    private func propertiesChrome<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content()
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .canvasChrome()
+    }
+
+    // MARK: - List panel (left side)
+
+    private var listPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
@@ -125,23 +187,6 @@ struct PanelObjectsInspector: View {
                     .padding(.vertical, 8)
 
                 objectsSection
-
-                let selected = elements.filter { selectedIDs.contains($0.id) }
-                if selected.isEmpty, let model = stepModels.first(where: { $0.id == selectedStepModelID }) {
-                    stepModelPropertiesSection(for: model)
-                        .padding(.top, 10)
-                } else if selected.count == 1, let object = selected.first {
-                    if let spec = object.alignmentPins {
-                        alignmentPinsSection(for: object, spec: spec)
-                            .padding(.top, 10)
-                    } else {
-                        propertiesSection(for: object)
-                            .padding(.top, 10)
-                    }
-                } else if selected.count > 1, let bounds = selectionBounds {
-                    groupPropertiesSection(count: selected.count, bounds: bounds)
-                        .padding(.top, 10)
-                }
 
                 // Separates the list (and the properties under it) from the + button, like in
                 // the Toolpaths panel
@@ -241,6 +286,16 @@ struct PanelObjectsInspector: View {
                 .padding(.horizontal, -Self.rowInset)
             }
         }
+        .onAppear {
+            if let focusedObjectID {
+                expandedObjects.insert(focusedObjectID)
+            }
+        }
+        .onChange(of: focusedObjectID) { _, new in
+            if let new {
+                expandedObjects.insert(new)
+            }
+        }
         .alert("Rename Setup", isPresented: Binding(get: { renamingSetupID != nil },
                                                     set: { if !$0 { renamingSetupID = nil } })) {
             TextField("Name", text: $renameText)
@@ -299,30 +354,28 @@ struct PanelObjectsInspector: View {
 
     @ViewBuilder
     private var objectTree: some View {
-        if hidesObjectLevel {
-            ForEach(setups) { setup in
-                setupRow(setup)
-            }
-        } else {
-            ForEach(regularShapes, id: \.id) { object in
-                objectRow(object)
+        ForEach(regularShapes, id: \.id) { object in
+            objectRow(object)
+            if expandedObjects.contains(object.id) {
                 ForEach(setups(under: object.id)) { setup in
                     setupRow(setup)
-                        .padding(.leading, 14)
+                        .padding(.leading, 20)
                 }
             }
-            ForEach(stepModels) { model in
-                stepModelRow(model)
+        }
+        ForEach(stepModels) { model in
+            stepModelRow(model)
+            if expandedObjects.contains(model.id) {
                 ForEach(setups(under: model.id)) { setup in
                     setupRow(setup)
-                        .padding(.leading, 14)
+                        .padding(.leading, 20)
                 }
             }
-            if !combinedSetups.isEmpty {
-                groupTitle("Combined")
-                ForEach(combinedSetups) { setup in
-                    setupRow(setup)
-                }
+        }
+        if !combinedSetups.isEmpty {
+            groupTitle("Combined")
+            ForEach(combinedSetups) { setup in
+                setupRow(setup)
             }
         }
         // Only once pins exist
@@ -334,11 +387,49 @@ struct PanelObjectsInspector: View {
         }
     }
 
+    /// The triangle in front of an object: opens and closes its setups.
+    private func disclosure(_ id: UUID) -> some View {
+        Button {
+            if expandedObjects.contains(id) {
+                expandedObjects.remove(id)
+            } else {
+                expandedObjects.insert(id)
+            }
+        } label: {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(expandedObjects.contains(id) ? 90 : 0))
+                .frame(width: 14, height: 14)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(expandedObjects.contains(id) ? "Hide setups" : "Show setups")
+    }
+
+    /// A row is highlighted when it is the focused object and its setups are closed (open, the
+    /// active setup carries the highlight), or when several objects are selected.
+    private func isRowSelected(_ id: UUID) -> Bool {
+        if selectedIDs.count > 1 {
+            return selectedIDs.contains(id)
+        }
+        return !isSetupSelected && focusedObjectID == id
+    }
+
     private func objectRow(_ object: D2_Object) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
+            if object.isParametric {
+                Color.clear.frame(width: 14, height: 14)
+            } else {
+                disclosure(object.id)
+            }
             Button {
                 let flags = CanvasModifiers.current
-                onSelectionChanged?(object.id, flags.contains(.shift) || flags.contains(.command))
+                if flags.contains(.shift) || flags.contains(.command) {
+                    onSelectionChanged?(object.id, true)
+                } else {
+                    onSelectObject?(object.id)
+                }
             } label: {
                 HStack(spacing: 6) {
                     if object.isParametric {
@@ -362,7 +453,7 @@ struct PanelObjectsInspector: View {
                 onToggleVisibility?(object.id)
             }
         }
-        .inspectorListRow(isSelected: selectedIDs.contains(object.id))
+        .inspectorListRow(isSelected: isRowSelected(object.id))
         .contextMenu {
             if !object.isParametric {
                 newSetupMenu(for: object.id)
@@ -385,9 +476,10 @@ struct PanelObjectsInspector: View {
     }
 
     private func stepModelRow(_ model: STEPModelItem) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
+            disclosure(model.id)
             Button {
-                onSelectStepModel?(model.id)
+                onSelectObject?(model.id)
             } label: {
                 Text(model.name)
                     .font(.system(size: 12))
@@ -405,7 +497,7 @@ struct PanelObjectsInspector: View {
                 onToggleStepModelVisibility?(model.id)
             }
         }
-        .inspectorListRow(isSelected: selectedStepModelID == model.id)
+        .inspectorListRow(isSelected: isRowSelected(model.id))
         .help(model.detail.map { "\(model.name) — \($0)" } ?? model.name)
         .contextMenu {
             newSetupMenu(for: model.id)
@@ -443,7 +535,7 @@ struct PanelObjectsInspector: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .inspectorListRow(isSelected: setup.id == activeSetupID)
+        .inspectorListRow(isSelected: isSetupSelected && setup.id == activeSetupID)
         .contextMenu {
             Button {
                 renameText = setup.name

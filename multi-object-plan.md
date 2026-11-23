@@ -82,6 +82,12 @@ Each step should leave the app building and usable.
 - Context menu: rename, duplicate entry, delete, new setup.
 - Done when: a project with 2 objects shows both with their own setups; switching setups switches the toolpath list.
 
+### Revision after review (builds, not run)
+- Objects tree: every object has a disclosure triangle; opened, it lists its setups. Importing an object adds a Top setup for it (`ensureDefaultSetups`, `cam/Model/ObjectFocus.swift`).
+- Always one focused object (`CAMModel.focusedObjectID`) and one active setup. Clicking an object row opens its first setup; the canvas shows only what the active setup includes (2D shapes; STEP bodies are not hidden yet).
+- The focused object's face up / position / size are in their own panel at the top of the right-hand column. Material stays under it.
+- Still open: STEP bodies per setup, Toolpaths panel still on the left, rename/duplicate object.
+
 ### Step 4: Right-side panels (done for 2D objects, not compiled yet)
 - Done: the canvas shows the active setup's placement (`cam/Model/SetupPlacement.swift`). The Position panel of a 2D object has "Project / This setup" (with more than one setup) and "Reset to global". Edits go to the override when the setup has one, else to the global placement; the project file always gets the global one.
 - Not done: STEP bodies (their state lives in `STEPWorkspace`); Material stays on the right and Toolpaths on the left, not stacked.
@@ -119,7 +125,10 @@ Each step should leave the app building and usable.
 - Toolpath targets carry `objectID`, so one toolpath can cut shapes of different objects.
 - Done when: two objects placed on one stock can be cut by one toolpath and exported in one file.
 
-### Step 8: Alignment pins as fixtures
+### Step 8: Alignment pins as fixtures (done, builds)
+- Done: pins are listed under "Fixtures" (step 3), are fitted to the project's stock (as before), and now show on the canvas, and can be picked by toolpaths, only in setups cut from the project stock. A setup with its own stock has no pins. Creating pins uses the project stock, not the active setup's own.
+- Not done: pins of their own for a setup's own stock (only "none" is offered).
+- Original plan:
 - Move pins out of the object list into the Fixtures group, tied to a stock, as described above.
 - Done when: pins are refitted when the stock changes and can be cut from any setup that uses that stock.
 

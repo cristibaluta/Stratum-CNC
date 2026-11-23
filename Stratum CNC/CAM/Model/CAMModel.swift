@@ -88,6 +88,7 @@ class CAMModel: ObservableObject {
                 syncCanvasStock()
                 // ...and place the objects its own way
                 applyActivePlacement()
+                syncFocusToActiveSetup()
                 updateToolpathPreview()
             }
         }
@@ -261,6 +262,15 @@ class CAMModel: ObservableObject {
     /// now. An object is only here while that is so; see `applyActivePlacement`.
     var globalPlacementShadow: [UUID: ObjectTransform] = [:]
 
+    /// The object the Objects tree has open: its setups are listed, and the right-hand panel edits
+    /// its face up, position and size. Always one of the project's objects once there is any
+    /// (see `ensureDefaultSetups`).
+    @Published var focusedObjectID: UUID?
+
+    /// What the tree has selected: a setup (true) or an object (false). Never both. An object
+    /// selected shows its position and size on the right; a setup shows its stock.
+    @Published var isSetupSelected = false
+
     /// - Parameter setups: the project's saved setups. Empty when it has none saved yet: it gets
     ///   the top, and every toolpath goes in it.
     init(selectedStockMaterial: StockMaterial, toolpaths: [ToolpathData], setups: [Setup] = []) {
@@ -307,7 +317,14 @@ class CAMModel: ObservableObject {
 
         // Selecting an object closes the open toolpath
         canvasState.onObjectSelected = { [weak self] in
-            guard let self, self.selectedToolpathID != nil else {
+            guard let self else {
+                return
+            }
+            // Clicking an object on the canvas focuses it in the tree
+            if self.canvasState.selectedObjectIDs.count == 1, let id = self.canvasState.selectedObjectIDs.first {
+                self.focusObject(id, keepingActiveSetup: true)
+            }
+            guard self.selectedToolpathID != nil else {
                 return
             }
             self.selectedToolpathID = nil

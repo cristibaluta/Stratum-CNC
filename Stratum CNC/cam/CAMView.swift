@@ -60,6 +60,12 @@ struct CAMView: View {
                 camView
             }
         }
+        .onAppear {
+            camModel.ensureDefaultSetups()
+        }
+        .onChange(of: camModel.projectObjects.map(\.id)) { _, _ in
+            camModel.ensureDefaultSetups()
+        }
         .alert("File operation failed", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
             Button("OK", role: .cancel) { fileError = nil }
         } message: {
@@ -111,7 +117,7 @@ struct CAMView: View {
         do {
             let object = try AlignmentPins.makeObject(name: name,
                                                       spec: AlignmentPinsSpec(diameter: diameter, offset: offset),
-                                                      stock: camModel.canvasState.stock)
+                                                      stock: camModel.selectedStockMaterial)
             camModel.stepWorkspace.selectedModelID = nil
             camModel.canvasState.add(object, select: true)
         } catch {
@@ -316,7 +322,7 @@ struct CAMView: View {
             camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
         .sheet(isPresented: $showingAlignmentPins) {
-            AlignmentPinsSheet(stock: camModel.canvasState.stock,
+            AlignmentPinsSheet(stock: camModel.selectedStockMaterial,
                                onCreate: { diameter, offset in
                                    showingAlignmentPins = false
                                    createAlignmentPins(diameter: diameter, offset: offset)
@@ -328,7 +334,9 @@ struct CAMView: View {
     /// The stock panel, and the selected toolpath's settings under it.
     private var rightPanels: some View {
         VStack(alignment: .trailing, spacing: 16) {
-            PanelStockMaterial(stock: activeStockBinding,
+            // One selection at a time: a setup shows its stock, an object its face up, position, size
+            if camModel.isSetupSelected {
+                PanelStockMaterial(stock: activeStockBinding,
                                isStockVisible: stockVisibleBinding,
                                isCompact: true,
                                stocksStore: appModel.stocksStore,
@@ -344,6 +352,14 @@ struct CAMView: View {
                                warning: camModel.activeStockWarning,
                                expandTrigger: stockPanelExpandTrigger)
                 .frame(width: 320)
+            } else {
+                objectPropertiesPanel
+                // Each object can have a stock of its own
+                if let focus = camModel.focusedObjectID,
+                   camModel.canvasState.object(withID: focus)?.isParametric != true {
+                    objectStockPanel(for: focus)
+                }
+            }
             // Only while a toolpath is selected in the list
             if let toolpath = selectedToolpath {
                 toolpathSettingsPanel(for: toolpath)
@@ -352,6 +368,23 @@ struct CAMView: View {
             }
         }
         .padding(16)
+    }
+
+    /// The stock panel for the selected object: its own stock, or the project's until it gets one.
+    private func objectStockPanel(for id: UUID) -> some View {
+        let hasOwn = camModel.ownStock(forObject: id) != nil
+        return PanelStockMaterial(stock: Binding(get: { camModel.stock(forObject: id) },
+                                                 set: { camModel.setStock($0, forObject: id) }),
+                                  isStockVisible: stockVisibleBinding,
+                                  isCompact: true,
+                                  stocksStore: appModel.stocksStore,
+                                  scopeTag: hasOwn ? "This object only" : nil,
+                                  onUseProjectStock: hasOwn ? {
+                                      camModel.useProjectStock(forObject: id)
+                                  } : nil,
+                                  warning: camModel.activeStockWarning,
+                                  expandTrigger: stockPanelExpandTrigger)
+            .frame(width: 320)
     }
 
     /// The stock panel edits the active setup's stock: its own when it has one, the project's otherwise.
@@ -366,9 +399,31 @@ struct CAMView: View {
     }
 
     private var inspectorPanel: some View {
-        PanelObjectsInspector(
+        inspector(part: .list)
+    }
+
+    /// The selected object's face up, position and size, in a panel of its own on the right.
+    private var objectPropertiesPanel: some View {
+        inspector(part: .properties)
+            .frame(width: 320)
+    }
+
+    private func inspector(part: PanelObjectsInspector.Part) -> some View {
+        // The list shows the canvas's selection (several objects can be selected to combine them);
+        // the properties panel shows the focused object, or the group when several are selected
+        let realSelection = camModel.canvasState.selectedObjectIDs
+        let focus = camModel.focusedObjectID
+        let focusIs2D = focus.map { camModel.canvasState.object(withID: $0) != nil } ?? false
+        var propertyIDs: Set<UUID> = []
+        if realSelection.count > 1 {
+            propertyIDs = realSelection
+        } else if let focus, focusIs2D {
+            propertyIDs = [focus]
+        }
+        let focusedStepID = focusIs2D ? nil : focus
+        return PanelObjectsInspector(
             elements: camModel.canvasState.objects,
-            selectedIDs: camModel.canvasState.selectedObjectIDs,
+            selectedIDs: part == .list ? realSelection : propertyIDs,
             selectionBounds: camModel.canvasState.selectionBounds,
             onSelectionChanged: { id, extend in
                 camModel.stepWorkspace.selectedModelID = nil
@@ -430,8 +485,9 @@ struct CAMView: View {
             },
             stepModels: stepModelItems,
             // A selected 2D object wins: the model's fields only show when none is selected.
-            selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty
-                ? camModel.stepWorkspace.selectedModelID : nil,
+            selectedStepModelID: part == .list
+                ? (camModel.canvasState.selectedObjectIDs.isEmpty ? camModel.stepWorkspace.selectedModelID : nil)
+                : focusedStepID,
             onSelectStepModel: { id in
                 camModel.canvasState.clearSelection()
                 if camModel.stepWorkspace.selectedModelID == id {
@@ -479,14 +535,20 @@ struct CAMView: View {
             activeSetupID: camModel.activeSetupID,
             sideFacesAvailable: hasSTEP,
             onSelectSetup: { id in
+                // A setup is selected instead of an object: no object keeps its handles
+                camModel.canvasState.clearSelection()
+                camModel.stepWorkspace.selectedModelID = nil
                 camModel.activateSetup(id)
+                camModel.isSetupSelected = true
             },
             onAddSetup: { objectID, face in
                 withAnimation(.easeOut(duration: 0.15)) {
-                    let id = camModel.addSetup(face: face)
+                    // A new setup of an object is cut from the object's stock
+                    let id = camModel.addSetup(face: face, stock: objectID.flatMap { camModel.ownStock(forObject: $0) })
                     if let objectID {
                         camModel.setSetupObjects(id, to: [objectID])
                     }
+                    camModel.isSetupSelected = true
                 }
             },
             onRenameSetup: { id, name in
@@ -501,6 +563,7 @@ struct CAMView: View {
                 withAnimation(.easeOut(duration: 0.15)) {
                     let id = camModel.addSetup(face: face)
                     camModel.setSetupObjects(id, to: ids)
+                    camModel.isSetupSelected = true
                 }
             },
             overriddenObjectIDs: Set(camModel.setups.first { $0.id == camModel.activeSetupID }?
@@ -508,7 +571,20 @@ struct CAMView: View {
             offersPlacementScope: camModel.setups.count > 1,
             onPlacementOverrideChanged: { id, enabled in
                 camModel.setPlacementOverride(enabled, for: id)
-            }
+            },
+            focusedObjectID: focus,
+            onSelectObject: { id in
+                camModel.focusObject(id, keepingActiveSetup: false)
+                if camModel.canvasState.object(withID: id) != nil {
+                    camModel.stepWorkspace.selectedModelID = nil
+                    camModel.canvasState.selectObject(id)
+                } else {
+                    camModel.canvasState.clearSelection()
+                    camModel.stepWorkspace.select(model: id)
+                }
+            },
+            isSetupSelected: camModel.isSetupSelected,
+            part: part
         )
     }
 

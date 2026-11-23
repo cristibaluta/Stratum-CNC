@@ -18,6 +18,8 @@
 //
 
 import Foundation
+import StratumCAM
+import SwiftSTEP
 
 extension ObjectTransform {
 
@@ -51,9 +53,11 @@ extension CAMModel {
         }
         var moved = false
         var membershipChanged = false
-        // Objects the setup doesn't include drop off the canvas (and out of picking)
+        // Objects the setup doesn't include drop off the canvas (and out of picking). The alignment
+        // pins are fitted to the project's stock, so only the setups cut from it have them: one
+        // with a stock of its own has none.
         for object in canvasState.objects {
-            let included = object.isParametric || setup.includes(object.id)
+            let included = object.isParametric ? setup.stock == nil : setup.includes(object.id)
             if object.isInActiveSetup != included {
                 object.isInActiveSetup = included
                 membershipChanged = true
@@ -76,6 +80,16 @@ extension CAMModel {
                 object.transform = global
                 moved = true
             }
+        }
+        // STEP bodies the setup doesn't include are taken off the canvas too
+        var excluded: [UUID: Set<STEP.BodyID>] = [:]
+        for entry in stepWorkspace.modelEntries {
+            if let body = entry.body, !setup.includes(entry.id) {
+                excluded[entry.sourceID, default: []].insert(body)
+            }
+        }
+        for (sourceID, scene) in stepWorkspace.documents {
+            scene.setExcludedBodies(excluded[sourceID] ?? [])
         }
         if moved {
             canvasState.objectWillChange.send()

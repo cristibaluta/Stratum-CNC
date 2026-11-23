@@ -19,7 +19,15 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
     /// (`nil` where the body has none or the mode draws no faces).
     @Published private(set) var solidObjects: [RenderObject?]
     @Published private(set) var selectedEdges: Set<STEP.EdgeID> = []
-    @Published private(set) var hiddenBodies: Set<STEP.BodyID> = []
+    /// Bodies hidden with the eye of their row.
+    @Published private(set) var userHiddenBodies: Set<STEP.BodyID> = []
+    /// Bodies the active setup doesn't include: not drawn, not pickable. Session-only, set by
+    /// `CAMModel.applyActivePlacement`; separate from the eye, which keeps what the person chose.
+    @Published private(set) var setupExcludedBodies: Set<STEP.BodyID> = []
+    /// Every body that is not drawn.
+    var hiddenBodies: Set<STEP.BodyID> {
+        userHiddenBodies.union(setupExcludedBodies)
+    }
     /// Where each body sits on the canvas, in mm. A body's own corner (min X, min Y) and top
     /// (max Z) are at 0 in its frame, so this is the position of that corner and of its top
     /// surface. Changed through `STEPWorkspace.setPosition`.
@@ -214,7 +222,8 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
         }
         content = content.removing(body)
         positions.removeValue(forKey: body)
-        hiddenBodies.remove(body)
+        userHiddenBodies.remove(body)
+        setupExcludedBodies.remove(body)
         setSelection(selectedEdges.filter { $0.bodyID != body }, notify: true)
         rebuildObjects()
     }
@@ -342,7 +351,17 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
     /// The body is drawn: the model is shown and the body itself is not hidden.
     func isBodyVisible(_ id: STEP.BodyID) -> Bool {
-        isModelVisible && !hiddenBodies.contains(id)
+        isModelVisible && !userHiddenBodies.contains(id)
+    }
+
+    /// Takes the bodies the active setup doesn't include off the canvas (and out of picking).
+    func setExcludedBodies(_ ids: Set<STEP.BodyID>) {
+        guard ids != setupExcludedBodies else {
+            return
+        }
+        setupExcludedBodies = ids
+        setSelection(selectedEdges.filter { !ids.contains($0.bodyID) }, notify: true)
+        updateCanSelectLinked()
     }
 
     /// The eye of the body's row. When the whole model is hidden, showing a body shows the model again.
@@ -356,9 +375,9 @@ final class STEPDocumentScene: ObservableObject, Identifiable {
 
     func setBodyVisible(_ id: STEP.BodyID, _ visible: Bool) {
         if visible {
-            hiddenBodies.remove(id)
+            userHiddenBodies.remove(id)
         } else {
-            hiddenBodies.insert(id)
+            userHiddenBodies.insert(id)
             setSelection(selectedEdges.filter { $0.bodyID != id }, notify: true)
         }
         updateCanSelectLinked()

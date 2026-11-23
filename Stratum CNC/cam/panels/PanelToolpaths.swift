@@ -199,14 +199,24 @@ struct PanelToolpaths: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(toolpath.name)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                subtitle(for: toolpath)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            Text(toolpath.name)
+                .font(.system(size: 12))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // The tool's diameter and where the toolpath ends; the name gives way when narrow
+            Text("Ø\(Self.number(Double(toolpath.tool.toolDiameter)))")
+                .foregroundStyle(.secondary)
+                .fixedSize()
+                .help("Tool: \(toolpath.tool.name)")
+            Text(Self.endZText(of: toolpath))
+                .foregroundStyle(.secondary)
+                .fixedSize()
+                .help("Final Z")
         }
+        .font(.system(size: 11))
+        .lineLimit(1)
         .inspectorListRow(isSelected: isSelected)
         // The whole cell is the drag target and the select target. A tap and a drag on the
         // same view don't fight: the drag only starts after a few points of movement.
@@ -233,23 +243,6 @@ struct PanelToolpaths: View {
         }
     }
 
-    // MARK: - Subtitle
-
-    /// The row's second line: the tool's diameter and where the toolpath ends.
-    private func subtitle(for toolpath: ToolpathData) -> some View {
-        HStack(spacing: 6) {
-            Text("Ø\(Self.number(Double(toolpath.tool.toolDiameter)))")
-                .lineLimit(1)
-                .help("Tool: \(toolpath.tool.name)")
-            Text(Self.endZText(of: toolpath))
-                .lineLimit(1)
-                .fixedSize()
-                .help("Final Z")
-        }
-        .font(.system(size: 11))
-        .foregroundStyle(.secondary)
-    }
-
     /// A counterbore keeps its depth apart from `endZ`, as a positive number below the top.
     private static func endZText(of toolpath: ToolpathData) -> String {
         let z = toolpath.operation.kind == .counterbore
@@ -261,20 +254,6 @@ struct PanelToolpaths: View {
 
     private static func number(_ value: Double) -> String {
         value.formatted(.number.precision(.fractionLength(0...2)))
-    }
-
-    private static func title(of type: ToolType) -> String {
-        switch type {
-            case .endMill:           return "End mill"
-            case .ballNose:          return "Ball nose"
-            case .engraving:         return "Engraving"
-            case .drill:             return "Drill"
-            case .vBit:              return "V-bit"
-            case .corn:              return "Corn"
-            case .chamfer:           return "Chamfer"
-            case .solderMaskRemover: return "Solder mask"
-            case .threadMill:        return "Thread mill"
-        }
     }
 
     // MARK: - Reordering
@@ -307,17 +286,6 @@ private struct ToolpathRowHeightKey: PreferenceKey {
         value = max(value, nextValue())
     }
 }
-
-/// Icon and text close together, for the row's subtitle.
-private struct CompactLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 3) {
-            configuration.icon
-            configuration.title
-        }
-    }
-}
-
 
 /// A setup's orientation as a small picture: the stock seen from the machine's right (front of
 /// the machine on the left, back on the right), with a bar on the side that faces up. It is drawn
