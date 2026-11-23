@@ -21,10 +21,17 @@
 //  A side face stands the stock on its edge, so its footprint is another size: it is slid back
 //  to the origin, with its corner at X = 0, Y = 0, like the top's.
 //
+//  Stock: a setup is cut from the project's stock unless it carries a stock of its own (`stock`).
+//  That is how one part is milled in two materials: a face in the project's stock, and some edges
+//  in another workpiece, each with its own z0, program and stock change in between.
+//
 
 import Foundation
 
-struct Setup: Identifiable, Codable, Hashable, Sendable {
+// `@unchecked Sendable` and the hand-written `hash(into:)`: `StockMaterial` isn't declared Hashable or
+// Sendable, but it is a plain value (enums and numbers). Equality is still the synthesized one,
+// over every field, and hashing the id alone is consistent with it.
+struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
 
     var id = UUID()
     var name: String
@@ -32,17 +39,35 @@ struct Setup: Identifiable, Codable, Hashable, Sendable {
     var angle: Double
     /// The machine axis the stock turns about.
     var axis: SetupAxis
+    /// The stock this setup is cut from when it isn't the project's. Nil (the default, and every
+    /// project saved before this existed) uses the project stock.
+    var stock: StockMaterial? = nil
 
-    init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x) {
+    init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x, stock: StockMaterial? = nil) {
         self.id = id
         self.name = name
         self.angle = Self.normalized(angle)
         self.axis = axis
+        self.stock = stock
     }
 
-    init(face: SetupFace, axis: SetupAxis? = nil, name: String? = nil) {
+    init(face: SetupFace, axis: SetupAxis? = nil, name: String? = nil, stock: StockMaterial? = nil) {
         let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
-        self.init(name: name ?? Self.baseName(for: face, axis: axis), angle: face.angle, axis: axis)
+        self.init(name: name ?? Self.baseName(for: face, axis: axis), angle: face.angle, axis: axis, stock: stock)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+
+    /// The stock this setup is cut from, given the project's.
+    func resolvedStock(projectStock: StockMaterial) -> StockMaterial {
+        stock ?? projectStock
+    }
+
+    /// The name, with the setup's own stock in parentheses when it has one: "Top (Acrylic 3 mm)".
+    var displayTitle: String {
+        stock.map { "\(name) (\($0.setupLabel))" } ?? name
     }
 
     var orientation: SetupOrientation {

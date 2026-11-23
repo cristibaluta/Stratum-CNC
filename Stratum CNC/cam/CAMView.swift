@@ -25,7 +25,7 @@ import SwiftUI
         - MetalCanvasView
     - CAMLayersOverlay                         <- legend over the canvas, bottom-left (shapes, model, stock, toolpaths, anchor, axes): show / hide, plus Z0 projections; the toolpaths row is the All toolpaths switch
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
-    - MaterialPanelView                        <- reads/writes CAMModel.selectedStockMaterial + the shared isStockVisible flag
+    - MaterialPanelView                        <- reads/writes the active setup's stock (CAMModel.activeStock: its own, or CAMModel.selectedStockMaterial) + the shared isStockVisible flag
     - ToolpathListView                         <- left, under the objects panel: select / show-hide / delete toolpaths
     - ToolpathCellView                         <- right, under the material panel: only while a toolpath is selected
 */
@@ -36,6 +36,8 @@ struct CAMView: View {
     @ObservedObject var projectModel: ProjectModel
     @State private var fileError: String?
     @State private var showingAlignmentPins = false
+    /// Changes when a setup on a different stock is added, which opens the stock panel's details.
+    @State private var stockPanelExpandTrigger: UUID?
     /// Bumped by the fit button to frame the whole scene again.
     @State private var fitRequest = 0
     /// How tall the legend (bottom-left) is right now; the left panels' scroll stops above it.
@@ -311,10 +313,16 @@ struct CAMView: View {
     /// The stock panel, and the selected toolpath's settings under it.
     private var rightPanels: some View {
         VStack(alignment: .trailing, spacing: 16) {
-            PanelStockMaterial(stock: $camModel.selectedStockMaterial,
+            PanelStockMaterial(stock: activeStockBinding,
                                isStockVisible: stockVisibleBinding,
                                isCompact: true,
-                               stocksStore: appModel.stocksStore)
+                               stocksStore: appModel.stocksStore,
+                               scopeTag: stockScopeTag,
+                               onUseProjectStock: camModel.activeSetupHasOwnStock ? {
+                                   camModel.setSetupStock(camModel.activeSetupID, to: nil)
+                               } : nil,
+                               warning: camModel.activeStockWarning,
+                               expandTrigger: stockPanelExpandTrigger)
                 .frame(width: 320)
             // Only while a toolpath is selected in the list
             if let toolpath = selectedToolpath {
@@ -324,6 +332,21 @@ struct CAMView: View {
             }
         }
         .padding(16)
+    }
+
+    /// The stock panel edits the active setup's stock: its own when it has one, the project's otherwise.
+    private var activeStockBinding: Binding<StockMaterial> {
+        Binding(get: { camModel.activeStock },
+                set: { camModel.setActiveStock($0) })
+    }
+
+    /// Says which stock the panel edits, once the project has a setup with a stock of its own
+    /// (before that there is only one stock and nothing to tell apart).
+    private var stockScopeTag: String? {
+        if camModel.activeSetupHasOwnStock {
+            return "This setup only"
+        }
+        return camModel.setups.contains { $0.stock != nil } ? "Project stock" : nil
     }
 
     private var inspectorPanel: some View {
@@ -485,6 +508,7 @@ struct CAMView: View {
             activeSetupID: camModel.activeSetupID,
             // Front, back, left and right need a 3D model: flat shapes only have a top and a bottom
             sideFacesAvailable: hasSTEP,
+            projectStockAllowsSideFaces: camModel.selectedStockMaterial.allowsSideFaces,
             onSelect: { id in
                 withAnimation(.easeOut(duration: 0.15)) {
                     camModel.toggleToolpathSelection(id)
@@ -512,6 +536,14 @@ struct CAMView: View {
             onAddSetup: { face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
                     _ = camModel.addSetup(face: face, axis: axis)
+                }
+            },
+            onAddSetupOnDifferentStock: { face, axis in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    // Starts as a copy of the project's stock (the real piece differs from the
+                    // library's anyway); the stock panel opens to pick or size the actual one
+                    _ = camModel.addSetup(face: face, axis: axis, stock: camModel.selectedStockMaterial)
+                    stockPanelExpandTrigger = UUID()
                 }
             },
             onSetSetupAxis: { id, axis in
@@ -548,8 +580,8 @@ struct CAMView: View {
 
     private func toolpathSettingsPanel(for toolpath: ToolpathData) -> some View {
         PanelToolpathDetails(toolpath: binding(for: toolpath),
-                             stockMaterial: camModel.selectedStockMaterial.material,
-                             stockThickness: camModel.selectedStockMaterial.thickness,
+                             stockMaterial: camModel.stock(for: toolpath).material,
+                             stockThickness: camModel.stock(for: toolpath).thickness,
                              siblingNames: Set(camModel.toolpaths.filter { $0.id != toolpath.id }.map(\.name)),
                              isPicking: camModel.pickingToolpathID == toolpath.id,
                              restSource: toolpath.operation.restSourceID.flatMap { sourceID in

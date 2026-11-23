@@ -89,15 +89,18 @@ enum ToolpathGenerator {
     /// - Parameter stepContours: resolves the toolpath's STEP edges (`stepTargets`) into contours.
     ///   They must already be in `frame`: the caller maps them (see `STEPWorkspace.contours(for:frame:)`).
     /// - Parameter frame: the setup the toolpath is cut in (`.identity` for the top).
+    /// - Parameter stock: the stock of the toolpath's setup, for a facing of the whole stock. Without
+    ///   one the canvas's stock is used.
     static func prepare(for toolpath: ToolpathData,
                         source: ToolpathData? = nil,
                         canvasState: D2_CanvasState,
                         frame: SetupFrame = .identity,
+                        stock: StockMaterial? = nil,
                         stepContours: (ToolpathData) throws -> [SC.Contour] = { _ in [] }) throws -> Job {
 
         if toolpath.operation.isRest {
             return try prepareRest(for: toolpath, source: source, canvasState: canvasState,
-                                   frame: frame, stepContours: stepContours)
+                                   frame: frame, stock: stock, stepContours: stepContours)
         }
 
         guard toolpath.hasGeometry else {
@@ -110,7 +113,7 @@ enum ToolpathGenerator {
         var contours: [SC.Contour] = []
         if toolpath.cutsWholeStock {
             // The selected shapes are ignored: the facing covers the stock's footprint.
-            guard let stock = canvasState.stock else {
+            guard let stock = stock ?? canvasState.stock else {
                 throw GenerationError.invalidOption("There is no stock to face. Choose a material first.")
             }
             // On a face that is up the facing covers that face: the footprint for the top and
@@ -175,6 +178,7 @@ enum ToolpathGenerator {
                                     source: ToolpathData?,
                                     canvasState: D2_CanvasState,
                                     frame: SetupFrame,
+                                    stock: StockMaterial?,
                                     stepContours: (ToolpathData) throws -> [SC.Contour]) throws -> Job {
 
         guard toolpath.operation.restSourceID != nil, let source else {
@@ -189,7 +193,7 @@ enum ToolpathGenerator {
         try validateOptions(of: toolpath)
 
         // The pocket and its rest toolpath are always in the same setup (`CAMModel` moves them together)
-        let sourceJob = try prepare(for: source, canvasState: canvasState, frame: frame, stepContours: stepContours)
+        let sourceJob = try prepare(for: source, canvasState: canvasState, frame: frame, stock: stock, stepContours: stepContours)
         return Job(contours: [],
                    tool: makeTool(from: toolpath.tool, for: .pocket),
                    settings: makeSettings(from: toolpath),

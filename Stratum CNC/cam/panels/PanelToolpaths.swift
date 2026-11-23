@@ -14,15 +14,19 @@ struct PanelToolpaths: View {
     let toolpaths: [ToolpathData]
     let selectedID: UUID?
 
-    // Setups (the faces the stock is held on). A "Setups" dropdown shows the active one and
-    // opens a list of every setup the app offers: a checkmark means the project has it, and
-    // checking or unchecking adds or removes it. Clicking a row makes that setup the active one,
-    // whose toolpaths the list shows.
+    // Setups (the faces the stock is held on, each cut from the project's stock or from a stock of
+    // its own). A "Setups" dropdown lists the project's setups and shows the active one, with its
+    // own stock in parentheses; clicking a row makes it the active one, whose toolpaths the list
+    // shows. The "+" next to it adds a setup (on the project stock, or "On different stock") or
+    // removes the active one.
     var setups: [Setup] = []
     var activeSetupID: UUID?
     /// The side faces (front, back, left, right) stand the stock on its edge, which only makes sense
     /// for a 3D model: a project of flat shapes only offers the top and the bottom.
     var sideFacesAvailable = true
+    /// And only a rectangular block can stand on a side: with another project stock, the side faces
+    /// are listed disabled.
+    var projectStockAllowsSideFaces = true
 
     var onSelect: ((UUID) -> Void)?
     var onDelete: ((UUID) -> Void)?
@@ -35,6 +39,8 @@ struct PanelToolpaths: View {
     var onSelectSetup: ((UUID) -> Void)?
     /// (face, the axis it is turned about): the axis only matters for the bottom.
     var onAddSetup: ((SetupFace, SetupAxis) -> Void)?
+    /// (face, axis): "Add setup > On different stock". The setup starts with a copy of the project stock.
+    var onAddSetupOnDifferentStock: ((SetupFace, SetupAxis) -> Void)?
     /// (setup, axis): which axis a flipped face turns about, so which way its shapes mirror.
     var onSetSetupAxis: ((UUID, SetupAxis) -> Void)?
     var onDeleteSetup: ((UUID) -> Void)?
@@ -91,7 +97,7 @@ struct PanelToolpaths: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .canvasChrome()
-        .confirmationDialog(setupToDelete.map { "Delete \($0.name)?" } ?? "",
+        .confirmationDialog(setupToDelete.map { "Delete \($0.displayTitle)?" } ?? "",
                             isPresented: Binding(get: { setupToDelete != nil },
                                                  set: { if !$0 { setupToDelete = nil } }),
                             presenting: setupToDelete) { setup in
@@ -174,46 +180,78 @@ struct PanelToolpaths: View {
         }
     }
 
-    /// One line of the Setups list: an offered setup, and the project's own setup that fills it
-    /// (`nil` while the project doesn't have it).
-    private struct SetupEntry: Identifiable {
+    /// One face the "+" menu can add: a face, or the bottom once per flip axis.
+    private struct FaceEntry: Identifiable {
         let id: String
-        let title: String
-        /// The face a missing setup would be added as; nil for a setup that isn't one of the offered ones.
-        let face: SetupFace?
+        var title: String
+        let face: SetupFace
         let axis: SetupAxis
-        let setup: Setup?
+        /// A face that can't be added to this stock (a side face needs a rectangular block).
+        var isDisabled = false
+        /// The project already has a bottom on this stock: this entry turns it about the other axis.
+        var turnsExistingBottom = false
     }
 
-    /// Every setup the app offers, in a fixed order (the bottom once per flip axis), each tied to
-    /// the project's setup of that kind when there is one. A project's setup that matches none
-    /// of them (a second "Front", a side face of a project that no longer has a 3D model, an angle
-    /// between faces) is listed after them, so it can still be chosen and removed.
-    private var setupEntries: [SetupEntry] {
-        var used = Set<UUID>()
-        var entries: [SetupEntry] = []
+    private func axes(of face: SetupFace) -> [SetupAxis] {
+        face.hasChoiceOfAxis ? SetupAxis.allCases : [face.axis]
+    }
 
+    private func title(of face: SetupFace, axis: SetupAxis) -> String {
+        face.hasChoiceOfAxis ? "\(face.title) (flip \(axis.title))" : face.title
+    }
+
+    /// What "Add setup" offers: the faces the project doesn't have yet on its own stock. The same
+    /// face can exist once per stock, so a "Top (Acrylic 3 mm)" doesn't hide the project's Top.
+    /// The project has one bottom per stock: asking for the other flip axis turns the existing one
+    /// about it (its toolpaths stay, mirrored), instead of adding a second.
+    private var projectStockEntries: [FaceEntry] {
+        var entries: [FaceEntry] = []
         for face in SetupFace.allCases where sideFacesAvailable || !face.isSide {
-            let axes: [SetupAxis] = face.hasChoiceOfAxis ? SetupAxis.allCases : [face.axis]
-            for axis in axes {
-                let match = setups.first { !used.contains($0.id) && $0.face == face && $0.axis == axis }
-                if let match {
-                    used.insert(match.id)
+            let onProjectStock = setups.filter { $0.stock == nil && $0.face == face }
+            for axis in axes(of: face) {
+                if onProjectStock.contains(where: { $0.axis == axis }) {
+                    continue
                 }
-                entries.append(SetupEntry(id: "\(face.rawValue)-\(axis.rawValue)",
-                                          title: face.hasChoiceOfAxis ? "\(face.title) (flip \(axis.title))" : face.title,
-                                          face: face,
-                                          axis: axis,
-                                          setup: match))
+                var entry = FaceEntry(id: "\(face.rawValue)-\(axis.rawValue)",
+                                      title: title(of: face, axis: axis),
+                                      face: face,
+                                      axis: axis)
+                if face.hasChoiceOfAxis, !onProjectStock.isEmpty {
+                    entry.turnsExistingBottom = true
+                    entry.title = "Bottom: flip about \(axis.title) instead"
+                }
+                if face.isSide, !projectStockAllowsSideFaces {
+                    entry.title += " – needs a rectangular stock"
+                    entry.isDisabled = true
+                }
+                entries.append(entry)
             }
-        }
-        for setup in setups where !used.contains(setup.id) {
-            entries.append(SetupEntry(id: setup.id.uuidString, title: setup.name, face: nil, axis: setup.axis, setup: setup))
         }
         return entries
     }
 
-    /// "Setups" and a button with the active setup's name, which opens the list.
+    /// What "On different stock" offers: every face, whatever the project already has. The new
+    /// stock starts as a copy of the project's, which is rectangular when this is enabled.
+    private var differentStockEntries: [FaceEntry] {
+        var entries: [FaceEntry] = []
+        for face in SetupFace.allCases where sideFacesAvailable || !face.isSide {
+            for axis in axes(of: face) {
+                var entry = FaceEntry(id: "\(face.rawValue)-\(axis.rawValue)",
+                                      title: title(of: face, axis: axis),
+                                      face: face,
+                                      axis: axis)
+                if face.isSide, !projectStockAllowsSideFaces {
+                    entry.title += " – needs a rectangular stock"
+                    entry.isDisabled = true
+                }
+                entries.append(entry)
+            }
+        }
+        return entries
+    }
+
+    /// "Setups", the dropdown with the project's setups (the active one on the button, its own
+    /// stock in parentheses when it has one) and the "+" menu to add or remove one.
     private var setupPicker: some View {
         HStack(spacing: 8) {
             Text("Setups")
@@ -224,9 +262,10 @@ struct PanelToolpaths: View {
                 isChoosingSetup.toggle()
             } label: {
                 HStack(spacing: 4) {
-                    Text(activeSetup?.name ?? "No setup")
+                    Text(activeSetup?.displayTitle ?? "No setup")
                         .font(.system(size: 12))
                         .lineLimit(1)
+                        .truncationMode(.tail)
                     Spacer(minLength: 4)
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 9, weight: .semibold))
@@ -237,103 +276,117 @@ struct PanelToolpaths: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .help("Choose, add or remove a setup")
+            .help("Choose a setup")
             .popover(isPresented: $isChoosingSetup, arrowEdge: .bottom) {
                 setupList
             }
+
+            setupMenu
         }
     }
 
+    /// Add a setup (on the project stock, or on a different one) or remove the active one.
+    private var setupMenu: some View {
+        Menu {
+            Menu("Add setup") {
+                let entries = projectStockEntries
+                if entries.isEmpty {
+                    Text("Every face is already in the project")
+                }
+                ForEach(entries) { entry in
+                    Button(entry.title) {
+                        add(entry)
+                    }
+                    .disabled(entry.isDisabled)
+                }
+
+                Divider()
+
+                Menu("On different stock") {
+                    ForEach(differentStockEntries) { entry in
+                        Button(entry.title) {
+                            onAddSetupOnDifferentStock?(entry.face, entry.axis)
+                        }
+                        .disabled(entry.isDisabled)
+                    }
+                }
+            }
+
+            if let activeSetup {
+                Divider()
+
+                Button("Remove \(activeSetup.displayTitle)", role: .destructive) {
+                    requestRemove(activeSetup)
+                }
+                .disabled(setups.count < 2)
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 20, height: 16)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .foregroundStyle(.secondary)
+        .help("Add or remove a setup")
+    }
+
+    /// The project's setups only: choosing one makes it the active one.
     private var setupList: some View {
         VStack(alignment: .leading, spacing: 2) {
-            ForEach(setupEntries) { entry in
-                setupRow(entry)
+            ForEach(setups) { setup in
+                setupRow(setup)
             }
         }
         .padding(8)
-        .frame(width: 240)
+        .frame(width: 260)
     }
 
-    private func setupRow(_ entry: SetupEntry) -> some View {
-        let exists = entry.setup != nil
-        let isLast = exists && setups.count < 2
-
-        return HStack(spacing: 8) {
-            // Adds or removes the setup; the row itself picks it
-            Toggle("", isOn: Binding(get: { exists }, set: { _ in toggle(entry) }))
-                .labelsHidden()
-                .stCheckboxToggleStyle()
-                .controlSize(.small)
-                .disabled(isLast)
-                .help(isLast ? "The last setup can't be removed"
-                             : exists ? "Remove this setup and its toolpaths" : "Add this setup")
-
-            Button {
-                choose(entry)
-            } label: {
-                HStack(spacing: 6) {
-                    Text(entry.title)
-                        .font(.system(size: 12))
-                        .foregroundStyle(exists ? Color.primary : Color.secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    if let setup = entry.setup {
-                        let count = toolpathsOf(setup).count
-                        if count > 0 {
-                            Text("\(count)")
-                                .font(.system(size: 11).monospacedDigit())
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
+    private func setupRow(_ setup: Setup) -> some View {
+        Button {
+            onSelectSetup?(setup.id)
+            isChoosingSetup = false
+        } label: {
+            HStack(spacing: 6) {
+                Text(setup.displayTitle)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 4)
+                let count = toolpathsOf(setup).count
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.tertiary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .inspectorListRow(isSelected: entry.setup != nil && entry.setup?.id == activeSetup?.id)
+        .buttonStyle(.plain)
+        .inspectorListRow(isSelected: setup.id == activeSetup?.id)
     }
 
-    /// The checkmark: adds the setup, or removes it (asking first when it has toolpaths, which go with it).
-    private func toggle(_ entry: SetupEntry) {
-        guard let setup = entry.setup else {
-            add(entry)
-            return
-        }
+    /// Removes a setup, asking first when it has toolpaths, which go with it. The last one stays.
+    private func requestRemove(_ setup: Setup) {
         guard setups.count > 1 else {
             return
         }
         if toolpathsOf(setup).isEmpty {
             onDeleteSetup?(setup.id)
         } else {
-            // The dialog belongs to the panel, not to the list: close the list first
-            isChoosingSetup = false
             setupToDelete = setup
         }
     }
 
-    /// The row: makes the setup the active one, adding it first when the project doesn't have it.
-    private func choose(_ entry: SetupEntry) {
-        if let setup = entry.setup {
-            onSelectSetup?(setup.id)
-        } else {
-            add(entry)
-        }
-        isChoosingSetup = false
-    }
-
-    /// Adds the setup of `entry` and makes it the active one. The project has one bottom: asking
-    /// for the other flip axis turns the existing bottom about it (its toolpaths stay, mirrored),
-    /// instead of adding a second one.
-    private func add(_ entry: SetupEntry) {
-        guard let face = entry.face else {
-            return
-        }
-        if face.hasChoiceOfAxis, let bottom = setups.first(where: { $0.face == face }) {
+    private func add(_ entry: FaceEntry) {
+        if entry.turnsExistingBottom,
+           let bottom = setups.first(where: { $0.face == entry.face && $0.stock == nil }) {
             onSetSetupAxis?(bottom.id, entry.axis)
             onSelectSetup?(bottom.id)
         } else {
-            onAddSetup?(face, entry.axis)
+            onAddSetup?(entry.face, entry.axis)
         }
     }
 
@@ -408,7 +461,7 @@ struct PanelToolpaths: View {
             if setups.count > 1, !toolpath.operation.isRest {
                 Menu("Move to setup") {
                     ForEach(setups.filter { $0.id != toolpath.setupID }) { setup in
-                        Button(setup.name) {
+                        Button(setup.displayTitle) {
                             onMoveToSetup?(toolpath.id, setup.id)
                         }
                     }

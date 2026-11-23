@@ -32,14 +32,17 @@ class CAMModel: ObservableObject {
             guard selectedStockMaterial != oldValue else {
                 return
             }
+            // The alignment pins are fitted to the project's stock, whatever setup is active
             canvasState.stock = selectedStockMaterial
-            // The alignment pins follow the stock's size
             canvasState.refitAlignmentPins()
+            // The canvas then shows the active setup's stock (the project's unless it has its own)
+            syncCanvasStock()
             // Only the stock's shape and size can reach the cutting moves: a turned setup is
             // built from them, and so is a facing of the whole stock. Their results are
-            // outdated then. Material, name, quantity… change nothing that is cut.
+            // outdated then, for the setups that use the project stock (one with a stock of its
+            // own doesn't care). Material, name, quantity… change nothing that is cut.
             if selectedStockMaterial.geometry != oldValue.geometry,
-               setups.contains(where: { $0.angle != 0 }) || toolpaths.contains(where: \.cutsWholeStock) {
+               setups.contains(where: { $0.stock == nil && cutsDependOnStockGeometry(in: $0) }) {
                 discardGenerations()
             }
             onStockChanged?(selectedStockMaterial)
@@ -56,8 +59,11 @@ class CAMModel: ObservableObject {
                 revision &+= 1
             }
             onSetupsChanged?(setups)
+            // A setup's own stock, or another active setup, changes what the canvas shows
+            syncCanvasStock()
             // Renaming or reordering changes nothing that is cut; a different orientation does
-            if Self.orientations(of: oldValue) != Self.orientations(of: setups) {
+            if Self.orientations(of: oldValue) != Self.orientations(of: setups)
+                || stockGeometryChanged(from: oldValue, to: setups) {
                 discardGenerations()
             }
         }
@@ -74,6 +80,8 @@ class CAMModel: ObservableObject {
                    toolpaths.first(where: { $0.id == id })?.setupID != activeSetupID {
                     selectedToolpathID = nil
                 }
+                // Each setup can be cut from another stock: the canvas follows the active one
+                syncCanvasStock()
                 updateToolpathPreview()
             }
         }
@@ -252,7 +260,7 @@ class CAMModel: ObservableObject {
         self.activeSetupID = initialSetups[0].id
         self.selectedStockMaterial = selectedStockMaterial
         self.toolpaths = Self.orderedBySetup(toolpaths, setups: initialSetups)
-        self.canvasState.stock = selectedStockMaterial
+        self.canvasState.stock = initialSetups[0].stock ?? selectedStockMaterial
 
         canvasState.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
@@ -517,6 +525,77 @@ class CAMModel: ObservableObject {
 
     // MARK: Setups
 
+    /// The stock a setup is cut from: its own, or the project's.
+    func stock(for setup: Setup) -> StockMaterial {
+        setup.resolvedStock(projectStock: selectedStockMaterial)
+    }
+
+    func stock(for toolpath: ToolpathData) -> StockMaterial {
+        stock(for: setup(for: toolpath))
+    }
+
+    /// The stock of the active setup: what the canvas draws and the stock panel edits.
+    var activeStock: StockMaterial {
+        setups.first { $0.id == activeSetupID }.map { stock(for: $0) } ?? selectedStockMaterial
+    }
+
+    /// Whether the active setup has a stock of its own.
+    var activeSetupHasOwnStock: Bool {
+        setups.first { $0.id == activeSetupID }?.stock != nil
+    }
+
+    /// Why the active setup can't be cut from its stock, for the stock panel; nil when it can.
+    var activeStockWarning: String? {
+        guard let setup = setups.first(where: { $0.id == activeSetupID }),
+              let face = setup.face, face.isSide, !stock(for: setup).allowsSideFaces else {
+            return nil
+        }
+        return "\(face.title) needs a rectangular stock."
+    }
+
+    /// Writes the stock panel's edit where it belongs: into the active setup when it has a stock
+    /// of its own, into the project stock otherwise (which every other setup without one follows).
+    func setActiveStock(_ stock: StockMaterial) {
+        if let index = setups.firstIndex(where: { $0.id == activeSetupID }), setups[index].stock != nil {
+            setups[index].stock = stock
+        } else {
+            selectedStockMaterial = stock
+        }
+    }
+
+    /// Gives a setup a stock of its own, or (nil) makes it follow the project stock again.
+    func setSetupStock(_ id: UUID, to stock: StockMaterial?) {
+        guard let index = setups.firstIndex(where: { $0.id == id }), setups[index].stock != stock else {
+            return
+        }
+        setups[index].stock = stock
+    }
+
+    /// The canvas shows one stock: the active setup's.
+    private func syncCanvasStock() {
+        let stock = activeStock
+        if canvasState.stock != stock {
+            canvasState.stock = stock
+        }
+    }
+
+    /// Whether what a setup cuts depends on the shape and size of its stock: a turned setup is
+    /// built from it, and so is a facing of the whole stock.
+    private func cutsDependOnStockGeometry(in setup: Setup) -> Bool {
+        setup.angle != 0 || toolpaths.contains { $0.setupID == setup.id && $0.cutsWholeStock }
+    }
+
+    /// Whether a setup's stock changed its shape or size, which outdates that setup's results.
+    private func stockGeometryChanged(from old: [Setup], to new: [Setup]) -> Bool {
+        let before = Dictionary(old.map { ($0.id, stock(for: $0).geometry) }, uniquingKeysWith: { first, _ in first })
+        return new.contains { setup in
+            guard let previous = before[setup.id] else {
+                return false
+            }
+            return previous != stock(for: setup).geometry && cutsDependOnStockGeometry(in: setup)
+        }
+    }
+
     func setup(withID id: UUID?) -> Setup? {
         id.flatMap { id in setups.first { $0.id == id } }
     }
@@ -533,7 +612,8 @@ class CAMModel: ObservableObject {
     /// The map into the toolpath's setup. Throws a message for the Generate button when this
     /// stock or angle can't be handled (see `SetupFrame.make`).
     func setupFrame(for toolpath: ToolpathData) throws -> SetupFrame {
-        try SetupFrame.make(setup: setup(for: toolpath), stock: selectedStockMaterial)
+        let setup = setup(for: toolpath)
+        return try SetupFrame.make(setup: setup, stock: stock(for: setup))
     }
 
     /// Reads the Z of a chamfer's picked STEP edges from the geometry, in the toolpath's setup frame
@@ -562,7 +642,7 @@ class CAMModel: ObservableObject {
         guard let setup = setups.first(where: { $0.id == activeSetupID }) else {
             return .identity
         }
-        return (try? SetupFrame.make(setup: setup, stock: selectedStockMaterial)) ?? .identity
+        return (try? SetupFrame.make(setup: setup, stock: stock(for: setup))) ?? .identity
     }
 
     func activateSetup(_ id: UUID) {
@@ -572,13 +652,19 @@ class CAMModel: ObservableObject {
         activeSetupID = id
     }
 
-    /// Adds a setup at the end and makes it the active one.
+    /// Adds a setup at the end and makes it the active one. With a `stock` the setup is cut from
+    /// that workpiece instead of the project's (a second material for some of the part's edges).
+    /// Names only have to differ among the setups on the same stock: the dropdown tells a "Top"
+    /// from a "Top (Acrylic 3 mm)".
     @discardableResult
-    func addSetup(face: SetupFace, axis: SetupAxis? = nil) -> UUID {
+    func addSetup(face: SetupFace, axis: SetupAxis? = nil, stock: StockMaterial? = nil) -> UUID {
         let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
+        let label = stock?.setupLabel
+        let taken = Set(setups.filter { $0.stock?.setupLabel == label }.map(\.name))
         let setup = Setup(face: face,
                           axis: axis,
-                          name: Setup.uniqueName(for: face, axis: axis, among: Set(setups.map(\.name))))
+                          name: Setup.uniqueName(for: face, axis: axis, among: taken),
+                          stock: stock)
         setups.append(setup)
         activeSetupID = setup.id
         return setup.id
@@ -878,6 +964,7 @@ class CAMModel: ObservableObject {
         generationStore.generate(toolpath,
                                  linkedSource: linkedSource,
                                  frame: { try self.setupFrame(for: toolpath) },
+                                 stock: stock(for: toolpath),
                                  canvasState: canvasState,
                                  stepWorkspace: stepWorkspace)
     }

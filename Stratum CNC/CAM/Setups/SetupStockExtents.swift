@@ -57,3 +57,17 @@ extension StockMaterial {
         }
     }
 }
+
+extension StockMaterial {
+
+    /// "Acrylic 3 mm": what a setup's dropdown shows in parentheses for a stock of its own.
+    var setupLabel: String {
+        let size = Double(thickness).formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "en_US")))
+        return "\(material.displayName) \(size) mm"
+    }
+
+    /// Whether the stock can be stood on a side (front, back, left, right): only a rectangular block can.
+    var allowsSideFaces: Bool {
+        setupExtents.isBox
+    }
+}

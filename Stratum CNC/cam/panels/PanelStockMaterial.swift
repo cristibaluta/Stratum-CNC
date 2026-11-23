@@ -15,6 +15,16 @@ struct PanelStockMaterial: View {
     var onOpenStocksLib: (() async -> StockMaterial?)?
     /// When set, the library button opens the stocks library in a popover instead of calling `onOpenStocksLib`.
     var stocksStore: StocksStore? = nil
+    /// Which stock this panel edits, as a small tag in the summary: "Project stock" (shared by every
+    /// setup without a stock of its own) or "This setup only". Nil hides it (nothing to confuse).
+    var scopeTag: String? = nil
+    /// Set while the stock belongs to one setup: the details then offer "Use project stock".
+    var onUseProjectStock: (() -> Void)? = nil
+    /// Why the setup can't be cut from this stock (a side face needs a rectangular block).
+    var warning: String? = nil
+    /// A new value opens the details: a setup on a different stock was just added, and its stock
+    /// is the first thing to set.
+    var expandTrigger: UUID? = nil
 
     @State private var showingLibrary = false
 
@@ -24,9 +34,22 @@ struct PanelStockMaterial: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             summaryLine
+            if let warning {
+                Text(warning)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.orange)
+                    .padding(.top, 6)
+            }
             if isExpanded {
                 details
                     .padding(.top, 10)
+            }
+        }
+        .onChange(of: expandTrigger) { _ in
+            if expandTrigger != nil {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded = true
+                }
             }
         }
         .padding(12)
@@ -74,6 +97,15 @@ struct PanelStockMaterial: View {
                 }
             } label: {
                 HStack(spacing: 6) {
+                    if let scopeTag {
+                        Text(scopeTag)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(.quaternary))
+                            .fixedSize()
+                    }
                     Text(summary)
                         .font(.system(size: 12))
                         .lineLimit(1)
@@ -115,6 +147,18 @@ struct PanelStockMaterial: View {
         VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             Divider()
                 .padding(.bottom, 2)
+
+            if let onUseProjectStock {
+                HStack(spacing: 8) {
+                    Text("Only this setup is cut from this stock.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 4)
+                    Button("Use project stock", action: onUseProjectStock)
+                        .controlSize(.small)
+                        .help("Drop this setup's own stock and cut it from the project's again")
+                }
+            }
 
             StockMaterialForm(stock: $stock)
         }

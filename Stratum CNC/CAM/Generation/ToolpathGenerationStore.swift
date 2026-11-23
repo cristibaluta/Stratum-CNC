@@ -60,6 +60,7 @@ final class ToolpathGenerationStore: ObservableObject {
     func generate(_ toolpath: ToolpathData,
                   linkedSource: ToolpathData?,
                   frame makeFrame: () throws -> SetupFrame,
+                  stock: StockMaterial? = nil,
                   canvasState: D2_CanvasState,
                   stepWorkspace: STEPWorkspace) {
 
@@ -74,6 +75,7 @@ final class ToolpathGenerationStore: ObservableObject {
                                                 source: linkedSource,
                                                 canvasState: canvasState,
                                                 frame: frame,
+                                                stock: stock,
                                                 stepContours: { [workspace = stepWorkspace] in
 
                 let chamferEdge: SC.ChamferEdge? = $0.operation.kind == .chamfer
