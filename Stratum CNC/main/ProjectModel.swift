@@ -311,6 +311,12 @@ class ProjectModel: ObservableObject {
         }
         self.toolpaths = toolpaths
         camModel.toolpaths = toolpaths
+
+        // Only the active setup's objects are shown, and it is the first object's first setup
+        camModel.ensureDefaultSetups()
+        if let first = camModel.regularObjectIDs.first {
+            camModel.focusObject(first, keepingActiveSetup: false)
+        }
     }
 
     /// A file that exists couldn't be read. Keeps a copy, turns saving that file off (it would be

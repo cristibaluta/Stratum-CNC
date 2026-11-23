@@ -172,8 +172,14 @@ struct PanelToolpathPreview: View {
                     .help("Rough estimate from the length of the moves and their feed rates. Acceleration and tool changes aren't included, so the real time is a little longer.")
             }
             // Warnings don't stop the toolpath, and only matter while the result is current
+            // The app checks the cutting length itself (the library only warns for 3D pockets),
+            // always, so it shows with or without a result. The result and its scrubber stay.
+            let cuttingWarning = toolpath.cuttingLengthWarning
+            if let cuttingWarning {
+                InspectorNote(text: cuttingWarning, isWarning: true, isIndented: false)
+            }
             if let generation, generation.isCurrent(for: toolpath) {
-                ForEach(generation.warningMessages, id: \.self) { message in
+                ForEach(generation.warningMessages.filter { $0 != cuttingWarning }, id: \.self) { message in
                     InspectorNote(text: message, isWarning: true, isIndented: false)
                 }
             }

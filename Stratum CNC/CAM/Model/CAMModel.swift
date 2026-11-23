@@ -297,6 +297,11 @@ class CAMModel: ObservableObject {
         self.toolpaths = Self.orderedBySetup(toolpaths, setups: initialSetups)
         self.canvasState.stock = initialSetups[0].stock ?? selectedStockMaterial
 
+        stepWorkspace.onSceneLoaded = { [weak self] _ in
+            // A late-loading STEP body must respect the active setup right away
+            self?.ensureDefaultSetups()
+        }
+
         canvasState.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)

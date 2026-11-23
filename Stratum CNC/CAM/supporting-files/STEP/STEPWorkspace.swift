@@ -90,6 +90,8 @@ final class STEPWorkspace: ObservableObject {
     /// Called after the user moved, turned, scaled or deleted a body, so the project can save it:
     /// the file, the body's `stateKey` and its whole state.
     var onBodyStateChanged: (@MainActor (UUID, String, STEPBodyState) -> Void)?
+    /// Called as soon as a file's scene is stored, before it can be drawn.
+    var onSceneLoaded: (@MainActor (STEPDocumentScene) -> Void)?
     /// The open toolpath's edges and where edits go; set while a toolpath is open.
     private var picking: (targets: [STEPEdgeTarget], onChange: (UUID, Set<STEP.EdgeID>) -> Void)?
     private var tasks: [UUID: Task<Void, Never>] = [:]
@@ -439,6 +441,9 @@ final class STEPWorkspace: ObservableObject {
                 }
                 let scene = self.makeScene(for: source.id, content: content)
                 self.documents[source.id] = scene
+                // Same turn of the run loop: bodies the active setup doesn't include are
+                // excluded before the scene is ever drawn, so they don't flash on screen.
+                self.onSceneLoaded?(scene)
                 self.observe(scene, for: source.id)
                 self.attachPicking(to: scene)
                 self.finish(source.id)

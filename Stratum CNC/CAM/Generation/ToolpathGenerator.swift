@@ -377,7 +377,8 @@ enum ToolpathGenerator {
             case .islandBelowFloor(topZ: let topZ, floorZ: let floorZ):
                 return "TODO"
             case .depthExceedsFluteLength(depth: let depth, fluteLength: let fluteLength):
-                return "TODO"
+                return String(format: "The tool's cutting length (%.2f mm) is less than the depth to mill (%.2f mm).",
+                              fluteLength, depth)
             case .toolDoesNotFit(shapeSize: let shapeSize, toolDiameter: let toolDiameter):
                 return String(format: "A shape (about %.2f mm wide) is smaller than the tool (Ø%.2f mm), so no toolpath was generated for it.",
                               shapeSize, toolDiameter)

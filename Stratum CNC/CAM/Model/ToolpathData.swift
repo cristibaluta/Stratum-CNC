@@ -263,6 +263,24 @@ extension ToolpathData {
         return nil
     }
 
+    /// A heads-up (not a blocker) when the tool's cutting length is shorter than the depth to mill,
+    /// so the cut would run into the shank/holder. `nil` when it reaches, or for operations whose
+    /// depth isn't a plain Z range (chamfer, engrave, thread).
+    var cuttingLengthWarning: String? {
+        switch operation.kind {
+            case .chamfer, .engrave, .threadMilling:
+                return nil
+            default:
+                break
+        }
+        let length = Double(tool.cuttingHeight ?? 0)
+        guard length > 0, cutDepth > length + 1e-6 else {
+            return nil
+        }
+        return String(format: "The tool's cutting length (%.2f mm) is less than the depth to mill (%.2f mm).",
+                      length, cutDepth)
+    }
+
     /// Why the picked tool can't do the operation, if it can't. These are the cases the
     /// library would otherwise only refuse at Preview (see `ToolpathGenerator.message`).
     var toolCompatibilityWarning: String? {
