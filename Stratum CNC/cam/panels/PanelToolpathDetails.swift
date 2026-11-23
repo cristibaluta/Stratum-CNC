@@ -92,7 +92,7 @@ struct PanelToolpathDetails: View {
             }) {
                 rowXYMovement
             }
-            // Start Z, End Z, the depth per pass, the holding tabs, and the Safe and Retract heights.
+            // Start Z, End Z, the depth per pass, the Safe and Retract heights, and the holding tabs.
             InspectorSection(title: "Z axis", collapsible: true, compact: {
                 rowDepthCompact
             }) {
@@ -197,8 +197,8 @@ struct PanelToolpathDetails: View {
         if OperationOptionsView.hasEntry(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, part: .entry)
         }
-        InspectorNumberField(title: "Ramp start Z", value: $toolpath.rampStartZ, suffix: "mm")
-            .help("Height above the stock where the entry starts. The tool rapids down to here, then enters: a ramp or helix starts its angled descent from this height, a plunge feeds straight down from it.")
+        InspectorNumberField(title: "Start offset", value: $toolpath.startOffset, suffix: "mm")
+            .help("How far above Start Z the entry starts. The tool rapids down to here, then enters: a ramp or helix starts its angled descent from this height, a plunge feeds straight down from it.")
         // Always available, also for operations without an entry strategy (drill, bore…)
         InspectorNumberField(title: "Entry feed", value: $toolpath.plungeRate, suffix: "mm/min")
             .help(model.plungeFeedHelp(for: toolpath))
@@ -255,14 +255,15 @@ struct PanelToolpathDetails: View {
         if OperationOptionsView.hasDepthFields(for: toolpath) {
             OperationOptionsView(toolpath: $toolpath, part: .depth)
         }
-        // Holding tabs (contour): material left standing at the bottom of the cut
-        if OperationOptionsView.hasTabs(for: toolpath) {
-            OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, part: .tabs)
-        }
         InspectorNumberField(title: "Safe Z", value: $toolpath.safeZ, suffix: "mm")
             .help("The height the tool starts and ends at, and travels at between distant cuts.")
         InspectorNumberField(title: "Retract Z", value: $toolpath.retractZ, suffix: "mm")
             .help("The height the tool lifts to between passes. Not higher than Safe Z.")
+        // Holding tabs (contour): material left standing at the bottom of the cut. Last in the
+        // section, after the heights.
+        if OperationOptionsView.hasTabs(for: toolpath) {
+            OperationOptionsView(toolpath: $toolpath, targetShapes: targetShapes, part: .tabs)
+        }
     }
 
     /// A chamfer's Start Z and End Z, calculated and not editable. Start Z is the top of the bevel
@@ -352,7 +353,7 @@ struct PanelToolpathDetails: View {
     }
 
     /// The Entry section's collapsed form: the strategy, its angle and the feed going down.
-    /// The Ramp start Z, the lead-in and the lead-out are in the full section only.
+    /// The Start offset, the lead-in and the lead-out are in the full section only.
     @ViewBuilder
     private var rowEntryCompact: some View {
         HStack(spacing: 6) {
@@ -365,11 +366,12 @@ struct PanelToolpathDetails: View {
         }
     }
 
-    /// How many passes Start Z, End Z and the stepdown come to, under the field that sets it.
+    /// A problem with the passes Start Z, End Z and the stepdown come to, under the field that sets
+    /// it. Only the warning: how many passes there are is in the preview panel.
     @ViewBuilder
     private func passesNote(stepdown: Double) -> some View {
-        if let note = model.passesNote(for: toolpath, stepdown: stepdown) {
-            InspectorNote(text: note.text, isWarning: note.isWarning)
+        if let note = model.passesNote(for: toolpath, stepdown: stepdown), note.isWarning {
+            InspectorNote(text: note.text, isWarning: true)
         }
     }
 

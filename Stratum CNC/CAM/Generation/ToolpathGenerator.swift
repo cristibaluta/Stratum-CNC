@@ -307,7 +307,10 @@ enum ToolpathGenerator {
                                   // `SC.OperationRequirements.usesAllowance`); the rest ignore them.
                                   allowance: toolpath.operation.stockToLeave,
                                   finishingPass: toolpath.operation.finishingPass,
-                                  rampStartZ: toolpath.rampStartZ)
+                                  // Where the cut begins and how far above it the entry starts. A positive
+                                  // Start Z is the top of the stock (see `droppingPasses`).
+                                  startZ: min(toolpath.startZ, 0),
+                                  startOffset: toolpath.startOffset)
     }
 
     /// A message fit for showing under the Generate button. `operation` (the operation the

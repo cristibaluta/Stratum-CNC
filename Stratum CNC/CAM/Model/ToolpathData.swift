@@ -34,11 +34,11 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     var safeZ: Double
     /// The low travel height (mm) for the hops between passes. Never above `safeZ` (see `ToolpathGenerator.makeSettings`).
     var retractZ: Double = 1
-    /// Height above the stock (mm, positive) where the entry starts: the tool rapids down to
-    /// here, then enters. A ramp or helix begins its angled descent from here (so it starts in
-    /// the air); a plunge feeds straight down from here. 0 starts at the top of the stock.
-    /// Maps to `SC.MachineSettings.rampStartZ`. Saved as `entryZ` in older projects.
-    var rampStartZ: Double = 1
+    /// How far above Start Z (mm, positive) the entry starts: the tool rapids down to here, then
+    /// enters. A ramp or helix begins its angled descent from here, in the air; a plunge feeds
+    /// straight down from here. 0 starts at Start Z. Relative to Start Z, so it follows it.
+    /// Maps to `SC.MachineSettings.startOffset`. Saved as `entryZ` (and, briefly, `rampStartZ`) in older projects.
+    var startOffset: Double = 1
 
     /// The contours (paths on the canvas) this toolpath cuts. Empty until the
     /// user picks some — picked on the canvas while the toolpath is open (see CAMModel.selectedToolpathID).
@@ -68,7 +68,7 @@ struct ToolpathData: Identifiable, Codable, Hashable {
         case startZ, endZ
         case contour, ramping
         case feedRate, plungeRate, spindleRPM
-        case stepDown, stepOverPercent, safeZ, retractZ, rampStartZ
+        case stepDown, stepOverPercent, safeZ, retractZ, startOffset
         case targets, stepTargets, setupID
         case operation, editedFields
     }
@@ -322,9 +322,9 @@ extension ToolpathData {
         }
     }
 
-    /// Keys of older projects: the stepover in mm, and the ramp start height as `entryZ`.
+    /// Keys of older projects: the stepover in mm, and the entry height as `entryZ` or `rampStartZ`.
     private enum LegacyCodingKeys: String, CodingKey {
-        case stepOver, entryZ
+        case stepOver, entryZ, rampStartZ
     }
 }
 
@@ -347,9 +347,10 @@ extension ToolpathData {
         safeZ = try c.decode(Double.self, forKey: .safeZ)
         // Projects saved before Retract Z existed used a fixed 1 mm.
         retractZ = try c.decodeIfPresent(Double.self, forKey: .retractZ) ?? 1
-        // Projects saved before the rename called it Entry Z.
+        // Projects saved before the rename called it Entry Z, then Ramp start Z.
         let legacyKeys = try decoder.container(keyedBy: LegacyCodingKeys.self)
-        rampStartZ = try c.decodeIfPresent(Double.self, forKey: .rampStartZ)
+        startOffset = try c.decodeIfPresent(Double.self, forKey: .startOffset)
+            ?? legacyKeys.decodeIfPresent(Double.self, forKey: .rampStartZ)
             ?? legacyKeys.decodeIfPresent(Double.self, forKey: .entryZ)
             ?? 1
 
