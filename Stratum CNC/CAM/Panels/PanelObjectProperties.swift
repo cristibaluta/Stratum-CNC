@@ -125,15 +125,15 @@ struct PanelObjectProperties: View {
                 }
                 if let size = model.size {
                     InspectorSection(title: "Size") {
-                        valueRow("Width", value: CGFloat(size.x), unit: "mm") {
+                        valueRow("Width (X)", value: CGFloat(size.x), unit: "mm") {
                             onStepModelWidthChanged?(model.id, $0)
                         } trailing: {
                             SmallButton("÷2") { onStepModelScale?(model.id, -2) }
                             SmallButton("×2") { onStepModelScale?(model.id, 2) }
                         }
                         // Depth and height follow the width: the body is scaled as a whole.
-                        readOnlyRow("Depth", size.y)
-                        readOnlyRow("Height", size.z)
+                        readOnlyRow("Height (Y)", size.y)
+                        readOnlyRow("Depth (Z)", size.z)
                     }
                 }
             } else {
