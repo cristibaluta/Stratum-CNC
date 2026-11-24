@@ -25,10 +25,10 @@ extension SC.MachiningOperation {
                            onChange: @escaping (SC.MachiningOperation) -> Void) -> [SC.ParameterField] {
         switch self {
 
-            case .facing(let direction, let extensionLength):
+            case .facing(let direction, let extensionLength, let angle):
                 return [
                     .choice(SC.cutDirectionChoice(id: "facing.direction", current: direction, onChange: {
-                        onChange(.facing(direction: $0, extensionLength: extensionLength))
+                        onChange(.facing(direction: $0, extensionLength: extensionLength, angle: angle))
                     })),
                     .double(.init(id: "facing.extensionLength",
                                   label: "Extension Length",
@@ -36,7 +36,15 @@ extension SC.MachiningOperation {
                                   range: 0.0...50.0,
                                   value: extensionLength,
                                   onChange: {
-                        onChange(.facing(direction: direction, extensionLength: $0))
+                        onChange(.facing(direction: direction, extensionLength: $0, angle: angle))
+                    })),
+                    .double(.init(id: "facing.angle",
+                                  label: "Angle",
+                                  unit: "°",
+                                  range: 0.0...180.0,
+                                  value: angle,
+                                  onChange: {
+                        onChange(.facing(direction: direction, extensionLength: extensionLength, angle: $0))
                     }))
                     // The stepover and stepdown are general settings (CuttingData), read by
                     // facing like by a pocket; the app draws them itself.

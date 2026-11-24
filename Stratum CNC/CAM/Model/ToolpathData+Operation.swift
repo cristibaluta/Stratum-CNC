@@ -37,8 +37,9 @@ extension ToolpathData {
 
         switch newValue {
 
-            case .facing(_, let extensionLength):
+            case .facing(_, let extensionLength, let angle):
                 operation.facingExtension = extensionLength
+                operation.facingAngle = angle
 
             case .slotting(let depthPerPass, _, _):
                 operation.slotDepthPerPass = depthPerPass
@@ -111,4 +112,3 @@ extension ToolpathData {
         }
     }
 }
-

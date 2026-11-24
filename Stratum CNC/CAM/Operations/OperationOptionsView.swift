@@ -381,6 +381,7 @@ struct OperationOptionsView: View {
             // How far a facing runs past the selection, and on which sides.
             if kind == .facing {
                 facingExtensionRows
+                facingAngleRow
             }
 
             // Stock for a finishing pass: wherever the library says the operation can leave some.
@@ -421,6 +422,11 @@ struct OperationOptionsView: View {
                 if !toolpath.operation.facingWholeStock {
                     facingSidesButton
                 }
+                InspectorCompactNumberField(tag: "Angle",
+                                            value: facingAngle,
+                                            suffix: "°",
+                                            help: "Angle (°): the direction of the facing passes. 0 runs them along X, 90 along Y.")
+                FacingAnglePresets(angle: facingAngle)
             }
             if requirements.usesAllowance, !isRest {
                 InspectorCompactNumberField(tag: "Leave",
@@ -647,6 +653,29 @@ struct OperationOptionsView: View {
         )
     }
 
+    // MARK: Facing angle
+
+    /// The range the library accepts for the angle (`facing.angle`), degrees.
+    private static let facingAngleRange: ClosedRange<Double> = 0...180
+
+    private var facingAngle: Binding<Double> {
+        Binding(
+            get: { toolpath.operation.facingAngle },
+            set: { toolpath.operation.facingAngle = min(max($0, Self.facingAngleRange.lowerBound),
+                                                         Self.facingAngleRange.upperBound) }
+        )
+    }
+
+    /// The direction of the passes, with three icons after the field that set the usual ones:
+    /// vertical (90°), angled (45°) and horizontal (0°) lines.
+    private var facingAngleRow: some View {
+        InspectorNumberField(title: "Angle", value: facingAngle, suffix: "°") {
+            FacingAnglePresets(angle: facingAngle)
+        }
+        .help("The direction of the facing passes, in degrees: 0 runs them along X, 90 along Y. "
+              + "The icons on the right set vertical (90°), angled (45°) or horizontal (0°) passes.")
+    }
+
     /// The icon that opens the popover where the sides are chosen. A facing of the whole stock
     /// has no selection to extend past, so it has no sides to choose.
     private var facingSidesButton: some View {
@@ -833,8 +862,9 @@ private extension SC.MachiningOperation.Kind {
             return ["entry", "pattern", "slotting.depthPerPass"]
         case .facing:
             // The extension length is edited in the XY plane section, next to the button that
-            // chooses the sides it applies to (`facingExtensionRows`).
-            return ["facing.extensionLength"]
+            // chooses the sides it applies to (`facingExtensionRows`); the angle next to its
+            // vertical / angled / horizontal presets (`facingAngleRow`).
+            return ["facing.extensionLength", "facing.angle"]
         case .drilling:
             // The peck depth is edited in the Z axis section (`PanelToolpathDetails.rowDepth`).
             return ["drilling.peckDepth"]

@@ -150,7 +150,9 @@ enum ToolpathGenerator {
                 .area(of: box, extendedBy: toolpath.operation.facingExtension)
             contours = [StockMaterial.rectangleContour(minX: Double(area.minX), minY: Double(area.minY),
                                                        maxX: Double(area.maxX), maxY: Double(area.maxY))]
-            operation = .facing(direction: toolpath.operation.direction, extensionLength: 0)
+            operation = .facing(direction: toolpath.operation.direction,
+                                extensionLength: 0,
+                                angle: toolpath.operation.facingAngle)
             PerfLog.log("gen", String(format: "facing on %@: %.2f × %.2f → %.2f × %.2f mm",
                                       toolpath.operation.facingSides.summary,
                                       Double(box.width), Double(box.height), Double(area.width), Double(area.height)))
@@ -402,6 +404,8 @@ enum ToolpathGenerator {
                 return "The adaptive optimal load must be greater than 0 and at most 95 % of the tool diameter."
             case "facing.extensionLength":
                 return "The facing extension can't be negative."
+            case "facing.angle":
+                return "The facing angle must be between 0° and 180°."
             case "slotting.depthPerPass":
                 return "Depth per pass must be greater than 0."
             case "drilling.peckDepth":
@@ -540,7 +544,8 @@ extension ToolpathGenerator {
 
             case .facing:
                 return .facing(direction: direction,
-                               extensionLength: options.facingExtension)
+                               extensionLength: options.facingExtension,
+                               angle: options.facingAngle)
 
             case .slotting:
                 // The pattern only matters together with `.fromOpenEnd` entry; for a plunge, ramp or
