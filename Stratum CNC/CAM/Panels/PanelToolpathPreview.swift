@@ -259,9 +259,11 @@ struct PanelToolpathPreview: View {
            scrub.stepCount > 0 {
 
             let total = scrub.stepCount
-            ToggleField(title: "First & last pass",
-                        isOn: showsFirstAndLastPassOnly,
-                        help: "Preview only the first and the last pass of each toolpath, instead of every pass. The generated G-code is not affected.")
+            Toggle("First & last pass only", isOn: showsFirstAndLastPassOnly)
+                .stCheckboxToggleStyle()
+                .controlSize(.small)
+                .help("Preview only the first and the last pass of each toolpath, instead of every pass. The generated G-code is not affected.")
+
             Slider(value: model.scrubBinding(total: total, onScrub: onScrub), in: 0...Double(total))
                 .controlSize(.small)
             .help("Scrub through the generated toolpath")

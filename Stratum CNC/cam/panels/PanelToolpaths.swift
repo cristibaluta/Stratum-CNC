@@ -29,8 +29,6 @@ struct PanelToolpaths: View {
     var onMoveToSetup: ((UUID, UUID) -> Void)?
 
     @StateObject private var reorder = ToolpathReorderModel()
-    /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
-    @State private var isExpanded = true
     /// The "+" opens the operations to choose what the new toolpath does.
     @State private var isChoosingOperation = false
 
@@ -51,25 +49,23 @@ struct PanelToolpaths: View {
         VStack(alignment: .leading, spacing: 8) {
             header
 
-            if isExpanded {
-                Divider()
+            Divider()
 
-                if visibleToolpaths.isEmpty {
-                    Text("No toolpaths")
-                        .foregroundStyle(.secondary)
-                        .font(.system(size: 12))
-                        .padding(.vertical, 2)
-                } else {
-                    rows(visibleToolpaths)
-                        // Rows pad their content by 6: grow them outward by as much, so the
-                        // icons line up with the header and the other elements
-                        .padding(.horizontal, -6)
-                }
-
-                Divider()
-
-                footer
+            if visibleToolpaths.isEmpty {
+                Text("No toolpaths")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12))
+                    .padding(.vertical, 2)
+            } else {
+                rows(visibleToolpaths)
+                    // Rows pad their content by 6: grow them outward by as much, so the
+                    // icons line up with the header and the other elements
+                    .padding(.horizontal, -6)
             }
+
+            Divider()
+
+            footer
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -79,32 +75,26 @@ struct PanelToolpaths: View {
 
     // MARK: - Header
 
-    /// The title, how many toolpaths there are, and the chevron. The whole line toggles the panel.
+    /// The title, how many toolpaths there are, and the send-to-controller button at the top right.
     private var header: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isExpanded.toggle()
+        HStack(spacing: 6) {
+            Text("Toolpaths")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            if !visibleToolpaths.isEmpty {
+                Text("\(visibleToolpaths.count)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
             }
-        } label: {
-            HStack(spacing: 6) {
-                Text("Toolpaths")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
 
-                if !visibleToolpaths.isEmpty {
-                    Text("\(visibleToolpaths.count)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
-                }
+            Spacer(minLength: 4)
 
-                Spacer(minLength: 4)
-
-                InspectorChevron(isExpanded: isExpanded)
+            PreviewInControllerButton(gCodeStore: projectModel.gCodeStore) {
+                projectModel.saveIfNeeded()
+                projectModel.previewInController()
             }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .help(isExpanded ? "Hide toolpaths" : "Show toolpaths")
     }
 
     /// The + at the bottom left.
@@ -130,10 +120,6 @@ struct PanelToolpaths: View {
             }
 
             Spacer()
-            PreviewInControllerButton(gCodeStore: projectModel.gCodeStore) {
-                projectModel.saveIfNeeded()
-                projectModel.previewInController()
-            }
         }
     }
 
@@ -205,14 +191,15 @@ struct PanelToolpaths: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            // The tool's diameter and where the toolpath ends; the name gives way when narrow
-            Text("Ø\(Self.number(Double(toolpath.tool.toolDiameter)))")
-                .foregroundStyle(.secondary)
-                .fixedSize()
+            // The tool's diameter and where the toolpath ends; the name gives way when narrow.
+            // Both sit in fixed-width, right-aligned columns so the numbers line up row to row.
+            valueColumn(symbol: "Ø",
+                        value: Self.diameterText(of: toolpath),
+                        width: Self.diameterColumnWidth)
                 .help("Tool: \(toolpath.tool.name)")
-            Text(Self.endZText(of: toolpath))
-                .foregroundStyle(.secondary)
-                .fixedSize()
+            valueColumn(symbol: "Z",
+                        value: Self.endZText(of: toolpath),
+                        width: Self.endZColumnWidth)
                 .help("Final Z")
         }
         .font(.system(size: 11))
@@ -243,13 +230,33 @@ struct PanelToolpaths: View {
         }
     }
 
+    private static let diameterColumnWidth: CGFloat = 52
+    private static let endZColumnWidth: CGFloat = 44
+
+    /// A right-aligned, fixed-width cell: a light gray symbol followed by the value.
+    private func valueColumn(symbol: String, value: String, width: CGFloat) -> some View {
+        HStack(spacing: 0) {
+            Text(symbol)
+                .foregroundStyle(.tertiary)
+            Text(value)
+                .foregroundStyle(.secondary)
+        }
+        .monospacedDigit()
+        .lineLimit(1)
+        .frame(width: width, alignment: .trailing)
+    }
+
+    private static func diameterText(of toolpath: ToolpathData) -> String {
+        Double(toolpath.tool.toolDiameter).formatted(.number.precision(.fractionLength(3)))
+    }
+
     /// A counterbore keeps its depth apart from `endZ`, as a positive number below the top.
     private static func endZText(of toolpath: ToolpathData) -> String {
         let z = toolpath.operation.kind == .counterbore
             ? -toolpath.operation.counterboreDepth
             : toolpath.endZ
-        // Depth below the top, so shown without the sign: "Z1.5"
-        return "Z\(number(abs(z)))"
+        // Depth below the top, so shown without the sign: "1.5"
+        return number(abs(z))
     }
 
     private static func number(_ value: Double) -> String {
@@ -328,11 +335,11 @@ private struct PreviewInControllerButton: View {
             if gCodeStore.isGeneratingFromCAM {
                 ProgressView().controlSize(.small)
             } else {
-                Label("Preview in Controller", systemImage: "arrow.triangle.2.circlepath")
+                Label("Send to controller", systemImage: "paperplane")
                     .font(.system(size: 12))
             }
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.bordered)
         .disabled(gCodeStore.isGeneratingFromCAM)
         .help("Generate all toolpaths and open them in the Controller")
     }

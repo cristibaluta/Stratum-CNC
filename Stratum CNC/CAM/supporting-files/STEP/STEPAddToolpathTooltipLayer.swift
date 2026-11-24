@@ -204,7 +204,11 @@ private struct STEPSelectionCallout: View {
                     isChoosing = false
                     onChoose(kind)
                 } label: {
-                    Label(kind.title, systemImage: kind.symbol)
+                    Label {
+                            Text(kind.title)
+                        } icon: {
+                            OperationIcon(kind: kind, size: 13)
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.bordered)

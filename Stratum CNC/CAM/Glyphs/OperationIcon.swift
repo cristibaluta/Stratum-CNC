@@ -9,7 +9,7 @@ import SwiftUI
 import StratumCAM
 
 /// The icon of an operation: its SF Symbol, or a drawing of its own where SF Symbols have
-/// nothing fitting (the thread mill). Sized like `Image(systemName:).font(.system(size:))`;
+/// nothing fitting (the thread mill and the chamfer). Sized like `Image(systemName:).font(.system(size:))`;
 /// colour it with `foregroundStyle`.
 struct OperationIcon: View {
     let kind: SC.MachiningOperation.Kind
@@ -24,6 +24,10 @@ struct OperationIcon: View {
         } else if kind == .threadMilling {
             ThreadMillGlyph()
                 .stroke(style: StrokeStyle(lineWidth: max(1, size / 13), lineJoin: .round))
+                .frame(width: size, height: size)
+        } else if kind == .chamfer {
+            ChamferGlyph()
+                .stroke(style: StrokeStyle(lineWidth: max(1, size / 9), lineCap: .round, lineJoin: .round))
                 .frame(width: size, height: size)
         } else {
             Image(systemName: kind.symbol)
