@@ -18,7 +18,9 @@ struct STEPFaceUpPicker: View {
     private static let rows: [[SetupFace]] = [[.top, .front, .right], [.bottom, .back, .left]]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // Square tiles, pushed to the right edge like the fields of the other sections (they
+        // don't need to line up with the fields, but they don't start at the left either)
+        VStack(alignment: .trailing, spacing: 8) {
             ForEach(Array(Self.rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 8) {
                     ForEach(row) { face in
@@ -29,17 +31,21 @@ struct STEPFaceUpPicker: View {
             Text(selection.upDescription)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
+
+    /// Side of a tile's square drawing.
+    private static let tileSide: CGFloat = 56
 
     private func tile(_ face: SetupFace) -> some View {
         let isSelected = face == selection
         return Button { onSelect(face) } label: {
             VStack(spacing: 4) {
                 STEPFaceGlyph(face: face)
-                    .frame(height: 44)
-                    .frame(maxWidth: .infinity)
+                    .frame(width: Self.tileSide, height: Self.tileSide)
                     .background(RoundedRectangle(cornerRadius: 8).fill(Color(.rampCardBackground)))
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
@@ -53,7 +59,6 @@ struct STEPFaceUpPicker: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
     }
 }

@@ -399,33 +399,13 @@ struct CAMView: View {
         camModel.activeSetupHasOwnStock ? "This setup only" : nil
     }
 
+    /// The objects, their setups and the STEP models, in the list on the left.
     private var inspectorPanel: some View {
-        inspector(part: .list)
-    }
-
-    /// The selected object's face up, position and size, in a panel of its own on the right.
-    private var objectPropertiesPanel: some View {
-        inspector(part: .properties)
-            .frame(width: 320)
-    }
-
-    private func inspector(part: PanelObjectsInspector.Part) -> some View {
-        // The list shows the canvas's selection (several objects can be selected to combine them);
-        // the properties panel shows the focused object, or the group when several are selected
+        // The list shows the canvas's selection (several objects can be selected to combine them)
         let realSelection = camModel.canvasState.selectedObjectIDs
-        let focus = camModel.focusedObjectID
-        let focusIs2D = focus.map { camModel.canvasState.object(withID: $0) != nil } ?? false
-        var propertyIDs: Set<UUID> = []
-        if realSelection.count > 1 {
-            propertyIDs = realSelection
-        } else if let focus, focusIs2D {
-            propertyIDs = [focus]
-        }
-        let focusedStepID = focusIs2D ? nil : focus
         return PanelObjectsInspector(
             elements: camModel.canvasState.objects,
-            selectedIDs: part == .list ? realSelection : propertyIDs,
-            selectionBounds: camModel.canvasState.selectionBounds,
+            selectedIDs: realSelection,
             onSelectionChanged: { id, extend in
                 camModel.stepWorkspace.selectedModelID = nil
                 if extend {
@@ -440,39 +420,11 @@ struct CAMView: View {
             onToggleVisibility: { id in
                 camModel.canvasState.toggleObjectVisibility(id)
             },
-            onValueChanged: { id, property, value in
-                camModel.canvasState.setValue(value, for: property, objectID: id)
-            },
-            onNudge: { id, property, amount in
-                camModel.canvasState.nudge(id, property: property, amount: amount)
-            },
-            onScale: { id, factor in
-                camModel.canvasState.scaleWidth(id, factor: factor)
-            },
-            onRotate: { id, degrees in
-                camModel.canvasState.rotateObject(id, by: degrees)
-            },
-            onGroupValueChanged: { property, value in
-                camModel.canvasState.setSelectionValue(value, for: property)
-            },
-            onGroupNudge: { property, amount in
-                switch property {
-                    case .x: camModel.canvasState.moveSelection(dx: amount, dy: 0)
-                    case .y: camModel.canvasState.moveSelection(dx: 0, dy: amount)
-                    default: break
-                }
-            },
-            onGroupScale: { factor in
-                camModel.canvasState.scaleSelection(factor: factor)
-            },
             onAddNew: {
                 camModel.showingFilePicker = true
             },
             onCreateAlignmentPins: {
                 showingAlignmentPins = true
-            },
-            onAlignmentPinsChanged: { id, diameter, offset in
-                camModel.canvasState.setAlignmentPins(id, diameter: diameter, offset: offset)
             },
             onDelete: { id in
                 camModel.canvasState.removeObject(id)
@@ -486,9 +438,7 @@ struct CAMView: View {
             },
             stepModels: stepModelItems,
             // A selected 2D object wins: the model's fields only show when none is selected.
-            selectedStepModelID: part == .list
-                ? (camModel.canvasState.selectedObjectIDs.isEmpty ? camModel.stepWorkspace.selectedModelID : nil)
-                : focusedStepID,
+            selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty ? camModel.stepWorkspace.selectedModelID : nil,
             onSelectStepModel: { id in
                 camModel.canvasState.clearSelection()
                 if camModel.stepWorkspace.selectedModelID == id {
@@ -500,29 +450,6 @@ struct CAMView: View {
             },
             onToggleStepModelVisibility: { id in
                 camModel.stepWorkspace.toggleVisibility(of: id)
-            },
-            onStepModelValueChanged: { id, axis, value in
-                moveSTEPModel(id, axis: axis, to: Float(value))
-            },
-            onStepModelNudge: { id, axis, amount in
-                let workspace = camModel.stepWorkspace
-                let current = workspace.position(of: id)
-                let value: Float
-                switch axis {
-                    case .x: value = current.x
-                    case .y: value = current.y
-                    case .z: value = current.z
-                }
-                moveSTEPModel(id, axis: axis, to: value + Float(amount))
-            },
-            onStepModelOrientationChanged: { id, face in
-                camModel.stepWorkspace.setOrientation(face, for: id)
-            },
-            onStepModelWidthChanged: { id, width in
-                camModel.stepWorkspace.setWidth(Float(width), for: id)
-            },
-            onStepModelScale: { id, factor in
-                camModel.stepWorkspace.scaleModel(id, factor: factor)
             },
             onDeleteStepModel: { id in
                 do {
@@ -585,13 +512,7 @@ struct CAMView: View {
                     camModel.isSetupSelected = true
                 }
             },
-            overriddenObjectIDs: Set(camModel.setups.first { $0.id == camModel.activeSetupID }?
-                .items.filter { $0.transformOverride != nil }.map(\.objectID) ?? []),
-            offersPlacementScope: camModel.setups.count > 1,
-            onPlacementOverrideChanged: { id, enabled in
-                camModel.setPlacementOverride(enabled, for: id)
-            },
-            focusedObjectID: focus,
+            focusedObjectID: camModel.focusedObjectID,
             onSelectObject: { id in
                 let focusChanges = id != camModel.focusedObjectID
                 if focusChanges {
@@ -607,9 +528,89 @@ struct CAMView: View {
                     camModel.stepWorkspace.select(model: id)
                 }
             },
-            isSetupSelected: camModel.isSetupSelected,
-            part: part
+            isSetupSelected: camModel.isSetupSelected
         )
+    }
+
+
+    /// The selected object's face up, position and size, in a panel of its own on the right.
+    private var objectPropertiesPanel: some View {
+        // The panel shows the focused object, or the group when several are selected
+        let realSelection = camModel.canvasState.selectedObjectIDs
+        let focus = camModel.focusedObjectID
+        let focusIs2D = focus.map { camModel.canvasState.object(withID: $0) != nil } ?? false
+        var propertyIDs: Set<UUID> = []
+        if realSelection.count > 1 {
+            propertyIDs = realSelection
+        } else if let focus, focusIs2D {
+            propertyIDs = [focus]
+        }
+        let focusedStepID = focusIs2D ? nil : focus
+        return PanelObjectProperties(
+            elements: camModel.canvasState.objects,
+            selectedIDs: propertyIDs,
+            selectionBounds: camModel.canvasState.selectionBounds,
+            onValueChanged: { id, property, value in
+                camModel.canvasState.setValue(value, for: property, objectID: id)
+            },
+            onNudge: { id, property, amount in
+                camModel.canvasState.nudge(id, property: property, amount: amount)
+            },
+            onScale: { id, factor in
+                camModel.canvasState.scaleWidth(id, factor: factor)
+            },
+            onRotate: { id, degrees in
+                camModel.canvasState.rotateObject(id, by: degrees)
+            },
+            onGroupValueChanged: { property, value in
+                camModel.canvasState.setSelectionValue(value, for: property)
+            },
+            onGroupNudge: { property, amount in
+                switch property {
+                    case .x: camModel.canvasState.moveSelection(dx: amount, dy: 0)
+                    case .y: camModel.canvasState.moveSelection(dx: 0, dy: amount)
+                    default: break
+                }
+            },
+            onGroupScale: { factor in
+                camModel.canvasState.scaleSelection(factor: factor)
+            },
+            onAlignmentPinsChanged: { id, diameter, offset in
+                camModel.canvasState.setAlignmentPins(id, diameter: diameter, offset: offset)
+            },
+            stepModels: stepModelItems,
+            selectedStepModelID: focusedStepID,
+            onStepModelValueChanged: { id, axis, value in
+                moveSTEPModel(id, axis: axis, to: Float(value))
+            },
+            onStepModelNudge: { id, axis, amount in
+                let workspace = camModel.stepWorkspace
+                let current = workspace.position(of: id)
+                let value: Float
+                switch axis {
+                    case .x: value = current.x
+                    case .y: value = current.y
+                    case .z: value = current.z
+                }
+                moveSTEPModel(id, axis: axis, to: value + Float(amount))
+            },
+            onStepModelOrientationChanged: { id, face in
+                camModel.stepWorkspace.setOrientation(face, for: id)
+            },
+            onStepModelWidthChanged: { id, width in
+                camModel.stepWorkspace.setWidth(Float(width), for: id)
+            },
+            onStepModelScale: { id, factor in
+                camModel.stepWorkspace.scaleModel(id, factor: factor)
+            },
+            overriddenObjectIDs: Set(camModel.setups.first { $0.id == camModel.activeSetupID }?
+                .items.filter { $0.transformOverride != nil }.map(\.objectID) ?? []),
+            offersPlacementScope: camModel.setups.count > 1,
+            onPlacementOverrideChanged: { id, enabled in
+                camModel.setPlacementOverride(enabled, for: id)
+            }
+        )
+        .frame(width: 320)
     }
 
     private var stepModelItems: [STEPModelItem] {

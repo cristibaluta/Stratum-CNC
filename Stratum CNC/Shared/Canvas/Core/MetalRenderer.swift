@@ -771,6 +771,7 @@ class MetalRenderer: NSObject {
     /// used only for framing the camera — rotation-invariant, so it doesn't
     /// matter that the camera can orbit.
     private func contentExtents(of objects: [RenderObject]) -> CanvasContentExtents? {
+
         var minPoint = SIMD3<Float>(repeating: .greatestFiniteMagnitude)
         var maxPoint = SIMD3<Float>(repeating: -.greatestFiniteMagnitude)
         var found = false
@@ -779,6 +780,7 @@ class MetalRenderer: NSObject {
         var rightRange: ClosedRange<Float> = .greatestFiniteMagnitude ... .greatestFiniteMagnitude
         var upRange: ClosedRange<Float> = .greatestFiniteMagnitude ... .greatestFiniteMagnitude
         var first = true
+
         func include(_ point: SIMD3<Float>) {
             minPoint = simd_min(minPoint, point)
             maxPoint = simd_max(maxPoint, point)
@@ -801,6 +803,7 @@ class MetalRenderer: NSObject {
             let shift = drawOffset(for: object.role)
             let shift3 = SIMD3<Float>(shift.x, shift.y, 0)
             let objectTransform = transform(for: object.role)
+
             func placed(_ point: SIMD3<Float>) -> SIMD3<Float> {
                 let shifted = point + shift3
                 let turned = objectTransform * SIMD4<Float>(shifted, 1)
@@ -845,8 +848,10 @@ private extension MetalRenderer {
         // track the same shift as the toolpath it's following. The stock
         // box, axes, and the workbed/anchor fixtures are drawn at their true
         // position regardless — see `drawOffset(for:)`.
-        var uniforms = Uniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role), dashLength: dashLength,
-                               offset: drawOffset(for: batch.role), alpha: alpha)
+        var uniforms = Uniforms(modelViewProjectionMatrix: partMVP(mvp, for: batch.role),
+                                dashLength: dashLength,
+                                offset: drawOffset(for: batch.role),
+                                alpha: alpha)
 
         // Wide lines: one quad (6 vertices) per segment instead of a 1px hardware line. Here
         // `dashLength` is in points on screen, not model units. Only for line lists, where
@@ -919,6 +924,7 @@ private extension MetalRenderer {
                     depthState: MTLDepthStencilState? = nil,
                     alpha: Float = 1,
                     depthBias: Float = 0) {
+
         guard let heightmapPipelineState else {
             return
         }
@@ -926,7 +932,8 @@ private extension MetalRenderer {
 
         for batch in renderBatches {
             guard include(batch.role),
-                  let solidBuffer = batch.solidBuffer, batch.solidVertexCount > 0 else {
+                  let solidBuffer = batch.solidBuffer,
+                  batch.solidVertexCount > 0 else {
                 continue
             }
             if !pipelineBound {
@@ -955,6 +962,7 @@ private extension MetalRenderer {
                                              // Negative: the shader's coated-tool rainbow
                                              depthDarkening: batch.coatingZRange == nil ? 0 : -1,
                                              offset: drawOffset(for: batch.role))
+
             encoder.setVertexBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
             encoder.setFragmentBytes(&uniforms, length: MemoryLayout<HeightmapUniforms>.stride, index: 1)
             encoder.setVertexBuffer(solidBuffer, offset: 0, index: 0)
@@ -1144,11 +1152,18 @@ private extension MetalRenderer {
         // left; then that surface blended over what is already on screen (the toolpaths it
         // covers), once per pixel instead of once per overlapping face. The small negative bias
         // keeps the colour pass from losing to its own pre-pass by rounding.
-        drawSolids(mvp: mvp, encoder: encoder, where: { $0 == .tool },
-                   pipeline: depthOnly, depthState: depthStateVisible)
-        drawSolids(mvp: mvp, encoder: encoder, where: { $0 == .tool },
-                   pipeline: blended, depthState: depthStateLessEqual,
-                   alpha: toolAlpha, depthBias: -1)
+        drawSolids(mvp: mvp,
+                   encoder: encoder,
+                   where: { $0 == .tool },
+                   pipeline: depthOnly,
+                   depthState: depthStateVisible)
+        drawSolids(mvp: mvp,
+                   encoder: encoder,
+                   where: { $0 == .tool },
+                   pipeline: blended,
+                   depthState: depthStateLessEqual,
+                   alpha: toolAlpha,
+                   depthBias: -1)
     }
 
     /// The three passes of the hidden-line render for `batches`: occluder faces (depth only),
@@ -1168,6 +1183,7 @@ private extension MetalRenderer {
         encoder.setRenderPipelineState(depthOnlyPipelineState)
         encoder.setDepthStencilState(depthStateVisible)
         encoder.setDepthBias(occluderDepthBias, slopeScale: occluderDepthBiasSlope, clamp: 0)
+
         for batch in batches {
             guard let occluderBuffer = batch.occluderBuffer, batch.occluderVertexCount > 0 else {
                 continue
@@ -1196,19 +1212,26 @@ private extension MetalRenderer {
         // behind the stock.
         if showHiddenLines {
             encoder.setDepthStencilState(depthStateHidden)
+
             for batch in batches {
                 let dash: Float
+
                 switch batch.hiddenLineStyle {
                     case .omitted:
                         // A model whose hidden edges are switched off: nothing behind a face.
                         continue
+
                     case .dotted:
                         // Fine, half-transparent dots: needs the blending pipeline.
                         encoder.setRenderPipelineState(blendedPipelineState)
-                        drawBatch(batch, mvp: mvp, dashLength: batch.isDashed ? batch.dashLength : hiddenDotLength,
-                                  alpha: hiddenDotAlpha, encoder: encoder)
+                        drawBatch(batch,
+                                  mvp: mvp,
+                                  dashLength: batch.isDashed ? batch.dashLength : hiddenDotLength,
+                                  alpha: hiddenDotAlpha,
+                                  encoder: encoder)
                         encoder.setRenderPipelineState(pipelineState)
                         continue
+
                     case .roleDefault:
                         if batch.role == .stock {
                             dash = batch.isDashed ? batch.dashLength : hiddenLineDashLength
@@ -1258,6 +1281,7 @@ private extension MetalRenderer {
 
         let x: CGFloat
         let y: CGFloat
+
         switch OrientationCube.corner {
             case .topLeft:
                 x = inset
