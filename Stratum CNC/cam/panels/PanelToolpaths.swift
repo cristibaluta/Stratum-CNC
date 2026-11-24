@@ -75,7 +75,8 @@ struct PanelToolpaths: View {
 
     // MARK: - Header
 
-    /// The title, how many toolpaths there are, and the send-to-controller button at the top right.
+    /// The title and how many toolpaths there are, with the send-to-controller button at the top
+    /// right. In send mode the button gives way to Cancel and Send.
     private var header: some View {
         HStack(spacing: 6) {
             Text("Toolpaths")
@@ -83,44 +84,133 @@ struct PanelToolpaths: View {
                 .foregroundStyle(.secondary)
 
             if !visibleToolpaths.isEmpty {
-                Text("\(visibleToolpaths.count)")
+                Text(isSending ? "\(checkedIDs.count)/\(visibleToolpaths.count)" : "\(visibleToolpaths.count)")
                     .font(.system(size: 12))
                     .foregroundStyle(.tertiary)
             }
 
             Spacer(minLength: 4)
 
-            PreviewInControllerButton(gCodeStore: projectModel.gCodeStore) {
-                projectModel.saveIfNeeded()
-                projectModel.previewInController()
+            if isSending {
+                Button("Cancel") {
+                    projectModel.isChoosingToolpathsToSend = false
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .keyboardShortcut(.cancelAction)
+
+                Button("Send") {
+                    send(visibleToolpaths.filter { checkedIDs.contains($0.id) })
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .controlSize(.small)
+                .disabled(checkedIDs.isEmpty)
+                .help(checkedIDs.isEmpty ? "Tick at least one toolpath" : "Send the ticked toolpaths to the Controller")
+            } else {
+                PreviewInControllerButton(gCodeStore: projectModel.gCodeStore) {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        projectModel.isChoosingToolpathsToSend = true
+                    }
+                }
             }
         }
     }
 
-    /// The + at the bottom left.
+    /// The + at the bottom left; in send mode, the select-all checkbox instead.
     private var footer: some View {
         HStack {
-            Button {
-                isChoosingOperation.toggle()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 20, height: 16)
+            if isSending {
+                Button {
+                    setAll(checked: checkedIDs.count != visibleToolpaths.count)
+                } label: {
+                    HStack(spacing: 6) {
+                        checkboxImage(state: allCheckedState)
+                        Text("All")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
                     .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .disabled(onAdd == nil)
-            .help("Add a toolpath")
-            .popover(isPresented: $isChoosingOperation, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                OperationGridPicker(selected: nil) { kind in
-                    isChoosingOperation = false
-                    onAdd?(kind)
+                }
+                .buttonStyle(.plain)
+                .disabled(visibleToolpaths.isEmpty)
+                .help(checkedIDs.count == visibleToolpaths.count ? "Untick all" : "Tick all")
+            } else {
+                Button {
+                    isChoosingOperation.toggle()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(width: 20, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .disabled(onAdd == nil)
+                .help("Add a toolpath")
+                .popover(isPresented: $isChoosingOperation, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                    OperationGridPicker(selected: nil) { kind in
+                        isChoosingOperation = false
+                        onAdd?(kind)
+                    }
                 }
             }
 
             Spacer()
         }
+    }
+
+    // MARK: - Sending
+
+    private var isSending: Bool {
+        projectModel.isChoosingToolpathsToSend
+    }
+
+    /// The listed toolpaths that are ticked. Everything is, until the user unticks it.
+    private var checkedIDs: Set<UUID> {
+        Set(visibleToolpaths.map(\.id)).subtracting(projectModel.uncheckedToolpathIDs)
+    }
+
+    private enum CheckState {
+        case none, some, all
+    }
+
+    private var allCheckedState: CheckState {
+        switch checkedIDs.count {
+            case 0: return .none
+            case visibleToolpaths.count: return .all
+            default: return .some
+        }
+    }
+
+    private func setAll(checked: Bool) {
+        let ids = Set(visibleToolpaths.map(\.id))
+        if checked {
+            projectModel.uncheckedToolpathIDs.subtract(ids)
+        } else {
+            projectModel.uncheckedToolpathIDs.formUnion(ids)
+        }
+    }
+
+    private func toggleChecked(_ id: UUID) {
+        if projectModel.uncheckedToolpathIDs.contains(id) {
+            projectModel.uncheckedToolpathIDs.remove(id)
+        } else {
+            projectModel.uncheckedToolpathIDs.insert(id)
+        }
+    }
+
+    private func send(_ toolpaths: [ToolpathData]) {
+        projectModel.isChoosingToolpathsToSend = false
+        projectModel.saveIfNeeded()
+        projectModel.previewInController(toolpaths: toolpaths)
+    }
+
+    private func checkboxImage(state: CheckState) -> some View {
+        Image(systemName: state == .all ? "checkmark.square.fill"
+                          : state == .some ? "minus.square.fill" : "square")
+            .font(.system(size: 14))
+            .foregroundStyle(state == .none ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
     }
 
     // MARK: - Faces
@@ -180,7 +270,21 @@ struct PanelToolpaths: View {
     private func toolpathRow(_ toolpath: ToolpathData, at index: Int, count: Int) -> some View {
         let isSelected = toolpath.id == selectedID
 
+        let isChecked = !projectModel.uncheckedToolpathIDs.contains(toolpath.id)
+
         return HStack(spacing: 6) {
+            if isSending {
+                Button {
+                    toggleChecked(toolpath.id)
+                } label: {
+                    checkboxImage(state: isChecked ? .all : .none)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(isChecked ? "Untick" : "Tick")
+            }
+
             OperationIcon(kind: toolpath.operation.kind, isRest: toolpath.operation.isRest, size: 13)
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
@@ -204,6 +308,8 @@ struct PanelToolpaths: View {
         }
         .font(.system(size: 11))
         .lineLimit(1)
+        // An unticked toolpath is left out of what gets sent
+        .opacity(isSending && !isChecked ? 0.45 : 1)
         .inspectorListRow(isSelected: isSelected)
         // The whole cell is the drag target and the select target. A tap and a drag on the
         // same view don't fight: the drag only starts after a few points of movement.
@@ -222,6 +328,12 @@ struct PanelToolpaths: View {
                     }
                 }
             }
+            Button {
+                send([toolpath])
+            } label: {
+                Label("Send only this toolpath to controller", systemImage: "paperplane")
+            }
+            Divider()
             Button(role: .destructive) {
                 onDelete?(toolpath.id)
             } label: {

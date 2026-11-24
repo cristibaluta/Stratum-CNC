@@ -108,6 +108,14 @@ class ProjectModel: ObservableObject {
     @Published var controllerModel = ControllerModel()
 
     @Published var gCodeStore = GCodeStore()
+
+    /// The Toolpaths panel's "send to controller" mode: rows show checkboxes, and the program
+    /// is built from the checked ones. Kept here, not in the panel, so it lives as long as the
+    /// project is open and is never written to the project file.
+    @Published var isChoosingToolpathsToSend = false
+    /// The toolpaths the user unticked. Stored the other way round so that every toolpath is
+    /// ticked by default, new ones included.
+    @Published var uncheckedToolpathIDs: Set<UUID> = []
     @Published var joystickStore = GameControllerStore()
 
     private let encoder: JSONEncoder
@@ -579,9 +587,12 @@ class ProjectModel: ObservableObject {
     /// "Preview in Controller": switches to the Controller and generates every toolpath that
     /// isn't ready, then builds the program from them, exactly as "Refresh from CAM" does there.
     /// The progress popover shows on the Controller's own button once it is on screen.
-    func previewInController() {
+    ///
+    /// `toolpaths` is what the program is built from (the user's picks, in list order); nil sends
+    /// all of them.
+    func previewInController(toolpaths: [ToolpathData]? = nil) {
         activeTab = .controller
-        gCodeStore.generateGCode(using: camModel)
+        gCodeStore.generateGCode(using: camModel, toolpaths: toolpaths)
     }
 
 }

@@ -319,7 +319,11 @@ class GCodeStore: ObservableObject {
     /// same as pressing Generate on each of them in CAM — with the progress shown in a popover.
     /// Toolpaths that still can't make it into the program (no shapes, an engine error…) are
     /// reported in `camImportMessage` afterwards.
-    func generateGCode(using camModel: CAMModel) {
+    ///
+    /// `toolpaths` limits the program to those toolpaths (the user's picks, in list order); nil
+    /// takes every toolpath of the active setup. They are still generated and judged through
+    /// `camModel`, which owns the generations.
+    func generateGCode(using camModel: CAMModel, toolpaths picked: [ToolpathData]? = nil) {
         guard !isGeneratingFromCAM else {
             return
         }
@@ -327,16 +331,23 @@ class GCodeStore: ObservableObject {
         isGeneratingFromCAM = true
 
         Task { [weak self] in
-            await self?.importFromCAM(camModel)
+            await self?.importFromCAM(camModel, picked: picked)
         }
     }
 
-    private func importFromCAM(_ camModel: CAMModel) async {
+    private func importFromCAM(_ camModel: CAMModel, picked: [ToolpathData]?) async {
 
         // A program is one setup (the stock is turned between setups), so only the toolpaths of the
         // face active in CAM are generated and posted. The others are left alone.
         let activeSetup = camModel.setup(withID: camModel.activeSetupID) ?? camModel.setups[0]
-        let toolpaths = camModel.toolpaths.filter { camModel.setup(for: $0).id == activeSetup.id }
+        let pickedIDs = picked.map { Set($0.map(\.id)) }
+        // The setup's toolpaths as they are now, narrowed to the user's picks when there are any
+        func listed() -> [ToolpathData] {
+            camModel.toolpaths.filter {
+                camModel.setup(for: $0).id == activeSetup.id && (pickedIDs?.contains($0.id) ?? true)
+            }
+        }
+        let toolpaths = listed()
 
         let pending = toolpaths.filter { Self.needsGeneration($0, in: camModel) }
         if !pending.isEmpty {
@@ -346,7 +357,7 @@ class GCodeStore: ObservableObject {
         // Read after the generations above: they are what the program is built from, and they
         // bump `camModel.revision`, which must not make the fresh program look outdated.
         // Re-read the setup's toolpaths: they may have been edited or removed while generating.
-        let current = camModel.toolpaths.filter { camModel.setup(for: $0).id == activeSetup.id }
+        let current = listed()
         let plan = ToolpathGCodeBuilder.plan(toolpaths: current, generations: camModel.generations)
         guard !plan.sections.isEmpty else {
             endCAMImport()
