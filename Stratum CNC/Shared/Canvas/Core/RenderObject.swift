@@ -48,6 +48,7 @@ typealias SolidVertex = HeightmapMesh.Vertex
 /// (re)loads, without disturbing the other objects in the scene).
 /// Also identifies the selection overlay's special depth behavior.
 enum RenderRole: Hashable {
+    /// Imported model
     case model
     /// All-edges viewer highlight, drawn last without depth testing/writes.
     case modelSelection

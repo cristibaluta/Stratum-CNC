@@ -249,9 +249,8 @@ struct MetalCanvasView: STViewRepresentable {
         renderer.adaptiveModelFit = adaptiveModelFit
 
         if adaptiveModelFit {
-            // Fit only the imported object: not the stock, the machine fixtures, the axes
-            // nor the cutter
-            renderer.fitExcludedRoles = [.modelSelection, .axes, .ruler, .stock, .workbed, .anchor, .boundingBox, .tool]
+            // Fit only the imported object: not the stock and everything else
+            renderer.fitIncludedRoles = [.model]
             if startsTopDown {
                 renderer.camera.snap(to: .top)
             } else {

@@ -312,11 +312,8 @@ class MetalRenderer: NSObject {
     private var lastObjects: [RenderObject] = []
     private var hasFittedInitialContent = false
 
-    /// Roles left out of the initial "fit to screen" framing. Empty by
-    /// default (the controller frames everything, as before). CAM's locked
-    /// 2D view sets `[.ruler]`: the ruler is a fixed 200 mm reference, and
-    /// letting it count would zoom a 30 mm drawing out to a speck.
-    var fitExcludedRoles: Set<RenderRole> = []
+    /// "fit to screen" only this roles
+    var fitIncludedRoles: Set<RenderRole> = []
 
     /// Last built batch per `RenderObject.id`, so `updateGeometry` can tell
     /// "this is the same object, just with a different `visibleVertexCount`"
@@ -796,7 +793,7 @@ class MetalRenderer: NSObject {
         }
 
         for object in objects {
-            if let role = object.role, fitExcludedRoles.contains(role) {
+            guard let role = object.role, fitIncludedRoles.contains(role) else {
                 continue
             }
             // Frame things where they are drawn, not where they were built.
