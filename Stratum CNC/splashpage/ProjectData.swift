@@ -42,6 +42,8 @@ struct ProjectData: Identifiable, Codable, Hashable {
     /// Only what projects saved before fixtures belonged to stocks have: the alignment pins as
     /// objects. Read once by `ProjectStocks.migrate` and cleared; never written by the app now.
     var alignmentPins: [AlignmentPinsData]?
+    /// The groups (virtual objects, see `ObjectGroup`). `nil` in projects saved before they existed.
+    var objectGroups: [ObjectGroup]?
 
     init(id: UUID = UUID(),
          name: String? = nil,

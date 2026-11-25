@@ -23,6 +23,15 @@ struct STEPModelItem: Identifiable {
     var detail: String? = nil
 }
 
+/// A group (virtual object) as a row of the objects list.
+struct GroupItem: Identifiable {
+    let id: UUID
+    let name: String
+    let memberCount: Int
+    /// The names of the members, shown as the row's tooltip
+    var memberNames: [String] = []
+}
+
 /// The list of imported objects (2D shapes and STEP models). The fixtures are not objects of the
 /// project: they belong to the stocks and are in the setup's details. The setups are `PanelSetups`;
 /// the selected object's placement (position, size, face up) is `PanelObjectProperties`.
@@ -62,6 +71,19 @@ struct PanelObjectsInspector: View {
     /// The horizontal padding of a list row (`inspectorListRow`).
     private static let rowInset: CGFloat = 6
 
+    /// The groups (virtual objects): listed under the objects.
+    var groups: [GroupItem] = []
+    /// "Group Selected": groups the selected objects (two or more).
+    var onCreateGroup: (() -> Void)?
+    /// A click on a group's row selects its members.
+    var onSelectGroup: ((UUID) -> Void)?
+    var onRenameGroup: ((UUID, String) -> Void)?
+    /// "Ungroup": the group goes, its members stay.
+    var onDeleteGroup: ((UUID) -> Void)?
+
+    @State private var renamingGroupID: UUID?
+    @State private var renameText = ""
+
     // MARK: - Body
 
     var body: some View {
@@ -85,6 +107,19 @@ struct PanelObjectsInspector: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .canvasChrome()
+        .alert("Rename Group", isPresented: Binding(get: { renamingGroupID != nil },
+                                                    set: { if !$0 { renamingGroupID = nil } })) {
+            TextField("Name", text: $renameText)
+            Button("Rename") {
+                if let id = renamingGroupID {
+                    onRenameGroup?(id, renameText)
+                }
+                renamingGroupID = nil
+            }
+            Button("Cancel", role: .cancel) {
+                renamingGroupID = nil
+            }
+        }
     }
 
     // MARK: - Header
@@ -118,6 +153,19 @@ struct PanelObjectsInspector: View {
             }
             .buttonStyle(.plain)
             .help(isExpanded ? "Hide objects" : "Show objects")
+
+            if selectedIDs.count >= 2 {
+                Button {
+                    onCreateGroup?()
+                } label: {
+                    Image(systemName: "square.on.square")
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(3)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help("Group the \(selectedIDs.count) selected objects")
+            }
 
             addMenu
         }
@@ -171,6 +219,48 @@ struct PanelObjectsInspector: View {
         }
         ForEach(stepModels) { model in
             stepModelRow(model)
+        }
+        ForEach(groups) { group in
+            groupRow(group)
+        }
+    }
+
+    private func groupRow(_ group: GroupItem) -> some View {
+        Button {
+            onSelectGroup?(group.id)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "square.on.square")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Text(group.name)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 4)
+                Text("\(group.memberCount)")
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .inspectorListRow(isSelected: false)
+        .help(group.memberNames.joined(separator: ", "))
+        .contextMenu {
+            Button {
+                renameText = group.name
+                renamingGroupID = group.id
+            } label: {
+                Label("Rename…", systemImage: "pencil")
+            }
+            Divider()
+            Button(role: .destructive) {
+                onDeleteGroup?(group.id)
+            } label: {
+                Label("Ungroup", systemImage: "rectangle.3.group")
+            }
         }
     }
 

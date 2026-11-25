@@ -200,6 +200,7 @@ class ProjectModel: ObservableObject {
         camModel = CAMModel(toolpaths: [],
                             setups: migrated.setups,
                             stocks: migrated.stocks,
+                            groups: projectData.objectGroups ?? [],
                             newStock: projectData.stock ?? .defaultWorkpiece)
 
 //        projectData.isStockVisible.publisher.sink { [weak self] newValue in
@@ -230,6 +231,11 @@ class ProjectModel: ObservableObject {
         // restores the saved ones through the initializer, so opening is not an edit.
         camModel.onSetupsChanged = { [weak self] setups in
             self?.projectData.setups = setups
+        }
+
+        // Groups created, renamed, changed or dissolved
+        camModel.onGroupsChanged = { [weak self] groups in
+            self?.projectData.objectGroups = groups
         }
 
         // Stocks added, edited or removed, and their fixtures

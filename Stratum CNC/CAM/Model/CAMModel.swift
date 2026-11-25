@@ -46,6 +46,15 @@ class CAMModel: ObservableObject {
         }
     }
 
+    /// The groups (virtual objects): named sets of objects that setups can be made for (see `ObjectGroup`).
+    @Published var objectGroups: [ObjectGroup] = [] {
+        didSet {
+            if objectGroups != oldValue {
+                onGroupsChanged?(objectGroups)
+            }
+        }
+    }
+
     /// How the stock is held, in the order the setups are machined (see `Setup`). Never empty:
     /// a project always has at least the top. `toolpaths` is kept in the same order: all of the
     /// first setup's toolpaths, then the second's… (see `orderedBySetup`), so the G-code of one
@@ -250,6 +259,8 @@ class CAMModel: ObservableObject {
     /// Fired when a setup is added, removed, renamed, reordered or turned. ProjectModel saves them
     /// with the project (the toolpaths refer to them by id).
     var onSetupsChanged: (([Setup]) -> Void)?
+    /// The groups (virtual objects) changed; saved with the project.
+    var onGroupsChanged: (([ObjectGroup]) -> Void)?
     /// A stock was added, edited or removed, or a fixture of one changed (saved with the project).
     var onStocksChanged: (([ProjectStock]) -> Void)?
     /// Fired after any object is added/removed/moved/resized/rotated on the
@@ -292,8 +303,10 @@ class CAMModel: ObservableObject {
     init(toolpaths: [ToolpathData],
          setups: [Setup] = [],
          stocks: [ProjectStock] = [],
+         groups: [ObjectGroup] = [],
          newStock: StockMaterial = .defaultWorkpiece) {
         PerfLog.start()
+        self.objectGroups = groups
         let initialStocks = stocks.isEmpty ? [ProjectStock(stock: newStock)] : stocks
         let initialSetups = setups.isEmpty ? [Setup(face: .top, stockID: initialStocks[0].id)] : setups
         self.stocks = initialStocks
@@ -988,6 +1001,15 @@ class CAMModel: ObservableObject {
             return
         }
         setups[index].items[itemIndex].positionOverride = position
+    }
+
+    /// Marks a setup as made for a group (or with nil as a plain one). Its items are not touched.
+    func setSetupGroup(_ id: UUID, to groupID: UUID?) {
+        guard let index = setups.firstIndex(where: { $0.id == id }),
+              setups[index].groupID != groupID else {
+            return
+        }
+        setups[index].groupID = groupID
     }
 
     func renameSetup(_ id: UUID, to name: String) {

@@ -26,6 +26,7 @@ extension CAMModel {
             return
         }
         healSetups(regularIDs: ids)
+        pruneGroups(existing: Set(ids))
         let previousActive = activeSetupID
         var owned = Set(setups.flatMap { $0.items.map(\.objectID) })
 

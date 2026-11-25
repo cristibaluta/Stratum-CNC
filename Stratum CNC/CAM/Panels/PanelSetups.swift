@@ -27,12 +27,16 @@ struct PanelSetups: View {
     var toolpathCounts: [UUID: Int] = [:]
     /// Front, back, left and right need a 3D model.
     var sideFacesAvailable = false
+    /// The groups (virtual objects) setups can be made for.
+    var groups: [ObjectItem] = []
     /// The selected 2D objects that can be combined into one setup.
     var combinableSelection: [UUID] = []
 
     var onSelectSetup: ((UUID) -> Void)?
     /// A new setup on a face; the object is nil for one that includes every object.
     var onAddSetup: ((UUID?, SetupFace, SetupAxis?) -> Void)?
+    /// A new setup on a face for all the members of a group.
+    var onAddGroupSetup: ((UUID, SetupFace, SetupAxis?) -> Void)?
     var onRenameSetup: ((UUID, String) -> Void)?
     var onDeleteSetup: ((UUID) -> Void)?
     /// "Combine into one setup": a new setup on a face that includes all the given objects.
@@ -127,6 +131,14 @@ struct PanelSetups: View {
                     onAddSetup?(nil, face, axis)
                 }
             }
+            if !groups.isEmpty {
+                Divider()
+                ForEach(groups) { group in
+                    faceMenu(title: "Add New Setup for Group \(group.name)", systemImage: "square.on.square") { face, axis in
+                        onAddGroupSetup?(group.id, face, axis)
+                    }
+                }
+            }
             if combinableSelection.count >= 2 {
                 Divider()
                 faceMenu(title: "Combine \(combinableSelection.count) Selected into One Setup",
@@ -151,6 +163,9 @@ struct PanelSetups: View {
     /// The object a setup is listed under: the only object it includes. A setup with several
     /// objects, or one that includes everything of a multi-object project, is "combined".
     private func ownerID(of setup: Setup) -> UUID? {
+        if let groupID = setup.groupID, groups.contains(where: { $0.id == groupID }) {
+            return nil
+        }
         let ids = objects.map(\.id)
         if setup.items.isEmpty {
             return ids.count == 1 ? ids[0] : nil
@@ -162,7 +177,10 @@ struct PanelSetups: View {
     }
 
     private var combinedSetups: [Setup] {
-        setups.filter { ownerID(of: $0) == nil }
+        setups.filter { setup in
+            ownerID(of: setup) == nil
+                && !(setup.groupID.map { id in groups.contains { $0.id == id } } ?? false)
+        }
     }
 
     /// With a single object the group titles would only repeat its name.
@@ -185,6 +203,15 @@ struct PanelSetups: View {
                         if showsGroupTitles {
                             groupTitle(object.name)
                         }
+                        ForEach(owned) { setup in
+                            setupRow(setup)
+                        }
+                    }
+                }
+                ForEach(groups) { group in
+                    let owned = setups.filter { $0.groupID == group.id }
+                    if !owned.isEmpty {
+                        groupTitle("Group: \(group.name)")
                         ForEach(owned) { setup in
                             setupRow(setup)
                         }

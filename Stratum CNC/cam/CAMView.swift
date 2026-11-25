@@ -320,6 +320,8 @@ struct CAMView: View {
                                   stocksStore: appModel.stocksStore,
                                   warning: camModel.activeStockWarning,
                                   onSelectObject: { objectID in
+                                      // Choosing the objects by hand makes it a plain setup, no longer a group's
+                                      camModel.setSetupGroup(setup.id, to: nil)
                                       camModel.setSetupObjects(setup.id, to: objectID.map { [$0] } ?? [])
                                   },
                                   onSelectStock: { id in
@@ -440,10 +442,40 @@ struct CAMView: View {
                     camModel.stepWorkspace.select(model: id)
                 }
             },
-            isSetupSelected: camModel.isSetupSelected
+            isSetupSelected: camModel.isSetupSelected,
+            groups: camModel.objectGroups.map { group in
+                let names = group.memberIDs.compactMap { camModel.projectObject(withID: $0)?.name }
+                return GroupItem(id: group.id, name: group.name, memberCount: names.count, memberNames: names)
+            },
+            onCreateGroup: {
+                let members = camModel.canvasState.objects
+                    .filter { !$0.isParametric && camModel.canvasState.selectedObjectIDs.contains($0.id) }
+                    .map(\.id)
+                camModel.createGroup(memberIDs: members)
+            },
+            onSelectGroup: { id in
+                guard let group = camModel.objectGroups.first(where: { $0.id == id }) else {
+                    return
+                }
+                let shapes = group.memberIDs.filter { camModel.canvasState.object(withID: $0) != nil }
+                camModel.stepWorkspace.selectedModelID = nil
+                camModel.canvasState.clearSelection()
+                for (index, member) in shapes.enumerated() {
+                    if index == 0 {
+                        camModel.canvasState.selectObject(member)
+                    } else {
+                        camModel.canvasState.toggleObjectSelection(member)
+                    }
+                }
+            },
+            onRenameGroup: { id, name in
+                camModel.renameGroup(id, to: name)
+            },
+            onDeleteGroup: { id in
+                camModel.deleteGroup(id)
+            }
         )
     }
-
 
     /// The selected object's face up, position and size, in a panel of its own on the right.
     private var objectPropertiesPanel: some View {
@@ -571,6 +603,7 @@ struct CAMView: View {
                 toolpath.setupID.map { ($0, 1) }
             }, uniquingKeysWith: +),
             sideFacesAvailable: hasSTEP,
+            groups: camModel.objectGroups.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) },
             combinableSelection: camModel.canvasState.objects
                 .filter { !$0.isParametric && camModel.canvasState.selectedObjectIDs.contains($0.id) }
                 .map(\.id),
@@ -604,6 +637,13 @@ struct CAMView: View {
                         camModel.setSetupObjects(id, to: [objectID])
                     }
                     camModel.isSetupSelected = true
+                }
+            },
+            onAddGroupSetup: { groupID, face, axis in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    if camModel.addGroupSetup(groupID, face: face, axis: axis) != nil {
+                        camModel.isSetupSelected = true
+                    }
                 }
             },
             onRenameSetup: { id, name in

@@ -64,9 +64,12 @@ struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
     /// The objects this setup includes, each with an optional placement of its own (see `SetupItem`).
     /// Empty (the default) includes every object of the project.
     var items: [SetupItem] = []
+    /// The group (virtual object) this setup was made for, if any. The items follow the group's
+    /// members: when they change, `CAMModel.syncGroupSetups` updates them.
+    var groupID: UUID?
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, angle, axis, stockID, usesFixtures, items
+        case id, name, angle, axis, stockID, usesFixtures, items, groupID
     }
 
     /// The key of the stock a setup used to carry; only read.
@@ -82,6 +85,7 @@ struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
         axis = try c.decode(SetupAxis.self, forKey: .axis)
         usesFixtures = try c.decodeIfPresent(Bool.self, forKey: .usesFixtures) ?? false
         items = try c.decodeIfPresent([SetupItem].self, forKey: .items) ?? []
+        groupID = try c.decodeIfPresent(UUID.self, forKey: .groupID)
 
         if let saved = try c.decodeIfPresent(UUID.self, forKey: .stockID) {
             stockID = saved
