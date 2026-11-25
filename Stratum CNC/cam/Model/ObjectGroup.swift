@@ -20,14 +20,12 @@ struct ObjectGroup: Identifiable, Codable, Hashable, Sendable {
 
 extension CAMModel {
 
-    /// Groups the given objects (two or more, each once) under a new name. Returns the group's id.
+    /// Groups the given objects under a new name; with none it is an empty group, to fill later.
+    /// Returns the group's id.
     @discardableResult
     func createGroup(name: String? = nil, memberIDs: [UUID]) -> UUID? {
         var seen = Set<UUID>()
         let members = memberIDs.filter { seen.insert($0).inserted }
-        guard members.count >= 2 else {
-            return nil
-        }
         let taken = Set(objectGroups.map(\.name))
         var title = name?.trimmed ?? ""
         if title.isEmpty {
@@ -52,17 +50,35 @@ extension CAMModel {
         objectGroups[index].name = trimmed
     }
 
-    /// Replaces the members of a group. A group left empty is removed.
+    /// Adds objects to a group (the ones already in it stay where they are).
+    func addToGroup(_ id: UUID, objectIDs: [UUID]) {
+        guard let group = objectGroups.first(where: { $0.id == id }) else {
+            return
+        }
+        setGroupMembers(id, to: group.memberIDs + objectIDs)
+    }
+
+    /// Takes objects out of a group. The group stays, even when it ends up empty.
+    func removeFromGroup(_ id: UUID, objectIDs: [UUID]) {
+        guard let index = objectGroups.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let removed = Set(objectIDs)
+        let members = objectGroups[index].memberIDs.filter { !removed.contains($0) }
+        guard members != objectGroups[index].memberIDs else {
+            return
+        }
+        objectGroups[index].memberIDs = members
+        syncGroupSetups(id)
+    }
+
+    /// Replaces the members of a group.
     func setGroupMembers(_ id: UUID, to memberIDs: [UUID]) {
         guard let index = objectGroups.firstIndex(where: { $0.id == id }) else {
             return
         }
         var seen = Set<UUID>()
         let members = memberIDs.filter { seen.insert($0).inserted }
-        guard !members.isEmpty else {
-            deleteGroup(id)
-            return
-        }
         guard objectGroups[index].memberIDs != members else {
             return
         }
@@ -84,7 +100,7 @@ extension CAMModel {
     /// A new setup on a face for all the members of a group.
     @discardableResult
     func addGroupSetup(_ groupID: UUID, face: SetupFace, axis: SetupAxis? = nil) -> UUID? {
-        guard let group = objectGroups.first(where: { $0.id == groupID }) else {
+        guard let group = objectGroups.first(where: { $0.id == groupID }), !group.memberIDs.isEmpty else {
             return nil
         }
         let id = addSetup(face: face, axis: axis, inheritingFixtures: true)
@@ -99,11 +115,14 @@ extension CAMModel {
             return
         }
         for setup in setups where setup.groupID == groupID {
-            setSetupObjects(setup.id, to: group.memberIDs)
+            // A setup can't include nothing (that means everything): an empty group leaves it as it was
+            if !group.memberIDs.isEmpty {
+                setSetupObjects(setup.id, to: group.memberIDs)
+            }
         }
     }
 
-    /// Drops members that no longer exist (an object was deleted), and the groups left empty.
+    /// Drops members that no longer exist (an object was deleted). A group stays even when emptied.
     /// Waits until every STEP body has loaded, so one still loading isn't taken for a missing one.
     func pruneGroups(existing ids: Set<UUID>) {
         guard !objectGroups.isEmpty,

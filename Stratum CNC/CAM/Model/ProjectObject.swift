@@ -22,8 +22,8 @@ struct ProjectObject: Identifiable, Hashable {
         case fixture
     }
 
-    /// The `D2_Object`'s id, or the STEP model's row id. Not the same for a STEP body across
-    /// launches: see `STEPWorkspace.modelIDs` (a body is saved by its `stateKey`).
+    /// The `D2_Object`'s id (saved with its asset), or the STEP model's row id (derived from the file's
+    /// import id and the body's `stateKey`). Both are the same after the project is opened again.
     let id: UUID
     var name: String
     var kind: Kind

@@ -445,13 +445,24 @@ struct CAMView: View {
             isSetupSelected: camModel.isSetupSelected,
             groups: camModel.objectGroups.map { group in
                 let names = group.memberIDs.compactMap { camModel.projectObject(withID: $0)?.name }
-                return GroupItem(id: group.id, name: group.name, memberCount: names.count, memberNames: names)
+                return GroupItem(id: group.id, name: group.name, memberCount: names.count,
+                                 memberNames: names, memberIDs: group.memberIDs)
             },
             onCreateGroup: {
-                let members = camModel.canvasState.objects
+                var members = camModel.canvasState.objects
                     .filter { !$0.isParametric && camModel.canvasState.selectedObjectIDs.contains($0.id) }
                     .map(\.id)
+                // A selected STEP body counts when no 2D object is selected
+                if members.isEmpty, let step = camModel.stepWorkspace.selectedModelID {
+                    members = [step]
+                }
                 camModel.createGroup(memberIDs: members)
+            },
+            onAddToGroup: { ids, groupID in
+                camModel.addToGroup(groupID, objectIDs: ids)
+            },
+            onRemoveFromGroup: { ids, groupID in
+                camModel.removeFromGroup(groupID, objectIDs: ids)
             },
             onSelectGroup: { id in
                 guard let group = camModel.objectGroups.first(where: { $0.id == id }) else {

@@ -30,6 +30,7 @@ struct GroupItem: Identifiable {
     let memberCount: Int
     /// The names of the members, shown as the row's tooltip
     var memberNames: [String] = []
+    var memberIDs: [UUID] = []
 }
 
 /// The list of imported objects (2D shapes and STEP models). The fixtures are not objects of the
@@ -73,8 +74,11 @@ struct PanelObjectsInspector: View {
 
     /// The groups (virtual objects): listed under the objects.
     var groups: [GroupItem] = []
-    /// "Group Selected": groups the selected objects (two or more).
+    /// "New Group" in the + menu: groups the selected objects (an empty group when none is selected).
     var onCreateGroup: (() -> Void)?
+    /// Right-click "Add to Group": the objects (the whole selection when the row is part of it) and the group.
+    var onAddToGroup: (([UUID], UUID) -> Void)?
+    var onRemoveFromGroup: (([UUID], UUID) -> Void)?
     /// A click on a group's row selects its members.
     var onSelectGroup: ((UUID) -> Void)?
     var onRenameGroup: ((UUID, String) -> Void)?
@@ -154,35 +158,58 @@ struct PanelObjectsInspector: View {
             .buttonStyle(.plain)
             .help(isExpanded ? "Hide objects" : "Show objects")
 
-            if selectedIDs.count >= 2 {
-                Button {
-                    onCreateGroup?()
-                } label: {
-                    Image(systemName: "square.on.square")
-                        .font(.system(size: 12, weight: .medium))
-                        .padding(3)
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .help("Group the \(selectedIDs.count) selected objects")
-            }
-
             addMenu
         }
     }
 
-    /// The + at the top right: imports 2D/3D objects.
+    /// The + at the top right: import 2D/3D objects, or make a group.
     private var addMenu: some View {
-        Button {
-            onAddNew?()
+        Menu {
+            Button {
+                onAddNew?()
+            } label: {
+                Label("Import Objects…", systemImage: "square.and.arrow.down")
+            }
+            Button {
+                onCreateGroup?()
+            } label: {
+                Label(selectedIDs.isEmpty ? "New Empty Group" : "New Group from \(selectedIDs.count) Selected",
+                      systemImage: "square.on.square")
+            }
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .medium))
                 .padding(3)
         }
-        .buttonStyle(.borderless)
+        .stBorderlessMenuStyle()
+        .menuIndicator(.hidden)
+        .fixedSize()
         .foregroundStyle(.secondary)
-        .help("Import 2D/3D objects")
+        .help("Import objects or create a group")
+    }
+
+    /// "Add to Group" and "Remove from …" for the objects a right-click is about.
+    @ViewBuilder
+    private func groupMenu(for ids: [UUID]) -> some View {
+        if !groups.isEmpty {
+            Menu {
+                ForEach(groups) { group in
+                    Button(group.name) {
+                        onAddToGroup?(ids, group.id)
+                    }
+                    .disabled(ids.allSatisfy { group.memberIDs.contains($0) })
+                }
+            } label: {
+                Label("Add to Group", systemImage: "plus.square.on.square")
+            }
+            ForEach(groups.filter { group in ids.contains { group.memberIDs.contains($0) } }) { group in
+                Button {
+                    onRemoveFromGroup?(ids, group.id)
+                } label: {
+                    Label("Remove from \(group.name)", systemImage: "minus.square")
+                }
+            }
+        }
     }
 
     // MARK: - Objects
@@ -307,6 +334,7 @@ struct PanelObjectsInspector: View {
             } label: {
                 Label("Generate Project Preview", systemImage: "photo")
             }
+            groupMenu(for: selectedIDs.count > 1 && selectedIDs.contains(object.id) ? Array(selectedIDs) : [object.id])
             Divider()
             Button(role: .destructive) {
                 onDelete?(object.id)
@@ -340,6 +368,8 @@ struct PanelObjectsInspector: View {
         .inspectorListRow(isSelected: isRowSelected(model.id))
         .help(model.detail.map { "\(model.name) — \($0)" } ?? model.name)
         .contextMenu {
+            groupMenu(for: [model.id])
+            Divider()
             Button(role: .destructive) {
                 onDeleteStepModel?(model.id)
             } label: {
