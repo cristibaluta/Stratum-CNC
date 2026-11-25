@@ -50,8 +50,9 @@ final class D2_Object {
     /// persisted to `ProjectData`.
     var isVisible: Bool = true
 
-    /// False while the active setup doesn't include this object (see `Setup.includes`): it is then
-    /// neither drawn nor clickable, like a hidden one, but the inspector's eye stays as it was.
+    /// False while a fixture (alignment pins) isn't part of the active setup: it is then neither
+    /// drawn nor clickable, like a hidden one, but the inspector's eye stays as it was. Regular
+    /// objects are always true: the setup never hides them, only the eye does.
     /// Session-only, set by `CAMModel.applyActivePlacement`.
     var isInActiveSetup: Bool = true
 

@@ -53,12 +53,13 @@ extension CAMModel {
         }
         var moved = false
         var membershipChanged = false
-        // Objects the setup doesn't include drop off the canvas (and out of picking). The fixtures
-        // are in the setups that use them: those on the stock they are attached to.
+        // Every object stays on the canvas (and pickable) whatever the setup includes: only the eye
+        // hides one. The fixtures are the exception: they are in the setups that use them, those on
+        // the stock they are attached to.
         for object in canvasState.objects {
             let included = object.isParametric
                 ? (setup.usesFixtures && object.fixtureStockID == projectStock(for: setup).id)
-                : setup.includes(object.id)
+                : true
             if object.isInActiveSetup != included {
                 object.isInActiveSetup = included
                 membershipChanged = true
@@ -82,15 +83,9 @@ extension CAMModel {
                 moved = true
             }
         }
-        // STEP bodies the setup doesn't include are taken off the canvas too
-        var excluded: [UUID: Set<STEP.BodyID>] = [:]
-        for entry in stepWorkspace.modelEntries {
-            if let body = entry.body, !setup.includes(entry.id) {
-                excluded[entry.sourceID, default: []].insert(body)
-            }
-        }
-        for (sourceID, scene) in stepWorkspace.documents {
-            scene.setExcludedBodies(excluded[sourceID] ?? [])
+        // STEP bodies stay on the canvas too: nothing is excluded by the setup
+        for scene in stepWorkspace.documents.values {
+            scene.setExcludedBodies([])
         }
         if moved {
             canvasState.objectWillChange.send()

@@ -4,7 +4,7 @@
 //
 //  The Objects tree's selection: one focused object (always, once the project has objects) and
 //  the active setup. Every object has at least one setup of its own, a Top by default, so
-//  selecting an object opens that setup and the canvas shows only what the setup includes.
+//  selecting an object opens that setup. The canvas keeps showing every object (only the eye hides one).
 //
 
 import Foundation
@@ -104,7 +104,7 @@ extension CAMModel {
     }
 
     /// Focuses an object. Unless the active setup should stay (a click on the canvas), the object's
-    /// own first setup becomes the active one, so the canvas shows that object alone.
+    /// own first setup becomes the active one; the other objects stay visible.
     func focusObject(_ id: UUID, keepingActiveSetup: Bool) {
         focusedObjectID = id
         isSetupSelected = false
