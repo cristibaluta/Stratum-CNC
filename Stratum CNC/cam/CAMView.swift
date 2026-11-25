@@ -252,6 +252,7 @@ struct CAMView: View {
                 FittingScrollView {
                     VStack(spacing: 12) {
                         inspectorPanel
+                        setupsPanel
                         toolpathListPanel
                     }
                     .frame(minWidth: 200, maxWidth: 260)
@@ -459,59 +460,6 @@ struct CAMView: View {
                     fileError = String(describing: error)
                 }
             },
-            setups: camModel.setups,
-            activeSetupID: camModel.activeSetupID,
-            toolpathCounts: Dictionary(camModel.toolpaths.compactMap { toolpath in
-                toolpath.setupID.map { ($0, 1) }
-            }, uniquingKeysWith: +),
-            sideFacesAvailable: hasSTEP,
-            onSelectSetup: { id in
-                // A setup is selected instead of an object: no object keeps its handles
-                // A setup of another object than the focused one replaces the whole view of the
-                // canvas and the panels: it appears at once, not animated
-                let owner = camModel.setups.first { $0.id == id }?.items.first?.objectID
-                let changesObject = owner != nil && owner != camModel.focusedObjectID
-                let select = {
-                    camModel.canvasState.clearSelection()
-                    camModel.stepWorkspace.selectedModelID = nil
-                    camModel.activateSetup(id)
-                    camModel.isSetupSelected = true
-                }
-                if changesObject {
-                    var transaction = Transaction(animation: nil)
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) {
-                        camModel.withoutFlipAnimation(select)
-                    }
-                } else {
-                    select()
-                }
-            },
-            onAddSetup: { objectID, face, axis in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    // A new setup of an object is cut from the object's stock
-                    let id = camModel.addSetup(face: face, axis: axis, stock: objectID.flatMap { camModel.ownStock(forObject: $0) })
-                    if let objectID {
-                        camModel.setSetupObjects(id, to: [objectID])
-                    }
-                    camModel.isSetupSelected = true
-                }
-            },
-            onRenameSetup: { id, name in
-                camModel.renameSetup(id, to: name)
-            },
-            onDeleteSetup: { id in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.deleteSetup(id)
-                }
-            },
-            onAddCombinedSetup: { ids, face, axis in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    let id = camModel.addSetup(face: face, axis: axis)
-                    camModel.setSetupObjects(id, to: ids)
-                    camModel.isSetupSelected = true
-                }
-            },
             focusedObjectID: camModel.focusedObjectID,
             onSelectObject: { id in
                 let focusChanges = id != camModel.focusedObjectID
@@ -648,6 +596,72 @@ struct CAMView: View {
             return nil
         }
         return camModel.toolpaths.first { $0.id == id }
+    }
+
+    /// The setups, in a panel of their own under the objects. Choosing, adding and removing them is here.
+    private var setupsPanel: some View {
+        PanelSetups(
+            // The objects that can have setups: everything except the alignment pins
+            objects: camModel.canvasState.objects.filter { !$0.isParametric }.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) }
+                + stepModelItems.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) },
+            setups: camModel.setups,
+            activeSetupID: camModel.activeSetupID,
+            isSetupSelected: camModel.isSetupSelected,
+            toolpathCounts: Dictionary(camModel.toolpaths.compactMap { toolpath in
+                toolpath.setupID.map { ($0, 1) }
+            }, uniquingKeysWith: +),
+            sideFacesAvailable: hasSTEP,
+            combinableSelection: camModel.canvasState.objects
+                .filter { !$0.isParametric && camModel.canvasState.selectedObjectIDs.contains($0.id) }
+                .map(\.id),
+            onSelectSetup: { id in
+                // A setup is selected instead of an object: no object keeps its handles
+                // A setup of another object than the focused one replaces the whole view of the
+                // canvas and the panels: it appears at once, not animated
+                let owner = camModel.setups.first { $0.id == id }?.items.first?.objectID
+                let changesObject = owner != nil && owner != camModel.focusedObjectID
+                let select = {
+                    camModel.canvasState.clearSelection()
+                    camModel.stepWorkspace.selectedModelID = nil
+                    camModel.activateSetup(id)
+                    camModel.isSetupSelected = true
+                }
+                if changesObject {
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        camModel.withoutFlipAnimation(select)
+                    }
+                } else {
+                    select()
+                }
+            },
+            onAddSetup: { objectID, face, axis in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    // A new setup of an object is cut from the object's stock
+                    let id = camModel.addSetup(face: face, axis: axis, stock: objectID.flatMap { camModel.ownStock(forObject: $0) })
+                    if let objectID {
+                        camModel.setSetupObjects(id, to: [objectID])
+                    }
+                    camModel.isSetupSelected = true
+                }
+            },
+            onRenameSetup: { id, name in
+                camModel.renameSetup(id, to: name)
+            },
+            onDeleteSetup: { id in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    camModel.deleteSetup(id)
+                }
+            },
+            onAddCombinedSetup: { ids, face, axis in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    let id = camModel.addSetup(face: face, axis: axis)
+                    camModel.setSetupObjects(id, to: ids)
+                    camModel.isSetupSelected = true
+                }
+            }
+        )
     }
 
     private var toolpathListPanel: some View {

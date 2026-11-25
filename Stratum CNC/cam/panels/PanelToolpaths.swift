@@ -14,7 +14,7 @@ struct PanelToolpaths: View {
     let toolpaths: [ToolpathData]
     let selectedID: UUID?
 
-    // The setups are listed in the Objects panel, which owns choosing, adding and removing them.
+    // The setups are listed in the Setups panel, which owns choosing, adding and removing them.
     // This panel only shows the active setup's toolpaths.
     var setups: [Setup] = []
     var activeSetupID: UUID?
@@ -31,6 +31,8 @@ struct PanelToolpaths: View {
     @StateObject private var reorder = ToolpathReorderModel()
     /// The "+" opens the operations to choose what the new toolpath does.
     @State private var isChoosingOperation = false
+    /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
+    @State private var isExpanded = true
 
     /// The face the list shows: the active one, or the first when the active id is unknown.
     private var activeSetup: Setup? {
@@ -49,23 +51,25 @@ struct PanelToolpaths: View {
         VStack(alignment: .leading, spacing: 8) {
             header
 
-            Divider()
+            if showsList {
+                Divider()
 
-            if visibleToolpaths.isEmpty {
-                Text("No toolpaths")
-                    .foregroundStyle(.secondary)
-                    .font(.system(size: 12))
-                    .padding(.vertical, 2)
-            } else {
-                rows(visibleToolpaths)
-                    // Rows pad their content by 6: grow them outward by as much, so the
-                    // icons line up with the header and the other elements
-                    .padding(.horizontal, -6)
+                if visibleToolpaths.isEmpty {
+                    Text("No toolpaths")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                        .padding(.vertical, 2)
+                } else {
+                    rows(visibleToolpaths)
+                        // Rows pad their content by 6: grow them outward by as much, so the
+                        // icons line up with the header and the other elements
+                        .padding(.horizontal, -6)
+
+                    Divider()
+
+                    footer
+                }
             }
-
-            Divider()
-
-            footer
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -73,25 +77,95 @@ struct PanelToolpaths: View {
         .canvasChrome()
     }
 
+    /// The list is open, or the panel is choosing what to send (which needs the checkboxes).
+    private var showsList: Bool {
+        isExpanded || isSending
+    }
+
     // MARK: - Header
 
-    /// The title and how many toolpaths there are, with the send-to-controller button at the top
-    /// right. In send mode the button gives way to Cancel and Send.
+    /// The chevron, the title and how many toolpaths there are; the + is at the top right.
+    /// The chevron, title and count toggle the panel.
     private var header: some View {
         HStack(spacing: 6) {
-            Text("Toolpaths")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    InspectorChevron(isExpanded: showsList)
 
-            if !visibleToolpaths.isEmpty {
-                Text(isSending ? "\(checkedIDs.count)/\(visibleToolpaths.count)" : "\(visibleToolpaths.count)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                    Text("Toolpaths")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+
+                    if !visibleToolpaths.isEmpty {
+                        Text(isSending ? "\(checkedIDs.count)/\(visibleToolpaths.count)" : "\(visibleToolpaths.count)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    Spacer(minLength: 4)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(isSending)
+            .help(isExpanded ? "Hide toolpaths" : "Show toolpaths")
 
-            Spacer(minLength: 4)
+            // Not while choosing what to send
+            if !isSending {
+                addButton
+            }
+        }
+    }
 
+    /// The + at the top right: opens the operations to choose what the new toolpath does.
+    private var addButton: some View {
+        Button {
+            isChoosingOperation.toggle()
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .medium))
+                .padding(3)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .disabled(onAdd == nil)
+        .help("Add a toolpath")
+        .popover(isPresented: $isChoosingOperation, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            OperationGridPicker(selected: nil) { kind in
+                isChoosingOperation = false
+                onAdd?(kind)
+            }
+        }
+    }
+
+    // MARK: - Footer
+
+    /// The send-to-controller button at the bottom left; in send mode the select-all checkbox
+    /// there, with Cancel and Send at the right. Only shown when there are toolpaths.
+    private var footer: some View {
+        HStack(spacing: 6) {
             if isSending {
+                Button {
+                    setAll(checked: checkedIDs.count != visibleToolpaths.count)
+                } label: {
+                    HStack(spacing: 6) {
+                        checkboxImage(state: allCheckedState)
+                        Text("All")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(checkedIDs.count == visibleToolpaths.count ? "Untick all" : "Tick all")
+
+                Spacer(minLength: 4)
+
                 Button("Cancel") {
                     projectModel.isChoosingToolpathsToSend = false
                 }
@@ -113,50 +187,9 @@ struct PanelToolpaths: View {
                         projectModel.isChoosingToolpathsToSend = true
                     }
                 }
-            }
-        }
-    }
 
-    /// The + at the bottom left; in send mode, the select-all checkbox instead.
-    private var footer: some View {
-        HStack {
-            if isSending {
-                Button {
-                    setAll(checked: checkedIDs.count != visibleToolpaths.count)
-                } label: {
-                    HStack(spacing: 6) {
-                        checkboxImage(state: allCheckedState)
-                        Text("All")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(visibleToolpaths.isEmpty)
-                .help(checkedIDs.count == visibleToolpaths.count ? "Untick all" : "Tick all")
-            } else {
-                Button {
-                    isChoosingOperation.toggle()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(width: 20, height: 16)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-                .disabled(onAdd == nil)
-                .help("Add a toolpath")
-                .popover(isPresented: $isChoosingOperation, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                    OperationGridPicker(selected: nil) { kind in
-                        isChoosingOperation = false
-                        onAdd?(kind)
-                    }
-                }
+                Spacer(minLength: 0)
             }
-
-            Spacer()
         }
     }
 
