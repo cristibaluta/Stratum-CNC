@@ -17,7 +17,7 @@ struct PanelSetups: View {
         let name: String
     }
 
-    /// The objects that can have setups: everything except the alignment pins.
+    /// The objects that can have setups: everything except the fixtures.
     let objects: [ObjectItem]
     let setups: [Setup]
     var activeSetupID: UUID?

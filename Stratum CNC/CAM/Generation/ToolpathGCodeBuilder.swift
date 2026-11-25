@@ -125,10 +125,8 @@ enum ToolpathGCodeBuilder {
     /// One `SCGCodeEngine.generateGCode` call per toolpath, each with its own settings, joined
     /// in order into a single program that starts with a Makera-style `;@MKR|…` header
     /// (machine, stock, tools, time estimate, toolpath list).
-    /// - Parameter stock: the project's stock. A setup with a stock of its own is posted with that one.
+    /// - Parameter stock: the stock the setup is cut from (`CAMModel.stock(for:)`): it goes in the header.
     static func generate(_ sections: [Section], stock: StockMaterial? = nil, setup: Setup? = nil) -> String {
-
-        let stock = setup?.stock ?? stock
 
         let engine = SCGCodeEngine()
 

@@ -11,7 +11,7 @@ import Foundation
 
 extension CAMModel {
 
-    /// The objects that can have setups: everything but the alignment pins.
+    /// The objects that can have setups: everything but the fixtures.
     var regularObjectIDs: [UUID] {
         projectObjects.filter { $0.kind != .fixture }.map(\.id)
     }
@@ -91,7 +91,7 @@ extension CAMModel {
         var groups: [String: [Setup]] = [:]
         for setup in setups where setup.items.count == 1 {
             // The same face on another stock is a setup of its own, not a leftover
-            groups["\(setup.items[0].objectID)|\(setup.angle)|\(setup.axis.rawValue)|\(setup.stock.setupLabel)", default: []].append(setup)
+            groups["\(setup.items[0].objectID)|\(setup.angle)|\(setup.axis.rawValue)|\(setup.stockID)", default: []].append(setup)
         }
         var extras: [UUID] = []
         for group in groups.values where group.count > 1 {

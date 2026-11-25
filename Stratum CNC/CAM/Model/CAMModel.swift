@@ -26,6 +26,26 @@ class CAMModel: ObservableObject {
     /// that bumps it (see `setups`).
     @Published private(set) var revision = 0
 
+    /// The project's stocks, each with the fixtures attached to it (see `ProjectStock`). A setup is
+    /// cut from one of them (`Setup.stockID`) and several setups can share one. Never empty.
+    @Published private(set) var stocks: [ProjectStock] {
+        didSet {
+            guard stocks != oldValue else {
+                return
+            }
+            revision &+= 1
+            onStocksChanged?(stocks)
+            // The canvas draws the active setup's stock, and the fixtures are built from the stocks
+            syncCanvasStock()
+            syncFixtureObjects()
+            applyActivePlacement()
+            // A stock that changed shape or size outdates the results that depend on it
+            if stockGeometryChanged(from: oldValue, to: stocks) {
+                discardGenerations()
+            }
+        }
+    }
+
     /// How the stock is held, in the order the setups are machined (see `Setup`). Never empty:
     /// a project always has at least the top. `toolpaths` is kept in the same order: all of the
     /// first setup's toolpaths, then the second's… (see `orderedBySetup`), so the G-code of one
@@ -230,6 +250,8 @@ class CAMModel: ObservableObject {
     /// Fired when a setup is added, removed, renamed, reordered or turned. ProjectModel saves them
     /// with the project (the toolpaths refer to them by id).
     var onSetupsChanged: (([Setup]) -> Void)?
+    /// A stock was added, edited or removed, or a fixture of one changed (saved with the project).
+    var onStocksChanged: (([ProjectStock]) -> Void)?
     /// Fired after any object is added/removed/moved/resized/rotated on the
     /// canvas, with the full current object list. ProjectModel uses this to
     /// mirror each object's transform back into `ProjectData.assets` and
@@ -262,15 +284,23 @@ class CAMModel: ObservableObject {
         }
     }
 
-    /// - Parameter setups: the project's saved setups. Empty when it has none saved yet: it gets
-    ///   the top, cut from `newStock`, and every toolpath goes in it.
-    init(toolpaths: [ToolpathData], setups: [Setup] = [], newStock: StockMaterial = .defaultWorkpiece) {
+    /// - Parameters:
+    ///   - setups: the project's saved setups. Empty when it has none saved yet: it gets the top,
+    ///     cut from the first stock, and every toolpath goes in it.
+    ///   - stocks: the project's saved stocks (see `ProjectStocks.migrate` for older projects).
+    ///     Empty when it has none: the list starts with `newStock`.
+    init(toolpaths: [ToolpathData],
+         setups: [Setup] = [],
+         stocks: [ProjectStock] = [],
+         newStock: StockMaterial = .defaultWorkpiece) {
         PerfLog.start()
-        let initialSetups = setups.isEmpty ? [Setup(face: .top, stock: newStock)] : setups
+        let initialStocks = stocks.isEmpty ? [ProjectStock(stock: newStock)] : stocks
+        let initialSetups = setups.isEmpty ? [Setup(face: .top, stockID: initialStocks[0].id)] : setups
+        self.stocks = initialStocks
         self.setups = initialSetups
         self.activeSetupID = initialSetups[0].id
         self.toolpaths = Self.orderedBySetup(toolpaths, setups: initialSetups)
-        self.canvasState.stock = initialSetups[0].stock
+        self.canvasState.stock = (initialStocks.first { $0.id == initialSetups[0].stockID } ?? initialStocks[0]).stock
 
         stepWorkspace.onSceneLoaded = { [weak self] _ in
             // A late-loading STEP body must respect the active setup right away
@@ -330,6 +360,10 @@ class CAMModel: ObservableObject {
         canvasState.onPickedPathsChanged = { [weak self] paths in
             self?.applyPickedPaths(paths)
         }
+
+        // The fixtures of the stocks, as objects on the canvas
+        syncFixtureObjects()
+        applyActivePlacement()
     }
 
     // MARK: Toolpath list
@@ -552,18 +586,42 @@ class CAMModel: ObservableObject {
 
     // MARK: Setups
 
+    // MARK: Stocks
+
+    /// The entry of the project's stocks a setup is cut from. A setup whose stock is gone (only an
+    /// edited file can do that) is on the first one.
+    func projectStock(for setup: Setup) -> ProjectStock {
+        stocks.first { $0.id == setup.stockID } ?? stocks[0]
+    }
+
     /// The stock a setup is cut from.
     func stock(for setup: Setup) -> StockMaterial {
-        setup.stock
+        projectStock(for: setup).stock
     }
 
     func stock(for toolpath: ToolpathData) -> StockMaterial {
-        setup(for: toolpath).stock
+        stock(for: setup(for: toolpath))
     }
 
-    /// The stock of the active setup: what the canvas draws and the setup's details edit.
+    /// The stock entry of the active setup: what the canvas draws and the setup's details edit.
+    var activeProjectStock: ProjectStock {
+        projectStock(for: setups.first { $0.id == activeSetupID } ?? setups[0])
+    }
+
+    /// The stock of the active setup.
     var activeStock: StockMaterial {
-        (setups.first { $0.id == activeSetupID } ?? setups[0]).stock
+        activeProjectStock.stock
+    }
+
+    /// How many setups are cut from each stock, by the stock's id.
+    var setupCountsByStock: [UUID: Int] {
+        Dictionary(setups.map { (projectStock(for: $0).id, 1) }, uniquingKeysWith: +)
+    }
+
+    /// Whether some stock has no setup on it.
+    var hasUnusedStocks: Bool {
+        let counts = setupCountsByStock
+        return stocks.contains { counts[$0.id] == nil }
     }
 
     /// The stock a loaded G-code program says it was cut for (its header). Only for the session:
@@ -578,26 +636,207 @@ class CAMModel: ObservableObject {
     /// Why the active setup can't be cut from its stock, for the setup's details; nil when it can.
     var activeStockWarning: String? {
         guard let setup = setups.first(where: { $0.id == activeSetupID }),
-              let face = setup.face, face.isSide, !setup.stock.allowsSideFaces else {
+              let face = setup.face, face.isSide, !stock(for: setup).allowsSideFaces else {
             return nil
         }
         return "\(face.title) needs a rectangular stock."
     }
 
-    /// Changes the stock a setup is cut from (see `setups`' `didSet` for what that outdates).
-    func setSetupStock(_ id: UUID, to stock: StockMaterial) {
-        guard let index = setups.firstIndex(where: { $0.id == id }), setups[index].stock != stock else {
+    /// Edits a stock's definition (material, shape, size). It changes for every setup on it, and
+    /// its fixtures are pulled back to what fits the new size (see `stocks`' `didSet` for what that
+    /// outdates).
+    func setStock(_ id: UUID, to stock: StockMaterial) {
+        guard let index = stocks.firstIndex(where: { $0.id == id }), stocks[index].stock != stock else {
             return
         }
-        setups[index].stock = stock
+        var updated = stocks[index]
+        updated.stock = stock
+        updated.fixtures = updated.fixtures.map { fixture in
+            guard let fitted = AlignmentPins.fitted(fixture.spec, on: stock) else {
+                return fixture
+            }
+            var refitted = fixture
+            refitted.diameter = fitted.diameter
+            refitted.offset = fitted.offset
+            return refitted
+        }
+        stocks[index] = updated
     }
 
-    /// The canvas shows one stock: the active setup's. The alignment pins are fitted to it.
+    /// Cuts a setup from another of the project's stocks.
+    func assignStock(_ stockID: UUID, to setupID: UUID) {
+        guard stocks.contains(where: { $0.id == stockID }),
+              let index = setups.firstIndex(where: { $0.id == setupID }),
+              setups[index].stockID != stockID else {
+            return
+        }
+        setups[index].stockID = stockID
+    }
+
+    /// Adds a stock to the project and, with `setupID`, cuts that setup from it. The fixtures given
+    /// (those of the stock it copies) come along, each with an id of its own.
+    @discardableResult
+    func addStock(_ stock: StockMaterial,
+                  fixtures: [AlignmentPinsData] = [],
+                  for setupID: UUID? = nil) -> UUID {
+        let copies = fixtures.map {
+            AlignmentPinsData(id: UUID(), name: $0.name, diameter: $0.diameter, offset: $0.offset)
+        }
+        let entry = ProjectStock(stock: stock, fixtures: copies)
+        stocks.append(entry)
+        if let setupID {
+            assignStock(entry.id, to: setupID)
+        }
+        return entry.id
+    }
+
+    /// A stock picked from the material library for a setup. It replaces the setup's stock when no
+    /// other setup is on it; otherwise it is a new stock of the project, so the others keep theirs.
+    func useLibraryStock(_ stock: StockMaterial, for setupID: UUID) {
+        guard let setup = setup(withID: setupID) else {
+            return
+        }
+        let current = projectStock(for: setup)
+        if setupCountsByStock[current.id, default: 0] <= 1 {
+            setStock(current.id, to: stock)
+        } else {
+            addStock(stock, for: setupID)
+        }
+    }
+
+    /// Takes the stocks that no setup is cut from out of the project, fixtures included.
+    func removeUnusedStocks() {
+        let counts = setupCountsByStock
+        let kept = stocks.filter { counts[$0.id] != nil }
+        if !kept.isEmpty, kept.count != stocks.count {
+            stocks = kept
+        }
+    }
+
+    // MARK: Fixtures
+
+    /// The Fixtures checkbox of a setup's details: whether the fixtures of its stock are part of the
+    /// setup. Switching it on for a stock that has none makes the alignment pins on it (a stock is
+    /// shared, so every setup on it then has them to use). Returns a message when they can't be
+    /// made for this stock; the setup then stays without.
+    @discardableResult
+    func setSetupUsesFixtures(_ setupID: UUID, _ uses: Bool) -> String? {
+        guard let index = setups.firstIndex(where: { $0.id == setupID }),
+              setups[index].usesFixtures != uses else {
+            return nil
+        }
+        if uses {
+            let entry = projectStock(for: setups[index])
+            if entry.fixtures.isEmpty, let message = addAlignmentPins(to: entry.id) {
+                return message
+            }
+        }
+        setups[index].usesFixtures = uses
+        return nil
+    }
+
+    /// Makes a set of alignment pins on a stock (its fixtures). The offset is pulled into what fits
+    /// the stock; returns a message when the diameter doesn't fit it at all.
+    func addAlignmentPins(to stockID: UUID,
+                          diameter: Double = AlignmentPins.defaultSpec.diameter,
+                          offset: Double = AlignmentPins.defaultSpec.offset) -> String? {
+        guard let index = stocks.firstIndex(where: { $0.id == stockID }) else {
+            return nil
+        }
+        let requested = AlignmentPinsSpec(diameter: diameter, offset: offset)
+        let spec = AlignmentPins.fitted(requested, on: stocks[index].stock) ?? requested
+        do {
+            _ = try AlignmentPins.centers(on: stocks[index].stock, spec: spec)
+        } catch {
+            return error.localizedDescription
+        }
+        stocks[index].fixtures.append(AlignmentPinsData(id: UUID(),
+                                                        name: AlignmentPins.defaultName,
+                                                        diameter: spec.diameter,
+                                                        offset: spec.offset))
+        return nil
+    }
+
+    /// The Diameter and Offset fields of a stock's pins. Returns a message when they would not fit
+    /// the stock; nothing changes then.
+    func setAlignmentPins(stockID: UUID, fixtureID: UUID, diameter: Double, offset: Double) -> String? {
+        guard let s = stocks.firstIndex(where: { $0.id == stockID }),
+              let f = stocks[s].fixtures.firstIndex(where: { $0.id == fixtureID }) else {
+            return nil
+        }
+        do {
+            _ = try AlignmentPins.centers(on: stocks[s].stock,
+                                          spec: AlignmentPinsSpec(diameter: diameter, offset: offset))
+        } catch {
+            return error.localizedDescription
+        }
+        stocks[s].fixtures[f].diameter = diameter
+        stocks[s].fixtures[f].offset = offset
+        return nil
+    }
+
+    /// Takes the fixtures off a stock. The setups on it have nothing left to use, so their checkbox
+    /// goes off.
+    func removeFixtures(from stockID: UUID) {
+        guard let index = stocks.firstIndex(where: { $0.id == stockID }), !stocks[index].fixtures.isEmpty else {
+            return
+        }
+        var updated = setups
+        for position in updated.indices where updated[position].stockID == stockID {
+            updated[position].usesFixtures = false
+        }
+        setups = updated
+        stocks[index].fixtures = []
+    }
+
+    /// Keeps the canvas objects that draw and cut the fixtures in step with the stocks'
+    /// definitions: one object per fixture, built for the stock it is attached to. The ones of
+    /// stocks the active setup isn't on are kept too (their toolpaths still need them) and are
+    /// just not shown (see `applyActivePlacement`).
+    private func syncFixtureObjects() {
+        var wanted: [(fixture: AlignmentPinsData, stock: ProjectStock)] = []
+        for entry in stocks {
+            for fixture in entry.fixtures {
+                wanted.append((fixture, entry))
+            }
+        }
+        let wantedIDs = Set(wanted.map(\.fixture.id))
+        for object in canvasState.objects where object.isParametric && !wantedIDs.contains(object.id) {
+            canvasState.removeObject(object.id)
+        }
+        for item in wanted {
+            let spec = item.fixture.spec
+            // One that doesn't fit its stock any more is left as it is
+            guard let rebuilt = try? AlignmentPins.makeObject(id: item.fixture.id,
+                                                              name: item.fixture.name,
+                                                              spec: spec,
+                                                              stock: item.stock.stock) else {
+                continue
+            }
+            rebuilt.fixtureStockID = item.stock.id
+
+            guard let existing = canvasState.object(withID: item.fixture.id) else {
+                canvasState.add(rebuilt, select: false)
+                continue
+            }
+            existing.fixtureStockID = item.stock.id
+            if existing.alignmentPins == spec,
+               existing.position == rebuilt.position,
+               existing.originalSize == rebuilt.originalSize {
+                continue
+            }
+            canvasState.objectWillChange.send()
+            existing.adoptGeometry(of: rebuilt)
+            existing.alignmentPins = spec
+            canvasState.onObjectsChanged?()
+        }
+    }
+
+    /// The canvas shows one stock: the active setup's.
     private func syncCanvasStock() {
         let stock = activeStock
         if canvasState.stock != stock {
             canvasState.stock = stock
-            canvasState.refitAlignmentPins()
         }
     }
 
@@ -607,15 +846,28 @@ class CAMModel: ObservableObject {
         setup.angle != 0 || toolpaths.contains { $0.setupID == setup.id && $0.cutsWholeStock }
     }
 
-    /// Whether a setup's stock changed its shape or size, which outdates that setup's results.
+    /// Whether a setup moved to a stock of another shape or size, which outdates that setup's results.
     private func stockGeometryChanged(from old: [Setup], to new: [Setup]) -> Bool {
-        let before = Dictionary(old.map { ($0.id, $0.stock.geometry) }, uniquingKeysWith: { first, _ in first })
+        let before = Dictionary(old.map { ($0.id, geometry(ofStock: $0.stockID, in: stocks)) },
+                                uniquingKeysWith: { first, _ in first })
         return new.contains { setup in
             guard let previous = before[setup.id] else {
                 return false
             }
-            return previous != setup.stock.geometry && cutsDependOnStockGeometry(in: setup)
+            return previous != geometry(ofStock: setup.stockID, in: stocks) && cutsDependOnStockGeometry(in: setup)
         }
+    }
+
+    /// Whether a stock changed its shape or size, which outdates the results of the setups on it.
+    private func stockGeometryChanged(from old: [ProjectStock], to new: [ProjectStock]) -> Bool {
+        setups.contains { setup in
+            geometry(ofStock: setup.stockID, in: old) != geometry(ofStock: setup.stockID, in: new)
+                && cutsDependOnStockGeometry(in: setup)
+        }
+    }
+
+    private func geometry(ofStock id: UUID, in list: [ProjectStock]) -> StockGeometry? {
+        (list.first { $0.id == id } ?? list.first)?.stock.geometry
     }
 
     func setup(withID id: UUID?) -> Setup? {
@@ -687,16 +939,23 @@ class CAMModel: ObservableObject {
         activeSetupID = id
     }
 
-    /// Adds a setup at the end and makes it the active one. Unless a `stock` is given it is cut from
-    /// a copy of the active setup's stock.
+    /// Adds a setup at the end and makes it the active one. Unless a `stockID` is given it is cut
+    /// from the active setup's stock. With `inheritingFixtures` it also uses that stock's fixtures
+    /// when the active setup does (turning the part over keeps the alignment pins).
     @discardableResult
-    func addSetup(face: SetupFace, axis: SetupAxis? = nil, stock: StockMaterial? = nil) -> UUID {
+    func addSetup(face: SetupFace,
+                  axis: SetupAxis? = nil,
+                  stockID: UUID? = nil,
+                  inheritingFixtures: Bool = false) -> UUID {
         let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
         let taken = Set(setups.map(\.name))
+        let active = setups.first { $0.id == activeSetupID } ?? setups[0]
+        let onSameStock = stockID == nil || stockID == active.stockID
         let setup = Setup(face: face,
                           axis: axis,
                           name: Setup.uniqueName(for: face, axis: axis, among: taken),
-                          stock: stock ?? activeStock)
+                          stockID: stockID ?? active.stockID,
+                          usesFixtures: inheritingFixtures && onSameStock && active.usesFixtures)
         setups.append(setup)
         activeSetupID = setup.id
         return setup.id
@@ -802,7 +1061,7 @@ class CAMModel: ObservableObject {
     /// Puts saved setups back (a project was opened) and attaches the toolpaths that have none.
     /// Not a user edit, but it does report through `onSetupsChanged`.
     func restoreSetups(_ saved: [Setup]) {
-        setups = saved.isEmpty ? [Setup(face: .top)] : saved
+        setups = saved.isEmpty ? [Setup(face: .top, stockID: stocks[0].id)] : saved
         activeSetupID = setups[0].id
         toolpaths = Self.orderedBySetup(toolpaths, setups: setups)
     }
@@ -1058,6 +1317,7 @@ class CAMModel: ObservableObject {
         ToolpathPreviewInput(canvasState: canvasState,
                              toolpaths: toolpaths,
                              setups: setups,
+                             stocks: stocks,
                              activeSetupID: activeSetupID,
                              selectedToolpathID: selectedToolpathID,
                              showsAllToolpaths: showsAllToolpaths,
@@ -1148,7 +1408,8 @@ class CAMModel: ObservableObject {
         selectedToolpathID = nil
         toolpaths.removeAll()
         // Back to a lone top setup (the next project restores its own, see `restoreSetups`)
-        setups = [Setup(face: .top)]
+        stocks = [ProjectStock(stock: .defaultWorkpiece)]
+        setups = [Setup(face: .top, stockID: stocks[0].id)]
         activeSetupID = setups[0].id
     }
 

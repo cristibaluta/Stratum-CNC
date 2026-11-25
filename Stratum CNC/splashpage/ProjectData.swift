@@ -30,12 +30,17 @@ struct ProjectData: Identifiable, Codable, Hashable {
     /// bed), in millimeters. Saved as `[x, y]`. `nil` in projects saved before
     /// this existed, which load with a zero offset.
     var xyOffset: SIMD2<Float>?
-    /// The faces the stock is machined from, in machining order (see `Setup`): a name, and the
-    /// angle and axis the stock is turned by. Toolpaths point at one by `ToolpathData.setupID`.
+    /// The faces the stock is machined from, in machining order (see `Setup`): a name, the
+    /// angle and axis the stock is turned by, and the id of the stock it is cut from (`stocks`).
+    /// Toolpaths point at one by `ToolpathData.setupID`.
     /// `nil` until the project has been saved with them: it then has the top only.
     var setups: [Setup]?
-    /// The alignment pins: parametric objects (diameter and offset), rebuilt from these and the
-    /// stock on load. `nil` when the project has none.
+    /// The project's stocks (see `ProjectStock`), shared by the setups, each with the fixtures
+    /// (alignment pins) attached to it. `nil` in projects saved before: `ProjectStocks.migrate`
+    /// builds the list from their setups' own stocks and `alignmentPins`.
+    var stocks: [ProjectStock]?
+    /// Only what projects saved before fixtures belonged to stocks have: the alignment pins as
+    /// objects. Read once by `ProjectStocks.migrate` and cleared; never written by the app now.
     var alignmentPins: [AlignmentPinsData]?
 
     init(id: UUID = UUID(),
@@ -44,7 +49,8 @@ struct ProjectData: Identifiable, Codable, Hashable {
          isStockVisible: Bool?,
          assets: [AssetData]?,
          xyOffset: SIMD2<Float>? = nil,
-         setups: [Setup]? = nil) {
+         setups: [Setup]? = nil,
+         stocks: [ProjectStock]? = nil) {
 
         self.id = id
         self.name = name
@@ -53,5 +59,6 @@ struct ProjectData: Identifiable, Codable, Hashable {
         self.assets = assets
         self.xyOffset = xyOffset
         self.setups = setups
+        self.stocks = stocks
     }
 }

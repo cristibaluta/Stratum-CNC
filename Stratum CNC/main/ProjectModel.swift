@@ -22,7 +22,8 @@
 ProjectModel (owns ProjectData)
     │
     ├─→ Load phase:
-    │   CAMModel.setups = projectData.setups (each carries its own stock)
+    │   CAMModel.stocks = projectData.stocks (the project's stocks, with their fixtures)
+    │   CAMModel.setups = projectData.setups (each points at one of the stocks by id)
     │   CAMModel.canvasState = parse assets from projectData.assets
     │   CAMModel.toolpaths = load from toolpaths.json, each tool looked up by id in tools.json
     │
@@ -189,10 +190,16 @@ class ProjectModel: ObservableObject {
         projectData.name = project.name
         self.projectData = projectData
 
-        // The stock belongs to the setups. `projectData.stock` is only what a project saved
-        // before that had: the first setup of such a project starts from it.
+        // The stocks are a list of the project, shared by its setups, and the fixtures hang on them.
+        // A project saved before that (each setup carried its own stock, the alignment pins were
+        // objects) is converted here; `projectData.stock` only seeds the list of one that had none.
+        let migrated = ProjectStocks.migrate(setups: projectData.setups ?? [],
+                                             stocks: projectData.stocks ?? [],
+                                             legacyStock: projectData.stock,
+                                             legacyPins: projectData.alignmentPins ?? [])
         camModel = CAMModel(toolpaths: [],
-                            setups: projectData.setups ?? [],
+                            setups: migrated.setups,
+                            stocks: migrated.stocks,
                             newStock: projectData.stock ?? .defaultWorkpiece)
 
 //        projectData.isStockVisible.publisher.sink { [weak self] newValue in
@@ -223,6 +230,11 @@ class ProjectModel: ObservableObject {
         // restores the saved ones through the initializer, so opening is not an edit.
         camModel.onSetupsChanged = { [weak self] setups in
             self?.projectData.setups = setups
+        }
+
+        // Stocks added, edited or removed, and their fixtures
+        camModel.onStocksChanged = { [weak self] stocks in
+            self?.projectData.stocks = stocks
         }
 
         camModel.onToolpathsChanged = { [weak self] toolpaths in
@@ -263,9 +275,17 @@ class ProjectModel: ObservableObject {
         // Upgrade legacy assets before a new toolpath can reference their IDs.
         updateAssetTransforms(from: camModel.canvasState.objects)
 
+        // A project converted to stocks as a list is written in the new shape by the next save.
+        // `alignmentPins` is only what an older project had: its pins are fixtures of the stocks now.
+        if migrated.didMigrate, !projectFileUnreadable {
+            projectData.setups = camModel.setups
+            projectData.stocks = camModel.stocks
+            projectData.alignmentPins = nil
+        }
+
         // What the subtitle shows until something is saved in this session: the file's own date.
         lastSavedAt = (try? FileManager.default.attributesOfItem(atPath: paths.projectMetadata.path))?[.modificationDate] as? Date
-        hasUnsavedChanges = false
+        hasUnsavedChanges = migrated.didMigrate && !projectFileUnreadable
     }
 
     func loadProjectData() {
@@ -293,15 +313,8 @@ class ProjectModel: ObservableObject {
             }
         }
 
-        // Alignment pins are rebuilt from their parameters and the stock (loaded above)
-        for pins in projectData.alignmentPins ?? [] {
-            let stock = camModel.canvasState.stock
-            guard let spec = AlignmentPins.fitted(pins.spec, on: stock),
-                  let object = try? AlignmentPins.makeObject(id: pins.id, name: pins.name, spec: spec, stock: stock) else {
-                continue
-            }
-            camModel.canvasState.add(object, select: false)
-        }
+        // The fixtures (alignment pins) are not loaded here: they are part of the stocks, and
+        // `CAMModel` builds their objects from them.
 
         // 2. Load the project's tools; the toolpaths below only know them by id
         let toolsUrl = toolsFile
@@ -508,16 +521,7 @@ class ProjectModel: ObservableObject {
     /// an object was added, removed, moved, resized, or rotated, so the
     /// transform on disk always matches what's currently on screen.
     private func updateAssetTransforms(from objects: [D2_Object]) {
-        // The alignment pins aren't an asset file: their parameters are saved on their own
-        let pins = objects.compactMap { object in
-            object.alignmentPins.map {
-                AlignmentPinsData(id: object.id, name: object.name, diameter: $0.diameter, offset: $0.offset)
-            }
-        }
-        if (projectData.alignmentPins ?? []) != pins {
-            projectData.alignmentPins = pins.isEmpty ? nil : pins
-        }
-
+        // The fixtures aren't an asset file either: they are saved with the stocks (`projectData.stocks`)
         guard var assets = projectData.assets, !assets.isEmpty else {
             return
         }

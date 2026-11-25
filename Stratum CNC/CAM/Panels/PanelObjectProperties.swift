@@ -36,14 +36,6 @@ struct PanelObjectProperties: View {
     var onGroupValueChanged: ((ObjectProperty, CGFloat) -> Void)?
     var onGroupNudge: ((ObjectProperty, CGFloat) -> Void)?
     var onGroupScale: ((Int) -> Void)?
-    /// The alignment pins' Diameter and Offset fields: (object, diameter, offset). Returns a message
-    /// when the pins would not fit the stock; nothing changes then.
-    var onAlignmentPinsChanged: ((UUID, Double, Double) -> String?)?
-
-    @State private var pinsMessage: String?
-    /// Bumped after each edit of the pins' fields, so a field shows what was really applied.
-    @State private var pinsRefresh = 0
-
     /// The STEP model whose fields show, when no 2D object is selected.
     var stepModels: [STEPModelItem] = []
     var selectedStepModelID: UUID?
@@ -72,7 +64,7 @@ struct PanelObjectProperties: View {
                 stepModelPropertiesSection(for: model)
             }
         } else if selected.count == 1, let object = selected.first {
-            propertiesChrome(title: object.alignmentPins == nil ? "Object Properties" : "Alignment Pins") {
+            propertiesChrome(title: object.alignmentPins == nil ? "Object Properties" : "Fixture") {
                 if let spec = object.alignmentPins {
                     alignmentPinsSection(for: object, spec: spec)
                 } else {
@@ -170,40 +162,20 @@ struct PanelObjectProperties: View {
         }
     }
 
-    /// The alignment pins have no position or size: just the two numbers they are built from.
+    /// A fixture has no position or size, and is not edited here: it belongs to a stock, and its two
+    /// numbers are in the details of the setups cut from that stock.
     private func alignmentPinsSection(for object: D2_Object, spec: AlignmentPinsSpec) -> some View {
-        func apply(diameter: Double, offset: Double) {
-            pinsMessage = onAlignmentPinsChanged?(object.id, diameter, offset)
-            pinsRefresh += 1
-        }
-        return VStack(alignment: .leading, spacing: 0) {
-            InspectorSection(title: nil, showsDivider: false) {
-                valueRow("Diameter", value: CGFloat(spec.diameter), unit: "mm") {
-                    apply(diameter: Double($0), offset: spec.offset)
-                } trailing: {
-                    EmptyView()
-                }
-                valueRow("Offset", value: CGFloat(spec.offset), unit: "mm") {
-                    apply(diameter: spec.diameter, offset: Double($0))
-                } trailing: {
-                    EmptyView()
-                }
-                Text("Offset is the distance from the stock margin to the centre of each pin. The pins follow the stock when its size changes.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
-                if let pinsMessage {
-                    Text(pinsMessage)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .id(pinsRefresh)
-        }
-        .onChange(of: object.id) { _, _ in
-            pinsMessage = nil
+        VStack(alignment: .leading, spacing: 6) {
+            Text(object.name)
+                .font(.system(size: 12))
+            Text("Alignment pins: \(NumberField2.format(CGFloat(spec.diameter))) mm diameter, \(NumberField2.format(CGFloat(spec.offset))) mm from the stock's edges.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("They are a fixture of the stock. Change them in the setup's details.")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

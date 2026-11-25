@@ -21,17 +21,20 @@
 //  A side face stands the stock on its edge, so its footprint is another size: it is slid back
 //  to the origin, with its corner at X = 0, Y = 0, like the top's.
 //
-//  Stock: the stock belongs to the setup (`stock`); the project has none of its own. That is how
-//  one part is milled in two materials: a face in one workpiece, and some edges in another, each
-//  with its own z0, program and stock change in between. A new setup starts as a copy of the
-//  active one's stock.
+//  Stock: the project keeps a list of stocks (`ProjectStock`) and a setup points at one of them
+//  (`stockID`); several setups can use the same one. That is how one part is milled in two
+//  materials: a face in one workpiece, and some edges in another, each with its own z0, program
+//  and stock change in between. A new setup starts on the active one's stock.
+//
+//  Fixtures: they are attached to the stock (`ProjectStock.fixtures`), so every setup on that stock
+//  can use them. `usesFixtures` is the setup's checkbox: whether the fixtures are in this setup.
 //
 
 import Foundation
 
 extension StockMaterial {
 
-    /// The stock of a setup saved without one.
+    /// The stock of a new project, and of a setup saved without one.
     static let defaultWorkpiece = StockMaterial(
         name: "Workpiece",
         material: .aluminum,
@@ -50,14 +53,25 @@ struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
     var angle: Double
     /// The machine axis the stock turns about.
     var axis: SetupAxis
-    /// The workpiece this setup is cut from.
-    var stock: StockMaterial
+    /// The workpiece this setup is cut from: an entry of the project's stocks.
+    var stockID: UUID
+    /// Whether the fixtures of the stock (the alignment pins) are part of this setup: drawn on its
+    /// canvas and available to cut.
+    var usesFixtures: Bool = false
+    /// Only for a project saved when each setup carried its own stock: what it read. `ProjectStocks.migrate`
+    /// moves it into the project's list and clears it. Never saved.
+    var legacyStock: StockMaterial?
     /// The objects this setup includes, each with an optional placement of its own (see `SetupItem`).
     /// Empty (the default) includes every object of the project.
     var items: [SetupItem] = []
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, angle, axis, stock, items
+        case id, name, angle, axis, stockID, usesFixtures, items
+    }
+
+    /// The key of the stock a setup used to carry; only read.
+    private enum LegacyKeys: String, CodingKey {
+        case stock
     }
 
     init(from decoder: Decoder) throws {
@@ -66,21 +80,35 @@ struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
         name = try c.decode(String.self, forKey: .name)
         angle = try c.decode(Double.self, forKey: .angle)
         axis = try c.decode(SetupAxis.self, forKey: .axis)
-        stock = try c.decodeIfPresent(StockMaterial.self, forKey: .stock) ?? .defaultWorkpiece
+        usesFixtures = try c.decodeIfPresent(Bool.self, forKey: .usesFixtures) ?? false
         items = try c.decodeIfPresent([SetupItem].self, forKey: .items) ?? []
+
+        if let saved = try c.decodeIfPresent(UUID.self, forKey: .stockID) {
+            stockID = saved
+        } else {
+            // Saved with a stock of its own (or none): it moves into the project's list on open
+            stockID = UUID()
+            let legacy = try decoder.container(keyedBy: LegacyKeys.self)
+            legacyStock = try legacy.decodeIfPresent(StockMaterial.self, forKey: .stock) ?? .defaultWorkpiece
+        }
     }
 
-    init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x, stock: StockMaterial = .defaultWorkpiece) {
+    init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x, stockID: UUID, usesFixtures: Bool = false) {
         self.id = id
         self.name = name
         self.angle = Self.normalized(angle)
         self.axis = axis
-        self.stock = stock
+        self.stockID = stockID
+        self.usesFixtures = usesFixtures
     }
 
-    init(face: SetupFace, axis: SetupAxis? = nil, name: String? = nil, stock: StockMaterial = .defaultWorkpiece) {
+    init(face: SetupFace, axis: SetupAxis? = nil, name: String? = nil, stockID: UUID, usesFixtures: Bool = false) {
         let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
-        self.init(name: name ?? Self.baseName(for: face, axis: axis), angle: face.angle, axis: axis, stock: stock)
+        self.init(name: name ?? Self.baseName(for: face, axis: axis),
+                  angle: face.angle,
+                  axis: axis,
+                  stockID: stockID,
+                  usesFixtures: usesFixtures)
     }
 
     func hash(into hasher: inout Hasher) {

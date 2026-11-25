@@ -23,8 +23,9 @@ struct STEPModelItem: Identifiable {
     var detail: String? = nil
 }
 
-/// The list of imported objects (2D shapes, STEP models and the alignment pins). The setups are
-/// `PanelSetups`; the selected object's placement (position, size, face up) is `PanelObjectProperties`.
+/// The list of imported objects (2D shapes and STEP models). The fixtures are not objects of the
+/// project: they belong to the stocks and are in the setup's details. The setups are `PanelSetups`;
+/// the selected object's placement (position, size, face up) is `PanelObjectProperties`.
 struct PanelObjectsInspector: View {
 
     let elements: [D2_Object]
@@ -36,8 +37,6 @@ struct PanelObjectsInspector: View {
     var onToggleVisibility: ((UUID) -> Void)?
     /// "Import 2D/3D objects…" in the + menu: opens the file picker.
     var onAddNew: (() -> Void)?
-    /// "Create alignment pins…" in the + menu: opens the dialog.
-    var onCreateAlignmentPins: (() -> Void)?
 
     /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
     @State private var isExpanded = true
@@ -106,7 +105,7 @@ struct PanelObjectsInspector: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.secondary)
 
-                    let count = elements.count + stepModels.count
+                    let count = regularShapes.count + stepModels.count
                     if count > 0 {
                         Text("\(count)")
                             .font(.system(size: 12))
@@ -124,36 +123,25 @@ struct PanelObjectsInspector: View {
         }
     }
 
-    /// The + at the top right; it opens a menu instead of acting at once.
+    /// The + at the top right: imports 2D/3D objects.
     private var addMenu: some View {
-        Menu {
-            Button {
-                onAddNew?()
-            } label: {
-                Label("Import 2D/3D Objects…", systemImage: "square.and.arrow.down")
-            }
-            Button {
-                onCreateAlignmentPins?()
-            } label: {
-                Label("Create Alignment Pins…", systemImage: "circle.grid.2x2")
-            }
+        Button {
+            onAddNew?()
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .medium))
                 .padding(3)
         }
-        .stBorderlessMenuStyle()
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.borderless)
         .foregroundStyle(.secondary)
-        .help("Add objects")
+        .help("Import 2D/3D objects")
     }
 
     // MARK: - Objects
 
     private var objectsSection: some View {
         Group {
-            if elements.isEmpty && stepModels.isEmpty {
+            if regularShapes.isEmpty && stepModels.isEmpty {
                 Text("No object imported!")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 12))
@@ -171,13 +159,9 @@ struct PanelObjectsInspector: View {
 
     // MARK: - List
 
+    /// The imported shapes: the fixtures of the stocks are canvas objects too, but not listed here.
     private var regularShapes: [D2_Object] {
         elements.filter { !$0.isParametric }
-    }
-
-    /// The alignment pins.
-    private var fixtureShapes: [D2_Object] {
-        elements.filter { $0.isParametric }
     }
 
     @ViewBuilder
@@ -187,13 +171,6 @@ struct PanelObjectsInspector: View {
         }
         ForEach(stepModels) { model in
             stepModelRow(model)
-        }
-        // Only once pins exist
-        if !fixtureShapes.isEmpty {
-            groupTitle("Fixtures")
-            ForEach(fixtureShapes, id: \.id) { object in
-                objectRow(object)
-            }
         }
     }
 
@@ -217,11 +194,6 @@ struct PanelObjectsInspector: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    if object.isParametric {
-                        Image(systemName: "circle.grid.2x2")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
                     Text(object.name)
                         .font(.system(size: 12))
                         .lineLimit(1)
@@ -284,13 +256,5 @@ struct PanelObjectsInspector: View {
                 Label("Delete Object", systemImage: "trash")
             }
         }
-    }
-
-    private func groupTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.tertiary)
-            .padding(.horizontal, Self.rowInset)
-            .padding(.top, 6)
     }
 }

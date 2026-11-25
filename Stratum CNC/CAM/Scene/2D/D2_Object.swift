@@ -60,10 +60,14 @@ final class D2_Object {
         isVisible && isInActiveSetup
     }
 
-    /// Set for the alignment pins: a parametric object. Its geometry is built from this (and the
-    /// stock) rather than imported, so it has no position or size of its own: the canvas and the
+    /// Set for the alignment pins, a fixture of a stock: a parametric object. Its geometry is built
+    /// from this (and the stock) rather than imported, so it has no position or size of its own: the canvas and the
     /// inspector don't move, scale or rotate it, and `adoptGeometry` rebuilds it in place.
     var alignmentPins: AlignmentPinsSpec?
+
+    /// For a fixture: the stock it is attached to. The canvas shows it only in the setups that are
+    /// on that stock and use fixtures (see `CAMModel.applyActivePlacement`).
+    var fixtureStockID: UUID?
 
     /// The object is built from parameters, not placed by hand.
     var isParametric: Bool {

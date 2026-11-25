@@ -35,7 +35,6 @@ struct CAMView: View {
     @ObservedObject var camModel: CAMModel
     @ObservedObject var projectModel: ProjectModel
     @State private var fileError: String?
-    @State private var showingAlignmentPins = false
     /// Bumped by the fit button to frame the whole scene again.
     @State private var fitRequest = 0
     /// How tall the legend (bottom-left) is right now; the left panels' scroll stops above it.
@@ -99,27 +98,6 @@ struct CAMView: View {
             case .failure(let error):
                 fileError = String(describing: error)
             }
-        }
-    }
-
-    /// Makes the alignment pins: one parametric object (see `AlignmentPins`), saved with the
-    /// project as its diameter and offset.
-    private func createAlignmentPins(diameter: Double, offset: Double) {
-        let taken = Set(camModel.canvasState.objects.map(\.name))
-        var name = AlignmentPins.defaultName
-        var n = 2
-        while taken.contains(name) {
-            name = "\(AlignmentPins.defaultName) \(n)"
-            n += 1
-        }
-        do {
-            let object = try AlignmentPins.makeObject(name: name,
-                                                      spec: AlignmentPinsSpec(diameter: diameter, offset: offset),
-                                                      stock: camModel.activeStock)
-            camModel.stepWorkspace.selectedModelID = nil
-            camModel.canvasState.add(object, select: true)
-        } catch {
-            fileError = error.localizedDescription
         }
     }
 
@@ -321,31 +299,50 @@ struct CAMView: View {
         .onAppear {
             camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
-        .sheet(isPresented: $showingAlignmentPins) {
-            AlignmentPinsSheet(stock: camModel.activeStock,
-                               onCreate: { diameter, offset in
-                                   showingAlignmentPins = false
-                                   createAlignmentPins(diameter: diameter, offset: offset)
-                               },
-                               onCancel: { showingAlignmentPins = false })
-        }
     }
 
-    /// The selected setup's details (its object and stock) or the selected object's placement,
+    /// The selected setup's details (its object, stock and fixtures) or the selected object's placement,
     /// and the selected toolpath's settings under it.
     private var rightPanels: some View {
         VStack(alignment: .trailing, spacing: 16) {
-            // One selection at a time: a setup shows its object and stock, an object its face up, position, size
+            // One selection at a time: a setup shows its object, stock and fixtures, an object its face up, position, size
             if camModel.isSetupSelected, let setup = camModel.setups.first(where: { $0.id == camModel.activeSetupID }) {
+                let projectStock = camModel.projectStock(for: setup)
                 PanelSetupDetails(setup: setup,
                                   objects: setupObjects,
-                                  stock: Binding(get: { camModel.activeStock },
-                                                 set: { camModel.setSetupStock(setup.id, to: $0) }),
+                                  stocks: camModel.stocks,
+                                  setupCounts: camModel.setupCountsByStock,
+                                  projectStock: projectStock,
+                                  // The stock is the project's, shared by the setups cut from it
+                                  stock: Binding(get: { camModel.projectStock(for: setup).stock },
+                                                 set: { camModel.setStock(projectStock.id, to: $0) }),
                                   isStockVisible: stockVisibleBinding,
                                   stocksStore: appModel.stocksStore,
                                   warning: camModel.activeStockWarning,
                                   onSelectObject: { objectID in
                                       camModel.setSetupObjects(setup.id, to: objectID.map { [$0] } ?? [])
+                                  },
+                                  onSelectStock: { id in
+                                      camModel.assignStock(id, to: setup.id)
+                                  },
+                                  onNewStock: {
+                                      camModel.addStock(projectStock.stock, fixtures: projectStock.fixtures, for: setup.id)
+                                  },
+                                  onPickLibraryStock: { stock in
+                                      camModel.useLibraryStock(stock, for: setup.id)
+                                  },
+                                  onRemoveUnusedStocks: {
+                                      camModel.removeUnusedStocks()
+                                  },
+                                  onSetUsesFixtures: { uses in
+                                      camModel.setSetupUsesFixtures(setup.id, uses)
+                                  },
+                                  onFixtureChanged: { fixtureID, diameter, offset in
+                                      camModel.setAlignmentPins(stockID: projectStock.id, fixtureID: fixtureID,
+                                                                diameter: diameter, offset: offset)
+                                  },
+                                  onRemoveFixtures: {
+                                      camModel.removeFixtures(from: projectStock.id)
                                   },
                                   onDone: {
                                       camModel.isSetupSelected = false
@@ -364,7 +361,7 @@ struct CAMView: View {
         .padding(16)
     }
 
-    /// The imported objects a setup can cut: everything except the alignment pins.
+    /// The imported objects a setup can cut: everything except the fixtures.
     private var setupObjects: [PanelSetups.ObjectItem] {
         camModel.canvasState.objects.filter { !$0.isParametric }.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) }
             + stepModelItems.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) }
@@ -393,9 +390,6 @@ struct CAMView: View {
             },
             onAddNew: {
                 camModel.showingFilePicker = true
-            },
-            onCreateAlignmentPins: {
-                showingAlignmentPins = true
             },
             onDelete: { id in
                 camModel.canvasState.removeObject(id)
@@ -492,9 +486,6 @@ struct CAMView: View {
             },
             onGroupScale: { factor in
                 camModel.canvasState.scaleSelection(factor: factor)
-            },
-            onAlignmentPinsChanged: { id, diameter, offset in
-                camModel.canvasState.setAlignmentPins(id, diameter: diameter, offset: offset)
             },
             stepModels: stepModelItems,
             selectedStepModelID: focusedStepID,
@@ -607,8 +598,8 @@ struct CAMView: View {
             },
             onAddSetup: { objectID, face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
-                    // A new setup starts from a copy of the active setup's stock
-                    let id = camModel.addSetup(face: face, axis: axis)
+                    // A new setup is cut from the active setup's stock, and keeps its fixtures
+                    let id = camModel.addSetup(face: face, axis: axis, inheritingFixtures: true)
                     if let objectID {
                         camModel.setSetupObjects(id, to: [objectID])
                     }
@@ -625,7 +616,7 @@ struct CAMView: View {
             },
             onAddCombinedSetup: { ids, face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
-                    let id = camModel.addSetup(face: face, axis: axis)
+                    let id = camModel.addSetup(face: face, axis: axis, inheritingFixtures: true)
                     camModel.setSetupObjects(id, to: ids)
                     camModel.isSetupSelected = true
                 }

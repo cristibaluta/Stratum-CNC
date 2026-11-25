@@ -531,50 +531,6 @@ final class D2_CanvasState: ObservableObject, Equatable {
         onObjectsChanged?()
     }
 
-    // MARK: Alignment pins
-
-    /// The inspector's Diameter and Offset fields. Returns a message when the pins would not fit
-    /// the stock (nothing changes then), nil when they were rebuilt.
-    func setAlignmentPins(_ id: UUID, diameter: Double, offset: Double) -> String? {
-        guard let object = object(withID: id), object.alignmentPins != nil else {
-            return nil
-        }
-        let spec = AlignmentPinsSpec(diameter: diameter, offset: offset)
-        do {
-            let rebuilt = try AlignmentPins.makeObject(name: object.name, spec: spec, stock: stock)
-            objectWillChange.send()
-            object.adoptGeometry(of: rebuilt)
-            object.alignmentPins = spec
-            onObjectsChanged?()
-            return nil
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    /// After the stock changed: rebuilds every set of alignment pins for the new size, pulling
-    /// the offset back inside what fits. Pins that no longer fit at all are left as they are.
-    func refitAlignmentPins() {
-        var changed = false
-        for object in objects {
-            guard let spec = object.alignmentPins,
-                  let fitted = AlignmentPins.fitted(spec, on: stock),
-                  let rebuilt = try? AlignmentPins.makeObject(name: object.name, spec: fitted, stock: stock) else {
-                continue
-            }
-            if fitted == spec, rebuilt.position == object.position, rebuilt.originalSize == object.originalSize {
-                continue
-            }
-            object.adoptGeometry(of: rebuilt)
-            object.alignmentPins = fitted
-            changed = true
-        }
-        if changed {
-            objectWillChange.send()
-            onObjectsChanged?()
-        }
-    }
-
     /// Used by the inspector's eye toggle. Deliberately does NOT call
     /// `onObjectsChanged` — that callback discards every generated
     /// toolpath, on the assumption that geometry just changed (see

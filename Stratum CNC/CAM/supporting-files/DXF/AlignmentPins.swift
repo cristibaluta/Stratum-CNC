@@ -5,8 +5,8 @@
 //  Four alignment pins (holes) placed symmetrically around the stock, for registering the
 //  stock when it is flipped over to cut another face.
 //
-//  They are a parametric object: the project stores only the diameter and the offset from the
-//  stock's margin, and the object's geometry (four circles, one list entry, each circle
+//  They are a fixture of a stock (`ProjectStock.fixtures`): the project stores only the diameter
+//  and the offset from the stock's margin, and the canvas object's geometry (four circles, one list entry, each circle
 //  selectable on its own) is rebuilt from them whenever either changes or the stock does.
 //  They have no position or size of their own, and can't be moved, scaled or rotated.
 //
@@ -24,8 +24,8 @@ struct AlignmentPinsSpec: Codable, Hashable {
     var offset: Double
 }
 
-/// The pins as saved in project.json. The id is the object's id, kept across rebuilds so
-/// toolpaths that cut the pins keep pointing at them.
+/// The pins as saved in project.json, in the fixtures of a stock. The id is the canvas object's id,
+/// kept across rebuilds so toolpaths that cut the pins keep pointing at them.
 struct AlignmentPinsData: Codable, Hashable, Identifiable {
     var id: UUID
     var name: String
@@ -40,6 +40,9 @@ struct AlignmentPinsData: Codable, Hashable, Identifiable {
 enum AlignmentPins {
 
     static let defaultName = "Alignment pins"
+
+    /// What a new set of pins starts as: 6 mm pins, 10 mm in from the stock's edges.
+    static let defaultSpec = AlignmentPinsSpec(diameter: 6, offset: 10)
 
     enum PinError: Error, LocalizedError {
         case noStock

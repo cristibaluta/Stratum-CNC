@@ -16,6 +16,7 @@ struct ToolpathPreviewInput {
     let canvasState: D2_CanvasState
     let toolpaths: [ToolpathData]
     let setups: [Setup]
+    let stocks: [ProjectStock]
     let activeSetupID: UUID
     let selectedToolpathID: UUID?
     /// The legend's "All toolpaths" (see `CAMModel.showsAllToolpaths`)
@@ -29,6 +30,11 @@ struct ToolpathPreviewInput {
     /// The toolpath's setup. A toolpath whose setup is gone (it was saved without setups) is in the first.
     func setup(for toolpath: ToolpathData) -> Setup {
         setups.first { $0.id == toolpath.setupID } ?? setups[0]
+    }
+
+    /// The stock a setup is cut from (the first one for a setup whose stock is gone).
+    func stock(for setup: Setup) -> StockMaterial {
+        (stocks.first { $0.id == setup.stockID } ?? stocks[0]).stock
     }
 
     /// Whether `toolpath`'s result is on the canvas now: the open toolpath, or every one when none
@@ -166,7 +172,7 @@ final class ToolpathPreviewController {
             seenSetups.insert(setup.id)
             let combined = cached.path
             let lines = cached.lines
-            let frame = try? SetupFrame.make(setup: setup, stock: setup.stock)
+            let frame = try? SetupFrame.make(setup: setup, stock: input.stock(for: setup))
             faces.append(.init(setupID: setup.id, face: setup.face, path: combined,
                                z: CGFloat(frame?.z0InPartFrame ?? 0),
                                lines: lines, linesKey: results.map(\.id),

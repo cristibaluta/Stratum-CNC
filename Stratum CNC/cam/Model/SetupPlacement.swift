@@ -53,10 +53,12 @@ extension CAMModel {
         }
         var moved = false
         var membershipChanged = false
-        // Objects the setup doesn't include drop off the canvas (and out of picking). The alignment
-        // pins are in every setup, fitted to the stock of the active one.
+        // Objects the setup doesn't include drop off the canvas (and out of picking). The fixtures
+        // are in the setups that use them: those on the stock they are attached to.
         for object in canvasState.objects {
-            let included = object.isParametric || setup.includes(object.id)
+            let included = object.isParametric
+                ? (setup.usesFixtures && object.fixtureStockID == projectStock(for: setup).id)
+                : setup.includes(object.id)
             if object.isInActiveSetup != included {
                 object.isInActiveSetup = included
                 membershipChanged = true
