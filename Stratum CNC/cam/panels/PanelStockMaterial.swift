@@ -15,26 +15,31 @@ struct PanelStockMaterial: View {
     var onOpenStocksLib: (() async -> StockMaterial?)?
     /// When set, the library button opens the stocks library in a popover instead of calling `onOpenStocksLib`.
     var stocksStore: StocksStore? = nil
-    /// Which stock this panel edits, as a small tag in the summary: "Project stock" (shared by every
-    /// setup without a stock of its own) or "This setup only". Nil hides it (nothing to confuse).
-    var scopeTag: String? = nil
-    /// Set while the stock belongs to one setup: the details then offer "Use project stock".
-    var onUseProjectStock: (() -> Void)? = nil
-    /// Set while the setup uses the project's stock and there are other setups: the details then
-    /// offer "Use own stock", which starts from a copy of the project's.
-    var onUseOwnStock: (() -> Void)? = nil
     /// Why the setup can't be cut from this stock (a side face needs a rectangular block).
     var warning: String? = nil
-    /// A new value opens the details: a setup on a different stock was just added, and its stock
-    /// is the first thing to set.
-    var expandTrigger: UUID? = nil
-
     @State private var showingLibrary = false
+
+    /// Part of a bigger panel (the setup's details): no frame and padding of its own.
+    var isEmbedded = false
+    /// Whether the details are open when the panel appears.
+    var startsExpanded = false
 
     /// Collapsed, the panel is one line. Clicking it opens the editable details.
     @State private var isExpanded = false
 
     var body: some View {
+        if isEmbedded {
+            content
+        } else {
+            content
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .canvasChrome()
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
             summaryLine
             if let warning {
@@ -48,17 +53,9 @@ struct PanelStockMaterial: View {
                     .padding(.top, 10)
             }
         }
-        .onChange(of: expandTrigger) { _ in
-            if expandTrigger != nil {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isExpanded = true
-                }
-            }
+        .onAppear {
+            isExpanded = startsExpanded
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .canvasChrome()
     }
 
     // MARK: Summary
@@ -100,15 +97,6 @@ struct PanelStockMaterial: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    if let scopeTag {
-                        Text(scopeTag)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(.quaternary))
-                            .fixedSize()
-                    }
                     Text(summary)
                         .font(.system(size: 12))
                         .lineLimit(1)
@@ -150,30 +138,6 @@ struct PanelStockMaterial: View {
         VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             Divider()
                 .padding(.bottom, 2)
-
-            if let onUseProjectStock {
-                HStack(spacing: 8) {
-                    Text("Only this setup is cut from this stock.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 4)
-                    Button("Use project stock", action: onUseProjectStock)
-                        .controlSize(.small)
-                        .help("Drop this setup's own stock and cut it from the project's again")
-                }
-            }
-
-            if let onUseOwnStock {
-                HStack(spacing: 8) {
-                    Text("Shared by every setup without its own stock.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 4)
-                    Button("Use own stock", action: onUseOwnStock)
-                        .controlSize(.small)
-                        .help("Cut only this setup from another stock, starting as a copy of the project's")
-                }
-            }
 
             StockMaterialForm(stock: $stock)
         }

@@ -367,7 +367,7 @@ class GCodeStore: ObservableObject {
 
         isBuildingCAMGCode = true
         let sections = plan.sections
-        let stock = camModel.selectedStockMaterial
+        let stock = camModel.activeStock
         // The header names the setup only when the project has several
         let headerSetup = camModel.setups.count > 1 ? activeSetup : nil
         let revision = camModel.revision

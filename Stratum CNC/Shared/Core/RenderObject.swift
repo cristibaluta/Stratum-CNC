@@ -43,7 +43,7 @@ typealias SolidVertex = HeightmapMesh.Vertex
 
 /// What a `RenderObject` represents, for the handful of cases where upstream
 /// code needs to find one again inside a scene array (e.g. swapping in a
-/// freshly-built stock wireframe whenever `CAMModel.selectedStockMaterial`
+/// freshly-built stock wireframe whenever `CAMModel.activeStock`
 /// changes, or refreshing the toolpath preview whenever a G-code file
 /// (re)loads, without disturbing the other objects in the scene).
 /// Also identifies the selection overlay's special depth behavior.

@@ -24,8 +24,6 @@ struct ToolpathPreviewInput {
     let isSetupSelected: Bool
     /// Draw the corners the open pocket's tool couldn't reach
     let showsRestAreas: Bool
-    /// The project's stock; a setup with a stock of its own overrides it (`Setup.resolvedStock`).
-    let stock: StockMaterial
     let generations: [UUID: ToolpathGeneration]
 
     /// The toolpath's setup. A toolpath whose setup is gone (it was saved without setups) is in the first.
@@ -168,7 +166,7 @@ final class ToolpathPreviewController {
             seenSetups.insert(setup.id)
             let combined = cached.path
             let lines = cached.lines
-            let frame = try? SetupFrame.make(setup: setup, stock: setup.resolvedStock(projectStock: input.stock))
+            let frame = try? SetupFrame.make(setup: setup, stock: setup.stock)
             faces.append(.init(setupID: setup.id, face: setup.face, path: combined,
                                z: CGFloat(frame?.z0InPartFrame ?? 0),
                                lines: lines, linesKey: results.map(\.id),

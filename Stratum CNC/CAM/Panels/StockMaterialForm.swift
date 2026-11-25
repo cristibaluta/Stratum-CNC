@@ -4,7 +4,7 @@
 //
 //  The stock's editable fields: material, shape and the dimensions that shape needs.
 //  Just the form, with no title, summary line or visibility button around it, so it can sit
-//  inside another container: CAM's `PanelStockMaterial` shows it under its summary line, and
+//  inside another container: CAM's `PanelSetupDetails` shows it under the Stock title, and
 //  the Controller's legend opens it as is from the stock's gear.
 //
 

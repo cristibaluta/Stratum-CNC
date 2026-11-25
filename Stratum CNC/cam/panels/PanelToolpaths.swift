@@ -355,7 +355,7 @@ struct PanelToolpaths: View {
             if setups.count > 1, !toolpath.operation.isRest {
                 Menu("Move to setup") {
                     ForEach(setups.filter { $0.id != toolpath.setupID }) { setup in
-                        Button(setup.displayTitle) {
+                        Button(setup.name) {
                             onMoveToSetup?(toolpath.id, setup.id)
                         }
                     }

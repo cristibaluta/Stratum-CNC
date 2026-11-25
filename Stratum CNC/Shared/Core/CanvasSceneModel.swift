@@ -172,7 +172,7 @@ class CanvasSceneModel: ObservableObject {
 
     /// Base color the heightmap surface is shaded with — the selected
     /// stock's material color (`StockMaterialType.surfaceColor`), so the 3D
-    /// preview matches whatever was picked in `MaterialPanelView`. Set by
+    /// preview matches whatever was picked in the setup's stock panel. Set by
     /// `updateStock`. The default is the old fixed "machined aluminum" gray,
     /// only visible until the first `updateStock` runs.
     @Published var stockColor: SIMD4<Float> = SIMD4<Float>(0.75, 0.72, 0.68, 1.0)
@@ -246,8 +246,8 @@ class CanvasSceneModel: ObservableObject {
     /// Rebuilds just the stock wireframe from `stock`'s shape and dimensions,
     /// leaving the rest of the scene (axes, toolpath preview, position
     /// marker) untouched. `ControllerView` calls this whenever
-    /// `CAMModel.selectedStockMaterial` changes, so the box drawn here always
-    /// matches whatever was last set in `MaterialPanelView`.
+    /// the stock changes, so the box drawn here always
+    /// matches whatever was last set in the setup's stock panel.
     ///
     /// The static workbed and anchor are rebuilt here too: they're flat, and
     /// sit at the stock's bottom face, so a change in stock depth moves them.

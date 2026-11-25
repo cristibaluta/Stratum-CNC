@@ -21,12 +21,23 @@
 //  A side face stands the stock on its edge, so its footprint is another size: it is slid back
 //  to the origin, with its corner at X = 0, Y = 0, like the top's.
 //
-//  Stock: a setup is cut from the project's stock unless it carries a stock of its own (`stock`).
-//  That is how one part is milled in two materials: a face in the project's stock, and some edges
-//  in another workpiece, each with its own z0, program and stock change in between.
+//  Stock: the stock belongs to the setup (`stock`); the project has none of its own. That is how
+//  one part is milled in two materials: a face in one workpiece, and some edges in another, each
+//  with its own z0, program and stock change in between. A new setup starts as a copy of the
+//  active one's stock.
 //
 
 import Foundation
+
+extension StockMaterial {
+
+    /// The stock of a setup saved without one.
+    static let defaultWorkpiece = StockMaterial(
+        name: "Workpiece",
+        material: .aluminum,
+        geometry: .rectangular(width: 100, height: 100, depth: 10)
+    )
+}
 
 // `@unchecked Sendable` and the hand-written `hash(into:)`: `StockMaterial` isn't declared Hashable or
 // Sendable, but it is a plain value (enums and numbers). Equality is still the synthesized one,
@@ -39,9 +50,8 @@ struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
     var angle: Double
     /// The machine axis the stock turns about.
     var axis: SetupAxis
-    /// The stock this setup is cut from when it isn't the project's. Nil (the default, and every
-    /// project saved before this existed) uses the project stock.
-    var stock: StockMaterial? = nil
+    /// The workpiece this setup is cut from.
+    var stock: StockMaterial
     /// The objects this setup includes, each with an optional placement of its own (see `SetupItem`).
     /// Empty (the default) includes every object of the project.
     var items: [SetupItem] = []
@@ -56,11 +66,11 @@ struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
         name = try c.decode(String.self, forKey: .name)
         angle = try c.decode(Double.self, forKey: .angle)
         axis = try c.decode(SetupAxis.self, forKey: .axis)
-        stock = try c.decodeIfPresent(StockMaterial.self, forKey: .stock)
+        stock = try c.decodeIfPresent(StockMaterial.self, forKey: .stock) ?? .defaultWorkpiece
         items = try c.decodeIfPresent([SetupItem].self, forKey: .items) ?? []
     }
 
-    init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x, stock: StockMaterial? = nil) {
+    init(id: UUID = UUID(), name: String, angle: Double, axis: SetupAxis = .x, stock: StockMaterial = .defaultWorkpiece) {
         self.id = id
         self.name = name
         self.angle = Self.normalized(angle)
@@ -68,23 +78,13 @@ struct Setup: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.stock = stock
     }
 
-    init(face: SetupFace, axis: SetupAxis? = nil, name: String? = nil, stock: StockMaterial? = nil) {
+    init(face: SetupFace, axis: SetupAxis? = nil, name: String? = nil, stock: StockMaterial = .defaultWorkpiece) {
         let axis = face.hasChoiceOfAxis ? (axis ?? face.axis) : face.axis
         self.init(name: name ?? Self.baseName(for: face, axis: axis), angle: face.angle, axis: axis, stock: stock)
     }
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
-    }
-
-    /// The stock this setup is cut from, given the project's.
-    func resolvedStock(projectStock: StockMaterial) -> StockMaterial {
-        stock ?? projectStock
-    }
-
-    /// The name, with the setup's own stock in parentheses when it has one: "Top (Acrylic 3 mm)".
-    var displayTitle: String {
-        stock.map { "\(name) (\($0.setupLabel))" } ?? name
     }
 
     var orientation: SetupOrientation {

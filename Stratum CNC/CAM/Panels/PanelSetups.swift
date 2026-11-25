@@ -221,7 +221,7 @@ struct PanelSetups: View {
                 Image(systemName: "square.stack.3d.down.right")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                Text(setup.displayTitle)
+                Text(setup.name)
                     .font(.system(size: 12))
                     .lineLimit(1)
                     .truncationMode(.middle)

@@ -25,7 +25,7 @@ import SwiftUI
         - MetalCanvasView
     - CAMLayersOverlay                         <- legend over the canvas, bottom-left (shapes, model, stock, toolpaths, anchor, axes): show / hide, plus Z0 projections; the toolpaths row is the All toolpaths switch
     - ObjectsInspectorView                     <- reads/writes D2_CanvasState via CAMModel.canvasState
-    - MaterialPanelView                        <- reads/writes the active setup's stock (CAMModel.activeStock: its own, or CAMModel.selectedStockMaterial) + the shared isStockVisible flag
+    - PanelSetupDetails                         <- the selected setup's object and stock (CAMModel.activeStock) + the shared isStockVisible flag
     - ToolpathListView                         <- left, under the objects panel: select / show-hide / delete toolpaths
     - ToolpathCellView                         <- right, under the material panel: only while a toolpath is selected
 */
@@ -36,8 +36,6 @@ struct CAMView: View {
     @ObservedObject var projectModel: ProjectModel
     @State private var fileError: String?
     @State private var showingAlignmentPins = false
-    /// Changes when a setup on a different stock is added, which opens the stock panel's details.
-    @State private var stockPanelExpandTrigger: UUID?
     /// Bumped by the fit button to frame the whole scene again.
     @State private var fitRequest = 0
     /// How tall the legend (bottom-left) is right now; the left panels' scroll stops above it.
@@ -117,7 +115,7 @@ struct CAMView: View {
         do {
             let object = try AlignmentPins.makeObject(name: name,
                                                       spec: AlignmentPinsSpec(diameter: diameter, offset: offset),
-                                                      stock: camModel.selectedStockMaterial)
+                                                      stock: camModel.activeStock)
             camModel.stepWorkspace.selectedModelID = nil
             camModel.canvasState.add(object, select: true)
         } catch {
@@ -324,7 +322,7 @@ struct CAMView: View {
             camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
         .sheet(isPresented: $showingAlignmentPins) {
-            AlignmentPinsSheet(stock: camModel.selectedStockMaterial,
+            AlignmentPinsSheet(stock: camModel.activeStock,
                                onCreate: { diameter, offset in
                                    showingAlignmentPins = false
                                    createAlignmentPins(diameter: diameter, offset: offset)
@@ -333,33 +331,27 @@ struct CAMView: View {
         }
     }
 
-    /// The stock panel, and the selected toolpath's settings under it.
+    /// The selected setup's details (its object and stock) or the selected object's placement,
+    /// and the selected toolpath's settings under it.
     private var rightPanels: some View {
         VStack(alignment: .trailing, spacing: 16) {
-            // One selection at a time: a setup shows its stock, an object its face up, position, size
-            if camModel.isSetupSelected {
-                PanelStockMaterial(stock: activeStockBinding,
-                               isStockVisible: stockVisibleBinding,
-                               isCompact: true,
-                               stocksStore: appModel.stocksStore,
-                               scopeTag: stockScopeTag,
-                               onUseProjectStock: camModel.activeSetupHasOwnStock ? {
-                                   camModel.setSetupStock(camModel.activeSetupID, to: nil)
-                               } : nil,
-                               onUseOwnStock: (!camModel.activeSetupHasOwnStock && camModel.setups.count > 1) ? {
-                                   // Starts as a copy of the project's stock; its fields open to edit
-                                   camModel.setSetupStock(camModel.activeSetupID, to: camModel.selectedStockMaterial)
-                                   stockPanelExpandTrigger = UUID()
-                               } : nil,
-                               warning: camModel.activeStockWarning,
-                               expandTrigger: stockPanelExpandTrigger)
-                .frame(width: 320)
+            // One selection at a time: a setup shows its object and stock, an object its face up, position, size
+            if camModel.isSetupSelected, let setup = camModel.setups.first(where: { $0.id == camModel.activeSetupID }) {
+                PanelSetupDetails(setup: setup,
+                                  objects: setupObjects,
+                                  stock: Binding(get: { camModel.activeStock },
+                                                 set: { camModel.setSetupStock(setup.id, to: $0) }),
+                                  isStockVisible: stockVisibleBinding,
+                                  stocksStore: appModel.stocksStore,
+                                  warning: camModel.activeStockWarning,
+                                  onSelectObject: { objectID in
+                                      camModel.setSetupObjects(setup.id, to: objectID.map { [$0] } ?? [])
+                                  },
+                                  onDone: {
+                                      camModel.isSetupSelected = false
+                                  })
+                .frame(width: 256)
             } else {
-                // Each object can have a stock of its own, shown first
-                if let focus = camModel.focusedObjectID,
-                   camModel.canvasState.object(withID: focus)?.isParametric != true {
-                    objectStockPanel(for: focus)
-                }
                 objectPropertiesPanel
             }
             // Only while a toolpath is selected in the list
@@ -372,32 +364,10 @@ struct CAMView: View {
         .padding(16)
     }
 
-    /// The stock panel for the selected object: its own stock, or the project's until it gets one.
-    private func objectStockPanel(for id: UUID) -> some View {
-        let hasOwn = camModel.ownStock(forObject: id) != nil
-        return PanelStockMaterial(stock: Binding(get: { camModel.stock(forObject: id) },
-                                                 set: { camModel.setStock($0, forObject: id) }),
-                                  isStockVisible: stockVisibleBinding,
-                                  isCompact: true,
-                                  stocksStore: appModel.stocksStore,
-                                  scopeTag: hasOwn ? "This object only" : nil,
-                                  onUseProjectStock: hasOwn ? {
-                                      camModel.useProjectStock(forObject: id)
-                                  } : nil,
-                                  warning: camModel.activeStockWarning,
-                                  expandTrigger: stockPanelExpandTrigger)
-            .frame(width: 320)
-    }
-
-    /// The stock panel edits the active setup's stock: its own when it has one, the project's otherwise.
-    private var activeStockBinding: Binding<StockMaterial> {
-        Binding(get: { camModel.activeStock },
-                set: { camModel.setActiveStock($0) })
-    }
-
-    /// Marks the stock panel while it edits a stock that belongs to the active setup alone.
-    private var stockScopeTag: String? {
-        camModel.activeSetupHasOwnStock ? "This setup only" : nil
+    /// The imported objects a setup can cut: everything except the alignment pins.
+    private var setupObjects: [PanelSetups.ObjectItem] {
+        camModel.canvasState.objects.filter { !$0.isParametric }.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) }
+            + stepModelItems.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) }
     }
 
     /// The objects, their setups and the STEP models, in the list on the left.
@@ -602,8 +572,7 @@ struct CAMView: View {
     private var setupsPanel: some View {
         PanelSetups(
             // The objects that can have setups: everything except the alignment pins
-            objects: camModel.canvasState.objects.filter { !$0.isParametric }.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) }
-                + stepModelItems.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) },
+            objects: setupObjects,
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
             isSetupSelected: camModel.isSetupSelected,
@@ -638,8 +607,8 @@ struct CAMView: View {
             },
             onAddSetup: { objectID, face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
-                    // A new setup of an object is cut from the object's stock
-                    let id = camModel.addSetup(face: face, axis: axis, stock: objectID.flatMap { camModel.ownStock(forObject: $0) })
+                    // A new setup starts from a copy of the active setup's stock
+                    let id = camModel.addSetup(face: face, axis: axis)
                     if let objectID {
                         camModel.setSetupObjects(id, to: [objectID])
                     }

@@ -22,7 +22,7 @@
 ProjectModel (owns ProjectData)
     │
     ├─→ Load phase:
-    │   CAMModel.selectedStockMaterial = projectData.stock
+    │   CAMModel.setups = projectData.setups (each carries its own stock)
     │   CAMModel.canvasState = parse assets from projectData.assets
     │   CAMModel.toolpaths = load from toolpaths.json, each tool looked up by id in tools.json
     │
@@ -189,22 +189,15 @@ class ProjectModel: ObservableObject {
         projectData.name = project.name
         self.projectData = projectData
 
-        let defaultStock = StockMaterial(
-            name: "Workpiece",
-            material: .aluminum,
-            geometry: .rectangular(width: 100, height: 100, depth: 10)
-        )
-
-        camModel = CAMModel(selectedStockMaterial: projectData.stock ?? defaultStock,
-                            toolpaths: [],
-                            setups: projectData.setups ?? [])
+        // The stock belongs to the setups. `projectData.stock` is only what a project saved
+        // before that had: the first setup of such a project starts from it.
+        camModel = CAMModel(toolpaths: [],
+                            setups: projectData.setups ?? [],
+                            newStock: projectData.stock ?? .defaultWorkpiece)
 
 //        projectData.isStockVisible.publisher.sink { [weak self] newValue in
 //            print("new isStockVisible \(newValue)")
 //        }
-        camModel.onStockChanged = { [weak self] stock in
-            self?.projectData.stock = stock
-        }
 
         if let unreadableMetadata {
             markUnreadable(paths.projectMetadata, error: unreadableMetadata)
@@ -276,12 +269,7 @@ class ProjectModel: ObservableObject {
     }
 
     func loadProjectData() {
-        // 1. Load material
-        if let stock = projectData.stock {
-            camModel.selectedStockMaterial = stock
-        }
-
-        // 2. Load assets and import into CAM, then restore each object's
+        // 1. Load assets and import into CAM, then restore each object's
         // saved position/scale/rotation on top of the freshly-parsed one.
         for asset in projectData.assets ?? [] {
             let url = paths.assetsDirectory.appendingPathComponent(asset.name)
@@ -315,7 +303,7 @@ class ProjectModel: ObservableObject {
             camModel.canvasState.add(object, select: false)
         }
 
-        // 3. Load the project's tools; the toolpaths below only know them by id
+        // 2. Load the project's tools; the toolpaths below only know them by id
         let toolsUrl = toolsFile
         do {
             let data = try Data(contentsOf: toolsUrl)
@@ -330,7 +318,7 @@ class ProjectModel: ObservableObject {
         decoder.userInfo[.projectTools] = Dictionary(storedTools.map { ($0.id, $0) },
                                                      uniquingKeysWith: { first, _ in first })
 
-        // 4. Load toolpaths and display in CAM
+        // 3. Load toolpaths and display in CAM
         let toolpaths: [ToolpathData]
         let toolpathsUrl = paths.toolpathsFile
         do {

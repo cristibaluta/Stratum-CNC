@@ -125,7 +125,7 @@ struct ControllerView: View {
             scene.updateToolPosition(last.end)
         }
 
-        scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
+        scene.scrubHeightmap(stock: camModel.controllerStock,
                              document: gCodeModel.document,
                              line: line,
                              tools: gCodeModel.toolSchedule(),
@@ -262,7 +262,7 @@ struct ControllerView: View {
             BitChangeSheet(model: model, gCodeModel: gCodeModel, connection: model.connection)
         }
         .sheet(isPresented: $model.isShowingProbe) {
-            ProbeSheet(model: model, geometry: camModel.selectedStockMaterial.geometry, connection: model.connection)
+            ProbeSheet(model: model, geometry: camModel.controllerStock.geometry, connection: model.connection)
         }
         .sheet(isPresented: $model.isShowingMachinePicker) {
             MachineConnectSheet(model: model, connection: model.connection)
@@ -295,26 +295,18 @@ struct ControllerView: View {
 
     /// A program that declares its own stock (`;@MKR|STOCK|…`, `; Stock Size: 100(X) * 100(Y) * 15(Z) mm`)
     /// replaces the stock on the canvas, so the box, the heightmap and the stock chip match
-    /// the file. A program that says nothing about stock shows the stock the user last set by
-    /// hand. Saved projects keep their own stock: their program comes from it, not the reverse.
-    ///
-    /// `projectData.stock` is that hand-set stock: a header's stock is shown on the canvas but
-    /// never saved over it. While the canvas shows something else, it is a header's stock.
+    /// the file. A program that says nothing about stock shows the active setup's stock. The
+    /// header's stock is only shown (`CAMModel.programStock`): it is never saved into a setup.
     private func applyHeaderStock(_ header: GCodeHeader?) {
         guard canImportGCode else {
             return
         }
-        let manual = projectModel.projectData.stock
-        let current = camModel.selectedStockMaterial
-
         guard let spec = header?.stock else {
-            if let manual, manual != current {
-                camModel.selectedStockMaterial = manual
-            }
+            camModel.programStock = nil
             return
         }
 
-        let base = manual ?? current
+        let base = camModel.activeStock
         let isAluminum = spec.material?.lowercased().hasPrefix("alumin") == true
         let stock = StockMaterial(id: base.id,
                                   name: base.name,
@@ -322,11 +314,7 @@ struct ControllerView: View {
                                   geometry: .rectangular(width: spec.sizeX,
                                                          height: spec.sizeY,
                                                          depth: spec.sizeZ))
-        if stock != current {
-            camModel.selectedStockMaterial = stock
-            // Setting the canvas stock saved it into the project: put the hand-set one back.
-            projectModel.projectData.stock = manual
-        }
+        camModel.programStock = stock == base ? nil : stock
     }
 
     /// Downloads a program from the machine's SD card and loads it as if it
@@ -821,7 +809,7 @@ private struct CanvasSection: View {
     }
 
     private func forceHeightmapRefresh() {
-        scene.scrubHeightmap(stock: camModel.selectedStockMaterial,
+        scene.scrubHeightmap(stock: camModel.controllerStock,
                              document: gCodeModel.document,
                              line: gCodeModel.scrubLine,
                              tools: gCodeModel.toolSchedule(),
@@ -935,7 +923,12 @@ private struct CanvasSection: View {
                                          case .stock:
                                              // Just the fields: visibility is the legend's own checkbox
                                              return AnyView(
-                                                 StockMaterialForm(stock: $camModel.selectedStockMaterial)
+                                                 StockMaterialForm(stock: Binding(get: { camModel.controllerStock },
+                                                                  set: { newStock in
+                                                                      // Editing the stock is editing the active setup's
+                                                                      camModel.programStock = nil
+                                                                      camModel.setSetupStock(camModel.activeSetupID, to: newStock)
+                                                                  }))
                                                      .frame(width: 280)
                                                      .padding(12)
                                              )
@@ -1018,7 +1011,7 @@ private struct CanvasSection: View {
                                       assignments: $gCodeModel.toolAssignments,
                                       fileTools: gCodeModel.headerTools,
                                       activeTool: gCodeModel.activeToolNumber,
-                                      stockMaterial: camModel.selectedStockMaterial.material,
+                                      stockMaterial: camModel.controllerStock.material,
                                       alignment: .center)
 
                         if showsLiveValues {
@@ -1049,7 +1042,7 @@ private struct CanvasSection: View {
             // Sync once up front — `renderObjects` otherwise still
             // holds `defaultScene()`'s placeholder box, not
             // whatever material the project actually has selected.
-            scene.updateStock(camModel.selectedStockMaterial)
+            scene.updateStock(camModel.controllerStock)
             scene.updateToolpath(gCodeModel.document.toolpathSegments)
             refreshBoundingBox()
             gCodeModel.scrubLine = gCodeModel.document.lines.count
@@ -1067,7 +1060,7 @@ private struct CanvasSection: View {
             // Parameter edits regenerate the macro's G-code.
             syncMacroPreview()
         }
-        .onChange(of: camModel.selectedStockMaterial) { _, newStock in
+        .onChange(of: camModel.controllerStock) { _, newStock in
             scene.updateStock(newStock)
             forceHeightmapRefresh()
         }

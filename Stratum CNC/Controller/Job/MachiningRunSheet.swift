@@ -247,7 +247,7 @@ struct MachiningRunSheet: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             } else {
-                switch camModel.selectedStockMaterial.geometry {
+                switch camModel.controllerStock.geometry {
                     case let .rectangular(width, height, depth):
                         infoRow("Size", "\(format(width)) × \(format(height)) × \(format(depth)) mm")
                     case let .cylindrical(diameter, length):
@@ -255,7 +255,7 @@ struct MachiningRunSheet: View {
                     case let .disk(outer, inner, depth):
                         infoRow("Size", "Ø\(format(outer)) / Ø\(format(inner)) × \(format(depth)) mm")
                 }
-                infoRow("Material", "\(camModel.selectedStockMaterial.material)")
+                infoRow("Material", "\(camModel.controllerStock.material)")
                 Text("From the canvas stock picker")
                     .font(.caption2)
                     .foregroundStyle(.secondary)

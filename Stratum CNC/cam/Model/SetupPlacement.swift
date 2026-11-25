@@ -54,10 +54,9 @@ extension CAMModel {
         var moved = false
         var membershipChanged = false
         // Objects the setup doesn't include drop off the canvas (and out of picking). The alignment
-        // pins are fitted to the project's stock, so only the setups cut from it have them: one
-        // with a stock of its own has none.
+        // pins are in every setup, fitted to the stock of the active one.
         for object in canvasState.objects {
-            let included = object.isParametric ? setup.stock == nil : setup.includes(object.id)
+            let included = object.isParametric || setup.includes(object.id)
             if object.isInActiveSetup != included {
                 object.isInActiveSetup = included
                 membershipChanged = true
