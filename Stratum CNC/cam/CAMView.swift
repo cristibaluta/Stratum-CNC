@@ -513,7 +513,7 @@ struct CAMView: View {
                 camModel.stepWorkspace.scaleModel(id, factor: factor)
             },
             overriddenObjectIDs: Set(camModel.setups.first { $0.id == camModel.activeSetupID }?
-                .items.filter { $0.transformOverride != nil }.map(\.objectID) ?? []),
+                .items.filter { $0.positionOverride != nil }.map(\.objectID) ?? []),
             offersPlacementScope: camModel.setups.count > 1,
             onPlacementOverrideChanged: { id, enabled in
                 camModel.setPlacementOverride(enabled, for: id)

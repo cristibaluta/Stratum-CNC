@@ -180,7 +180,9 @@ struct PanelObjectProperties: View {
     }
 
     private func propertiesSection(for object: D2_Object) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // In "This setup" only the position is the setup's; size and rotation stay the project's
+        let isPositionOnly = overriddenObjectIDs.contains(object.id)
+        return VStack(alignment: .leading, spacing: 0) {
             if offersPlacementScope {
                 placementScopeSection(for: object)
             }
@@ -204,6 +206,7 @@ struct PanelObjectProperties: View {
                     SmallButton("−90°") { onRotate?(object.id, 90) }
                     SmallButton("+90°") { onRotate?(object.id, -90) }
                 }
+                .disabled(isPositionOnly)
             }
             InspectorSection(title: "Size") {
                 valueRow("Width", value: object.width, unit: "mm") {
@@ -212,6 +215,7 @@ struct PanelObjectProperties: View {
                     SmallButton("÷2") { onScale?(object.id, -2) }
                     SmallButton("×2") { onScale?(object.id, 2) }
                 }
+                .disabled(isPositionOnly)
                 // Height follows the width, so it is shown but can't be edited on its own.
                 InspectorRow(label: "Height") {
                     HStack(spacing: 6) {
@@ -243,6 +247,10 @@ struct PanelObjectProperties: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             if isOverridden {
+                Text("Only the position is set per setup. Size and rotation are the project's.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Button("Reset to global") {
                     onPlacementOverrideChanged?(object.id, false)
                 }

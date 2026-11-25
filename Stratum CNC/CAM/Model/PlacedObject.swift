@@ -30,9 +30,9 @@ extension CAMModel {
         projectObjects
             .filter { setup.includes($0.id) }
             .map { object in
-                let override = setup.transformOverride(for: object.id)
+                let override = setup.positionOverride(for: object.id)
                 return PlacedObject(object: object,
-                                    transform: override ?? object.transform,
+                                    transform: override.map { object.transform.moved(to: $0) } ?? object.transform,
                                     isOverridden: override != nil)
             }
     }

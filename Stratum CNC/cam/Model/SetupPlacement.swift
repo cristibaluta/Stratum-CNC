@@ -5,8 +5,8 @@
 //  Puts the active setup's placement on the canvas, and sends edits to the right place.
 //
 //  The 2D canvas has one position per object, and the project file saves that one as the object's
-//  global placement. A setup can place an object itself (`SetupItem.transformOverride`), so the
-//  canvas shows the override while that setup is active:
+//  global placement. A setup can position an object itself (`SetupItem.positionOverride`; scale and
+//  rotation stay global), so the canvas shows the override while that setup is active:
 //
 //   - `applyActivePlacement` moves the objects to the active setup's placement. The global one of an
 //     object shown at an override is kept in `globalPlacementShadow` meanwhile.
@@ -69,13 +69,15 @@ extension CAMModel {
             canvasState.objectWillChange.send()
         }
         for object in placeableObjects {
-            if let override = setup.transformOverride(for: object.id) {
+            if let position = setup.positionOverride(for: object.id) {
                 if globalPlacementShadow[object.id] == nil {
                     // Not shown at an override yet: what the canvas holds is the global placement
                     globalPlacementShadow[object.id] = object.transform
                 }
-                if !object.transform.isClose(to: override) {
-                    object.transform = override
+                // Only the position differs: scale and rotation stay the global ones
+                let wanted = object.transform.moved(to: position)
+                if !object.transform.isClose(to: wanted) {
+                    object.transform = wanted
                     moved = true
                 }
             } else if let global = globalPlacementShadow.removeValue(forKey: object.id) {
@@ -100,12 +102,19 @@ extension CAMModel {
             return
         }
         for object in placeableObjects {
-            guard let override = setup.transformOverride(for: object.id) else {
+            guard let override = setup.positionOverride(for: object.id) else {
                 continue
             }
             let shown = object.transform
-            if !shown.isClose(to: override) {
-                setTransformOverride(shown, for: object.id, inSetup: setup.id)
+            // Scale and rotation are not the setup's to change: an edit of them goes to the
+            // global placement the object returns to
+            if var global = globalPlacementShadow[object.id] {
+                global.scale = shown.scale
+                global.rotation = shown.rotation
+                globalPlacementShadow[object.id] = global
+            }
+            if !shown.position.isClose(to: override) {
+                setPositionOverride(shown.position, for: object.id, inSetup: setup.id)
             }
         }
     }
@@ -132,7 +141,7 @@ extension CAMModel {
 
     /// Whether the active setup places the object itself.
     func hasPlacementOverride(_ objectID: UUID) -> Bool {
-        activeSetup?.transformOverride(for: objectID) != nil
+        activeSetup?.positionOverride(for: objectID) != nil
     }
 
     /// "This setup only" on, or "Reset to global" off, for a 2D object in the active setup.
@@ -142,7 +151,7 @@ extension CAMModel {
             return
         }
         if enabled {
-            guard setup.transformOverride(for: objectID) == nil else {
+            guard setup.positionOverride(for: objectID) == nil else {
                 return
             }
             if !setup.includes(objectID) || setup.items.isEmpty {
@@ -153,10 +162,10 @@ extension CAMModel {
                 }
                 setSetupObjects(setup.id, to: ids)
             }
-            // What the canvas shows is the global placement: it becomes this setup's, to edit apart
-            setTransformOverride(object.transform, for: objectID, inSetup: setup.id)
+            // What the canvas shows is the global position: it becomes this setup's, to edit apart
+            setPositionOverride(object.transform.position, for: objectID, inSetup: setup.id)
         } else {
-            setTransformOverride(nil, for: objectID, inSetup: setup.id)
+            setPositionOverride(nil, for: objectID, inSetup: setup.id)
         }
     }
 }

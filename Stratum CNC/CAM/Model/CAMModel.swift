@@ -967,27 +967,27 @@ class CAMModel: ObservableObject {
         guard let index = setups.firstIndex(where: { $0.id == id }) else {
             return
         }
-        let kept = Dictionary(setups[index].items.map { ($0.objectID, $0.transformOverride) },
+        let kept = Dictionary(setups[index].items.map { ($0.objectID, $0.positionOverride) },
                               uniquingKeysWith: { first, _ in first })
         var seen = Set<UUID>()
         let items = objectIDs.filter { seen.insert($0).inserted }
-            .map { SetupItem(objectID: $0, transformOverride: kept[$0] ?? nil) }
+            .map { SetupItem(objectID: $0, positionOverride: kept[$0] ?? nil) }
         guard setups[index].items != items else {
             return
         }
         setups[index].items = items
     }
 
-    /// Gives an object its own placement in a setup, or with nil puts it back on the global one.
+    /// Gives an object its own position in a setup, or with nil puts it back on the global one.
     /// The object must be one the setup lists: a setup that includes everything gets its items
     /// from `setSetupObjects` first.
-    func setTransformOverride(_ transform: ObjectTransform?, for objectID: UUID, inSetup id: UUID) {
+    func setPositionOverride(_ position: ObjectPosition?, for objectID: UUID, inSetup id: UUID) {
         guard let index = setups.firstIndex(where: { $0.id == id }),
               let itemIndex = setups[index].items.firstIndex(where: { $0.objectID == objectID }),
-              setups[index].items[itemIndex].transformOverride != transform else {
+              setups[index].items[itemIndex].positionOverride != position else {
             return
         }
-        setups[index].items[itemIndex].transformOverride = transform
+        setups[index].items[itemIndex].positionOverride = position
     }
 
     func renameSetup(_ id: UUID, to name: String) {

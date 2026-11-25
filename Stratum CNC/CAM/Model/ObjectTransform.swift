@@ -6,8 +6,8 @@
 //  STEP body both have one, so a setup can later hold "this object, placed like this" without
 //  caring which kind it is.
 //
-//  This is the project's global placement. A setup will be able to carry its own override
-//  (`SetupItem.transformOverride`, step 2); with no override the global one is used.
+//  This is the project's global placement. A setup can carry its own position for an object
+//  (`SetupItem.positionOverride`); scale and rotation always stay the global ones.
 //
 //      x, y      bottom-left corner of the object (STEP: its corner, min X / min Y), mm
 //      z         STEP only: where the body's top sits. 0 for a 2D shape
@@ -29,6 +29,30 @@ struct ObjectTransform: Codable, Hashable, Sendable {
     var face: SetupFace = .top
 
     static let identity = ObjectTransform()
+
+    /// The same placement moved to `position`: scale, rotation and face stay.
+    func moved(to position: ObjectPosition) -> ObjectTransform {
+        var copy = self
+        copy.x = position.x
+        copy.y = position.y
+        return copy
+    }
+
+    var position: ObjectPosition {
+        ObjectPosition(x: x, y: y)
+    }
+}
+
+/// Where a setup puts an object: the only part of the placement a setup may change. Scale and
+/// rotation always come from the project's (global) placement.
+struct ObjectPosition: Codable, Hashable, Sendable {
+
+    var x: Double
+    var y: Double
+
+    func isClose(to other: ObjectPosition) -> Bool {
+        abs(x - other.x) < 1e-6 && abs(y - other.y) < 1e-6
+    }
 }
 
 extension D2_Object {
