@@ -376,18 +376,18 @@ class CAMModel: ObservableObject {
         }
         // The chosen operation; untouched fields take its defaults, like picking it in the panel.
         if let operation {
+            let previousKind = toolpath.operation.kind
             toolpath.operation.kind = operation
-            toolpath.applyDefaults(for: operation)
+            toolpath.applyDefaults(for: operation, replacing: previousKind)
         }
         // A fresh copy gets its own auto name for its operation.
         toolpath.name = toolpath.operation.kind.nextName(among: Set(toolpaths.map(\.name)))
         toolpath.targets = targets
         toolpath.stepTargets = stepTargets
-        // Cut as deep as the selected edges are below z0. Marked as set, so changing the
-        // operation later doesn't put its default depth back.
+        // Cut as deep as the selected edges are below z0. It no longer equals the operation's
+        // default depth, so changing the operation later leaves it alone.
         if let endZ = stepWorkspace.suggestedEndZ(for: stepTargets, frame: frameOrIdentity(for: toolpath)) {
             toolpath.endZ = endZ
-            toolpath.editedFields.insert(.endZ)
         }
         // A chamfer picked through its two rails (a face): its size and side are measured off the
         // face, and it is cut from its bottom edge (the lower rail, where it meets the wall).
@@ -979,14 +979,14 @@ class CAMModel: ObservableObject {
         toolpath.stepTargets = updated
         refreshChamferEdgeZ(&toolpath)
         // End Z follows the selection until it is set by hand: it still equals the depth of
-        // the previous selection, or was never set.
+        // the previous selection, or (no previous one) the operation's default depth.
         let frame = frameOrIdentity(for: toolpath)
         if let depth = stepWorkspace.suggestedEndZ(for: updated, frame: frame) {
             let previous = stepWorkspace.suggestedEndZ(for: old, frame: frame)
-            let followsSelection = previous.map { abs(toolpath.endZ - $0) < 1e-6 } ?? !toolpath.editedFields.contains(.endZ)
+            let reference = previous ?? toolpath.operation.kind.defaults.endZ
+            let followsSelection = reference.map { abs(toolpath.endZ - $0) < 1e-6 } ?? true
             if followsSelection {
                 toolpath.endZ = depth
-                toolpath.editedFields.insert(.endZ)
             }
         }
         toolpaths[index] = toolpath

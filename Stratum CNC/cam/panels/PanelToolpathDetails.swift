@@ -112,6 +112,10 @@ struct PanelToolpathDetails: View {
         .onChange(of: toolpath.id) { _, _ in
             model.reset()
         }
+        // The cutting values come from the tool's preset for the stock material
+        .onChange(of: stockMaterial) { _, newMaterial in
+            model.applyPreset(of: toolpath.tool, to: $toolpath, stockMaterial: newMaterial)
+        }
     }
 
     // MARK: Generate
@@ -171,6 +175,19 @@ struct PanelToolpathDetails: View {
         if let presetNote = model.presetNote {
             InspectorNote(text: presetNote)
         }
+        // Worked out from the values every time; nothing about it is saved
+        if let mismatch = toolpath.presetMismatch(for: stockMaterial) {
+            InspectorNote(text: mismatch.message)
+            HStack(alignment: .center, spacing: Inspector.columnSpacing) {
+                Color.clear
+                    .frame(width: Inspector.labelWidth, height: 0)
+                Button("Use recommended values") {
+                    model.applyPreset(of: toolpath.tool, to: $toolpath, stockMaterial: stockMaterial)
+                }
+                .controlSize(.small)
+                Spacer(minLength: 0)
+            }
+        }
         InspectorIntField(title: "Spindle", value: $toolpath.spindleRPM, suffix: "rpm")
     }
 
@@ -186,6 +203,18 @@ struct PanelToolpathDetails: View {
             InspectorIntField(title: "Spindle speed (rpm)", value: $toolpath.spindleRPM, suffix: "rpm", isCompact: true)
             if let warning = toolpath.toolCompatibilityWarning {
                 InspectorWarningButton(message: warning)
+            }
+            if let mismatch = toolpath.presetMismatch(for: stockMaterial) {
+                Button {
+                    model.applyPreset(of: toolpath.tool, to: $toolpath, stockMaterial: stockMaterial)
+                } label: {
+                    Image(systemName: "arrow.uturn.backward.circle")
+                        .font(.system(size: 12))
+                        .frame(width: 20, height: Inspector.fieldHeight)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("\(mismatch.message)\nClick to use the recommended values.")
             }
         }
     }
@@ -222,7 +251,7 @@ struct PanelToolpathDetails: View {
             InspectorNumberField(title: "End Z", value: model.counterboreEndDepth($toolpath), suffix: "mm", prefix: "−")
                 .help("How deep the counterbore goes below the top of the stock.")
         } else if requirements.usesEndZ {
-            InspectorNumberField(title: "End Z", value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath), suffix: "mm", prefix: "−") {
+            InspectorNumberField(title: "End Z", value: model.endDepth($toolpath), suffix: "mm", prefix: "−") {
                 if model.offersThroughStock(toolpath), let thickness = stockThickness, thickness > 0 {
                     throughStockButton(thickness: thickness)
                 }
@@ -237,7 +266,7 @@ struct PanelToolpathDetails: View {
                 .help("How deep the slot is cut in each pass.")
             passesNote(stepdown: toolpath.operation.slotDepthPerPass)
         } else if requirements.usesStepdown {
-            InspectorNumberField(title: "Stepdown", value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath), suffix: "mm",
+            InspectorNumberField(title: "Stepdown", value: $toolpath.stepDown, suffix: "mm",
                                  offersDecimalsOnly: true)
                 .help("How deep the tool cuts in each pass. Smaller means lighter cuts and more passes.")
             passesNote(stepdown: toolpath.stepDown)
@@ -324,7 +353,7 @@ struct PanelToolpathDetails: View {
                                             help: "End Z (mm): how deep the counterbore goes below the top of the stock.")
             } else if requirements.usesEndZ {
                 InspectorCompactNumberField(tag: "End",
-                                            value: model.editedBinding(model.endDepth($toolpath), .endZ, in: $toolpath),
+                                            value: model.endDepth($toolpath),
                                             prefix: "−",
                                             help: "End Z (mm): \(model.endZHelp)")
             }
@@ -334,7 +363,7 @@ struct PanelToolpathDetails: View {
                                             help: "Depth per pass (mm). \(passes?.text ?? "")")
             } else if requirements.usesStepdown {
                 InspectorCompactNumberField(tag: "Step",
-                                            value: model.editedBinding($toolpath.stepDown, .stepDown, in: $toolpath),
+                                            value: $toolpath.stepDown,
                                             decimalKey: "Stepdown",
                                             help: "Stepdown (mm): how deep the tool cuts in each pass. \(passes?.text ?? "")")
             }

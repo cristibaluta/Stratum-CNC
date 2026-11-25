@@ -627,7 +627,6 @@ struct OperationOptionsView: View {
                     return
                 }
                 toolpath.stepOverPercent = clamped
-                toolpath.markEdited(.stepOver)
             }
         )
     }

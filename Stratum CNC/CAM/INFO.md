@@ -31,6 +31,7 @@ PanelToolpathDetails
       │  ├─ ToolPicker(toolpath.tool)
       │  ├─ InspectorNote(toolCompatibilityWarning)   ← tool can't do the operation
       │  ├─ InspectorNote(presetNote)
+      │  ├─ preset mismatch note + "Use recommended values"   ← ToolpathData.presetMismatch(for:), compared live, never saved
       │  └─ Spindle
       │
       ├─ InspectorSection "XY plane"          [OperationOptionsView, part .xyMovement]
@@ -89,8 +90,8 @@ PanelToolpathDetails
    │    tabs / lead-in/out: operation.contourTabs / contourLeadIn / contourLeadOut
    │    entry:      toolpath.ramping (shared by every operation with an entry)
    └─ rowTool / rowDepth / rowEntry write the general fields directly
-        (End Z, Stepdown and Stepover are marked in editedFields, so a later change of
-         operation keeps them: see OperationDefaults)
+        (End Z, Stepdown and Stepover follow the operation's defaults on a change of operation
+         only while they still hold the old operation's default: see OperationDefaults)
 ```
 
 ## Where each value lives

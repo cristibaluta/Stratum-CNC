@@ -11,7 +11,8 @@ import StratumCAM
 
 final class ToolpathDetailsModel: ObservableObject {
 
-    /// What the last tool pick did to the cutting values, shown under the tool.
+    /// What the last tool pick (or stock material change) did to the cutting values, shown under
+    /// the tool. Cleared by the next change of operation and when another toolpath is opened.
     @Published var presetNote: String?
 
     /// Where the preview slider is; nil = at the end (the whole toolpath), which is where a
@@ -66,9 +67,12 @@ final class ToolpathDetailsModel: ObservableObject {
         Binding(
             get: { toolpath.wrappedValue.operation.kind },
             set: { [weak self] newKind in
+                // The pick's note is about the pick, not about the operation that follows it
+                self?.presetNote = nil
+                let oldKind = toolpath.wrappedValue.operation.kind
                 toolpath.wrappedValue.operation.kind = newKind
-                // Untouched fields take the new operation's defaults; edited ones stay.
-                toolpath.wrappedValue.applyDefaults(for: newKind)
+                // Fields still at the old operation's defaults take the new one's; the rest stay.
+                toolpath.wrappedValue.applyDefaults(for: newKind, replacing: oldKind)
                 let oldName = toolpath.wrappedValue.name
                 let newName = newKind.nextName(among: siblingNames)
                 if newName != oldName {
@@ -108,23 +112,6 @@ final class ToolpathDetailsModel: ObservableObject {
     }
 
     // MARK: Z axis
-
-    /// A binding that also records the field as edited when the user changes its value,
-    /// so changing the operation later leaves it alone.
-    func editedBinding(_ value: Binding<Double>,
-                       _ field: ToolpathField,
-                       in toolpath: Binding<ToolpathData>) -> Binding<Double> {
-        Binding(
-            get: { value.wrappedValue },
-            set: { newValue in
-                guard newValue != value.wrappedValue else {
-                    return
-                }
-                value.wrappedValue = newValue
-                toolpath.wrappedValue.markEdited(field)
-            }
-        )
-    }
 
     /// End Z is typed as a positive depth below the top (the "−" is shown in front of the
     /// field), but stored and sent on as the negative Z value. A minus typed anyway is ignored.
@@ -195,7 +182,6 @@ final class ToolpathDetailsModel: ObservableObject {
     /// tip stops exactly at the underside, so add a little extra by hand if it must clear the spoilboard.
     func applyThroughStock(to toolpath: Binding<ToolpathData>, thickness: Double) {
         toolpath.wrappedValue.endZ = throughStockZ(for: toolpath.wrappedValue, thickness: thickness)
-        toolpath.wrappedValue.markEdited(.endZ)
     }
 
     func throughStockHelp(for toolpath: ToolpathData, thickness: Double) -> String {

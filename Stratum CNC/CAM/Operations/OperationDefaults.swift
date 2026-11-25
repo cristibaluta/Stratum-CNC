@@ -6,9 +6,9 @@
 //  sense for each operation. A value is only offered for a field the operation actually
 //  uses (see `SC.MachiningOperation.requirements`).
 //
-//  A default never overrides the user: once a field has been edited it is recorded in
-//  `ToolpathData.editedFields` and keeps its value when the operation changes. Fields still
-//  untouched follow the operation's defaults.
+//  A default never overrides the user: nothing is recorded about what was edited. A field
+//  still holds the previous operation's default when it is untouched, so only those follow
+//  the new operation's defaults; any other value is the user's (or a tool preset's) and stays.
 //
 //  The options that belong to one operation only (pocket pattern, thread pitch, chamfer
 //  width…) have their defaults in `OperationSettings` and are kept per operation anyway.
@@ -16,13 +16,6 @@
 
 import Foundation
 import StratumCAM
-
-/// The general fields whose default depends on the operation.
-enum ToolpathField: String, Codable, Hashable {
-    case endZ
-    case stepDown
-    case stepOver
-}
 
 struct OperationDefaults {
     /// Depth of the cut, mm (negative is below the surface).
@@ -61,24 +54,28 @@ extension SC.MachiningOperation.Kind {
 
 extension ToolpathData {
 
-    /// Sets End Z, Stepdown and Stepover to `kind`'s defaults, except the ones the user has
-    /// edited and the ones `kind` doesn't use.
-    mutating func applyDefaults(for kind: SC.MachiningOperation.Kind) {
+    /// Switches End Z, Stepdown and Stepover from `oldKind`'s defaults to `kind`'s. A field that
+    /// isn't at the old default was changed (by the user or a tool preset) and is left alone, and
+    /// so is one `kind` doesn't use. Without an `oldKind` (a new toolpath) every field is set.
+    mutating func applyDefaults(for kind: SC.MachiningOperation.Kind, replacing oldKind: SC.MachiningOperation.Kind? = nil) {
         let defaults = kind.defaults
+        let old = oldKind?.defaults
 
-        if !editedFields.contains(.endZ), let endZ = defaults.endZ {
+        func isUntouched(_ value: Double, _ oldDefault: Double?) -> Bool {
+            guard oldKind != nil else {
+                return true
+            }
+            return oldDefault.map { abs(value - $0) < 1e-6 } ?? true
+        }
+
+        if let endZ = defaults.endZ, isUntouched(self.endZ, old?.endZ) {
             self.endZ = endZ
         }
-        if !editedFields.contains(.stepDown), let stepDown = defaults.stepDown {
+        if let stepDown = defaults.stepDown, isUntouched(self.stepDown, old?.stepDown) {
             self.stepDown = stepDown
         }
-        if !editedFields.contains(.stepOver), let fraction = defaults.stepOverFraction {
+        if let fraction = defaults.stepOverFraction, isUntouched(stepOverPercent, old?.stepOverFraction.map { $0 * 100 }) {
             stepOverPercent = Self.clampedStepOver(fraction * 100)
         }
-    }
-
-    /// Remembers that the user chose `field`'s value, so a later change of operation keeps it.
-    mutating func markEdited(_ field: ToolpathField) {
-        editedFields.insert(field)
     }
 }
