@@ -13,6 +13,8 @@ struct ToolpathData: Identifiable, Codable, Hashable {
 
     var name: String
 
+    /// The tool in full, as it is in the project's `tools.json`. The toolpath file keeps only its
+    /// id (`toolID`); the full tool is looked up when the file is read (see `CodingUserInfoKey.projectTools`).
     var tool: Tool
 
     var startZ: Double
@@ -61,10 +63,10 @@ struct ToolpathData: Identifiable, Codable, Hashable {
     /// (see `OperationDefaults`).
     var editedFields: Set<ToolpathField> = []
 
-    // Explicit so the legacy single-contour `target` key can be read on decode
-    // (see init(from:) below) without being written back on encode.
+    // Explicit so the legacy keys can be read on decode (see init(from:) below)
+    // without being written back on encode, and so the tool is saved as its id only.
     private enum CodingKeys: String, CodingKey {
-        case id, name, tool
+        case id, name, toolID
         case startZ, endZ
         case contour, ramping
         case feedRate, plungeRate, spindleRPM
@@ -72,6 +74,13 @@ struct ToolpathData: Identifiable, Codable, Hashable {
         case targets, stepTargets, setupID
         case operation, editedFields
     }
+}
+
+extension CodingUserInfoKey {
+
+    /// The project's `tools.json` as `[UUID: Tool]`: what `ToolpathData` turns its saved `toolID`
+    /// back into a tool with. Set on the decoder that reads `toolpaths.json`.
+    static let projectTools = CodingUserInfoKey(rawValue: "stratum.projectTools")!
 }
 
 extension ToolpathData {
@@ -353,7 +362,13 @@ extension ToolpathData {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
-        tool = try c.decode(Tool.self, forKey: .tool)
+        let toolID = try c.decode(UUID.self, forKey: .toolID)
+        let projectTools = decoder.userInfo[.projectTools] as? [UUID: Tool] ?? [:]
+        guard let savedTool = projectTools[toolID] else {
+            throw DecodingError.dataCorruptedError(forKey: .toolID, in: c,
+                                                   debugDescription: "Tool \(toolID) is not in tools.json")
+        }
+        tool = savedTool
         startZ = try c.decode(Double.self, forKey: .startZ)
         endZ = try c.decode(Double.self, forKey: .endZ)
         contour = try c.decode(SC.CutSide.self, forKey: .contour)
@@ -402,5 +417,33 @@ extension ToolpathData {
         // Absent on projects saved before defaults existed: nothing counts as edited, so those
         // projects' values are only replaced if the operation is changed.
         editedFields = try c.decodeIfPresent(Set<ToolpathField>.self, forKey: .editedFields) ?? []
+    }
+}
+
+extension ToolpathData {
+
+    /// Everything as the synthesized version would write it, except the tool: only its id.
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(tool.id, forKey: .toolID)
+        try c.encode(startZ, forKey: .startZ)
+        try c.encode(endZ, forKey: .endZ)
+        try c.encode(contour, forKey: .contour)
+        try c.encode(ramping, forKey: .ramping)
+        try c.encode(feedRate, forKey: .feedRate)
+        try c.encode(plungeRate, forKey: .plungeRate)
+        try c.encode(spindleRPM, forKey: .spindleRPM)
+        try c.encode(stepDown, forKey: .stepDown)
+        try c.encode(stepOverPercent, forKey: .stepOverPercent)
+        try c.encode(safeZ, forKey: .safeZ)
+        try c.encode(retractZ, forKey: .retractZ)
+        try c.encode(startOffset, forKey: .startOffset)
+        try c.encode(targets, forKey: .targets)
+        try c.encode(stepTargets, forKey: .stepTargets)
+        try c.encodeIfPresent(setupID, forKey: .setupID)
+        try c.encode(operation, forKey: .operation)
+        try c.encode(editedFields, forKey: .editedFields)
     }
 }

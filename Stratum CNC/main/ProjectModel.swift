@@ -24,7 +24,7 @@ ProjectModel (owns ProjectData)
     ├─→ Load phase:
     │   CAMModel.selectedStockMaterial = projectData.stock
     │   CAMModel.canvasState = parse assets from projectData.assets
-    │   CAMModel.toolpaths = load from projectData.toolpaths
+    │   CAMModel.toolpaths = load from toolpaths.json, each tool looked up by id in tools.json
     │
     ├─→ Edit phase:
     │   User edits in CAMView subviews
@@ -86,11 +86,22 @@ class ProjectModel: ObservableObject {
     @Published private(set) var lastSavedAt: Date?
     /// Why the last save failed; `nil` after a save that worked. Shown in the subtitle.
     @Published private(set) var saveError: String?
-    /// Set when `project.json` or `toolpaths.json` exists but couldn't be read. Saving that file is
-    /// then off, so the unreadable one is never overwritten. Shown in the subtitle.
+    /// Set when `project.json`, `tools.json` or `toolpaths.json` exists but couldn't be read. Saving that
+    /// file is then off, so the unreadable one is never overwritten. Shown in the subtitle.
     @Published private(set) var loadProblem: String?
     private var projectFileUnreadable = false
+    private var toolsFileUnreadable = false
     private var toolpathsFileUnreadable = false
+
+    /// What `tools.json` holds on disk. The project keeps its own copy of every tool it uses, so
+    /// it opens the same on a computer whose tool library has other tools or other ids. A tool
+    /// joins it as soon as a toolpath uses it (see `saveToolsIfNew`).
+    private var storedTools: [Tool] = []
+
+    /// `tools.json`, next to `toolpaths.json`.
+    private var toolsFile: URL {
+        paths.toolpathsFile.deletingLastPathComponent().appendingPathComponent("tools.json")
+    }
 
     /// What the subtitle shows instead of the save date, when something is wrong with the files.
     var storageProblem: String? {
@@ -224,6 +235,7 @@ class ProjectModel: ObservableObject {
         camModel.onToolpathsChanged = { [weak self] toolpaths in
             self?.toolpaths = toolpaths
             self?.hasUnsavedChanges = true
+            self?.saveToolsIfNew()
         }
 
         // Wired up only after the initial load/restore above has finished:
@@ -303,10 +315,24 @@ class ProjectModel: ObservableObject {
             camModel.canvasState.add(object, select: false)
         }
 
-        // 3. Load toolpaths and display in CAM
+        // 3. Load the project's tools; the toolpaths below only know them by id
+        let toolsUrl = toolsFile
+        do {
+            let data = try Data(contentsOf: toolsUrl)
+            storedTools = try decoder.decode([Tool].self, from: data)
+        } catch {
+            print("Failed to load tools: \(error)")
+            storedTools = []
+            if FileManager.default.fileExists(atPath: toolsUrl.path) {
+                markUnreadable(toolsUrl, error: error)
+            }
+        }
+        decoder.userInfo[.projectTools] = Dictionary(storedTools.map { ($0.id, $0) },
+                                                     uniquingKeysWith: { first, _ in first })
+
+        // 4. Load toolpaths and display in CAM
         let toolpaths: [ToolpathData]
         let toolpathsUrl = paths.toolpathsFile
-        print(toolpathsUrl)
         do {
             let data = try Data(contentsOf: toolpathsUrl)
             toolpaths = try decoder.decode([ToolpathData].self, from: data)
@@ -333,6 +359,8 @@ class ProjectModel: ObservableObject {
         let name = url.lastPathComponent
         if url == paths.projectMetadata {
             projectFileUnreadable = true
+        } else if url == toolsFile {
+            toolsFileUnreadable = true
         } else {
             toolpathsFileUnreadable = true
         }
@@ -556,12 +584,46 @@ class ProjectModel: ObservableObject {
         lastSavedAt = Date()
     }
 
+    /// Writes `tools.json`: the full data of every tool the toolpaths use. With `pruning` the tools
+    /// nothing uses any more are dropped; without it the ones already in the file stay, because
+    /// `toolpaths.json` on disk may still refer to them until the next full save.
+    private func saveTools(pruning: Bool) throws {
+        if toolsFileUnreadable {
+            throw ProjectError.fileUnreadable("tools.json")
+        }
+        var tools: [Tool] = pruning ? [] : storedTools
+        for tool in (toolpaths ?? []).map(\.tool) {
+            if let index = tools.firstIndex(where: { $0.id == tool.id }) {
+                tools[index] = tool
+            } else {
+                tools.append(tool)
+            }
+        }
+        let data = try encoder.encode(tools)
+        try withFolderAccess {
+            try data.write(to: toolsFile, options: .atomic)
+        }
+        storedTools = tools
+    }
+
+    /// A tool that was just picked (or created for a rest toolpath) is written to `tools.json`
+    /// right away, so the toolpath that uses it can always be opened again.
+    private func saveToolsIfNew() {
+        let known = Set(storedTools.map(\.id))
+        guard (toolpaths ?? []).contains(where: { !known.contains($0.tool.id) }) else {
+            return
+        }
+        try? saveTools(pruning: false)
+    }
+
     private func saveToolpaths() throws {
-        // Targets reference object IDs in project.json, so persist those first.
+        // Targets reference object IDs in project.json, and tools in tools.json, so persist those first.
         try saveProjectMetadata()
+        // Before the tools are pruned: with an unreadable toolpaths file nothing counts as using them.
         if toolpathsFileUnreadable {
             throw ProjectError.fileUnreadable("toolpaths.json")
         }
+        try saveTools(pruning: true)
         let data = try encoder.encode(toolpaths)
         try withFolderAccess {
             try data.write(to: paths.toolpathsFile, options: .atomic)
