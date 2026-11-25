@@ -8,7 +8,7 @@
 //
 
 import SwiftUI
-
+import StratumCAM
 struct PanelSetups: View {
 
     /// An object a setup can cut: its id and the name shown for it.
@@ -25,6 +25,17 @@ struct PanelSetups: View {
     var isSetupSelected = false
     /// How many toolpaths each setup contains, by setup id
     var toolpathCounts: [UUID: Int] = [:]
+    /// Every toolpath of the project: each setup lists its own under it.
+    var toolpaths: [ToolpathData] = []
+    var selectedToolpathID: UUID?
+    /// Needed by the toolpath rows (ticking, sending) and the send bar
+    var projectModel: ProjectModel?
+    /// The "+" of a setup: adds a toolpath of the chosen operation to it.
+    var onAddToolpath: ((UUID, SC.MachiningOperation.Kind) -> Void)?
+    var onSelectToolpath: ((UUID) -> Void)?
+    var onDeleteToolpath: ((UUID) -> Void)?
+    var onMoveToolpath: ((UUID, Int) -> Void)?
+    var onMoveToolpathToSetup: ((UUID, UUID) -> Void)?
     /// Front, back, left and right need a 3D model.
     var sideFacesAvailable = false
     /// The groups (virtual objects) setups can be made for.
@@ -46,6 +57,10 @@ struct PanelSetups: View {
     @State private var isExpanded = true
     @State private var renamingSetupID: UUID?
     @State private var renameText = ""
+    /// The setups whose toolpaths are listed under them
+    @State private var expandedSetupIDs: Set<UUID> = []
+    /// The setup whose "+" is open, to choose the operation of the new toolpath
+    @State private var choosingOperationFor: UUID?
 
     /// The horizontal padding of a list row (`inspectorListRow`).
     private static let rowInset: CGFloat = 6
@@ -59,6 +74,24 @@ struct PanelSetups: View {
                     .padding(.vertical, 8)
 
                 list
+
+                if let projectModel, !toolpaths.isEmpty {
+                    Divider()
+                        .padding(.vertical, 8)
+
+                    ToolpathSendBar(projectModel: projectModel, toolpaths: toolpaths)
+                }
+            }
+        }
+        .onAppear {
+            if let activeSetupID {
+                expandedSetupIDs.insert(activeSetupID)
+            }
+        }
+        // Choosing a setup (or opening a toolpath, which makes its setup the active one) shows its toolpaths
+        .onChange(of: activeSetupID) { _, id in
+            if let id {
+                expandedSetupIDs.insert(id)
             }
         }
         .padding(12)
@@ -240,30 +273,102 @@ struct PanelSetups: View {
             .padding(.top, 6)
     }
 
+    /// The toolpaths of a setup. One without a setup, or whose setup is gone, belongs to the first.
+    private func toolpaths(of setup: Setup) -> [ToolpathData] {
+        let known = Set(setups.map(\.id))
+        let first = setups.first?.id
+        return toolpaths.filter { toolpath in
+            (toolpath.setupID.flatMap { known.contains($0) ? $0 : nil } ?? first) == setup.id
+        }
+    }
+
+    /// While choosing what to send every setup is open, so the checkboxes are all in view.
+    private func isOpen(_ setup: Setup) -> Bool {
+        (projectModel?.isChoosingToolpathsToSend ?? false) || expandedSetupIDs.contains(setup.id)
+    }
+
+    /// A setup: its row, and under it (when open) its toolpaths.
     private func setupRow(_ setup: Setup) -> some View {
-        Button {
-            onSelectSetup?(setup.id)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "square.stack.3d.down.right")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Text(setup.name)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer(minLength: 4)
-                if let count = toolpathCounts[setup.id], count > 0 {
-                    Text("\(count)")
-                        .font(.system(size: 11).monospacedDigit())
+        VStack(alignment: .leading, spacing: 2) {
+            setupHeader(setup)
+            if isOpen(setup), let projectModel {
+                SetupToolpaths(projectModel: projectModel,
+                               toolpaths: toolpaths(of: setup),
+                               selectedID: selectedToolpathID,
+                               setups: setups,
+                               onSelect: onSelectToolpath,
+                               onDelete: onDeleteToolpath,
+                               onMove: onMoveToolpath,
+                               onMoveToSetup: onMoveToolpathToSetup)
+                    .padding(.leading, 14)
+            }
+        }
+    }
+
+    private func setupHeader(_ setup: Setup) -> some View {
+        HStack(spacing: 4) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if expandedSetupIDs.contains(setup.id) {
+                        expandedSetupIDs.remove(setup.id)
+                    } else {
+                        expandedSetupIDs.insert(setup.id)
+                    }
+                }
+            } label: {
+                InspectorChevron(isExpanded: isOpen(setup))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(projectModel?.isChoosingToolpathsToSend ?? false)
+            .help(isOpen(setup) ? "Hide toolpaths" : "Show toolpaths")
+
+            Button {
+                onSelectSetup?(setup.id)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.stack.3d.down.right")
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .help(count == 1 ? "1 toolpath" : "\(count) toolpaths")
+                    Text(setup.name)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 4)
+                    if let count = toolpathCounts[setup.id], count > 0 {
+                        Text("\(count)")
+                            .font(.system(size: 11).monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .help(count == 1 ? "1 toolpath" : "\(count) toolpaths")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                choosingOperationFor = setup.id
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(2)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .disabled(onAddToolpath == nil || (projectModel?.isChoosingToolpathsToSend ?? false))
+            .help("Add a toolpath to \(setup.name)")
+            .popover(isPresented: Binding(get: { choosingOperationFor == setup.id },
+                                          set: { if !$0 { choosingOperationFor = nil } }),
+                     attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+                OperationGridPicker(selected: nil) { kind in
+                    choosingOperationFor = nil
+                    expandedSetupIDs.insert(setup.id)
+                    onAddToolpath?(setup.id, kind)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .inspectorListRow(isSelected: isSetupSelected && setup.id == activeSetupID)
         .contextMenu {
             Button {

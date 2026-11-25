@@ -229,7 +229,6 @@ struct CAMView: View {
                     VStack(spacing: 12) {
                         inspectorPanel
                         setupsPanel
-                        toolpathListPanel
                     }
                     .frame(minWidth: 200, maxWidth: 260)
                     .padding(16)
@@ -613,6 +612,32 @@ struct CAMView: View {
             toolpathCounts: Dictionary(camModel.toolpaths.compactMap { toolpath in
                 toolpath.setupID.map { ($0, 1) }
             }, uniquingKeysWith: +),
+            toolpaths: camModel.toolpaths,
+            selectedToolpathID: camModel.selectedToolpathID,
+            projectModel: projectModel,
+            onAddToolpath: { setupID, kind in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    // The toolpath goes to the active setup: the one whose + was used becomes it
+                    camModel.activateSetup(setupID)
+                    camModel.addToolpath(operation: kind)
+                }
+            },
+            onSelectToolpath: { id in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    camModel.toggleToolpathSelection(id)
+                }
+            },
+            onDeleteToolpath: { id in
+                withAnimation(.easeOut(duration: 0.15)) {
+                    camModel.deleteToolpath(id)
+                }
+            },
+            onMoveToolpath: { id, index in
+                camModel.moveToolpath(id, toIndexInSetup: index)
+            },
+            onMoveToolpathToSetup: { id, setupID in
+                camModel.moveToolpath(id, toSetup: setupID)
+            },
             sideFacesAvailable: hasSTEP,
             groups: camModel.objectGroups.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) },
             combinableSelection: camModel.canvasState.objects
@@ -671,38 +696,6 @@ struct CAMView: View {
                     camModel.setSetupObjects(id, to: ids)
                     camModel.isSetupSelected = true
                 }
-            }
-        )
-    }
-
-    private var toolpathListPanel: some View {
-        PanelToolpaths(
-            projectModel: projectModel,
-            // Only the selected setup shows its toolpaths: selecting an object deselects the setup
-            toolpaths: camModel.isSetupSelected ? camModel.toolpaths : [],
-            selectedID: camModel.selectedToolpathID,
-            setups: camModel.setups,
-            activeSetupID: camModel.activeSetupID,
-            onSelect: { id in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.toggleToolpathSelection(id)
-                }
-            },
-            onDelete: { id in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.deleteToolpath(id)
-                }
-            },
-            onAdd: { kind in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    camModel.addToolpath(operation: kind)
-                }
-            },
-            onMove: { id, index in
-                camModel.moveToolpath(id, toIndexInSetup: index)
-            },
-            onMoveToSetup: { id, setupID in
-                camModel.moveToolpath(id, toSetup: setupID)
             }
         )
     }
