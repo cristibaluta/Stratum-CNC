@@ -44,6 +44,8 @@ struct PanelSetups: View {
     var combinableSelection: [UUID] = []
 
     var onSelectSetup: ((UUID) -> Void)?
+    /// The pencil / "Edit…": opens the setup's details.
+    var onEditSetup: ((UUID) -> Void)?
     /// A new setup on a face; the object is nil for one that includes every object.
     var onAddSetup: ((UUID?, SetupFace, SetupAxis?) -> Void)?
     /// A new setup on a face for all the members of a group.
@@ -52,6 +54,8 @@ struct PanelSetups: View {
     var onDeleteSetup: ((UUID) -> Void)?
     /// "Combine into one setup": a new setup on a face that includes all the given objects.
     var onAddCombinedSetup: (([UUID], SetupFace, SetupAxis?) -> Void)?
+    /// Context menu: a new setup on a face, on the same objects as the given setup.
+    var onAddSetupLike: ((UUID, SetupFace, SetupAxis?) -> Void)?
 
     /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
     @State private var isExpanded = true
@@ -61,6 +65,8 @@ struct PanelSetups: View {
     @State private var expandedSetupIDs: Set<UUID> = []
     /// The setup whose "+" is open, to choose the operation of the new toolpath
     @State private var choosingOperationFor: UUID?
+    /// The setup row under the pointer, which shows its pencil
+    @State private var hoveredSetupID: UUID?
 
     /// The horizontal padding of a list row (`inspectorListRow`).
     private static let rowInset: CGFloat = 6
@@ -216,11 +222,6 @@ struct PanelSetups: View {
         }
     }
 
-    /// With a single object the group titles would only repeat its name.
-    private var showsGroupTitles: Bool {
-        objects.count > 1
-    }
-
     @ViewBuilder
     private var list: some View {
         if setups.isEmpty {
@@ -233,11 +234,8 @@ struct PanelSetups: View {
                 ForEach(objects) { object in
                     let owned = setups.filter { ownerID(of: $0) == object.id }
                     if !owned.isEmpty {
-                        if showsGroupTitles {
-                            groupTitle(object.name)
-                        }
                         ForEach(owned) { setup in
-                            setupRow(setup)
+                            setupRow(setup, objectName: object.name)
                         }
                     }
                 }
@@ -288,9 +286,9 @@ struct PanelSetups: View {
     }
 
     /// A setup: its row, and under it (when open) its toolpaths.
-    private func setupRow(_ setup: Setup) -> some View {
+    private func setupRow(_ setup: Setup, objectName: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            setupHeader(setup)
+            setupHeader(setup, objectName: objectName)
             if isOpen(setup), let projectModel {
                 SetupToolpaths(projectModel: projectModel,
                                toolpaths: toolpaths(of: setup),
@@ -305,7 +303,7 @@ struct PanelSetups: View {
         }
     }
 
-    private func setupHeader(_ setup: Setup) -> some View {
+    private func setupHeader(_ setup: Setup, objectName: String?) -> some View {
         HStack(spacing: 4) {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
@@ -327,14 +325,20 @@ struct PanelSetups: View {
                 onSelectSetup?(setup.id)
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "square.stack.3d.down.right")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Text(setup.name)
+                    Text(objectName.map { "\($0) · \(setup.name)" } ?? setup.name)
                         .font(.system(size: 12))
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer(minLength: 4)
+                    // The setup stays active until another setup or an object is clicked
+                    if isSetupSelected && setup.id == activeSetupID {
+                        Text("Active")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.accentColor))
+                    }
                     if let count = toolpathCounts[setup.id], count > 0 {
                         Text("\(count)")
                             .font(.system(size: 11).monospacedDigit())
@@ -346,6 +350,19 @@ struct PanelSetups: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            Button {
+                onEditSetup?(setup.id)
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(2)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .opacity(hoveredSetupID == setup.id ? 1 : 0)
+            .help("Edit \(setup.name)")
 
             Button {
                 choosingOperationFor = setup.id
@@ -370,7 +387,22 @@ struct PanelSetups: View {
             }
         }
         .inspectorListRow(isSelected: isSetupSelected && setup.id == activeSetupID)
+        .onHover { inside in
+            if inside {
+                hoveredSetupID = setup.id
+            } else if hoveredSetupID == setup.id {
+                hoveredSetupID = nil
+            }
+        }
         .contextMenu {
+            Button {
+                onEditSetup?(setup.id)
+            } label: {
+                Label("Edit…", systemImage: "slider.horizontal.3")
+            }
+            faceMenu(title: "Add Setup on Same Objects", systemImage: "plus.square.on.square") { face, axis in
+                onAddSetupLike?(setup.id, face, axis)
+            }
             Button {
                 renameText = setup.name
                 renamingSetupID = setup.id

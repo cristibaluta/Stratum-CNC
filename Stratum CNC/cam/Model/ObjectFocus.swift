@@ -27,27 +27,13 @@ extension CAMModel {
         }
         healSetups(regularIDs: ids)
         pruneGroups(existing: Set(ids))
-        let previousActive = activeSetupID
-        var owned = Set(setups.flatMap { $0.items.map(\.objectID) })
-
-        for setup in setups where setup.items.isEmpty {
-            guard let id = ids.first(where: { !owned.contains($0) }) else {
-                continue
-            }
-            setSetupObjects(setup.id, to: [id])
-            owned.insert(id)
-        }
-        var created: [UUID] = []
-        for id in ids where !owned.contains(id) {
-            let setupID = addSetup(face: .top)
-            setSetupObjects(setupID, to: [id])
-            owned.insert(id)
-            created.append(id)
-        }
-        // Adding setups makes them active; the one that was open stays open
-        activateSetup(previousActive)
+        // An import does not create a setup: the user adds them. Only the new objects are tracked,
+        // so the last one imported into a project that already had objects becomes the selection.
+        let created = ids.filter { !seenObjectIDs.contains($0) }
+        let hadObjects = !seenObjectIDs.isEmpty
+        seenObjectIDs.formUnion(ids)
         // An object imported into a project that already had one becomes the selection
-        if focusedObjectID != nil, let imported = created.last {
+        if hadObjects, focusedObjectID != nil, let imported = created.last {
             focusObject(imported, keepingActiveSetup: false)
             if canvasState.object(withID: imported) != nil {
                 stepWorkspace.selectedModelID = nil

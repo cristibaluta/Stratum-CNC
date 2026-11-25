@@ -54,6 +54,9 @@ struct PanelObjectProperties: View {
     /// (object, true) = place it in this setup only; (object, false) = back to the global placement.
     var onPlacementOverrideChanged: ((UUID, Bool) -> Void)?
 
+    /// Done: closes the panel.
+    var onDone: (() -> Void)?
+
     // MARK: - Body
 
     @ViewBuilder
@@ -90,6 +93,21 @@ struct PanelObjectProperties: View {
                     .padding(.vertical, 8)
             }
             content()
+
+            Divider()
+                .padding(.vertical, 8)
+
+            HStack {
+                Spacer()
+                Button("Done") {
+                    onDone?()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .controlSize(.small)
+                .keyboardShortcut(.defaultAction)
+                .help("Close the object's properties")
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)

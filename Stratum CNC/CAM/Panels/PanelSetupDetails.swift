@@ -27,8 +27,8 @@ struct PanelSetupDetails: View {
     var stocksStore: StocksStore? = nil
     /// Why the setup can't be cut from its stock (a side face needs a rectangular block).
     var warning: String? = nil
-    /// The object the setup now cuts; nil for every object.
-    var onSelectObject: ((UUID?) -> Void)?
+    /// The objects the setup now includes (at least one).
+    var onSetObjects: (([UUID]) -> Void)?
     /// Cuts the setup from another of the project's stocks.
     var onSelectStock: ((UUID) -> Void)?
     /// "New stock": a copy of this one (fixtures included), which the setup is then cut from.
@@ -46,6 +46,11 @@ struct PanelSetupDetails: View {
     /// Deselects the setup, which closes the panel.
     var onDone: (() -> Void)?
 
+    /// Renames the setup.
+    var onRename: ((String) -> Void)?
+
+    @State private var nameText = ""
+    @FocusState private var isNameFocused: Bool
     @State private var showingLibrary = false
     @State private var fixtureMessage: String?
     /// Bumped after each edit of the fixture fields, so a field shows what was really applied.
@@ -66,6 +71,7 @@ struct PanelSetupDetails: View {
             }
             .padding(.bottom, 2)
 
+            nameRow
             objectRow
 
             Divider()
@@ -110,70 +116,111 @@ struct PanelSetupDetails: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .canvasChrome()
+        .onAppear {
+            nameText = setup.name
+        }
         .onChange(of: setup.id) { _, _ in
             fixtureMessage = nil
+            nameText = setup.name
+        }
+        .onChange(of: setup.name) { _, name in
+            if !isNameFocused {
+                nameText = name
+            }
         }
     }
 
     // MARK: - Object
 
-    /// The object the setup cuts: the only one it includes, or every object when it has no items of
-    /// its own (which is the one object of a single-object project).
-    private var selectedObjectID: UUID? {
+    /// The objects the setup includes, in order. A setup without items of its own includes every object.
+    private var includedObjects: [PanelSetups.ObjectItem] {
         if setup.items.isEmpty {
-            return objects.count == 1 ? objects[0].id : nil
+            return objects
         }
-        if setup.items.count == 1, objects.contains(where: { $0.id == setup.items[0].objectID }) {
-            return setup.items[0].objectID
+        return setup.items.compactMap { item in
+            objects.first { $0.id == item.objectID }
         }
-        return nil
     }
 
-    private var objectTitle: String {
-        if objects.isEmpty {
-            return "No object imported"
+    private var nameRow: some View {
+        InspectorRow(label: "Name") {
+            TextField("", text: $nameText)
+                .textFieldStyle(.roundedBorder)
+                .controlSize(.small)
+                .focused($isNameFocused)
+                .onSubmit {
+                    commitName()
+                }
+                .onChange(of: isNameFocused) { _, focused in
+                    if !focused {
+                        commitName()
+                    }
+                }
         }
-        if let id = selectedObjectID, let object = objects.first(where: { $0.id == id }) {
-            return object.name
+    }
+
+    /// An empty name is not accepted: the field goes back to the setup's name.
+    private func commitName() {
+        let trimmed = nameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            nameText = setup.name
+        } else if trimmed != setup.name {
+            onRename?(trimmed)
         }
-        return setup.items.count > 1 ? "\(setup.items.count) objects" : "All objects"
     }
 
     private var objectRow: some View {
-        InspectorRow(label: "Object") {
-            Menu {
-                ForEach(objects) { object in
-                    Button {
-                        onSelectObject?(object.id)
-                    } label: {
-                        if object.id == selectedObjectID {
-                            Label(object.name, systemImage: "checkmark")
-                        } else {
-                            Text(object.name)
+        let included = includedObjects
+        let includedIDs = included.map(\.id)
+        let available = objects.filter { !includedIDs.contains($0.id) }
+        return InspectorRow(label: "Objects") {
+            VStack(alignment: .leading, spacing: 4) {
+                if included.isEmpty {
+                    Text(objects.isEmpty ? "No object imported" : "No objects")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                }
+                ForEach(included) { object in
+                    HStack(spacing: 6) {
+                        Text(object.name)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 4)
+                        // A setup keeps at least one object (none would mean all of them)
+                        if included.count > 1 {
+                            Button {
+                                onSetObjects?(includedIDs.filter { $0 != object.id })
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .padding(2)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.borderless)
+                            .foregroundStyle(.secondary)
+                            .help("Remove \(object.name) from this setup")
                         }
                     }
                 }
-                if objects.count > 1 {
-                    Divider()
-                    Button {
-                        onSelectObject?(nil)
-                    } label: {
-                        if setup.items.isEmpty {
-                            Label("All objects", systemImage: "checkmark")
-                        } else {
-                            Text("All objects")
+                Menu {
+                    ForEach(available) { object in
+                        Button(object.name) {
+                            onSetObjects?(includedIDs + [object.id])
                         }
                     }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .medium))
+                        .padding(2)
                 }
-            } label: {
-                InspectorMenuLabel {
-                    Text(objectTitle)
-                }
+                .stBorderlessMenuStyle()
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .foregroundStyle(.secondary)
+                .disabled(available.isEmpty)
+                .help("Add an object to this setup")
             }
-            .menuIndicator(.hidden)
-            .buttonStyle(.plain)
-            .disabled(objects.isEmpty)
-            .help("The imported object this setup cuts")
         }
     }
 

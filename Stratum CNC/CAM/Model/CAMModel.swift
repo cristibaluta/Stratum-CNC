@@ -280,6 +280,9 @@ class CAMModel: ObservableObject {
     /// (see `ensureDefaultSetups`).
     @Published var focusedObjectID: UUID?
 
+    /// The objects `ensureDefaultSetups` has already seen, to tell an import from a project opening.
+    var seenObjectIDs: Set<UUID> = []
+
     /// What the tree has selected: a setup (true) or an object (false). Never both. An object
     /// selected shows its position and size on the right; a setup shows its stock.
     @Published var isSetupSelected = false {
@@ -291,6 +294,8 @@ class CAMModel: ObservableObject {
             if !isSetupSelected, selectedToolpathID != nil {
                 selectedToolpathID = nil
             }
+            // Only the selected setup's objects stay on the canvas
+            applyActivePlacement()
             updateToolpathPreview()
         }
     }

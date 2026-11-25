@@ -37,6 +37,10 @@ struct CAMView: View {
     @State private var fileError: String?
     /// Bumped by the fit button to frame the whole scene again.
     @State private var fitRequest = 0
+    /// The setup whose details are open (its pencil or "Edit…"); nil when none is.
+    @State private var editingSetupID: UUID?
+    /// The object whose properties are open (its pencil or "Edit…"); nil when none is.
+    @State private var editingObjectID: UUID?
     /// How tall the legend (bottom-left) is right now; the left panels' scroll stops above it.
     @State private var legendHeight: CGFloat = 0
     /// The widths of the panels over the canvas, so a fit centres the model in the free area between them
@@ -59,6 +63,18 @@ struct CAMView: View {
         }
         .onAppear {
             camModel.ensureDefaultSetups()
+        }
+        // Selecting an object (list or canvas) ends the active setup
+        .onChange(of: !camModel.canvasState.selectedObjectIDs.isEmpty || camModel.stepWorkspace.selectedModelID != nil) { _, hasSelection in
+            if hasSelection, camModel.isSetupSelected {
+                camModel.isSetupSelected = false
+            }
+        }
+        // Clicking empty canvas deselects: the properties panel closes with it
+        .onChange(of: camModel.canvasState.selectedObjectIDs.isEmpty && camModel.stepWorkspace.selectedModelID == nil) { _, isEmpty in
+            if isEmpty {
+                editingObjectID = nil
+            }
         }
         .onChange(of: camModel.projectObjects.map(\.id)) { _, _ in
             camModel.ensureDefaultSetups()
@@ -305,7 +321,7 @@ struct CAMView: View {
     private var rightPanels: some View {
         VStack(alignment: .trailing, spacing: 16) {
             // One selection at a time: a setup shows its object, stock and fixtures, an object its face up, position, size
-            if camModel.isSetupSelected, let setup = camModel.setups.first(where: { $0.id == camModel.activeSetupID }) {
+            if let setup = camModel.setups.first(where: { $0.id == editingSetupID }), selectedToolpath == nil {
                 let projectStock = camModel.projectStock(for: setup)
                 PanelSetupDetails(setup: setup,
                                   objects: setupObjects,
@@ -318,10 +334,10 @@ struct CAMView: View {
                                   isStockVisible: stockVisibleBinding,
                                   stocksStore: appModel.stocksStore,
                                   warning: camModel.activeStockWarning,
-                                  onSelectObject: { objectID in
+                                  onSetObjects: { ids in
                                       // Choosing the objects by hand makes it a plain setup, no longer a group's
                                       camModel.setSetupGroup(setup.id, to: nil)
-                                      camModel.setSetupObjects(setup.id, to: objectID.map { [$0] } ?? [])
+                                      camModel.setSetupObjects(setup.id, to: ids)
                                   },
                                   onSelectStock: { id in
                                       camModel.assignStock(id, to: setup.id)
@@ -346,10 +362,13 @@ struct CAMView: View {
                                       camModel.removeFixtures(from: projectStock.id)
                                   },
                                   onDone: {
-                                      camModel.isSetupSelected = false
+                                       editingSetupID = nil
+                                   },
+                                  onRename: { name in
+                                      camModel.renameSetup(setup.id, to: name)
                                   })
-                .frame(width: 256)
-            } else {
+                .frame(width: 260)
+            } else if editingObjectID != nil, selectedToolpath == nil {
                 objectPropertiesPanel
             }
             // Only while a toolpath is selected in the list
@@ -376,6 +395,7 @@ struct CAMView: View {
             elements: camModel.canvasState.objects,
             selectedIDs: realSelection,
             onSelectionChanged: { id, extend in
+                editingObjectID = nil
                 camModel.stepWorkspace.selectedModelID = nil
                 if extend {
                     camModel.canvasState.toggleObjectSelection(id)
@@ -406,6 +426,7 @@ struct CAMView: View {
             // A selected 2D object wins: the model's fields only show when none is selected.
             selectedStepModelID: camModel.canvasState.selectedObjectIDs.isEmpty ? camModel.stepWorkspace.selectedModelID : nil,
             onSelectStepModel: { id in
+                editingObjectID = nil
                 camModel.canvasState.clearSelection()
                 if camModel.stepWorkspace.selectedModelID == id {
                     // Clicking the selected model again deselects it
@@ -427,6 +448,7 @@ struct CAMView: View {
             },
             focusedObjectID: camModel.focusedObjectID,
             onSelectObject: { id in
+                editingObjectID = nil
                 let focusChanges = id != camModel.focusedObjectID
                 if focusChanges {
                     camModel.skipsFlipAnimation = true
@@ -440,6 +462,23 @@ struct CAMView: View {
                     camModel.canvasState.clearSelection()
                     camModel.stepWorkspace.select(model: id)
                 }
+            },
+            onEditObject: { id in
+                editingSetupID = nil
+                let focusChanges = id != camModel.focusedObjectID
+                if focusChanges {
+                    camModel.skipsFlipAnimation = true
+                    DispatchQueue.main.async { camModel.skipsFlipAnimation = false }
+                }
+                camModel.focusObject(id, keepingActiveSetup: false)
+                if camModel.canvasState.object(withID: id) != nil {
+                    camModel.stepWorkspace.selectedModelID = nil
+                    camModel.canvasState.selectObject(id)
+                } else {
+                    camModel.canvasState.clearSelection()
+                    camModel.stepWorkspace.select(model: id)
+                }
+                editingObjectID = id
             },
             isSetupSelected: camModel.isSetupSelected,
             groups: camModel.objectGroups.map { group in
@@ -464,6 +503,7 @@ struct CAMView: View {
                 camModel.removeFromGroup(groupID, objectIDs: ids)
             },
             onSelectGroup: { id in
+                editingObjectID = nil
                 guard let group = camModel.objectGroups.first(where: { $0.id == id }) else {
                     return
                 }
@@ -483,7 +523,17 @@ struct CAMView: View {
             },
             onDeleteGroup: { id in
                 camModel.deleteGroup(id)
-            }
+            },
+            onAddSetup: { objectID, face, axis in
+                editingObjectID = nil
+                withAnimation(.easeOut(duration: 0.15)) {
+                    let id = camModel.addSetup(face: face, axis: axis, inheritingFixtures: true)
+                    camModel.setSetupObjects(id, to: [objectID])
+                    camModel.isSetupSelected = true
+                    editingSetupID = id
+                }
+            },
+            sideFacesAvailable: hasSTEP
         )
     }
 
@@ -559,6 +609,9 @@ struct CAMView: View {
             offersPlacementScope: camModel.setups.count > 1,
             onPlacementOverrideChanged: { id, enabled in
                 camModel.setPlacementOverride(enabled, for: id)
+            },
+            onDone: {
+                editingObjectID = nil
             }
         )
         .frame(width: 320)
@@ -623,6 +676,7 @@ struct CAMView: View {
                 }
             },
             onSelectToolpath: { id in
+                editingObjectID = nil
                 withAnimation(.easeOut(duration: 0.15)) {
                     camModel.toggleToolpathSelection(id)
                 }
@@ -650,6 +704,8 @@ struct CAMView: View {
                 let owner = camModel.setups.first { $0.id == id }?.items.first?.objectID
                 let changesObject = owner != nil && owner != camModel.focusedObjectID
                 let select = {
+                    editingSetupID = nil
+                    editingObjectID = nil
                     camModel.canvasState.clearSelection()
                     camModel.stepWorkspace.selectedModelID = nil
                     camModel.activateSetup(id)
@@ -665,6 +721,14 @@ struct CAMView: View {
                     select()
                 }
             },
+            onEditSetup: { id in
+                editingObjectID = nil
+                camModel.canvasState.clearSelection()
+                camModel.stepWorkspace.selectedModelID = nil
+                camModel.activateSetup(id)
+                camModel.isSetupSelected = true
+                editingSetupID = id
+            },
             onAddSetup: { objectID, face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
                     // A new setup is cut from the active setup's stock, and keeps its fixtures
@@ -673,12 +737,14 @@ struct CAMView: View {
                         camModel.setSetupObjects(id, to: [objectID])
                     }
                     camModel.isSetupSelected = true
+                    editingSetupID = id
                 }
             },
             onAddGroupSetup: { groupID, face, axis in
                 withAnimation(.easeOut(duration: 0.15)) {
-                    if camModel.addGroupSetup(groupID, face: face, axis: axis) != nil {
+                    if let id = camModel.addGroupSetup(groupID, face: face, axis: axis) {
                         camModel.isSetupSelected = true
+                        editingSetupID = id
                     }
                 }
             },
@@ -695,6 +761,20 @@ struct CAMView: View {
                     let id = camModel.addSetup(face: face, axis: axis, inheritingFixtures: true)
                     camModel.setSetupObjects(id, to: ids)
                     camModel.isSetupSelected = true
+                    editingSetupID = id
+                }
+            },
+            onAddSetupLike: { sourceID, face, axis in
+                guard let source = camModel.setups.first(where: { $0.id == sourceID }) else {
+                    return
+                }
+                withAnimation(.easeOut(duration: 0.15)) {
+                    let id = camModel.addSetup(face: face, axis: axis, inheritingFixtures: true)
+                    // The same objects (positions are the new setup's own); a group's setup stays the group's
+                    camModel.setSetupObjects(id, to: source.items.map(\.objectID))
+                    camModel.setSetupGroup(id, to: source.groupID)
+                    camModel.isSetupSelected = true
+                    editingSetupID = id
                 }
             }
         )

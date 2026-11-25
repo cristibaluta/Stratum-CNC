@@ -66,6 +66,8 @@ struct PanelObjectsInspector: View {
     var focusedObjectID: UUID?
     /// A plain click on an object's row: focuses it and opens its first setup.
     var onSelectObject: ((UUID) -> Void)?
+    /// The pencil / hover button: opens the object's properties panel.
+    var onEditObject: ((UUID) -> Void)?
     /// A setup is the selection (and not an object): only one of the two is highlighted.
     var isSetupSelected = false
 
@@ -84,6 +86,13 @@ struct PanelObjectsInspector: View {
     var onRenameGroup: ((UUID, String) -> Void)?
     /// "Ungroup": the group goes, its members stay.
     var onDeleteGroup: ((UUID) -> Void)?
+
+    /// The object row under the pointer, which shows its pencil
+    @State private var hoveredRowID: UUID?
+    /// "Add Setup" in an object's context menu: a new setup on a face for that object.
+    var onAddSetup: ((UUID, SetupFace, SetupAxis?) -> Void)?
+    /// Front, back, left and right need a 3D model.
+    var sideFacesAvailable = false
 
     @State private var renamingGroupID: UUID?
     @State private var renameText = ""
@@ -294,14 +303,54 @@ struct PanelObjectsInspector: View {
     /// A row is highlighted when it is the focused object (unless a setup is the selection), or
     /// when several objects are selected.
     private func isRowSelected(_ id: UUID) -> Bool {
-        if selectedIDs.count > 1 {
-            return selectedIDs.contains(id)
+        // Only what is selected on the canvas: clicking empty space clears it
+        selectedIDs.contains(id) || selectedStepModelID == id
+    }
+
+    /// "Add Setup" submenu: each face, with the bottom split by the axis it is flipped on.
+    private func addSetupMenu(for id: UUID) -> some View {
+        Menu {
+            ForEach(SetupFace.allCases.filter { !$0.isSide || sideFacesAvailable }, id: \.rawValue) { face in
+                if face.hasChoiceOfAxis {
+                    ForEach(SetupAxis.allCases, id: \.rawValue) { axis in
+                        Button("\(face.title) (flip on \(axis.title))") {
+                            onAddSetup?(id, face, axis)
+                        }
+                    }
+                } else {
+                    Button(face.title) {
+                        onAddSetup?(id, face, nil)
+                    }
+                }
+            }
+        } label: {
+            Label("Add Setup", systemImage: "plus.square.on.square")
         }
-        return !isSetupSelected && focusedObjectID == id
+    }
+
+    private func editButton(for id: UUID, name: String) -> some View {
+        Button {
+            onEditObject?(id)
+        } label: {
+            Image(systemName: "pencil")
+                .font(.system(size: 11, weight: .medium))
+                .padding(2)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .opacity(hoveredRowID == id ? 1 : 0)
+        .help("Edit \(name)")
     }
 
     private func objectRow(_ object: D2_Object) -> some View {
         HStack(spacing: 4) {
+            InspectorVisibilityButton(isVisible: object.isVisible,
+                                      showHelp: "Show on canvas",
+                                      hideHelp: "Hide from canvas") {
+                onToggleVisibility?(object.id)
+            }
+
             Button {
                 let flags = CanvasModifiers.current
                 if flags.contains(.shift) || flags.contains(.command) {
@@ -321,19 +370,28 @@ struct PanelObjectsInspector: View {
             }
             .buttonStyle(.plain)
 
-            InspectorVisibilityButton(isVisible: object.isVisible,
-                                      showHelp: "Show on canvas",
-                                      hideHelp: "Hide from canvas") {
-                onToggleVisibility?(object.id)
-            }
+            editButton(for: object.id, name: object.name)
         }
         .inspectorListRow(isSelected: isRowSelected(object.id))
+        .onHover { inside in
+            if inside {
+                hoveredRowID = object.id
+            } else if hoveredRowID == object.id {
+                hoveredRowID = nil
+            }
+        }
         .contextMenu {
+            Button {
+                onEditObject?(object.id)
+            } label: {
+                Label("Edit…", systemImage: "slider.horizontal.3")
+            }
             Button {
                 onGeneratePreview?(object.id)
             } label: {
                 Label("Generate Project Preview", systemImage: "photo")
             }
+            addSetupMenu(for: object.id)
             groupMenu(for: selectedIDs.count > 1 && selectedIDs.contains(object.id) ? Array(selectedIDs) : [object.id])
             Divider()
             Button(role: .destructive) {
@@ -346,6 +404,12 @@ struct PanelObjectsInspector: View {
 
     private func stepModelRow(_ model: STEPModelItem) -> some View {
         HStack(spacing: 4) {
+            InspectorVisibilityButton(isVisible: model.isVisible,
+                                      showHelp: "Show on canvas",
+                                      hideHelp: "Hide from canvas") {
+                onToggleStepModelVisibility?(model.id)
+            }
+
             Button {
                 onSelectObject?(model.id)
             } label: {
@@ -359,15 +423,24 @@ struct PanelObjectsInspector: View {
             }
             .buttonStyle(.plain)
 
-            InspectorVisibilityButton(isVisible: model.isVisible,
-                                      showHelp: "Show on canvas",
-                                      hideHelp: "Hide from canvas") {
-                onToggleStepModelVisibility?(model.id)
-            }
+            editButton(for: model.id, name: model.name)
         }
         .inspectorListRow(isSelected: isRowSelected(model.id))
+        .onHover { inside in
+            if inside {
+                hoveredRowID = model.id
+            } else if hoveredRowID == model.id {
+                hoveredRowID = nil
+            }
+        }
         .help(model.detail.map { "\(model.name) — \($0)" } ?? model.name)
         .contextMenu {
+            Button {
+                onEditObject?(model.id)
+            } label: {
+                Label("Edit…", systemImage: "slider.horizontal.3")
+            }
+            addSetupMenu(for: model.id)
             groupMenu(for: [model.id])
             Divider()
             Button(role: .destructive) {
