@@ -595,14 +595,18 @@ struct CAMView: View {
             guard let scene = workspace.documents[entry.sourceID], let body = entry.body else {
                 return STEPModelItem(id: entry.id, name: entry.name,
                                      isVisible: workspace.documents[entry.sourceID]?.isModelVisible ?? true,
-                                     position: nil, size: nil)
+                                     position: nil, size: nil, orientation: nil, detail: nil,
+                                     sourceID: entry.sourceID, sourceName: entry.sourceName)
             }
             return STEPModelItem(id: entry.id, name: entry.name,
                                  isVisible: scene.isBodyVisible(body),
                                  position: scene.position(of: body),
                                  size: scene.content.size(of: body),
                                  orientation: scene.content.orientation(of: body),
-                                 detail: entry.detail)
+                                 detail: entry.detail,
+                                 sourceID: entry.sourceID,
+                                 sourceName: entry.sourceName,
+                                 bodyName: entry.bodyName)
         }
     }
 

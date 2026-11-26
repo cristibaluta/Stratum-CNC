@@ -136,6 +136,10 @@ final class STEPWorkspace: ObservableObject {
         let name: String
         /// What the file calls the body (occurrence path and name), for the row's tooltip.
         let detail: String?
+        /// The file's name, which the bodies of a file are grouped under in the objects list.
+        var sourceName: String = ""
+        /// "Body 2" for a file of several bodies, `nil` otherwise.
+        var bodyName: String? = nil
     }
 
     /// The rows of the objects list: every body of every loaded file, in the file's order.
@@ -143,7 +147,8 @@ final class STEPWorkspace: ObservableObject {
         var entries: [ModelEntry] = []
         for source in sources {
             guard let scene = documents[source.id], !scene.content.infos.isEmpty else {
-                entries.append(ModelEntry(id: source.id, sourceID: source.id, body: nil, name: source.name, detail: nil))
+                entries.append(ModelEntry(id: source.id, sourceID: source.id, body: nil, name: source.name, detail: nil,
+                                          sourceName: source.name))
                 continue
             }
             let numbered = scene.content.bodyCount > 1
@@ -151,7 +156,9 @@ final class STEPWorkspace: ObservableObject {
                 entries.append(ModelEntry(id: modelID(source: source.id, body: info.id), sourceID: source.id,
                                           body: info.id,
                                           name: numbered ? "\(source.name) · Body \(info.number)" : source.name,
-                                          detail: info.label))
+                                          detail: info.label,
+                                          sourceName: source.name,
+                                          bodyName: numbered ? "Body \(info.number)" : nil))
             }
         }
         return entries

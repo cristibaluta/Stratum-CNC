@@ -21,6 +21,18 @@ struct STEPModelItem: Identifiable {
     var orientation: SetupFace? = nil
     /// What the file calls the body (occurrence path and name), shown as the row's tooltip.
     var detail: String? = nil
+    /// The file the body comes from, and its name: the bodies of one file are grouped under it.
+    var sourceID: UUID? = nil
+    var sourceName: String? = nil
+    /// "Body 2" for a file of several bodies, `nil` otherwise.
+    var bodyName: String? = nil
+}
+
+/// The bodies of one imported file, as the list shows them.
+private struct STEPModelGroup: Identifiable {
+    let id: UUID
+    let name: String
+    var models: [STEPModelItem]
 }
 
 /// The list of imported objects (2D shapes and STEP models). The fixtures are not objects of the
@@ -71,6 +83,8 @@ struct PanelObjectsInspector: View {
 
     /// The object row under the pointer, which shows its pencil
     @State private var hoveredRowID: UUID?
+    /// The files whose bodies are listed (the others are collapsed)
+    @State private var expandedGroups: Set<UUID> = []
     /// "Add Setup" in an object's context menu: a new setup on a face for that object.
     var onAddSetup: ((UUID, SetupFace, SetupAxis?) -> Void)?
     /// Front, back, left and right need a 3D model.
@@ -179,8 +193,69 @@ struct PanelObjectsInspector: View {
         ForEach(regularShapes, id: \.id) { object in
             objectRow(object)
         }
-        ForEach(stepModels) { model in
-            stepModelRow(model)
+        ForEach(stepGroups) { group in
+            if group.models.count > 1 {
+                stepGroupRow(group)
+                if expandedGroups.contains(group.id) {
+                    ForEach(group.models) { model in
+                        stepModelRow(model, title: model.bodyName ?? model.name)
+                            .padding(.leading, Self.indent)
+                    }
+                }
+            } else if let model = group.models.first {
+                stepModelRow(model)
+            }
+        }
+    }
+
+    /// The STEP models grouped by the file they come from, in the order of the list.
+    private var stepGroups: [STEPModelGroup] {
+        var groups: [STEPModelGroup] = []
+        for model in stepModels {
+            let key = model.sourceID ?? model.id
+            if let index = groups.firstIndex(where: { $0.id == key }) {
+                groups[index].models.append(model)
+            } else {
+                groups.append(STEPModelGroup(id: key, name: model.sourceName ?? model.name, models: [model]))
+            }
+        }
+        return groups
+    }
+
+    /// The file's name with a disclosure indicator: opens the list of its bodies.
+    private func stepGroupRow(_ group: STEPModelGroup) -> some View {
+        let isOpen = expandedGroups.contains(group.id)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                if isOpen {
+                    expandedGroups.remove(group.id)
+                } else {
+                    expandedGroups.insert(group.id)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                InspectorChevron(isExpanded: isOpen)
+                Text(group.name)
+                    .font(.system(size: 12))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text("\(group.models.count)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .inspectorListRow(isSelected: false)
+        .help("\(group.name): \(group.models.count) bodies")
+        .contextMenu {
+            Button(role: .destructive) {
+                group.models.forEach { onDeleteStepModel?($0.id) }
+            } label: {
+                Label("Delete All Bodies", systemImage: "trash")
+            }
         }
     }
 
@@ -229,11 +304,14 @@ struct PanelObjectsInspector: View {
 
     private func objectRow(_ object: D2_Object) -> some View {
         HStack(spacing: 4) {
+            // The hide button is switched off for now, it may come back.
+            /*
             InspectorVisibilityButton(isVisible: object.isVisible,
                                       showHelp: "Show on canvas",
                                       hideHelp: "Hide from canvas") {
                 onToggleVisibility?(object.id)
             }
+            */
 
             Button {
                 let flags = CanvasModifiers.current
@@ -285,18 +363,21 @@ struct PanelObjectsInspector: View {
         }
     }
 
-    private func stepModelRow(_ model: STEPModelItem) -> some View {
+    private func stepModelRow(_ model: STEPModelItem, title: String? = nil) -> some View {
         HStack(spacing: 4) {
+            // The hide button is switched off for now, it may come back.
+            /*
             InspectorVisibilityButton(isVisible: model.isVisible,
                                       showHelp: "Show on canvas",
                                       hideHelp: "Hide from canvas") {
                 onToggleStepModelVisibility?(model.id)
             }
+            */
 
             Button {
                 onSelectObject?(model.id)
             } label: {
-                Text(model.name)
+                Text(title ?? model.name)
                     .font(.system(size: 12))
                     .lineLimit(1)
                     .truncationMode(.middle)
