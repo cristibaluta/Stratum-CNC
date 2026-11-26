@@ -132,7 +132,7 @@ struct SetupToolpaths: View {
             // The tool's diameter and where the toolpath ends, as one muted, right-aligned
             // label: "Ø6 · Z−0.35". The name gives way when narrow.
             Text("Ø\(Self.diameterText(of: toolpath)) · Z\(Self.endZText(of: toolpath))")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.tertiary)
                 .monospacedDigit()
                 .lineLimit(1)
                 .fixedSize()
