@@ -119,7 +119,7 @@ struct SetupToolpaths: View {
                 .help(isChecked ? "Untick" : "Tick")
             }
 
-            OperationIcon(kind: toolpath.operation.kind, isRest: toolpath.operation.isRest, size: 13)
+            OperationIcon(kind: toolpath.operation.kind, isRest: toolpath.operation.isRest, size: 12)
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
 

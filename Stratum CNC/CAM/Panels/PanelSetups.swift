@@ -283,7 +283,7 @@ struct PanelSetups: View {
                     if setup.id == activeSetupID {
                         Circle()
                             .fill(Color.accentColor)
-                            .frame(width: 6, height: 6)
+                            .frame(width: 8, height: 8)
                             .help("Active setup")
                     }
                     Spacer(minLength: 4)
