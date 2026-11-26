@@ -122,17 +122,11 @@ struct CAMView: View {
         !camModel.stepWorkspace.sources.isEmpty
     }
 
-    /// The single funnel for stock visibility: ProjectData stays the
-    /// persisted source of truth, D2_CanvasState stays the render-time
-    /// source of truth, and this binding is the one place that keeps them
-    /// equal. Nothing else in the app should write either of these directly.
+    /// Stock visibility is UI state only (never saved): D2_CanvasState is its source of truth.
     private var stockVisibleBinding: Binding<Bool> {
         Binding(
-            get: { projectModel.projectData.isStockVisible ?? true },
-            set: { newValue in
-                projectModel.projectData.isStockVisible = newValue
-                camModel.canvasState.isStockVisible = newValue
-            }
+            get: { camModel.canvasState.isStockVisible },
+            set: { camModel.canvasState.isStockVisible = $0 }
         )
     }
 
@@ -321,9 +315,6 @@ struct CAMView: View {
                 }
             }
             .padding(16)
-        }
-        .onAppear {
-            camModel.canvasState.isStockVisible = projectModel.projectData.isStockVisible ?? true
         }
     }
 

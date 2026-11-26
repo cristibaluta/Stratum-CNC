@@ -90,9 +90,8 @@ struct ControllerView: View {
 
     private var stockVisibleBinding: Binding<Bool> {
         Binding(
-            get: { projectModel.projectData.isStockVisible ?? true },
+            get: { camModel.canvasState.isStockVisible },
             set: { newValue in
-                projectModel.projectData.isStockVisible = newValue
                 camModel.canvasState.isStockVisible = newValue
             }
         )

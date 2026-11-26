@@ -176,9 +176,7 @@ class ProjectModel: ObservableObject {
             }
         } catch {
             print("Failed to load projects: \(error)")
-            projectData = ProjectData(stock: nil,
-                                      isStockVisible: nil,
-                                      assets: nil)
+            projectData = ProjectData(assets: nil)
             // A missing file is a new project, not a failure.
             if FileManager.default.fileExists(atPath: paths.projectMetadata.path) {
                 unreadableMetadata = error
@@ -195,17 +193,13 @@ class ProjectModel: ObservableObject {
         // objects) is converted here; `projectData.stock` only seeds the list of one that had none.
         let migrated = ProjectStocks.migrate(setups: projectData.setups ?? [],
                                              stocks: projectData.stocks ?? [],
-                                             legacyStock: projectData.stock,
+                                             legacyStock: projectData.legacyStock,
                                              legacyPins: projectData.alignmentPins ?? [])
         camModel = CAMModel(toolpaths: [],
                             setups: migrated.setups,
                             stocks: migrated.stocks,
                             groups: projectData.objectGroups ?? [],
-                            newStock: projectData.stock ?? .defaultWorkpiece)
-
-//        projectData.isStockVisible.publisher.sink { [weak self] newValue in
-//            print("new isStockVisible \(newValue)")
-//        }
+                            newStock: projectData.legacyStock ?? .defaultWorkpiece)
 
         if let unreadableMetadata {
             markUnreadable(paths.projectMetadata, error: unreadableMetadata)

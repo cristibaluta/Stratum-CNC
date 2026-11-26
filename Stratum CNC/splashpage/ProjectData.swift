@@ -23,8 +23,9 @@ struct ProjectData: Identifiable, Codable, Hashable {
     var id: UUID
     /// The project's display name, for the same reason. `nil` in older files.
     var name: String?
-    var stock: StockMaterial?
-    var isStockVisible: Bool?
+    /// Only what projects saved before stocks were a list have: a root stock. Read once to seed the
+    /// stocks list (`ProjectStocks.migrate`); never written.
+    var legacyStock: StockMaterial?
     var assets: [AssetData]?
     /// XY offset set in the Controller (where the job's origin sits on the
     /// bed), in millimeters. Saved as `[x, y]`. `nil` in projects saved before
@@ -45,10 +46,41 @@ struct ProjectData: Identifiable, Codable, Hashable {
     /// The groups (virtual objects, see `ObjectGroup`). `nil` in projects saved before they existed.
     var objectGroups: [ObjectGroup]?
 
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, id, name, assets, xyOffset, setups, stocks, alignmentPins, objectGroups
+        // Read only, from files saved before: `stock` is now in `stocks`; `isStockVisible` is UI state
+        case stock, isStockVisible
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decodeIfPresent(String.self, forKey: .name)
+        legacyStock = try c.decodeIfPresent(StockMaterial.self, forKey: .stock)
+        assets = try c.decodeIfPresent([AssetData].self, forKey: .assets)
+        xyOffset = try c.decodeIfPresent(SIMD2<Float>.self, forKey: .xyOffset)
+        setups = try c.decodeIfPresent([Setup].self, forKey: .setups)
+        stocks = try c.decodeIfPresent([ProjectStock].self, forKey: .stocks)
+        alignmentPins = try c.decodeIfPresent([AlignmentPinsData].self, forKey: .alignmentPins)
+        objectGroups = try c.decodeIfPresent([ObjectGroup].self, forKey: .objectGroups)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(schemaVersion, forKey: .schemaVersion)
+        try c.encode(id, forKey: .id)
+        try c.encodeIfPresent(name, forKey: .name)
+        try c.encodeIfPresent(assets, forKey: .assets)
+        try c.encodeIfPresent(xyOffset, forKey: .xyOffset)
+        try c.encodeIfPresent(setups, forKey: .setups)
+        try c.encodeIfPresent(stocks, forKey: .stocks)
+        try c.encodeIfPresent(alignmentPins, forKey: .alignmentPins)
+        try c.encodeIfPresent(objectGroups, forKey: .objectGroups)
+    }
+
     init(id: UUID = UUID(),
          name: String? = nil,
-         stock: StockMaterial?,
-         isStockVisible: Bool?,
          assets: [AssetData]?,
          xyOffset: SIMD2<Float>? = nil,
          setups: [Setup]? = nil,
@@ -56,8 +88,6 @@ struct ProjectData: Identifiable, Codable, Hashable {
 
         self.id = id
         self.name = name
-        self.stock = stock
-        self.isStockVisible = isStockVisible
         self.assets = assets
         self.xyOffset = xyOffset
         self.setups = setups

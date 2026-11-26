@@ -519,15 +519,13 @@ final class ProjectsStore: ObservableObject {
     /// Creates the project folder with its `assets` directory and a fresh `project.json`.
     private func writeNewProjectFiles(for project: Project, at paths: ProjectPaths) throws {
         let lastUsedGeometry = StockGeometry.rectangular(width: 100, height: 100, depth: 10)
-        let lastStockVisibility = true
         let lastStockUsed = StockMaterial(name: "Aluminum",
                                           material: .aluminum,
                                           geometry: lastUsedGeometry)
         let projectData = ProjectData(id: project.id,
                                       name: project.name,
-                                      stock: lastStockUsed,
-                                      isStockVisible: lastStockVisibility,
-                                      assets: nil)
+                                      assets: nil,
+                                      stocks: [ProjectStock(stock: lastStockUsed)])
 
         // Create supporting directories and files
         try FileManager.default.createDirectory(at: paths.projectDirectory, withIntermediateDirectories: true)
@@ -673,43 +671,35 @@ final class ProjectsStore: ObservableObject {
         } ?? nil
     }
 
-    /// The stock's material and size ("Aluminum · 100 × 100 × 10 mm") for the card, read from the
-    /// project's own file. Nil when the project has no stock or its file can't be read.
-    func stockSummary(for project: Project) -> String? {
+    /// The project's first stock, read from its own file: the first of `stocks`, or the root `stock`
+    /// of files saved before. Nil when there is none or the file can't be read.
+    private func firstStock(for project: Project) -> StockMaterial? {
         struct StockOnly: Decodable {
             var stock: StockMaterial?
+            var stocks: [ProjectStock]?
         }
         return withAccess(to: project) { paths in
             (try? Data(contentsOf: paths.projectMetadata))
-                .flatMap { try? decoder.decode(StockOnly.self, from: $0) }?
-                .stock?.cardSummary
+                .flatMap { try? decoder.decode(StockOnly.self, from: $0) }
+                .flatMap { $0.stocks?.first?.stock ?? $0.stock }
         } ?? nil
+    }
+
+    /// The stock's material and size ("Aluminum · 100 × 100 × 10 mm") for the card, read from the
+    /// project's own file. Nil when the project has no stock or its file can't be read.
+    func stockSummary(for project: Project) -> String? {
+        firstStock(for: project)?.cardSummary
     }
 
     /// The stock's name and its card summary (material and size) as one string, for searching
     /// the projects. Nil when the project has no stock or its file can't be read.
     func stockSearchText(for project: Project) -> String? {
-        struct StockOnly: Decodable {
-            var stock: StockMaterial?
-        }
-        return withAccess(to: project) { paths in
-            (try? Data(contentsOf: paths.projectMetadata))
-                .flatMap { try? decoder.decode(StockOnly.self, from: $0) }?
-                .stock
-                .map { "\($0.name) \($0.cardSummary)" }
-        } ?? nil
+        firstStock(for: project).map { "\($0.name) \($0.cardSummary)" }
     }
 
     /// The material of the project's stock, to tint the card's preview. Nil when there is no stock.
     func stockMaterialType(for project: Project) -> StockMaterialType? {
-        struct StockOnly: Decodable {
-            var stock: StockMaterial?
-        }
-        return withAccess(to: project) { paths in
-            (try? Data(contentsOf: paths.projectMetadata))
-                .flatMap { try? decoder.decode(StockOnly.self, from: $0) }?
-                .stock?.material
-        } ?? nil
+        firstStock(for: project)?.material
     }
 
     func revealInFinder(_ project: Project) {
