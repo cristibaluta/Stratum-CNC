@@ -158,8 +158,14 @@ class ControllerModel: ObservableObject {
     /// Owns everything that moves the machine by hand — step jogs and the
     /// timer behind hold-to-jog.
     lazy var jogController = JogController(
-        send: { [weak self] line in
-            self?.sendRawCommand(line, recordInHistory: false)
+        sendBatch: { [weak self] lines in
+            guard let self, self.connection.isConnected else {
+                return false
+            }
+            return self.session.batch.send(lines)
+        },
+        isBatchBusy: { [weak self] in
+            self?.session.batch.isBusy ?? false
         },
         state: { [weak self] in
             self?.connection.status?.state
@@ -198,6 +204,21 @@ class ControllerModel: ObservableObject {
 
         session.onEvent = { [weak self] event in
             self?.handle(event)
+        }
+
+        // A jog goes out as one batch (G91, move, G90); the next one waits
+        // until the machine acknowledged all of it (see `JogController`).
+        session.batch.onFinish = { [weak self] outcome in
+            switch outcome {
+            case .completed:
+                self?.jogController.batchFinished(failed: false)
+            case .failed(let reply):
+                self?.connection.appendLog("Jog rejected: \(reply)")
+                self?.jogController.batchFinished(failed: true)
+            case .timedOut:
+                self?.connection.appendLog("Jog: the machine did not acknowledge in time.")
+                self?.jogController.batchFinished(failed: false)
+            }
         }
 
         // A held button's release is never delivered once the app is in the

@@ -34,12 +34,6 @@ struct PanelJog: View {
 
     @State private var jogMode: JogMode = .step
     @State private var selectedJogStep: Double = 0.1
-    /// Directions the mouse is currently holding down on screen — so the
-    /// drag gesture, which reports continuously, only starts each hold once.
-    @State private var mouseHeld: Set<JogDirection> = []
-    /// The same for the diagonal buttons, which hold two directions at once (keyed by name).
-    @State private var diagonalHeld: Set<String> = []
-
     var onJog: ((ControllerModel.JogRequest) -> Void)?
     /// Hold mode: a direction went down (`true`) or came back up (`false`).
     var onHold: ((JogDirection, Bool) -> Void)?
@@ -87,13 +81,9 @@ struct PanelJog: View {
         }
         .onChange(of: jogMode) { _, _ in
             // Whatever was held belongs to the mode that's just been left.
-            mouseHeld.removeAll()
-            diagonalHeld.removeAll()
             onStopHold?()
         }
         .onDisappear {
-            mouseHeld.removeAll()
-            diagonalHeld.removeAll()
             onStopHold?()
         }
         .task {
@@ -230,37 +220,12 @@ struct PanelJog: View {
     }
 
     /// A corner of the pad: moves X and Y at the same time. Just the arrow, no button chrome.
-    /// Step mode makes one move on both axes; hold mode holds both directions together.
     private func diagonalButton(_ systemName: String,
                                 help: String,
                                 directions: [JogDirection]) -> some View {
-        Button {
-            if jogMode == .step {
-                step(directions)
-            }
-        } label: {
-            Image(systemName: systemName)
-                .frame(width: 36, height: 30)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(ArrowOnlyButtonStyle())
-        .help(help)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    guard jogMode == .hold, !diagonalHeld.contains(help) else {
-                        return
-                    }
-                    diagonalHeld.insert(help)
-                    directions.forEach { onHold?($0, true) }
-                }
-                .onEnded { _ in
-                    guard diagonalHeld.remove(help) != nil else {
-                        return
-                    }
-                    directions.forEach { onHold?($0, false) }
-                }
-        )
+        JogPadButton(systemName: systemName, minWidth: 36, minHeight: 30, showsChrome: false,
+                     isHighlighted: false, begin: { beginJog(directions) })
+            .help(help)
     }
 
     private var zAxisView: some View {
@@ -283,43 +248,36 @@ struct PanelJog: View {
         }
     }
 
-    /// One direction button. Step mode acts on the click; hold mode acts on
-    /// the mouse going down and coming back up, which a `Button`'s own
-    /// action can't report — hence the drag gesture (no minimum distance, so
-    /// it starts on mouse-down, and it keeps tracking until mouse-up even if
-    /// the pointer slides off the button).
+    /// One direction button; see `JogPadButton` and `beginJog`.
     private func jogButton(_ systemName: String,
                            help: String,
                            w: CGFloat? = 36,
                            h: CGFloat? = 30,
                            direction: JogDirection,
                            isHighlighted: Binding<Bool>) -> some View {
-        Button {
-            if jogMode == .step {
-                step(direction)
+        JogPadButton(systemName: systemName, minWidth: w, minHeight: h, showsChrome: true,
+                     isHighlighted: isHighlighted.wrappedValue, begin: { beginJog([direction]) })
+            .help(help)
+    }
+
+    /// A pad button went down. What it does is decided now, by the mode at
+    /// this moment, and the returned closure finishes exactly that: a hold
+    /// ends on release, a step moves on release (unless the press was dragged
+    /// away), even if the mode was switched in between.
+    private func beginJog(_ directions: [JogDirection]) -> (_ cancelled: Bool) -> Void {
+        switch jogMode {
+        case .hold:
+            directions.forEach { onHold?($0, true) }
+            return { _ in
+                directions.forEach { onHold?($0, false) }
             }
-        } label: {
-            Image(systemName: systemName)
-                .frame(minWidth: w, minHeight: h)
+        case .step:
+            return { cancelled in
+                if !cancelled {
+                    step(directions)
+                }
+            }
         }
-        .modifier(HighlightModifier(isHighlighted: isHighlighted.wrappedValue))
-        .help(help)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    guard jogMode == .hold, !mouseHeld.contains(direction) else {
-                        return
-                    }
-                    mouseHeld.insert(direction)
-                    onHold?(direction, true)
-                }
-                .onEnded { _ in
-                    guard mouseHeld.remove(direction) != nil else {
-                        return
-                    }
-                    onHold?(direction, false)
-                }
-        )
     }
 
     /// One relative step of `selectedJogStep` in `direction` — see
@@ -365,25 +323,70 @@ struct PanelJog: View {
     }
 }
 
-private struct HighlightModifier: ViewModifier {
-    let isHighlighted: Bool
+/// A jog button driven by one `DragGesture(minimumDistance: 0)` instead of a
+/// `Button`. On macOS a `Button` tracks the mouse itself until mouse-up, so a
+/// gesture attached next to it never sees the mouse-down and hold-to-jog
+/// silently does nothing. This view owns the whole press, for both modes.
+private struct JogPadButton: View {
 
-    func body(content: Content) -> some View {
-        if isHighlighted {
-            content
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-        } else {
-            content
-        }
+    let systemName: String
+    var minWidth: CGFloat?
+    var minHeight: CGFloat?
+    /// False for the diagonal corners: just the glyph.
+    var showsChrome: Bool
+    /// Lit from outside (the game controller's D-pad).
+    var isHighlighted: Bool
+    /// Called on mouse-down; returns what to do on mouse-up (`true` = the
+    /// pointer was dragged well away, i.e. the click was abandoned).
+    var begin: () -> (_ cancelled: Bool) -> Void
+
+    @State private var finish: ((Bool) -> Void)?
+
+    /// How far a press may slide and still count as a click, in points.
+    private let clickSlop: CGFloat = 40
+
+    private var isActive: Bool {
+        finish != nil || isHighlighted
     }
-}
 
-/// Just the glyph: no contour or background; accent-tinted while pressed.
-private struct ArrowOnlyButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(configuration.isPressed ? Color.accentColor : Color.secondary)
-            .opacity(configuration.isPressed ? 0.7 : 1)
+    var body: some View {
+        Image(systemName: systemName)
+            .frame(minWidth: minWidth, minHeight: minHeight)
+            .foregroundStyle(foreground)
+            .background {
+                if showsChrome {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(isActive ? Color.accentColor : Color.primary.opacity(0.08))
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard finish == nil else {
+                            return
+                        }
+                        finish = begin()
+                    }
+                    .onEnded { value in
+                        let done = finish
+                        finish = nil
+                        let slid = hypot(value.translation.width, value.translation.height)
+                        done?(slid > clickSlop)
+                    }
+            )
+            .onDisappear {
+                // The view going away mid-press never delivers a mouse-up.
+                let done = finish
+                finish = nil
+                done?(true)
+            }
+    }
+
+    private var foreground: Color {
+        if showsChrome {
+            return isActive ? .white : .primary
+        }
+        return isActive ? .accentColor : .secondary
     }
 }

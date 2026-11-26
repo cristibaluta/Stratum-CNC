@@ -14,14 +14,26 @@
 //  hold-to-jog. Written for the stock Makera firmware, which has no
 //  continuous jog (that needs the community firmware's `$J -c` plus its
 //  keepalive/stop bytes) — so "hold" is emulated here with a timer that
-//  keeps sending short `$J` moves for as long as a direction is held.
+//  keeps sending short relative moves for as long as a direction is held.
 //
-//  `$J` (checked against the community firmware's SimpleShell::jog, and
-//  it's what Carvera_Controller sends for step jogs on any firmware):
-//    - relative move, several axes allowed:  $J X0.5 Y-0.5 F750
-//    - F is mm/min and is clamped to the slowest moving axis's max rate
-//    - doesn't touch modal G-code state (no G91/G90 juggling)
-//    - stops at the soft endstops when the machine has been homed
+//  Each move is plain G-code, with the distance mode stated explicitly:
+//
+//      G91
+//      G1 X0.5 Y-0.5 F750      (G0 when no feed is given)
+//      G90
+//
+//  `$J` is NOT used: it is a community-firmware command, absent from the stock
+//  Makera firmware. The `G91` ... `G90` pair is always sent together, so the
+//  machine is never left in relative mode by a finished jog; the cost is that
+//  it does set the modal distance mode (and, with a feed, the modal feed), so
+//  a jog while a job is paused relies on the job having been in G90 (CAM output
+//  always is).
+//
+//  The three lines go out together and the next jog is only sent once all
+//  three were acknowledged (`SL.BatchSender`): the machine's input buffer is
+//  small, and a G90 that is already queued runs even if the move is rejected.
+//  While a batch is in flight, hold chunks wait (the distance carries over to
+//  the next chunk, capped by `maxCatchUp`) and step clicks are summed.
 //
 //  The catch with any timer approach: a move that's already been sent
 //  can't be recalled. After release the machine finishes whatever is still
@@ -57,7 +69,10 @@ final class JogController {
     /// Speed while a direction is held, in mm/min (degrees/min for A).
     var holdFeed: Double = 750
 
-    private let sendLine: (String) -> Void
+    /// Sends the lines together; false while the previous batch is still waiting for its acknowledgements.
+    private let sendBatch: ([String]) -> Bool
+    /// Whether the previous batch is still waiting for its acknowledgements.
+    private let isBatchBusy: () -> Bool
     private let currentState: () -> String?
     private let log: (String) -> Void
 
@@ -85,10 +100,12 @@ final class JogController {
     /// being in progress.
     private let ownMotionWindow: TimeInterval = 2
 
-    init(send: @escaping (String) -> Void,
+    init(sendBatch: @escaping ([String]) -> Bool,
+         isBatchBusy: @escaping () -> Bool,
          state: @escaping () -> String?,
          log: @escaping (String) -> Void) {
-        self.sendLine = send
+        self.sendBatch = sendBatch
+        self.isBatchBusy = isBatchBusy
         self.currentState = state
         self.log = log
     }
@@ -99,12 +116,44 @@ final class JogController {
     /// sent, so the firmware uses the moving axes' max rate — the same
     /// speed the old `G0` step jog had.
     func step(x: Double?, y: Double?, z: Double?, a: Double?) {
-        guard canJog(),
-              let line = jogLine(x: x ?? 0, y: y ?? 0, z: z ?? 0, a: a ?? 0, feed: nil) else {
+        guard canJog() else {
             return
         }
+        // Clicks that arrive while a jog is still being acknowledged are
+        // added together and sent as one move when it is done.
+        pendingStep.x += x ?? 0
+        pendingStep.y += y ?? 0
+        pendingStep.z += z ?? 0
+        pendingStep.a += a ?? 0
+        flushPendingStep()
+    }
+
+    /// Total of the step clicks not yet sent.
+    private var pendingStep = (x: 0.0, y: 0.0, z: 0.0, a: 0.0)
+
+    private func flushPendingStep() {
+        guard !isBatchBusy(),
+              let lines = jogLines(x: pendingStep.x, y: pendingStep.y, z: pendingStep.z, a: pendingStep.a, feed: nil)
+        else {
+            return
+        }
+        guard sendBatch(lines) else {
+            return
+        }
+        pendingStep = (0, 0, 0, 0)
         lastSentAt = Date()
-        sendLine(line)
+    }
+
+    /// The batch in flight ended. Call from the batch sender's `onFinish`.
+    /// A rejected move stops everything: nothing queued, no hold carried on.
+    func batchFinished(failed: Bool) {
+        if failed {
+            pendingStep = (0, 0, 0, 0)
+            log("Jog stopped: the machine rejected the move")
+            stopAll()
+            return
+        }
+        flushPendingStep()
     }
 
     /// Rapid move to absolute work coordinates (the panel's "go to zero").
@@ -112,8 +161,11 @@ final class JogController {
         guard x != nil || y != nil || z != nil || a != nil, canJog() else {
             return
         }
+        guard sendBatch(["G90", CNC.rapidMove.with(x: x, y: y, z: z, a: a).command]) else {
+            log("Jog ignored: the previous move is still being acknowledged")
+            return
+        }
         lastSentAt = Date()
-        sendLine("G90 \(CNC.rapidMove.with(x: x, y: y, z: z, a: a).command)")
     }
 
     // MARK: - Hold
@@ -145,6 +197,7 @@ final class JogController {
     /// arrive: mode change, window/app deactivation, disconnect, view
     /// disappearing, controller unplugged.
     func stopAll() {
+        pendingStep = (0, 0, 0, 0)
         held.removeAll()
         stopTimer()
     }
@@ -188,6 +241,12 @@ final class JogController {
             return
         }
 
+        // The previous chunk isn't acknowledged yet: wait, without moving
+        // `lastTick`, so the time that passed is travelled by the next chunk.
+        if isBatchBusy() {
+            return
+        }
+
         // Travel is based on real elapsed time, not the nominal tick, so
         // timer jitter doesn't change the total distance sent: over a hold
         // it comes to holdFeed × time held (plus the one-off lead).
@@ -214,16 +273,18 @@ final class JogController {
 
         let distance = holdFeed / 60 * duration
         let scale = distance / length
-        guard let line = jogLine(x: x * scale, y: y * scale, z: z * scale, a: a * scale, feed: holdFeed) else {
+        guard let lines = jogLines(x: x * scale, y: y * scale, z: z * scale, a: a * scale, feed: holdFeed),
+              sendBatch(lines) else {
             return
         }
         lastSentAt = Date()
-        sendLine(line)
     }
 
     // MARK: - Helpers
 
-    private func jogLine(x: Double, y: Double, z: Double, a: Double, feed: Double?) -> String? {
+    /// The lines for one relative move: relative mode on, the move, absolute
+    /// mode back. Nil when every axis is below the resolution.
+    private func jogLines(x: Double, y: Double, z: Double, a: Double, feed: Double?) -> [String]? {
         var parts: [String] = []
         for (letter, value) in [("X", x), ("Y", y), ("Z", z), ("A", a)] where abs(value) >= 0.0005 {
             parts.append(letter + value.fixed(3))
@@ -231,13 +292,15 @@ final class JogController {
         guard !parts.isEmpty else {
             return nil
         }
+        var move = feed == nil ? "G0 " : "G1 "
+        move += parts.joined(separator: " ")
         if let feed {
-            parts.append("F" + feed.fixed(0))
+            move += " F" + feed.fixed(0)
         }
-        return "$J " + parts.joined(separator: " ")
+        return ["G91", move, "G90"]
     }
 
-    /// Same rule Carvera_Controller uses (`_machine_allows_jogging`): jog
+    /// Same rule as Carvera_Controller (`_machine_allows_jogging`): jog
     /// when idle or paused, not mid-job. Status only arrives about once a
     /// second, so it lags — hence `ownMotionWindow` for our own "Run".
     private func canJog() -> Bool {
