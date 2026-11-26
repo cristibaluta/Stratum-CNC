@@ -23,16 +23,6 @@ struct STEPModelItem: Identifiable {
     var detail: String? = nil
 }
 
-/// A group (virtual object) as a row of the objects list.
-struct GroupItem: Identifiable {
-    let id: UUID
-    let name: String
-    let memberCount: Int
-    /// The names of the members, shown as the row's tooltip
-    var memberNames: [String] = []
-    var memberIDs: [UUID] = []
-}
-
 /// The list of imported objects (2D shapes and STEP models). The fixtures are not objects of the
 /// project: they belong to the stocks and are in the setup's details. The setups are `PanelSetups`;
 /// the selected object's placement (position, size, face up) is `PanelObjectProperties`.
@@ -47,6 +37,9 @@ struct PanelObjectsInspector: View {
     var onToggleVisibility: ((UUID) -> Void)?
     /// "Import 2D/3D objects…" in the + menu: opens the file picker.
     var onAddNew: (() -> Void)?
+
+    /// Drawn as a section of `PanelProject`: no card of its own.
+    var embedded = false
 
     /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
     @State private var isExpanded = true
@@ -73,19 +66,8 @@ struct PanelObjectsInspector: View {
 
     /// The horizontal padding of a list row (`inspectorListRow`).
     private static let rowInset: CGFloat = 6
-
-    /// The groups (virtual objects): listed under the objects.
-    var groups: [GroupItem] = []
-    /// "New Group" in the + menu: groups the selected objects (an empty group when none is selected).
-    var onCreateGroup: (() -> Void)?
-    /// Right-click "Add to Group": the objects (the whole selection when the row is part of it) and the group.
-    var onAddToGroup: (([UUID], UUID) -> Void)?
-    var onRemoveFromGroup: (([UUID], UUID) -> Void)?
-    /// A click on a group's row selects its members.
-    var onSelectGroup: ((UUID) -> Void)?
-    var onRenameGroup: ((UUID, String) -> Void)?
-    /// "Ungroup": the group goes, its members stay.
-    var onDeleteGroup: ((UUID) -> Void)?
+    /// How far the rows sit in from the section header (the chevron's width)
+    private static let indent: CGFloat = 18
 
     /// The object row under the pointer, which shows its pencil
     @State private var hoveredRowID: UUID?
@@ -93,9 +75,6 @@ struct PanelObjectsInspector: View {
     var onAddSetup: ((UUID, SetupFace, SetupAxis?) -> Void)?
     /// Front, back, left and right need a 3D model.
     var sideFacesAvailable = false
-
-    @State private var renamingGroupID: UUID?
-    @State private var renameText = ""
 
     // MARK: - Body
 
@@ -110,29 +89,11 @@ struct PanelObjectsInspector: View {
             header
 
             if isExpanded {
-                Divider()
-                    .padding(.vertical, 8)
-
                 objectsSection
+                    .padding(.top, 4)
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .canvasChrome()
-        .alert("Rename Group", isPresented: Binding(get: { renamingGroupID != nil },
-                                                    set: { if !$0 { renamingGroupID = nil } })) {
-            TextField("Name", text: $renameText)
-            Button("Rename") {
-                if let id = renamingGroupID {
-                    onRenameGroup?(id, renameText)
-                }
-                renamingGroupID = nil
-            }
-            Button("Cancel", role: .cancel) {
-                renamingGroupID = nil
-            }
-        }
+        .modifier(PanelCardChrome(isCard: !embedded))
     }
 
     // MARK: - Header
@@ -171,54 +132,18 @@ struct PanelObjectsInspector: View {
         }
     }
 
-    /// The + at the top right: import 2D/3D objects, or make a group.
+    /// The + at the top right: import 2D/3D objects.
     private var addMenu: some View {
-        Menu {
-            Button {
-                onAddNew?()
-            } label: {
-                Label("Import Objects…", systemImage: "square.and.arrow.down")
-            }
-            Button {
-                onCreateGroup?()
-            } label: {
-                Label(selectedIDs.isEmpty ? "New Empty Group" : "New Group from \(selectedIDs.count) Selected",
-                      systemImage: "square.on.square")
-            }
+        Button {
+            onAddNew?()
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 12, weight: .medium))
                 .padding(3)
         }
-        .stBorderlessMenuStyle()
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.plain)
         .foregroundStyle(.secondary)
-        .help("Import objects or create a group")
-    }
-
-    /// "Add to Group" and "Remove from …" for the objects a right-click is about.
-    @ViewBuilder
-    private func groupMenu(for ids: [UUID]) -> some View {
-        if !groups.isEmpty {
-            Menu {
-                ForEach(groups) { group in
-                    Button(group.name) {
-                        onAddToGroup?(ids, group.id)
-                    }
-                    .disabled(ids.allSatisfy { group.memberIDs.contains($0) })
-                }
-            } label: {
-                Label("Add to Group", systemImage: "plus.square.on.square")
-            }
-            ForEach(groups.filter { group in ids.contains { group.memberIDs.contains($0) } }) { group in
-                Button {
-                    onRemoveFromGroup?(ids, group.id)
-                } label: {
-                    Label("Remove from \(group.name)", systemImage: "minus.square")
-                }
-            }
-        }
+        .help("Import objects\nSupported files: SVG and DXF (2D), STEP / STP and STL (3D), and ZIP archives with Gerber / Excellon files")
     }
 
     // MARK: - Objects
@@ -234,9 +159,10 @@ struct PanelObjectsInspector: View {
                 VStack(alignment: .leading, spacing: 2) {
                     objectList
                 }
-                // Rows pad their content by 6: grow them outward by as much, so the icons
-                // line up with the header and the other elements
-                .padding(.horizontal, -Self.rowInset)
+                // Rows pad their content by 6: grow them outward by as much, then indent
+                // them under the header's chevron
+                .padding(.leading, Self.indent - Self.rowInset)
+                .padding(.trailing, -Self.rowInset)
             }
         }
     }
@@ -255,48 +181,6 @@ struct PanelObjectsInspector: View {
         }
         ForEach(stepModels) { model in
             stepModelRow(model)
-        }
-        ForEach(groups) { group in
-            groupRow(group)
-        }
-    }
-
-    private func groupRow(_ group: GroupItem) -> some View {
-        Button {
-            onSelectGroup?(group.id)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "square.on.square")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Text(group.name)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer(minLength: 4)
-                Text("\(group.memberCount)")
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .inspectorListRow(isSelected: false)
-        .help(group.memberNames.joined(separator: ", "))
-        .contextMenu {
-            Button {
-                renameText = group.name
-                renamingGroupID = group.id
-            } label: {
-                Label("Rename…", systemImage: "pencil")
-            }
-            Divider()
-            Button(role: .destructive) {
-                onDeleteGroup?(group.id)
-            } label: {
-                Label("Ungroup", systemImage: "rectangle.3.group")
-            }
         }
     }
 
@@ -392,7 +276,6 @@ struct PanelObjectsInspector: View {
                 Label("Generate Project Preview", systemImage: "photo")
             }
             addSetupMenu(for: object.id)
-            groupMenu(for: selectedIDs.count > 1 && selectedIDs.contains(object.id) ? Array(selectedIDs) : [object.id])
             Divider()
             Button(role: .destructive) {
                 onDelete?(object.id)
@@ -441,7 +324,6 @@ struct PanelObjectsInspector: View {
                 Label("Edit…", systemImage: "slider.horizontal.3")
             }
             addSetupMenu(for: model.id)
-            groupMenu(for: [model.id])
             Divider()
             Button(role: .destructive) {
                 onDeleteStepModel?(model.id)

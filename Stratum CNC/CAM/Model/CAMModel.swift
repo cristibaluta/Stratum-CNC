@@ -532,6 +532,28 @@ class CAMModel: ObservableObject {
         generationStore.removeResult(for: id)
     }
 
+    /// A copy of a toolpath right after it: the same operation and settings, but no selected shapes
+    /// (the copy is opened to pick the ones it should cut). Its results aren't copied: it is
+    /// generated on its own.
+    func duplicateToolpath(_ id: UUID) {
+        guard let index = toolpaths.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        var copy = toolpaths[index]
+        copy.id = UUID()
+        copy.targets = []
+        copy.stepTargets = []
+        copy.name = SC.MachiningOperation.Kind.nextName(titled: copy.operation.title,
+                                                        among: Set(toolpaths.map(\.name)))
+        var next = toolpaths
+        next.insert(copy, at: index + 1)
+        // Saves the project through `onToolpathsChanged`
+        toolpaths = next
+        updateToolpathPreview()
+        // Opening it starts picking, like a new toolpath
+        selectedToolpathID = copy.id
+    }
+
     /// Moves a toolpath to `newIndex` in the list (its index once it has moved). The list
     /// order is the order the toolpaths are written to the G-code program, so this is how the
     /// user decides which one is cut first. Results stay attached to their toolpath: they are

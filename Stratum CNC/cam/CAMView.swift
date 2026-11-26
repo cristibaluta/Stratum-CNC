@@ -242,9 +242,20 @@ struct CAMView: View {
                 // Scrolls when the two panels are taller than the room above the legend, which
                 // stays where it is (bottom-left): the scroll view ends right over it.
                 FittingScrollView {
-                    VStack(spacing: 12) {
+                    PanelProject {
                         inspectorPanel
+                        Divider()
+                            .padding(.vertical, 8)
                         setupsPanel
+                    } footer: {
+                        if !camModel.toolpaths.isEmpty {
+                            Divider()
+                                .padding(.vertical, 8)
+                            // Sending is for the active setup: picking only offers its toolpaths
+                            ToolpathSendBar(projectModel: projectModel,
+                                            toolpaths: activeSetupToolpaths,
+                                            summary: projectSummary)
+                        }
                     }
                     .frame(minWidth: 200, maxWidth: 260)
                     .padding(16)
@@ -381,6 +392,17 @@ struct CAMView: View {
         .padding(16)
     }
 
+    /// The toolpaths of the active setup: the only ones that can be sent to the controller.
+    private var activeSetupToolpaths: [ToolpathData] {
+        camModel.toolpaths.filter { camModel.setup(for: $0).id == camModel.activeSetupID }
+    }
+
+    /// "6 toolpaths", under the send button: what can be sent (the active setup's)
+    private var projectSummary: String {
+        let count = activeSetupToolpaths.count
+        return "\(count) \(count == 1 ? "toolpath" : "toolpaths")"
+    }
+
     /// The imported objects a setup can cut: everything except the fixtures.
     private var setupObjects: [PanelSetups.ObjectItem] {
         camModel.canvasState.objects.filter { !$0.isParametric }.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) }
@@ -412,6 +434,7 @@ struct CAMView: View {
             onAddNew: {
                 camModel.showingFilePicker = true
             },
+            embedded: true,
             onDelete: { id in
                 camModel.canvasState.removeObject(id)
             },
@@ -481,49 +504,6 @@ struct CAMView: View {
                 editingObjectID = id
             },
             isSetupSelected: camModel.isSetupSelected,
-            groups: camModel.objectGroups.map { group in
-                let names = group.memberIDs.compactMap { camModel.projectObject(withID: $0)?.name }
-                return GroupItem(id: group.id, name: group.name, memberCount: names.count,
-                                 memberNames: names, memberIDs: group.memberIDs)
-            },
-            onCreateGroup: {
-                var members = camModel.canvasState.objects
-                    .filter { !$0.isParametric && camModel.canvasState.selectedObjectIDs.contains($0.id) }
-                    .map(\.id)
-                // A selected STEP body counts when no 2D object is selected
-                if members.isEmpty, let step = camModel.stepWorkspace.selectedModelID {
-                    members = [step]
-                }
-                camModel.createGroup(memberIDs: members)
-            },
-            onAddToGroup: { ids, groupID in
-                camModel.addToGroup(groupID, objectIDs: ids)
-            },
-            onRemoveFromGroup: { ids, groupID in
-                camModel.removeFromGroup(groupID, objectIDs: ids)
-            },
-            onSelectGroup: { id in
-                editingObjectID = nil
-                guard let group = camModel.objectGroups.first(where: { $0.id == id }) else {
-                    return
-                }
-                let shapes = group.memberIDs.filter { camModel.canvasState.object(withID: $0) != nil }
-                camModel.stepWorkspace.selectedModelID = nil
-                camModel.canvasState.clearSelection()
-                for (index, member) in shapes.enumerated() {
-                    if index == 0 {
-                        camModel.canvasState.selectObject(member)
-                    } else {
-                        camModel.canvasState.toggleObjectSelection(member)
-                    }
-                }
-            },
-            onRenameGroup: { id, name in
-                camModel.renameGroup(id, to: name)
-            },
-            onDeleteGroup: { id in
-                camModel.deleteGroup(id)
-            },
             onAddSetup: { objectID, face, axis in
                 editingObjectID = nil
                 withAnimation(.easeOut(duration: 0.15)) {
@@ -661,7 +641,7 @@ struct CAMView: View {
             objects: setupObjects,
             setups: camModel.setups,
             activeSetupID: camModel.activeSetupID,
-            isSetupSelected: camModel.isSetupSelected,
+            editingSetupID: editingSetupID,
             toolpathCounts: Dictionary(camModel.toolpaths.compactMap { toolpath in
                 toolpath.setupID.map { ($0, 1) }
             }, uniquingKeysWith: +),
@@ -686,6 +666,12 @@ struct CAMView: View {
                     camModel.deleteToolpath(id)
                 }
             },
+            onDuplicateToolpath: { id in
+                editingObjectID = nil
+                withAnimation(.easeOut(duration: 0.15)) {
+                    camModel.duplicateToolpath(id)
+                }
+            },
             onMoveToolpath: { id, index in
                 camModel.moveToolpath(id, toIndexInSetup: index)
             },
@@ -693,7 +679,6 @@ struct CAMView: View {
                 camModel.moveToolpath(id, toSetup: setupID)
             },
             sideFacesAvailable: hasSTEP,
-            groups: camModel.objectGroups.map { PanelSetups.ObjectItem(id: $0.id, name: $0.name) },
             combinableSelection: camModel.canvasState.objects
                 .filter { !$0.isParametric && camModel.canvasState.selectedObjectIDs.contains($0.id) }
                 .map(\.id),
@@ -722,6 +707,8 @@ struct CAMView: View {
                 }
             },
             onEditSetup: { id in
+                // An open toolpath gives way: the setup's details only show while none is
+                camModel.selectedToolpathID = nil
                 editingObjectID = nil
                 camModel.canvasState.clearSelection()
                 camModel.stepWorkspace.selectedModelID = nil
@@ -738,14 +725,6 @@ struct CAMView: View {
                     }
                     camModel.isSetupSelected = true
                     editingSetupID = id
-                }
-            },
-            onAddGroupSetup: { groupID, face, axis in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    if let id = camModel.addGroupSetup(groupID, face: face, axis: axis) {
-                        camModel.isSetupSelected = true
-                        editingSetupID = id
-                    }
                 }
             },
             onRenameSetup: { id, name in
@@ -770,13 +749,14 @@ struct CAMView: View {
                 }
                 withAnimation(.easeOut(duration: 0.15)) {
                     let id = camModel.addSetup(face: face, axis: axis, inheritingFixtures: true)
-                    // The same objects (positions are the new setup's own); a group's setup stays the group's
+                    // The same objects (positions are the new setup's own)
                     camModel.setSetupObjects(id, to: source.items.map(\.objectID))
                     camModel.setSetupGroup(id, to: source.groupID)
                     camModel.isSetupSelected = true
                     editingSetupID = id
                 }
-            }
+            },
+            embedded: true
         )
     }
 

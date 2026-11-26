@@ -2,9 +2,9 @@
 //  PanelSetups.swift
 //  Stratum CNC
 //
-//  The project's setups (stock orientations), in a panel of their own between the Objects
-//  and the Toolpaths panels. With several objects the setups are grouped under the object
-//  they cut; the ones that include several objects are listed as "Combined".
+//  The project's setups (stock orientations), a section of the project tree under the Objects.
+//  A setup can use any combination of the objects (chosen in its details), so the list is flat:
+//  the setups under the "Setups" row, each with its toolpaths under it.
 //
 
 import SwiftUI
@@ -21,8 +21,9 @@ struct PanelSetups: View {
     let objects: [ObjectItem]
     let setups: [Setup]
     var activeSetupID: UUID?
-    /// A setup is the selection (and not an object): only then is the active setup highlighted.
-    var isSetupSelected = false
+    /// The setup whose details are open: the only row that is highlighted. The active setup is
+    /// marked by its dot, whatever else is selected (a toolpath, an object).
+    var editingSetupID: UUID?
     /// How many toolpaths each setup contains, by setup id
     var toolpathCounts: [UUID: Int] = [:]
     /// Every toolpath of the project: each setup lists its own under it.
@@ -34,12 +35,11 @@ struct PanelSetups: View {
     var onAddToolpath: ((UUID, SC.MachiningOperation.Kind) -> Void)?
     var onSelectToolpath: ((UUID) -> Void)?
     var onDeleteToolpath: ((UUID) -> Void)?
+    var onDuplicateToolpath: ((UUID) -> Void)?
     var onMoveToolpath: ((UUID, Int) -> Void)?
     var onMoveToolpathToSetup: ((UUID, UUID) -> Void)?
     /// Front, back, left and right need a 3D model.
     var sideFacesAvailable = false
-    /// The groups (virtual objects) setups can be made for.
-    var groups: [ObjectItem] = []
     /// The selected 2D objects that can be combined into one setup.
     var combinableSelection: [UUID] = []
 
@@ -48,14 +48,15 @@ struct PanelSetups: View {
     var onEditSetup: ((UUID) -> Void)?
     /// A new setup on a face; the object is nil for one that includes every object.
     var onAddSetup: ((UUID?, SetupFace, SetupAxis?) -> Void)?
-    /// A new setup on a face for all the members of a group.
-    var onAddGroupSetup: ((UUID, SetupFace, SetupAxis?) -> Void)?
     var onRenameSetup: ((UUID, String) -> Void)?
     var onDeleteSetup: ((UUID) -> Void)?
     /// "Combine into one setup": a new setup on a face that includes all the given objects.
     var onAddCombinedSetup: (([UUID], SetupFace, SetupAxis?) -> Void)?
     /// Context menu: a new setup on a face, on the same objects as the given setup.
     var onAddSetupLike: ((UUID, SetupFace, SetupAxis?) -> Void)?
+
+    /// Drawn as a section of `PanelProject`: no card of its own, and no send bar (the project's footer has it).
+    var embedded = false
 
     /// Collapsed, the panel is one line (title and count). Clicking it opens the list.
     @State private var isExpanded = true
@@ -70,18 +71,18 @@ struct PanelSetups: View {
 
     /// The horizontal padding of a list row (`inspectorListRow`).
     private static let rowInset: CGFloat = 6
+    /// How far the rows sit in from the section header (the chevron's width)
+    private static let indent: CGFloat = 18
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
             if isExpanded {
-                Divider()
-                    .padding(.vertical, 8)
-
                 list
+                    .padding(.top, 4)
 
-                if let projectModel, !toolpaths.isEmpty {
+                if !embedded, let projectModel, !toolpaths.isEmpty {
                     Divider()
                         .padding(.vertical, 8)
 
@@ -100,10 +101,7 @@ struct PanelSetups: View {
                 expandedSetupIDs.insert(id)
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .canvasChrome()
+        .modifier(PanelCardChrome(isCard: !embedded))
         .alert("Rename Setup", isPresented: Binding(get: { renamingSetupID != nil },
                                                     set: { if !$0 { renamingSetupID = nil } })) {
             TextField("Name", text: $renameText)
@@ -170,14 +168,6 @@ struct PanelSetups: View {
                     onAddSetup?(nil, face, axis)
                 }
             }
-            if !groups.isEmpty {
-                Divider()
-                ForEach(groups) { group in
-                    faceMenu(title: "Add New Setup for Group \(group.name)", systemImage: "square.on.square") { face, axis in
-                        onAddGroupSetup?(group.id, face, axis)
-                    }
-                }
-            }
             if combinableSelection.count >= 2 {
                 Divider()
                 faceMenu(title: "Combine \(combinableSelection.count) Selected into One Setup",
@@ -199,29 +189,6 @@ struct PanelSetups: View {
 
     // MARK: - List
 
-    /// The object a setup is listed under: the only object it includes. A setup with several
-    /// objects, or one that includes everything of a multi-object project, is "combined".
-    private func ownerID(of setup: Setup) -> UUID? {
-        if let groupID = setup.groupID, groups.contains(where: { $0.id == groupID }) {
-            return nil
-        }
-        let ids = objects.map(\.id)
-        if setup.items.isEmpty {
-            return ids.count == 1 ? ids[0] : nil
-        }
-        if setup.items.count == 1, ids.contains(setup.items[0].objectID) {
-            return setup.items[0].objectID
-        }
-        return nil
-    }
-
-    private var combinedSetups: [Setup] {
-        setups.filter { setup in
-            ownerID(of: setup) == nil
-                && !(setup.groupID.map { id in groups.contains { $0.id == id } } ?? false)
-        }
-    }
-
     @ViewBuilder
     private var list: some View {
         if setups.isEmpty {
@@ -229,46 +196,18 @@ struct PanelSetups: View {
                 .foregroundStyle(.secondary)
                 .font(.system(size: 12))
                 .padding(.vertical, 2)
+                .padding(.leading, Self.indent)
         } else {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(objects) { object in
-                    let owned = setups.filter { ownerID(of: $0) == object.id }
-                    if !owned.isEmpty {
-                        ForEach(owned) { setup in
-                            setupRow(setup, objectName: object.name)
-                        }
-                    }
-                }
-                ForEach(groups) { group in
-                    let owned = setups.filter { $0.groupID == group.id }
-                    if !owned.isEmpty {
-                        groupTitle("Group: \(group.name)")
-                        ForEach(owned) { setup in
-                            setupRow(setup)
-                        }
-                    }
-                }
-                if !combinedSetups.isEmpty {
-                    groupTitle("Combined")
-                    ForEach(combinedSetups) { setup in
-                        setupRow(setup)
-                    }
+                ForEach(setups) { setup in
+                    setupRow(setup)
                 }
             }
-            // Rows pad their content by 6: grow them outward by as much, so the icons
-            // line up with the header and the other elements
-            .padding(.horizontal, -Self.rowInset)
+            // Rows pad their content by 6: grow them outward by as much, then indent
+            // them under the header's chevron
+            .padding(.leading, Self.indent - Self.rowInset)
+            .padding(.trailing, -Self.rowInset)
         }
-    }
-
-    private func groupTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.tertiary)
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .padding(.horizontal, Self.rowInset)
-            .padding(.top, 6)
     }
 
     /// The toolpaths of a setup. One without a setup, or whose setup is gone, belongs to the first.
@@ -280,15 +219,19 @@ struct PanelSetups: View {
         }
     }
 
-    /// While choosing what to send every setup is open, so the checkboxes are all in view.
+    /// While choosing what to send only the active setup is open (only its toolpaths can be sent),
+    /// so its checkboxes are all in view and the other setups stay closed.
     private func isOpen(_ setup: Setup) -> Bool {
-        (projectModel?.isChoosingToolpathsToSend ?? false) || expandedSetupIDs.contains(setup.id)
+        if projectModel?.isChoosingToolpathsToSend ?? false {
+            return setup.id == activeSetupID
+        }
+        return expandedSetupIDs.contains(setup.id)
     }
 
     /// A setup: its row, and under it (when open) its toolpaths.
-    private func setupRow(_ setup: Setup, objectName: String? = nil) -> some View {
+    private func setupRow(_ setup: Setup) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            setupHeader(setup, objectName: objectName)
+            setupHeader(setup)
             if isOpen(setup), let projectModel {
                 SetupToolpaths(projectModel: projectModel,
                                toolpaths: toolpaths(of: setup),
@@ -296,14 +239,21 @@ struct PanelSetups: View {
                                setups: setups,
                                onSelect: onSelectToolpath,
                                onDelete: onDeleteToolpath,
+                               onDuplicate: onDuplicateToolpath,
                                onMove: onMoveToolpath,
                                onMoveToSetup: onMoveToolpathToSetup)
-                    .padding(.leading, 14)
+                    .padding(.leading, 12)
             }
         }
     }
 
-    private func setupHeader(_ setup: Setup, objectName: String?) -> some View {
+    /// The pencil and the + only show on the row under the pointer, or while the
+    /// operation picker is open, so a list of setups isn't a column of buttons.
+    private func showsRowActions(_ setup: Setup) -> Bool {
+        hoveredSetupID == setup.id || choosingOperationFor == setup.id
+    }
+
+    private func setupHeader(_ setup: Setup) -> some View {
         HStack(spacing: 4) {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
@@ -325,24 +275,25 @@ struct PanelSetups: View {
                 onSelectSetup?(setup.id)
             } label: {
                 HStack(spacing: 6) {
-                    Text(objectName.map { "\($0) · \(setup.name)" } ?? setup.name)
+                    Text(setup.name)
                         .font(.system(size: 12))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    Spacer(minLength: 4)
-                    // The setup stays active until another setup or an object is clicked
-                    if isSetupSelected && setup.id == activeSetupID {
-                        Text("Active")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.accentColor))
+                    // The setup that new toolpaths go to: a dot, as the selected row is already highlighted.
+                    // It stays when an object is selected instead, and only the highlight goes.
+                    if setup.id == activeSetupID {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 6, height: 6)
+                            .help("Active setup")
                     }
+                    Spacer(minLength: 4)
                     if let count = toolpathCounts[setup.id], count > 0 {
-                        Text("\(count)")
-                            .font(.system(size: 11).monospacedDigit())
-                            .foregroundStyle(.secondary)
+                        Text(count == 1 ? "1 op" : "\(count) ops")
+                            .font(.system(size: 10).monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .fixedSize()
                             .help(count == 1 ? "1 toolpath" : "\(count) toolpaths")
                     }
                 }
@@ -350,43 +301,30 @@ struct PanelSetups: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
-            Button {
+            // Double click: the same as the pencil
+            .simultaneousGesture(TapGesture(count: 2).onEnded {
                 onEditSetup?(setup.id)
-            } label: {
-                Image(systemName: "pencil")
-                    .font(.system(size: 11, weight: .medium))
-                    .padding(2)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .opacity(hoveredSetupID == setup.id ? 1 : 0)
-            .help("Edit \(setup.name)")
+            })
 
-            Button {
-                choosingOperationFor = setup.id
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 11, weight: .medium))
-                    .padding(2)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .foregroundStyle(.secondary)
-            .disabled(onAddToolpath == nil || (projectModel?.isChoosingToolpathsToSend ?? false))
-            .help("Add a toolpath to \(setup.name)")
-            .popover(isPresented: Binding(get: { choosingOperationFor == setup.id },
-                                          set: { if !$0 { choosingOperationFor = nil } }),
-                     attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-                OperationGridPicker(selected: nil) { kind in
-                    choosingOperationFor = nil
-                    expandedSetupIDs.insert(setup.id)
-                    onAddToolpath?(setup.id, kind)
+            // The pencil and the + take the place of the count at the right only while the row is
+            // hovered: the count then moves left, next to the name.
+            if showsRowActions(setup) {
+                Button {
+                    onEditSetup?(setup.id)
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 11, weight: .medium))
+                        .padding(2)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .help("Edit \(setup.name)")
+
+                addToolpathButton(for: setup)
             }
         }
-        .inspectorListRow(isSelected: isSetupSelected && setup.id == activeSetupID)
+        .inspectorListRow(isSelected: setup.id == editingSetupID && selectedToolpathID == nil)
         .onHover { inside in
             if inside {
                 hoveredSetupID = setup.id
@@ -395,6 +333,36 @@ struct PanelSetups: View {
             }
         }
         .contextMenu {
+            setupContextMenu(setup)
+        }
+    }
+
+    private func addToolpathButton(for setup: Setup) -> some View {
+        Button {
+            choosingOperationFor = setup.id
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 11, weight: .medium))
+                .padding(2)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(.secondary)
+        .disabled(onAddToolpath == nil || (projectModel?.isChoosingToolpathsToSend ?? false))
+        .help("Add a toolpath to \(setup.name)")
+        .popover(isPresented: Binding(get: { choosingOperationFor == setup.id },
+                                      set: { if !$0 { choosingOperationFor = nil } }),
+                 attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
+            OperationGridPicker(selected: nil) { kind in
+                choosingOperationFor = nil
+                expandedSetupIDs.insert(setup.id)
+                onAddToolpath?(setup.id, kind)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func setupContextMenu(_ setup: Setup) -> some View {
             Button {
                 onEditSetup?(setup.id)
             } label: {
@@ -416,7 +384,6 @@ struct PanelSetups: View {
                 Label("Delete Setup", systemImage: "trash")
             }
             .disabled(setups.count <= 1)
-        }
     }
 
     // MARK: - Faces

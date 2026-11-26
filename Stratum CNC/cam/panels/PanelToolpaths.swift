@@ -22,6 +22,8 @@ struct SetupToolpaths: View {
 
     var onSelect: ((UUID) -> Void)?
     var onDelete: ((UUID) -> Void)?
+    /// "Duplicate" in a row's menu
+    var onDuplicate: ((UUID) -> Void)?
     /// Called once when a drag ends. The index is within the toolpath's own setup.
     var onMove: ((UUID, Int) -> Void)?
     /// (toolpath, setup): "Move to" in a row's menu.
@@ -132,16 +134,14 @@ struct SetupToolpaths: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            // The tool's diameter and where the toolpath ends; the name gives way when narrow.
-            // Both sit in fixed-width, right-aligned columns so the numbers line up row to row.
-            valueColumn(symbol: "Ø",
-                        value: Self.diameterText(of: toolpath),
-                        width: Self.diameterColumnWidth)
-                .help("Tool: \(toolpath.tool.name)")
-            valueColumn(symbol: "Z",
-                        value: Self.endZText(of: toolpath),
-                        width: Self.endZColumnWidth)
-                .help("Final Z")
+            // The tool's diameter and where the toolpath ends, as one muted, right-aligned
+            // label: "Ø6 · Z−0.35". The name gives way when narrow.
+            Text("Ø\(Self.diameterText(of: toolpath)) · Z\(Self.endZText(of: toolpath))")
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+                .help("Tool: \(toolpath.tool.name) · final Z \(Self.endZText(of: toolpath))")
         }
         .font(.system(size: 11))
         .lineLimit(1)
@@ -156,6 +156,11 @@ struct SetupToolpaths: View {
         }
         .gesture(dragGesture(for: toolpath, at: index, count: count))
         .contextMenu {
+            Button {
+                onDuplicate?(toolpath.id)
+            } label: {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+            }
             if setups.count > 1, !toolpath.operation.isRest {
                 Menu("Move to setup") {
                     ForEach(setups.filter { $0.id != toolpath.setupID }) { setup in
@@ -168,7 +173,7 @@ struct SetupToolpaths: View {
             Button {
                 send([toolpath])
             } label: {
-                Label("Send only this toolpath to controller", systemImage: "paperplane")
+                Label("Send to controller", systemImage: "paperplane")
             }
             Divider()
             Button(role: .destructive) {
@@ -177,22 +182,6 @@ struct SetupToolpaths: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-    }
-
-    private static let diameterColumnWidth: CGFloat = 52
-    private static let endZColumnWidth: CGFloat = 44
-
-    /// A right-aligned, fixed-width cell: a light gray symbol followed by the value.
-    private func valueColumn(symbol: String, value: String, width: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            Text(symbol)
-                .foregroundStyle(.tertiary)
-            Text(value)
-                .foregroundStyle(.secondary)
-        }
-        .monospacedDigit()
-        .lineLimit(1)
-        .frame(width: width, alignment: .trailing)
     }
 
     private static func diameterText(of toolpath: ToolpathData) -> String {
@@ -213,6 +202,7 @@ struct SetupToolpaths: View {
         return number(z)
     }
 
+    /// A real minus sign (U+2212) for negatives, so "−0.35" reads as a number next to "Z".
     private static func number(_ value: Double) -> String {
         value.formatted(
             .number
@@ -220,6 +210,7 @@ struct SetupToolpaths: View {
             .grouping(.never)
             .locale(Locale(identifier: "en_US_POSIX"))
         )
+        .replacingOccurrences(of: "-", with: "\u{2212}")
     }
 
     // MARK: - Reordering
@@ -298,7 +289,10 @@ private struct PreviewInControllerButton: View {
                     .font(.system(size: 12))
             }
         }
-        .buttonStyle(.bordered)
+        // Borderless and muted: it is a footer action, not the focus of the panel
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .contentShape(Rectangle())
         .disabled(gCodeStore.isGeneratingFromCAM)
         .help("Generate all toolpaths and open them in the Controller")
     }
@@ -322,6 +316,8 @@ struct ToolpathSendBar: View {
 
     @ObservedObject var projectModel: ProjectModel
     let toolpaths: [ToolpathData]
+    /// A muted line at the right of the button, e.g. "3 setups · 6 toolpaths"
+    var summary: String?
 
     private var isSending: Bool {
         projectModel.isChoosingToolpathsToSend
@@ -396,7 +392,14 @@ struct ToolpathSendBar: View {
                     }
                 }
 
-                Spacer(minLength: 0)
+                Spacer(minLength: 4)
+
+                if let summary {
+                    Text(summary)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
         }
     }
