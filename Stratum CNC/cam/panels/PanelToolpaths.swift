@@ -17,17 +17,12 @@ struct SetupToolpaths: View {
     let toolpaths: [ToolpathData]
     let selectedID: UUID?
 
-    /// Every setup, for "Move to setup"
-    var setups: [Setup] = []
-
     var onSelect: ((UUID) -> Void)?
     var onDelete: ((UUID) -> Void)?
     /// "Duplicate" in a row's menu
     var onDuplicate: ((UUID) -> Void)?
     /// Called once when a drag ends. The index is within the toolpath's own setup.
     var onMove: ((UUID, Int) -> Void)?
-    /// (toolpath, setup): "Move to" in a row's menu.
-    var onMoveToSetup: ((UUID, UUID) -> Void)?
 
     @StateObject private var reorder = ToolpathReorderModel()
 
@@ -160,15 +155,6 @@ struct SetupToolpaths: View {
                 onDuplicate?(toolpath.id)
             } label: {
                 Label("Duplicate", systemImage: "plus.square.on.square")
-            }
-            if setups.count > 1, !toolpath.operation.isRest {
-                Menu("Move to setup") {
-                    ForEach(setups.filter { $0.id != toolpath.setupID }) { setup in
-                        Button(setup.name) {
-                            onMoveToSetup?(toolpath.id, setup.id)
-                        }
-                    }
-                }
             }
             Button {
                 send([toolpath])

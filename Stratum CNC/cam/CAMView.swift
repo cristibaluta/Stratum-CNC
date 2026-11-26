@@ -675,9 +675,6 @@ struct CAMView: View {
             onMoveToolpath: { id, index in
                 camModel.moveToolpath(id, toIndexInSetup: index)
             },
-            onMoveToolpathToSetup: { id, setupID in
-                camModel.moveToolpath(id, toSetup: setupID)
-            },
             sideFacesAvailable: hasSTEP,
             combinableSelection: camModel.canvasState.objects
                 .filter { !$0.isParametric && camModel.canvasState.selectedObjectIDs.contains($0.id) }
@@ -733,6 +730,19 @@ struct CAMView: View {
             onDeleteSetup: { id in
                 withAnimation(.easeOut(duration: 0.15)) {
                     camModel.deleteSetup(id)
+                }
+            },
+            onDuplicateSetup: { id in
+                // The copy opens in editing mode: it is made to be given another stock
+                camModel.selectedToolpathID = nil
+                editingObjectID = nil
+                camModel.canvasState.clearSelection()
+                camModel.stepWorkspace.selectedModelID = nil
+                withAnimation(.easeOut(duration: 0.15)) {
+                    if let copyID = camModel.duplicateSetup(id) {
+                        camModel.isSetupSelected = true
+                        editingSetupID = copyID
+                    }
                 }
             },
             onAddCombinedSetup: { ids, face, axis in

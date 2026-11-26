@@ -327,7 +327,18 @@ struct PanelSetupDetails: View {
     private func fixtureFields(_ fixture: AlignmentPinsData) -> some View {
         func apply(diameter: Double, offset: Double) {
             fixtureMessage = onFixtureChanged?(fixture.id, diameter, offset)
-            fixtureRefresh += 1
+            // Only a refused value needs the fields rebuilt (to show what is really applied again).
+            // Rebuilding after every edit would also throw away the focus of the field clicked next.
+            if fixtureMessage != nil {
+                fixtureRefresh += 1
+            }
+        }
+        /// A new diameter moves the offset's limits (it can't be under the pin's radius), so the
+        /// offset follows into what fits instead of the whole edit being refused.
+        func applyDiameter(_ diameter: Double) {
+            let fitted = AlignmentPins.fitted(AlignmentPinsSpec(diameter: diameter, offset: fixture.offset),
+                                              on: projectStock.stock)
+            apply(diameter: diameter, offset: fitted?.offset ?? fixture.offset)
         }
         return VStack(alignment: .leading, spacing: Inspector.rowSpacing) {
             Text(fixture.name)
@@ -335,7 +346,7 @@ struct PanelSetupDetails: View {
                 .foregroundStyle(.secondary)
             InspectorNumberField(title: "Diameter",
                                  value: Binding(get: { fixture.diameter },
-                                                set: { apply(diameter: $0, offset: fixture.offset) }),
+                                                set: { applyDiameter($0) }),
                                  suffix: "mm")
             InspectorNumberField(title: "Offset",
                                  value: Binding(get: { fixture.offset },

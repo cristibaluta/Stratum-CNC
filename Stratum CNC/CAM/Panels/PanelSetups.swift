@@ -37,7 +37,6 @@ struct PanelSetups: View {
     var onDeleteToolpath: ((UUID) -> Void)?
     var onDuplicateToolpath: ((UUID) -> Void)?
     var onMoveToolpath: ((UUID, Int) -> Void)?
-    var onMoveToolpathToSetup: ((UUID, UUID) -> Void)?
     /// Front, back, left and right need a 3D model.
     var sideFacesAvailable = false
     /// The selected 2D objects that can be combined into one setup.
@@ -50,6 +49,8 @@ struct PanelSetups: View {
     var onAddSetup: ((UUID?, SetupFace, SetupAxis?) -> Void)?
     var onRenameSetup: ((UUID, String) -> Void)?
     var onDeleteSetup: ((UUID) -> Void)?
+    /// "Duplicate Setup": a copy with its toolpaths, to be given another stock.
+    var onDuplicateSetup: ((UUID) -> Void)?
     /// "Combine into one setup": a new setup on a face that includes all the given objects.
     var onAddCombinedSetup: (([UUID], SetupFace, SetupAxis?) -> Void)?
     /// Context menu: a new setup on a face, on the same objects as the given setup.
@@ -236,12 +237,10 @@ struct PanelSetups: View {
                 SetupToolpaths(projectModel: projectModel,
                                toolpaths: toolpaths(of: setup),
                                selectedID: selectedToolpathID,
-                               setups: setups,
                                onSelect: onSelectToolpath,
                                onDelete: onDeleteToolpath,
                                onDuplicate: onDuplicateToolpath,
-                               onMove: onMoveToolpath,
-                               onMoveToSetup: onMoveToolpathToSetup)
+                               onMove: onMoveToolpath)
                     .padding(.leading, 12)
             }
         }
@@ -367,6 +366,11 @@ struct PanelSetups: View {
                 onEditSetup?(setup.id)
             } label: {
                 Label("Edit…", systemImage: "slider.horizontal.3")
+            }
+            Button {
+                onDuplicateSetup?(setup.id)
+            } label: {
+                Label("Duplicate Setup", systemImage: "plus.square.on.square")
             }
             faceMenu(title: "Add Setup on Same Objects", systemImage: "plus.square.on.square") { face, axis in
                 onAddSetupLike?(setup.id, face, axis)

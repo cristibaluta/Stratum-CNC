@@ -1001,6 +1001,44 @@ class CAMModel: ObservableObject {
         return setup.id
     }
 
+    /// A copy of a setup right after it, with copies of its toolpaths (same objects, same stock and
+    /// fixtures, same cuts). Made to be changed afterwards, e.g. cut from another stock. Becomes
+    /// the active setup. A rest toolpath's copy stays linked to the copy of its pocket.
+    @discardableResult
+    func duplicateSetup(_ id: UUID) -> UUID? {
+        guard let index = setups.firstIndex(where: { $0.id == id }) else {
+            return nil
+        }
+        var copy = setups[index]
+        copy.id = UUID()
+        let taken = Set(setups.map(\.name))
+        var number = 2
+        while taken.contains("\(copy.name) \(number)") {
+            number += 1
+        }
+        copy.name = "\(copy.name) \(number)"
+        var updated = setups
+        updated.insert(copy, at: index + 1)
+        setups = updated
+
+        var newIDs: [UUID: UUID] = [:]
+        var copies = toolpaths(in: id).map { toolpath -> ToolpathData in
+            var duplicate = toolpath
+            duplicate.id = UUID()
+            duplicate.setupID = copy.id
+            newIDs[toolpath.id] = duplicate.id
+            return duplicate
+        }
+        for position in copies.indices {
+            if let source = copies[position].operation.restSourceID, let linked = newIDs[source] {
+                copies[position].operation.restSourceID = linked
+            }
+        }
+        toolpaths = Self.orderedBySetup(toolpaths + copies, setups: setups)
+        activeSetupID = copy.id
+        return copy.id
+    }
+
     /// Sets which objects a setup includes. An empty list includes every object. Placements already
     /// set for objects that stay in are kept. Outdates the setup's toolpaths (see `setups`' `didSet`).
     func setSetupObjects(_ id: UUID, to objectIDs: [UUID]) {
