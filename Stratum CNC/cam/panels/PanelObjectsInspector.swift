@@ -66,6 +66,8 @@ struct PanelObjectsInspector: View {
     var onSelectStepModel: ((UUID) -> Void)?
     var onToggleStepModelVisibility: ((UUID) -> Void)?
     var onDeleteStepModel: ((UUID) -> Void)?
+    /// A click on the name of a file of several bodies: selects all its bodies and opens their properties.
+    var onEditGroup: ((UUID) -> Void)?
 
     /// The focused object: its row is highlighted (its face up, position and size are in the right-hand panel).
     var focusedObjectID: UUID?
@@ -89,6 +91,18 @@ struct PanelObjectsInspector: View {
     var onAddSetup: ((UUID, SetupFace, SetupAxis?) -> Void)?
     /// Front, back, left and right need a 3D model.
     var sideFacesAvailable = false
+    /// The existing setups, for "Add to Setup" in an object's context menu.
+    var setupChoices: [SetupChoice] = []
+    /// "Add to Setup": the object, then the setup it joins.
+    var onAddToSetup: ((UUID, UUID) -> Void)?
+
+    /// A setup an object can be added to.
+    struct SetupChoice: Identifiable {
+        let id: UUID
+        let name: String
+        /// The objects it already includes. Empty means every object of the project is included.
+        let objectIDs: Set<UUID>
+    }
 
     // MARK: - Body
 
@@ -222,39 +236,57 @@ struct PanelObjectsInspector: View {
         return groups
     }
 
-    /// The file's name with a disclosure indicator: opens the list of its bodies.
+    /// The file's name with a disclosure indicator that opens the list of its bodies. Clicking the
+    /// name selects every body together, to move or scale them at once.
     private func stepGroupRow(_ group: STEPModelGroup) -> some View {
         let isOpen = expandedGroups.contains(group.id)
-        return Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                if isOpen {
-                    expandedGroups.remove(group.id)
-                } else {
-                    expandedGroups.insert(group.id)
+        return HStack(spacing: 4) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if isOpen {
+                        expandedGroups.remove(group.id)
+                    } else {
+                        expandedGroups.insert(group.id)
+                    }
                 }
-            }
-        } label: {
-            HStack(spacing: 6) {
+            } label: {
                 InspectorChevron(isExpanded: isOpen)
-                Text(group.name)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text("\(group.models.count)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                    .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .help(isOpen ? "Hide the bodies" : "Show the bodies")
+
+            Button {
+                onEditGroup?(group.id)
+            } label: {
+                HStack(spacing: 6) {
+                    Text(group.name)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text("\(group.models.count)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("\(group.name): select all \(group.models.count) bodies")
         }
-        .buttonStyle(.plain)
-        .inspectorListRow(isSelected: false)
-        .help("\(group.name): \(group.models.count) bodies")
+        .inspectorListRow(isSelected: selectedStepModelID == group.id)
         .contextMenu {
+            Button {
+                onEditGroup?(group.id)
+            } label: {
+                Label("Edit…", systemImage: "slider.horizontal.3")
+            }
+            addToSetupMenu(for: group.models.map(\.id))
+            Divider()
             Button(role: .destructive) {
                 group.models.forEach { onDeleteStepModel?($0.id) }
             } label: {
-                Label("Delete All Bodies", systemImage: "trash")
+                Label("Delete Object", systemImage: "trash")
             }
         }
     }
@@ -283,7 +315,32 @@ struct PanelObjectsInspector: View {
                 }
             }
         } label: {
-            Label("Add Setup", systemImage: "plus.square.on.square")
+            Label("Create Setup", systemImage: "plus.square.on.square")
+        }
+    }
+
+    /// "Add to Setup" submenu: the existing setups. One that already includes all the objects
+    /// is ticked and can't be chosen.
+    @ViewBuilder
+    private func addToSetupMenu(for ids: [UUID]) -> some View {
+        if !setupChoices.isEmpty {
+            Menu {
+                ForEach(setupChoices) { setup in
+                    let isIncluded = setup.objectIDs.isEmpty || ids.allSatisfy { setup.objectIDs.contains($0) }
+                    Button {
+                        ids.forEach { onAddToSetup?($0, setup.id) }
+                    } label: {
+                        if isIncluded {
+                            Label(setup.name, systemImage: "checkmark")
+                        } else {
+                            Text(setup.name)
+                        }
+                    }
+                    .disabled(isIncluded)
+                }
+            } label: {
+                Label("Add to Setup", systemImage: "square.and.arrow.down.on.square")
+            }
         }
     }
 
@@ -354,6 +411,7 @@ struct PanelObjectsInspector: View {
                 Label("Generate Project Preview", systemImage: "photo")
             }
             addSetupMenu(for: object.id)
+            addToSetupMenu(for: [object.id])
             Divider()
             Button(role: .destructive) {
                 onDelete?(object.id)
@@ -389,7 +447,7 @@ struct PanelObjectsInspector: View {
 
             editButton(for: model.id, name: model.name)
         }
-        .inspectorListRow(isSelected: isRowSelected(model.id))
+        .inspectorListRow(isSelected: isRowSelected(model.id) || (model.sourceID != nil && selectedStepModelID == model.sourceID))
         .onHover { inside in
             if inside {
                 hoveredRowID = model.id
@@ -405,11 +463,12 @@ struct PanelObjectsInspector: View {
                 Label("Edit…", systemImage: "slider.horizontal.3")
             }
             addSetupMenu(for: model.id)
+            addToSetupMenu(for: [model.id])
             Divider()
             Button(role: .destructive) {
                 onDeleteStepModel?(model.id)
             } label: {
-                Label("Delete Object", systemImage: "trash")
+                Label("Delete Body", systemImage: "trash")
             }
         }
     }

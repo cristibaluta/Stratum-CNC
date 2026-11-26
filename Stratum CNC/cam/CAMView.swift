@@ -460,6 +460,17 @@ struct CAMView: View {
                     fileError = String(describing: error)
                 }
             },
+            onEditGroup: { sourceID in
+                // All the bodies of the file are selected together: the panel edits them as one
+                editingSetupID = nil
+                camModel.selectedToolpathID = nil
+                if let first = camModel.stepWorkspace.groupBodies(ofModel: sourceID).first {
+                    camModel.focusObject(first, keepingActiveSetup: false)
+                }
+                camModel.canvasState.clearSelection()
+                camModel.stepWorkspace.select(model: sourceID)
+                editingObjectID = sourceID
+            },
             focusedObjectID: camModel.focusedObjectID,
             onSelectObject: { id in
                 editingObjectID = nil
@@ -504,7 +515,23 @@ struct CAMView: View {
                     editingSetupID = id
                 }
             },
-            sideFacesAvailable: hasSTEP
+            sideFacesAvailable: hasSTEP,
+            setupChoices: camModel.setups.map {
+                PanelObjectsInspector.SetupChoice(id: $0.id, name: $0.name, objectIDs: Set($0.items.map(\.objectID)))
+            },
+            onAddToSetup: { objectID, setupID in
+                guard let setup = camModel.setups.first(where: { $0.id == setupID }),
+                      !setup.items.isEmpty else {
+                    return
+                }
+                let ids = setup.items.map(\.objectID)
+                guard !ids.contains(objectID) else {
+                    return
+                }
+                // Choosing the objects by hand makes it a plain setup, no longer a group's
+                camModel.setSetupGroup(setupID, to: nil)
+                camModel.setSetupObjects(setupID, to: ids + [objectID])
+            }
         )
     }
 
@@ -521,6 +548,10 @@ struct CAMView: View {
             propertyIDs = [focus]
         }
         let focusedStepID = focusIs2D ? nil : focus
+        // A selected group (every body of a file) is edited as one
+        let selectedGroupID = camModel.stepWorkspace.selectedModelID.flatMap {
+            camModel.stepWorkspace.isGroup($0) ? $0 : nil
+        }
         return PanelObjectProperties(
             elements: camModel.canvasState.objects,
             selectedIDs: propertyIDs,
@@ -550,8 +581,8 @@ struct CAMView: View {
             onGroupScale: { factor in
                 camModel.canvasState.scaleSelection(factor: factor)
             },
-            stepModels: stepModelItems,
-            selectedStepModelID: focusedStepID,
+            stepModels: stepModelItems + stepGroupItems,
+            selectedStepModelID: selectedGroupID ?? focusedStepID,
             onStepModelValueChanged: { id, axis, value in
                 moveSTEPModel(id, axis: axis, to: Float(value))
             },
@@ -585,7 +616,7 @@ struct CAMView: View {
                 editingObjectID = nil
             }
         )
-        .frame(width: 320)
+        .frame(width: leftPanelsWidth)
     }
 
     private var stepModelItems: [STEPModelItem] {
@@ -607,6 +638,20 @@ struct CAMView: View {
                                  sourceID: entry.sourceID,
                                  sourceName: entry.sourceName,
                                  bodyName: entry.bodyName)
+        }
+    }
+
+    /// One item per file of several bodies, standing for all its bodies together (its id is the file's):
+    /// the properties panel edits it like a single body, without a face up.
+    private var stepGroupItems: [STEPModelItem] {
+        let workspace = camModel.stepWorkspace
+        return workspace.sources.compactMap { source in
+            guard let bounds = workspace.groupBounds(ofModel: source.id) else {
+                return nil
+            }
+            return STEPModelItem(id: source.id, name: source.name, isVisible: true,
+                                 position: bounds.position, size: bounds.size, orientation: nil, detail: nil,
+                                 sourceID: source.id, sourceName: source.name)
         }
     }
 

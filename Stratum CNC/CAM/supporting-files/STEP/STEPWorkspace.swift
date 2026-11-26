@@ -242,9 +242,66 @@ final class STEPWorkspace: ObservableObject {
     /// Where the body's corner and top sit on the canvas, in mm.
     func position(of id: UUID) -> SIMD3<Float> {
         guard let (key, scene) = resolve(id) else {
-            return .zero
+            return groupBounds(ofModel: id)?.position ?? .zero
         }
         return scene.position(of: key.body)
+    }
+
+    // MARK: Groups
+    //
+    // The bodies of a file of several bodies are also one object, the file's: its id is the source's.
+    // Selecting it selects every body, and moving or scaling it acts on all of them together.
+
+    /// The ids of the bodies of a file with more than one body; empty for any other id.
+    func groupBodies(ofModel id: UUID) -> [UUID] {
+        guard modelKeys[id] == nil, sources.contains(where: { $0.id == id }) else {
+            return []
+        }
+        let bodies = modelEntries.filter { $0.sourceID == id && $0.body != nil }.map(\.id)
+        return bodies.count > 1 ? bodies : []
+    }
+
+    func isGroup(_ id: UUID) -> Bool {
+        !groupBodies(ofModel: id).isEmpty
+    }
+
+    /// The box around all the bodies of a group: its corner and top, and its width, depth and height.
+    func groupBounds(ofModel id: UUID) -> (position: SIMD3<Float>, size: SIMD3<Float>)? {
+        var minX = Float.infinity, minY = Float.infinity, minZ = Float.infinity
+        var maxX = -Float.infinity, maxY = -Float.infinity, maxZ = -Float.infinity
+        var count = 0
+        for body in groupBodies(ofModel: id) {
+            guard let (key, scene) = resolve(body), let size = scene.content.size(of: key.body) else {
+                continue
+            }
+            let position = scene.position(of: key.body)
+            minX = min(minX, position.x); maxX = max(maxX, position.x + size.x)
+            minY = min(minY, position.y); maxY = max(maxY, position.y + size.y)
+            // The position's Z is the top of the body
+            maxZ = max(maxZ, position.z); minZ = min(minZ, position.z - size.z)
+            count += 1
+        }
+        guard count > 0 else {
+            return nil
+        }
+        return (SIMD3(minX, minY, maxZ), SIMD3(maxX - minX, maxY - minY, maxZ - minZ))
+    }
+
+    /// Scales every body of a group by `factor`, and the distances between them with it: the group is
+    /// scaled about its corner and top, like a single body.
+    private func scaleGroup(_ id: UUID, by factor: Float) {
+        guard factor.isFinite, factor > 0, let origin = groupBounds(ofModel: id)?.position else {
+            return
+        }
+        for body in groupBodies(ofModel: id) {
+            guard let (key, scene) = resolve(body) else {
+                continue
+            }
+            let position = scene.position(of: key.body)
+            let current = scene.content.scale(of: key.body)
+            setScale(current * factor, for: body)
+            setPosition(origin + (position - origin) * factor, for: body)
+        }
     }
 
     /// Which face of the body faces up; `nil` for a model that is not loaded.
@@ -286,6 +343,14 @@ final class STEPWorkspace: ObservableObject {
     }
 
     func setPosition(_ position: SIMD3<Float>, for id: UUID) {
+        // A group moves all its bodies by the same distance
+        if let current = groupBounds(ofModel: id)?.position {
+            let delta = position - current
+            for body in groupBodies(ofModel: id) {
+                setPosition(self.position(of: body) + delta, for: body)
+            }
+            return
+        }
         guard position.x.isFinite, position.y.isFinite, position.z.isFinite,
               let (key, scene) = resolve(id), position != scene.position(of: key.body) else {
             return
@@ -308,6 +373,12 @@ final class STEPWorkspace: ObservableObject {
 
     /// Scales the body about its corner and top, to this width (X, as it sits). Depth and height follow.
     func setWidth(_ width: Float, for id: UUID) {
+        if let bounds = groupBounds(ofModel: id) {
+            if width.isFinite, width > 0, bounds.size.x > 1e-6 {
+                scaleGroup(id, by: width / bounds.size.x)
+            }
+            return
+        }
         guard width.isFinite, width > 0, let (key, scene) = resolve(id),
               let size = scene.content.size(of: key.body), size.x > 1e-6 else {
             return
@@ -317,6 +388,12 @@ final class STEPWorkspace: ObservableObject {
 
     /// Scales the body by `factor` (×2 is 2, ÷2 is -2), like the 2D objects.
     func scaleModel(_ id: UUID, factor: Int) {
+        if isGroup(id) {
+            if factor != 0 {
+                scaleGroup(id, by: factor > 0 ? Float(factor) : 1 / Float(-factor))
+            }
+            return
+        }
         guard factor != 0, let (key, scene) = resolve(id) else {
             return
         }

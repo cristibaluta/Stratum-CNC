@@ -123,6 +123,11 @@ struct CAM_Metal_View: View {
     /// Where the selected STEP model's footprint is on the canvas (its corner and size, in mm),
     /// or `nil` when it isn't the one drawn, isn't selected or is hidden.
     private var stepFootprint: (origin: SIMD2<Float>, size: SIMD2<Float>)? {
+        // A selected group (every body of a file): the box around all of them
+        if let modelID = selectedStepModelID, selectedStepBody == nil,
+           let bounds = stepWorkspace.groupBounds(ofModel: modelID) {
+            return (SIMD2<Float>(bounds.position.x, bounds.position.y), SIMD2<Float>(bounds.size.x, bounds.size.y))
+        }
         guard let modelID = selectedStepModelID, let body = selectedStepBody,
               let stepScene = stepWorkspace.scene(ofModel: modelID),
               stepScene.isBodyVisible(body), let size = stepScene.content.size(of: body) else {
