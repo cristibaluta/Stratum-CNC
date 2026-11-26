@@ -1,12 +1,4 @@
 //
-//  JogDirection.swift
-//  Stratum CNC
-//
-//  Created by Cristian Baluta on 19.09.2026.
-//
-
-
-//
 //  JogController.swift
 //  Stratum CNC
 //
@@ -32,8 +24,9 @@
 //  The three lines go out together and the next jog is only sent once all
 //  three were acknowledged (`SL.BatchSender`): the machine's input buffer is
 //  small, and a G90 that is already queued runs even if the move is rejected.
-//  While a batch is in flight, hold chunks wait (the distance carries over to
-//  the next chunk, capped by `maxCatchUp`) and step clicks are summed.
+//  While a batch is in flight, step clicks are summed, and a hold sends its
+//  next chunk (`holdFeed × chunkDuration` long) from a one-shot timer started
+//  by the acknowledgement.
 //
 //  The catch with any timer approach: a move that's already been sent
 //  can't be recalled. After release the machine finishes whatever is still
@@ -77,21 +70,23 @@ final class JogController {
     private let log: (String) -> Void
 
     private var held: Set<JogDirection> = []
-    private var timer: Timer?
-    private var lastTick = Date()
+    /// One-shot: sends the next hold chunk shortly before the current one ends.
+    private var nextChunkTimer: Timer?
     private var holdStartedAt = Date()
     private var lastSentAt: Date?
+    /// The hold chunk in flight: when it went out and how long it takes to travel.
+    private var lastChunk: (sentAt: Date, duration: TimeInterval)?
+    private var ackLogged = false
 
-    /// How often a new chunk goes out while something is held.
-    private let tickInterval: TimeInterval = 0.1
-    /// Extra travel time queued on the first chunk, so the planner always
-    /// has the next move ready before the current one ends (otherwise the
-    /// machine slows to a stop between chunks). It's also part of how far
-    /// the machine coasts after release, so keep it small.
+    /// How long one hold chunk takes to travel: its length is
+    /// `holdFeed / 60 × chunkDuration`, so the speed picker sets the distance
+    /// and the machine moves at `holdFeed`.
+    private let chunkDuration: TimeInterval = 0.3
+    /// The next chunk is sent this long before the current one ends, so the
+    /// planner always has the next move ready (otherwise the machine slows to
+    /// a stop between chunks). It's also part of how far the machine coasts
+    /// after release, so keep it small.
     private let leadTime: TimeInterval = 0.1
-    /// If the main thread stalls, don't try to make up more than this much
-    /// travel in one chunk.
-    private let maxCatchUp: TimeInterval = 0.25
     /// Safety net for a lost button-up (controller asleep, window lost
     /// focus…): a hold never lasts longer than this.
     private let maxHoldDuration: TimeInterval = 30
@@ -154,6 +149,7 @@ final class JogController {
             return
         }
         flushPendingStep()
+        continueHold()
     }
 
     /// Rapid move to absolute work coordinates (the panel's "go to zero").
@@ -169,6 +165,11 @@ final class JogController {
     }
 
     // MARK: - Hold
+    //
+    // One chunk is `holdFeed × chunkDuration` long. Once the machine has
+    // acknowledged it, a one-shot timer fires `chunkDuration - leadTime` after
+    // it was sent, and the next chunk goes out. So the pace follows the chosen
+    // speed, and the machine always has about `leadTime` of motion queued.
 
     func press(_ direction: JogDirection) {
         guard !held.contains(direction) else {
@@ -179,9 +180,12 @@ final class JogController {
                 return
             }
             held.insert(direction)
-            startTimer()
+            holdStartedAt = Date()
+            lastChunk = nil
+            ackLogged = false
+            sendNextChunk()
         } else {
-            // Joins the hold already running; picked up on the next tick.
+            // Joins the hold already running; picked up with the next chunk.
             held.insert(direction)
         }
     }
@@ -199,38 +203,49 @@ final class JogController {
     func stopAll() {
         pendingStep = (0, 0, 0, 0)
         held.removeAll()
+        lastChunk = nil
         stopTimer()
     }
 
-    private func startTimer() {
-        lastTick = Date()
-        holdStartedAt = lastTick
-        sendHoldChunk(duration: tickInterval + leadTime)
+    private func stopTimer() {
+        nextChunkTimer?.invalidate()
+        nextChunkTimer = nil
+    }
 
-        let timer = Timer(timeInterval: tickInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+    /// The batch in flight was acknowledged: schedule the next hold chunk.
+    private func continueHold() {
+        guard !held.isEmpty else {
+            return
+        }
+        guard let last = lastChunk else {
+            sendNextChunk()
+            return
+        }
+        let now = Date()
+        if !ackLogged {
+            ackLogged = true
+            log(String(format: "Jog: chunk acknowledged after %.0f ms (%.0f mm/min, %.0f ms per chunk)",
+                       now.timeIntervalSince(last.sentAt) * 1000, holdFeed, last.duration * 1000))
+        }
+        let delay = max(0, last.sentAt.addingTimeInterval(last.duration - leadTime).timeIntervalSince(now))
+
+        stopTimer()
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.sendNextChunk() }
         }
         // `.common`, not the default mode: while a mouse button is held on
         // a control the run loop can be in event-tracking mode, where a
-        // default-mode timer doesn't fire — the jog would send its first
-        // chunk and then quietly stall for as long as the button was down.
+        // default-mode timer doesn't fire.
         RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        nextChunkTimer = timer
     }
 
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    private func tick() {
+    private func sendNextChunk() {
+        nextChunkTimer = nil
         guard !held.isEmpty else {
-            stopTimer()
             return
         }
-
-        let now = Date()
-        if now.timeIntervalSince(holdStartedAt) > maxHoldDuration {
+        if Date().timeIntervalSince(holdStartedAt) > maxHoldDuration {
             log("Jog stopped: held longer than \(Int(maxHoldDuration)) s")
             stopAll()
             return
@@ -240,22 +255,11 @@ final class JogController {
             stopAll()
             return
         }
-
-        // The previous chunk isn't acknowledged yet: wait, without moving
-        // `lastTick`, so the time that passed is travelled by the next chunk.
-        if isBatchBusy() {
+        // The previous batch isn't acknowledged yet: `batchFinished` comes back here.
+        guard !isBatchBusy() else {
             return
         }
 
-        // Travel is based on real elapsed time, not the nominal tick, so
-        // timer jitter doesn't change the total distance sent: over a hold
-        // it comes to holdFeed × time held (plus the one-off lead).
-        let elapsed = min(now.timeIntervalSince(lastTick), maxCatchUp)
-        lastTick = now
-        sendHoldChunk(duration: elapsed)
-    }
-
-    private func sendHoldChunk(duration: TimeInterval) {
         var x = 0.0, y = 0.0, z = 0.0, a = 0.0
         for direction in held {
             let unit = direction.unit
@@ -271,13 +275,14 @@ final class JogController {
             return
         }
 
-        let distance = holdFeed / 60 * duration
+        let distance = holdFeed / 60 * chunkDuration
         let scale = distance / length
         guard let lines = jogLines(x: x * scale, y: y * scale, z: z * scale, a: a * scale, feed: holdFeed),
               sendBatch(lines) else {
             return
         }
         lastSentAt = Date()
+        lastChunk = (Date(), chunkDuration)
     }
 
     // MARK: - Helpers
