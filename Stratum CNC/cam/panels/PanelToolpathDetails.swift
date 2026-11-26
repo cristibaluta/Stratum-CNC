@@ -38,7 +38,16 @@ struct PanelToolpathDetails: View {
     var shapeDetails: () -> [ShapeDetail] = { [] }
 
     @StateObject private var model = ToolpathDetailsModel()
+    @EnvironmentObject private var appModel: AppModel
 
+    /// Called when the operation changed: a tool it can't use is replaced with the latest tool
+    /// used that it can, else one from the library.
+    private func adaptTool(_ toolpath: Binding<ToolpathData>) {
+        model.replaceIncompatibleTool(of: toolpath,
+                                      recent: appModel.recentTools,
+                                      library: appModel.toolsStore.tools,
+                                      stockMaterial: stockMaterial)
+    }
     /// The "Selected" row is open and lists every selected shape.
     @State private var isShapesExpanded = false
     @State private var shapeList: [ShapeDetail] = []
@@ -57,7 +66,7 @@ struct PanelToolpathDetails: View {
                 if isTitleCollapsed {
                     // One line, like the other sections' compact forms
                     HStack(spacing: 6) {
-                        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
+                        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames, adaptTool: adaptTool),
                                         isRest: toolpath.operation.isRest,
                                         isCompact: true)
                         // A rest operation is created from a pocket and stays one.
@@ -147,7 +156,7 @@ struct PanelToolpathDetails: View {
 
     @ViewBuilder
     private var rowOperation: some View {
-        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames),
+        OperationPicker(kind: model.operationKindBinding($toolpath, siblingNames: siblingNames, adaptTool: adaptTool),
                         isRest: toolpath.operation.isRest)
             // A rest operation is created from a pocket and stays one.
             .disabled(toolpath.operation.isRest)

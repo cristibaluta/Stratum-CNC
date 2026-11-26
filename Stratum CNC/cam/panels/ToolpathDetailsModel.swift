@@ -63,7 +63,8 @@ final class ToolpathDetailsModel: ObservableObject {
     /// "Pocket 1" -- whatever its name was. Editing the name never triggers this, only
     /// picking an operation does.
     func operationKindBinding(_ toolpath: Binding<ToolpathData>,
-                              siblingNames: Set<String>) -> Binding<SC.MachiningOperation.Kind> {
+                              siblingNames: Set<String>,
+                              adaptTool: ((Binding<ToolpathData>) -> Void)? = nil) -> Binding<SC.MachiningOperation.Kind> {
         Binding(
             get: { toolpath.wrappedValue.operation.kind },
             set: { [weak self] newKind in
@@ -79,8 +80,61 @@ final class ToolpathDetailsModel: ObservableObject {
                     self?.replacedName = oldName
                     toolpath.wrappedValue.name = newName
                 }
+                // A tool the new operation can't use is swapped for one it can
+                adaptTool?(toolpath)
             }
         )
+    }
+
+    /// The diameter (mm) a flat end mill gets when the operation needs one and the current tool isn't.
+    static let defaultEndMillDiameter = 3.175
+
+    /// After the operation changed: when the current tool isn't one the operation is made for,
+    /// takes the latest tool used that is (`recent`, newest first), else one from the library
+    /// (`library`; for an end mill operation the 3.175 mm flat end mill when there is one).
+    /// A tool the operation can use is left alone. Returns the tool it switched to, if any.
+    @discardableResult
+    func replaceIncompatibleTool(of toolpath: Binding<ToolpathData>,
+                                 recent: [Tool],
+                                 library: [Tool],
+                                 stockMaterial: StockMaterialType) -> Tool? {
+        let current = toolpath.wrappedValue
+        guard current.toolTypeWarning != nil else {
+            return nil
+        }
+        // A rest toolpath cuts with an end mill, like the pocket it comes from
+        let needsEndMill = current.operation.isRest || ![.drilling, .threadMilling, .chamfer, .engrave]
+            .contains(current.operation.kind)
+
+        func suits(_ tool: Tool) -> Bool {
+            var probe = current
+            probe.tool = tool
+            guard probe.toolCompatibilityWarning == nil else {
+                return false
+            }
+            return !needsEndMill || tool.type == .endMill
+        }
+
+        var replacement = recent.first(where: suits)
+        if replacement == nil {
+            let fits = library.filter(suits)
+            let inStock = fits.filter { $0.quantity > 0 }
+            for pool in [inStock, fits] {
+                let standard = needsEndMill
+                    ? pool.first { abs($0.toolDiameter - Self.defaultEndMillDiameter) < 1e-6 }
+                    : nil
+                if let found = standard ?? pool.first {
+                    replacement = found
+                    break
+                }
+            }
+        }
+        guard let replacement else {
+            return nil
+        }
+        toolpath.wrappedValue.tool = replacement
+        applyPreset(of: replacement, to: toolpath, stockMaterial: stockMaterial)
+        return replacement
     }
 
     /// Which of the general fields (End Z, Stepdown, Stepover) the operation reads, as the
