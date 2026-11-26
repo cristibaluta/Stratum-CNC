@@ -164,6 +164,11 @@ extension ToolpathData {
             && !operation.facingSides.isNone
     }
 
+    /// A pocket whose outline is pushed out on some sides (see `SC.Contour.extendedOutline`).
+    var extendsPocket: Bool {
+        operation.kind == .pocket && !operation.isRest && !operation.pocketExtension.isNone
+    }
+
     /// A facing toolpath set to cover the whole stock; the selected shapes are ignored.
     var cutsWholeStock: Bool {
         operation.kind == .facing && operation.facingWholeStock

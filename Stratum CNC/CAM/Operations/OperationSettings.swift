@@ -33,6 +33,9 @@ struct OperationSettings: Codable, Hashable {
     /// Adaptive clearing: the radial engagement the tool is kept at, as a percentage of the
     /// tool diameter (like the stepover). The library takes mm: see `ToolpathData.adaptiveLoadMM`.
     var pocketAdaptiveLoadPercent: Double = 25
+    /// How far the pocket's outline is pushed out on each side of its box, mm (0 by default),
+    /// for a pocket that runs out through the edge of the part. See `SC.Contour.extendedOutline`.
+    var pocketExtension: FacingSides = .none
     /// Only set while decoding a project saved when the load was in mm; `ToolpathData` converts
     /// it with the saved tool's diameter and clears it. Never encoded.
     var legacyAdaptiveLoadMM: Double? = nil
@@ -147,7 +150,7 @@ struct OperationSettings: Codable, Hashable {
         case kind, direction
         case stockToLeave, finishingPass
         case restSourceID
-        case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoadPercent
+        case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoadPercent, pocketExtension
         case contourTabs, contourLeadIn, contourLeadOut
         case facingWholeStock, facingSides, facingAngle
         case slotSource, slotDepthPerPass
@@ -189,6 +192,7 @@ extension OperationSettings {
             let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
             legacyAdaptiveLoadMM = try legacy.decodeIfPresent(Double.self, forKey: .pocketAdaptiveLoad)
         }
+        pocketExtension = try c.decodeIfPresent(FacingSides.self, forKey: .pocketExtension) ?? d.pocketExtension
         contourTabs = try c.decodeIfPresent([SC.HoldingTab].self, forKey: .contourTabs) ?? d.contourTabs
         contourLeadIn = try c.decodeIfPresent(SC.LeadInOut.self, forKey: .contourLeadIn) ?? d.contourLeadIn
         contourLeadOut = try c.decodeIfPresent(SC.LeadInOut.self, forKey: .contourLeadOut) ?? d.contourLeadOut

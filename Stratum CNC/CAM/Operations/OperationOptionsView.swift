@@ -384,6 +384,11 @@ struct OperationOptionsView: View {
                 facingAngleRow
             }
 
+            // A pocket that runs out through the edge of the part
+            if kind == .pocket, !isRest {
+                pocketExtensionRow
+            }
+
             // Stock for a finishing pass: wherever the library says the operation can leave some.
             if requirements.usesAllowance, !isRest {
                 stockToLeaveRows
@@ -423,6 +428,9 @@ struct OperationOptionsView: View {
                                             suffix: "°",
                                             help: "Angle (°): the direction of the facing passes. 0 runs them along X, 90 along Y.")
                 FacingAnglePresets(angle: facingAngle)
+            }
+            if kind == .pocket, !isRest {
+                pocketSidesButton
             }
             if requirements.usesAllowance, !isRest {
                 InspectorCompactNumberField(tag: "Leave",
@@ -665,6 +673,31 @@ struct OperationOptionsView: View {
     private var facingSidesButton: some View {
         FacingSidesButton(sides: $toolpath.operation.facingSides,
                           shapes: targetShapes)
+    }
+
+    /// The icon that opens the popover where a pocket's extension of each side is set.
+    private var pocketSidesButton: some View {
+        FacingSidesButton(sides: $toolpath.operation.pocketExtension,
+                          shapes: targetShapes,
+                          purpose: .pocket)
+            .help("Extension: how far the pocket runs out past each side of its box (\(toolpath.operation.pocketExtension.summary)). Click to set each side.")
+    }
+
+    /// The pocket's extension row: what each side is set to, and the button that opens the editor.
+    private var pocketExtensionRow: some View {
+        InspectorRow(label: "Extension") {
+            HStack(spacing: 6) {
+                Text(toolpath.operation.pocketExtension.summary)
+                    .font(.system(size: 12))
+                    .foregroundStyle(toolpath.operation.pocketExtension.isNone ? .secondary : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 0)
+                pocketSidesButton
+            }
+        }
+        .help("For a pocket that runs out through the edge of the part: how far its outline is pushed out on each side, in mm. "
+              + "Only the wall that reaches that side of the pocket's box moves, so the corners stay square.")
     }
 
     /// The extension row: what each side is set to, and the button that opens the editor.

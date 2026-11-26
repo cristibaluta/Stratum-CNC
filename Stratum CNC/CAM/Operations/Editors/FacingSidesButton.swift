@@ -17,6 +17,29 @@ struct FacingSidesButton: View {
     @Binding var sides: FacingSides
     /// The selected shapes' outlines in world space; called when the popover is drawn.
     var shapes: () -> [CGPath] = { [] }
+    /// What the sides are for: a facing's passes (the default) or a pocket's outline.
+    var purpose: Purpose = .facing
+
+    /// The words that change between the facing's and the pocket's extension.
+    enum Purpose {
+        case facing, pocket
+
+        var title: String {
+            self == .facing ? "Facing extension" : "Pocket extension"
+        }
+
+        var detail: String {
+            self == .facing
+                ? "Type how far the facing runs past each side of the selection, in mm."
+                : "Type how far the pocket runs out past each side of its box, in mm. Only the wall that reaches that side moves; the rest stays as drawn."
+        }
+
+        var fieldHelp: String {
+            self == .facing
+                ? "how far the facing runs past this side, in mm"
+                : "how far the pocket runs out past this side, in mm"
+        }
+    }
 
     @State private var isPresented = false
 
@@ -30,9 +53,9 @@ struct FacingSidesButton: View {
         // Shares the row with other controls: without this the icon is the first thing squeezed out.
         .fixedSize()
         .layoutPriority(1)
-        .help("Set how far the facing extends past each side (\(sides.summary))")
+        .help("Set how far the \(purpose == .facing ? "facing" : "pocket") extends past each side (\(sides.summary))")
         .popover(isPresented: $isPresented, arrowEdge: .leading) {
-            FacingSidesEditor(sides: $sides, shapes: shapes)
+            FacingSidesEditor(sides: $sides, shapes: shapes, purpose: purpose)
                 .frame(width: 380)
         }
     }
@@ -67,6 +90,7 @@ struct FacingSidesIcon: View {
 struct FacingSidesEditor: View {
     @Binding var sides: FacingSides
     var shapes: () -> [CGPath] = { [] }
+    var purpose: FacingSidesButton.Purpose = .facing
 
     var body: some View {
         let outlines = shapes()
@@ -74,15 +98,15 @@ struct FacingSidesEditor: View {
 
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("Facing extension")
+                Text(purpose.title)
                     .font(.headline)
-                Text("Type how far the facing runs past each side of the selection, in mm.")
+                Text(purpose.detail)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            FacingSidesDiagram(sides: $sides, shapes: outlines)
+            FacingSidesDiagram(sides: $sides, shapes: outlines, fieldHelp: purpose.fieldHelp)
                 .frame(height: 230)
 
             Divider()
@@ -112,6 +136,7 @@ struct FacingSidesDiagram: View {
     @Binding var sides: FacingSides
     /// The selected shapes in world space. Empty draws a schematic shape instead.
     let shapes: [CGPath]
+    var fieldHelp = "how far the facing runs past this side, in mm"
 
     /// The schematic's box, since mm mean nothing without a shape.
     private static let schematicBox = CGRect(x: 0, y: 0, width: 60, height: 40)
@@ -227,7 +252,7 @@ struct FacingSidesDiagram: View {
             // The background keeps the line and the shape from showing through the field.
             SideLengthField(value: Binding(get: { sides[side] },
                                            set: { sides[side] = $0 }))
-                .help("\(side.title): how far the facing runs past this side, in mm")
+                .help("\(side.title): \(fieldHelp)")
         }
         .frame(width: horizontal ? length : 56, height: horizontal ? 24 : length)
         .position(center)

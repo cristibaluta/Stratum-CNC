@@ -157,6 +157,14 @@ enum ToolpathGenerator {
                                       Double(box.width), Double(box.height), Double(area.width), Double(area.height)))
         }
 
+        // A pocket that runs out through the edge: each outline is pushed out on the chosen
+        // sides, where it reaches them (the sides are the canvas's, as for a facing).
+        if toolpath.extendsPocket {
+            let sides = frame.placeFlat(toolpath.operation.pocketExtension)
+            contours = contours.extendingOutermost(by: sides)
+            PerfLog.log("gen", "pocket extended on \(toolpath.operation.pocketExtension.summary)")
+        }
+
         logJobSummary(for: toolpath, contours: contours)
 
         return Job(contours: contours,
