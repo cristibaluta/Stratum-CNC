@@ -352,7 +352,7 @@ struct PanelSetups: View {
         .popover(isPresented: Binding(get: { choosingOperationFor == setup.id },
                                       set: { if !$0 { choosingOperationFor = nil } }),
                  attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-            OperationGridPicker(selected: nil) { kind in
+            OperationGridPickerTwoColumns(selected: nil) { kind in
                 choosingOperationFor = nil
                 expandedSetupIDs.insert(setup.id)
                 onAddToolpath?(setup.id, kind)

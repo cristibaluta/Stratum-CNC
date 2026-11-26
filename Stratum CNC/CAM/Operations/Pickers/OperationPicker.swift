@@ -42,7 +42,7 @@ struct OperationPicker: View {
               ? [kind.summary, kind.selectionHint].compactMap { $0 }.joined(separator: "\n")
               : (kind.selectionHint ?? "What this toolpath does"))
         .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .leading) {
-            OperationGridPicker(selected: kind) { option in
+            OperationGridPickerTwoColumns(selected: kind) { option in
                 kind = option
                 isPresented = false
             }

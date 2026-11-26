@@ -68,7 +68,7 @@ extension SC.MachiningOperation.Kind {
             case .contour:
                 return "Cuts along the edge of a shape, inside, outside or on the line. Select the contour to detach the part from the stock."
             case .pocket:
-                return "Clears the material inside a closed shape. Select closed shapes."
+                return "Clears the material inside a closed shape."
             case .pocket3D:
                 return "Clears the material inside a closed shape from top to bottom by avoiding obstacles as they appear."
             case .facing:
@@ -84,7 +84,7 @@ extension SC.MachiningOperation.Kind {
             case .boring:
                 return "Finishes a hole to an exact diameter. Select a point or a closed circle."
             case .threadMilling:
-                return "Cuts a thread inside an existing hole, or on the outside of a stud when Internal is off. Select the hole or stud. Needs a thread mill."
+                return "Cuts a thread inside an existing hole, or on the outside of a stud."
             case .chamfer:
                 return "Bevels the selected edges. Needs a V-bit."
         }
