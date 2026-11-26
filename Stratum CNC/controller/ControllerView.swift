@@ -54,8 +54,6 @@ struct ControllerView: View {
     @ObservedObject var gCodeModel: GCodeStore
     @ObservedObject var joystickStore: GameControllerStore
 
-    /// Opens the stocks library (owned by the CAM side of the app). When nil
-    /// the stock chip's icon opens the stock editor instead.
     var onOpenStocksLib: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
@@ -321,23 +319,23 @@ struct ControllerView: View {
     private func loadRemoteFile(_ file: MachineFileEntry) {
         model.session.downloadGCode(path: file.path) { result in
             switch result {
-            case .success(let text):
-                gCodeModel.document.load(from: text, name: file.name)
-                gCodeModel.selectedToolpathID = nil
-                gCodeModel.requestedLine = nil
-                gCodeModel.analyzedLineCount = -1
-            case .failure(let error):
-                gCodeModel.document.lastError = error.localizedDescription
+                case .success(let text):
+                    gCodeModel.document.load(from: text, name: file.name)
+                    gCodeModel.selectedToolpathID = nil
+                    gCodeModel.requestedLine = nil
+                    gCodeModel.analyzedLineCount = -1
+                case .failure(let error):
+                    gCodeModel.document.lastError = error.localizedDescription
             }
         }
     }
 
     /// A CAM-generated program whose source toolpaths (or stock) changed since.
     private var isProgramOutdated: Bool {
-        hasCAM
-            && !gCodeModel.document.isLoading
-            && !gCodeModel.document.lines.isEmpty
-            && gCodeModel.generatedFromCAMRevision.map { $0 != camModel.revision } == true
+        hasCAM &&
+        !gCodeModel.document.isLoading &&
+        !gCodeModel.document.lines.isEmpty &&
+        gCodeModel.generatedFromCAMRevision.map { $0 != camModel.revision } == true
     }
 
     private func regenerateFromCAM() {
@@ -782,7 +780,11 @@ private struct CanvasSection: View {
                 // false` lets `CanvasSceneModel.scrubHeightmap` throttle the
                 // actual recarves. `onEditingChanged` below forces one final
                 // exact recarve once the drag ends.
-                ControllerView.scrubTo(line: newValue.roundedInt, gCodeModel: gCodeModel, camModel: camModel, scene: scene, forceHeightmap: false)
+                ControllerView.scrubTo(line: newValue.roundedInt,
+                                       gCodeModel: gCodeModel,
+                                       camModel: camModel,
+                                       scene: scene,
+                                       forceHeightmap: false)
             }
         )
     }
@@ -864,180 +866,157 @@ private struct CanvasSection: View {
         // Like the drag binding above: a two-finger swipe can fire a burst
         // of these in quick succession, so this rides the same throttle
         // rather than forcing an exact recarve on every notch.
-        ControllerView.scrubTo(line: max(0, min(totalLines, newLine)), gCodeModel: gCodeModel, camModel: camModel, scene: scene, forceHeightmap: false)
+        ControllerView.scrubTo(line: max(0, min(totalLines, newLine)),
+                               gCodeModel: gCodeModel,
+                               camModel: camModel,
+                               scene: scene,
+                               forceHeightmap: false)
     }
 
     var body: some View {
-        Text("controller")
-//        VStack {
-//            MetalCanvasView(objects: .constant(scene.visibleRenderObjects),
-//                            renderMode: scene.renderMode,
-//                            xyOffset: scene.xyOffset,
-//                            anchorOrigin: scene.machineLayout.activeAnchor,
-//                            stockColor: scene.stockColor,
-//                            heightmapMesh: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapMesh,
-//                            heightmapGPU: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapGPURequest,
-//                            clearColor: viewportClearColor,
-//                            zoomModel: scene.zoomModel)
-//            .cornerRadius(8)
-//            .overlay {
-//                RoundedRectangle(cornerRadius: 8)
-//                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-//            }
-//            .overlay {
-//                // The carve runs on a background task; the old surface
-//                // stays visible until the new one lands. Wireframe mode
-//                // never shows the surface, so it never shows the spinner.
-//                HeightmapBusyOverlay(isBusy: scene.renderMode == .heightmap && scene.isComputingHeightmap)
-//            }
-//            .overlay(
-//                ToolPositionSync(connection: connection, workOrigin: scene.workOrigin) { point in
-//                    scene.updateTool(gCodeModel.spindleTool)
-//                    scene.updateToolPosition(point)
-//                    // A macro runs from wherever the tool is.
-//                    scene.setMacroOrigin(SIMD2<Float>(point.x, point.y))
-//                }
-//            )
-//            .overlay(alignment: .bottomLeading) {
-//                if scene.isMacroPreviewActive {
-//                    Label("Macro preview at the tool position", systemImage: "eye")
-//                        .font(.caption)
-//                        .padding(.horizontal, 8)
-//                        .padding(.vertical, 4)
-//                        .background(.regularMaterial)
-//                        .cornerRadius(6)
-//                        .padding(8)
-//                }
-//            }
-//            .overlay {
-//                CanvasCoordinateLabels(scene: scene)
-//            }
-//            .overlay(alignment: .topLeading) {
-//                CanvasLayersList(layers: CanvasLayer.controllerLayers,
-//                                 isVisible: { scene.isVisible($0) },
-//                                 setVisible: { scene.setVisible($0, $1) },
-//                                 unavailableReason: { scene.unavailableReason(for: $0) },
-//                                 settingsLayers: [.stock, .boundingBox, .anchor],
-//                                 settings: { layer in
-//                                     switch layer {
-//                                         case .stock:
-//                                             // Just the fields: visibility is the legend's own checkbox
-//                                             return AnyView(
-//                                                 StockMaterialForm(stock: Binding(get: { camModel.controllerStock },
-//                                                                  set: { newStock in
-//                                                                      // Editing the stock is editing the active setup's
-//                                                                      camModel.programStock = nil
-//                                                                      camModel.setSetupStock(camModel.activeSetupID, to: newStock)
-//                                                                  }))
-//                                                     .frame(width: 280)
-//                                                     .padding(12)
-//                                             )
-//                                         case .boundingBox:
-//                                             return AnyView(JobAreaSettingsView(scene: scene))
-//                                         case .anchor:
-//                                             return AnyView(AnchorSettingsView(scene: scene))
-//                                         default:
-//                                             return AnyView(EmptyView())
-//                                     }
-//                                 })
-//                .padding(8)
-//            }
-//            .overlay(alignment: .topTrailing) {
-//                VStack(alignment: .trailing, spacing: 6) {
-//                    HStack {
-//                        Picker("", selection: $scene.renderMode) {
-//                            ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
-//                                Image(systemName: mode.systemImage)
-//                                    .help(mode.label)
-//                                    .tag(mode)
-//                            }
-//                        }
-//                        .frame(width: 80)
-//                        .pickerStyle(.segmented)
-//                        .labelsHidden()
-//
-//                        // Carve quality only means something for the heightmap.
-//                        if scene.renderMode == .heightmap {
-//                            Button {
-//                                isShowingHeightmapQuality.toggle()
-//                            } label: {
-//                                Image(systemName: "slider.horizontal.3")
-//                            }
-//                            .buttonStyle(.plain)
-//                            .help("Heightmap quality")
-//                            .popover(isPresented: $isShowingHeightmapQuality, arrowEdge: .bottom) {
-//                                HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize,
-//                                                           onSelect: { isShowingHeightmapQuality = false })
-//                                    .frame(width: 210)
-//                                    .padding(8)
-//                            }
-//                        }
-//
-//                        Divider()
-//                            .frame(height: 18)
-//
-//                        Button {
-//                            SettingsTab.canvas.select()
-//                            openSettings()
-//                        } label: {
-//                            Image(systemName: "computermouse")
-//                        }
-//                        .buttonStyle(.plain)
-//                        .padding(.horizontal, 8)
-//                    }
-//                    .padding(2)
-//                    .canvasChrome()
-//
-//                    CanvasZoomButton(zoomModel: scene.zoomModel)
-//                }
-//                .padding(8)
-//            }
-//
-//            // Feed and Z at the current line on the left, then the tools the program calls.
-//            let showsLiveValues = !gCodeModel.document.lines.isEmpty && !showsMacroPreview
-//            if showsLiveValues || !gCodeModel.tools.isEmpty {
-//                HStack(spacing: 10) {
-//                    if showsLiveValues {
-//                        LiveValuesChip(values: gCodeModel.currentLiveValues)
-//
-//                        Divider()
-//                            .frame(height: 24)
-//                    }
-//
-//                    if gCodeModel.tools.isEmpty {
-//                        Spacer(minLength: 0)
-//                    } else {
-//                        ToolChipsView(tools: gCodeModel.tools,
-//                                      assignments: $gCodeModel.toolAssignments,
-//                                      fileTools: gCodeModel.headerTools,
-//                                      activeTool: gCodeModel.activeToolNumber,
-//                                      stockMaterial: camModel.controllerStock.material,
-//                                      alignment: .center)
-//
-//                        if showsLiveValues {
-//                            NextToolChangeLabel(connection: connection,
-//                                                document: gCodeModel.document,
-//                                                scrubLine: gCodeModel.scrubLine)
-//                        }
-//                    }
-//                }
-//                .padding(.horizontal, 10)
-//                .frame(height: 44)
-//                .frame(maxWidth: .infinity)
-//                .background(.regularMaterial)
-//                .cornerRadius(8)
-//            }
-//
-//            ScrubberOrJobProgress(connection: connection, document: gCodeModel.document) {
-//                Slider(value: scrubBinding, in: 0...Double(max(1, gCodeModel.document.lines.count))) { editing in
-//                    if !editing {
-//                        forceHeightmapRefresh()
-//                    }
-//                }
-//                .disabled(gCodeModel.document.lines.isEmpty || scene.isMacroPreviewActive)
-//                .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
-//            }
-//        }
+        VStack {
+            MetalCanvasView(objects: .constant(scene.visibleRenderObjects),
+                            renderMode: scene.renderMode,
+                            xyOffset: scene.xyOffset,
+                            anchorOrigin: scene.machineLayout.activeAnchor,
+                            stockColor: scene.stockColor,
+                            heightmapMesh: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapMesh,
+                            heightmapGPU: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapGPURequest,
+                            clearColor: viewportClearColor,
+                            zoomModel: scene.zoomModel)
+            .cornerRadius(8)
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            }
+            .overlay {
+                // The carve runs on a background task; the old surface
+                // stays visible until the new one lands. Wireframe mode
+                // never shows the surface, so it never shows the spinner.
+                HeightmapBusyOverlay(isBusy: scene.renderMode == .heightmap && scene.isComputingHeightmap)
+            }
+            .overlay(
+                ToolPositionSync(connection: connection, workOrigin: scene.workOrigin) { point in
+                    scene.updateTool(gCodeModel.spindleTool)
+                    scene.updateToolPosition(point)
+                    // A macro runs from wherever the tool is.
+                    scene.setMacroOrigin(SIMD2<Float>(point.x, point.y))
+                }
+            )
+            .overlay(alignment: .bottomLeading) {
+                if scene.isMacroPreviewActive {
+                    Label("Macro preview at the tool position", systemImage: "eye")
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.regularMaterial)
+                        .cornerRadius(6)
+                        .padding(8)
+                }
+            }
+            .overlay {
+                CanvasCoordinateLabels(scene: scene)
+            }
+            .overlay(alignment: .topLeading) {
+                canvasLayerList
+                .padding(8)
+            }
+            .overlay(alignment: .topTrailing) {
+                VStack(alignment: .trailing, spacing: 6) {
+                    HStack {
+                        Picker("", selection: $scene.renderMode) {
+                            ForEach(CanvasRenderMode.allCases, id: \.self) { mode in
+                                Image(systemName: mode.systemImage)
+                                    .help(mode.label)
+                                    .tag(mode)
+                            }
+                        }
+                        .frame(width: 80)
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+
+                        // Carve quality only means something for the heightmap.
+                        if scene.renderMode == .heightmap {
+                            Button {
+                                isShowingHeightmapQuality.toggle()
+                            } label: {
+                                Image(systemName: "slider.horizontal.3")
+                            }
+                            .buttonStyle(.plain)
+                            .help("Heightmap quality")
+                            .popover(isPresented: $isShowingHeightmapQuality, arrowEdge: .bottom) {
+                                HeightmapQualityPickerView(cellSize: $scene.heightmapCellSize,
+                                                           onSelect: { isShowingHeightmapQuality = false })
+                                    .frame(width: 210)
+                                    .padding(8)
+                            }
+                        }
+
+                        Divider()
+                            .frame(height: 18)
+
+                        Button {
+                            SettingsTab.canvas.select()
+                            openSettings()
+                        } label: {
+                            Image(systemName: "computermouse")
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 8)
+                    }
+                    .padding(2)
+                    .canvasChrome()
+
+                    CanvasZoomButton(zoomModel: scene.zoomModel)
+                }
+                .padding(8)
+            }
+
+            // Feed and Z at the current line on the left, then the tools the program calls.
+            let showsLiveValues = !gCodeModel.document.lines.isEmpty && !showsMacroPreview
+            if showsLiveValues || !gCodeModel.tools.isEmpty {
+                HStack(spacing: 10) {
+                    if showsLiveValues {
+                        LiveValuesChip(values: gCodeModel.currentLiveValues)
+
+                        Divider()
+                            .frame(height: 24)
+                    }
+
+                    if gCodeModel.tools.isEmpty {
+                        Spacer(minLength: 0)
+                    } else {
+                        ToolChipsView(tools: gCodeModel.tools,
+                                      assignments: $gCodeModel.toolAssignments,
+                                      fileTools: gCodeModel.headerTools,
+                                      activeTool: gCodeModel.activeToolNumber,
+                                      stockMaterial: camModel.controllerStock.material,
+                                      alignment: .center)
+
+                        if showsLiveValues {
+                            NextToolChangeLabel(connection: connection,
+                                                document: gCodeModel.document,
+                                                scrubLine: gCodeModel.scrubLine)
+                        }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 44)
+                .frame(maxWidth: .infinity)
+                .background(.regularMaterial)
+                .cornerRadius(8)
+            }
+
+            ScrubberOrJobProgress(connection: connection, document: gCodeModel.document) {
+                Slider(value: scrubBinding, in: 0...Double(max(1, gCodeModel.document.lines.count))) { editing in
+                    if !editing {
+                        forceHeightmapRefresh()
+                    }
+                }
+                .disabled(gCodeModel.document.lines.isEmpty || scene.isMacroPreviewActive)
+                .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
+            }
+        }
         .onAppear {
             // Sync once up front — `renderObjects` otherwise still
             // holds `defaultScene()`'s placeholder box, not
@@ -1111,5 +1090,39 @@ private struct CanvasSection: View {
         .onChange(of: scene.xyOffset) { _, _ in
             forceHeightmapRefresh()
         }
+    }
+
+    private var canvasLayerList: some View {
+        CanvasLayersList(layers: CanvasLayer.controllerLayers,
+                         isVisible: { scene.isVisible($0) },
+                         setVisible: { scene.setVisible($0, $1) },
+                         unavailableReason: { scene.unavailableReason(for: $0) },
+                         tint: { $0.tint },
+                         label: { $0.label },
+                         settingsLayers: [.stock, .boundingBox, .anchor],
+                         settings: { layer in
+                             switch layer {
+                                 case .stock:
+                                     // Just the fields: visibility is the legend's own checkbox
+                                     return AnyView(
+                                         StockMaterialForm(stock: Binding(get: { camModel.controllerStock },
+                                                          set: { newStock in
+                                                              // Editing the stock is editing the active setup's
+                                                              camModel.programStock = nil
+                                                              // TODO: what happened here? method does not exist
+//                                                              camModel.setSetupStock(camModel.activeSetupID, to: newStock)
+                                                          }))
+                                             .frame(width: 280)
+                                             .padding(12)
+                                     )
+                                 case .boundingBox:
+                                     return AnyView(JobAreaSettingsView(scene: scene))
+                                 case .anchor:
+                                     return AnyView(AnchorSettingsView(scene: scene))
+                                 default:
+                                     return AnyView(EmptyView())
+                             }
+                         },
+                         footer: nil)
     }
 }

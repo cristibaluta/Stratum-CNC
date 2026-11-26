@@ -103,6 +103,7 @@ struct CanvasLayersList: View {
     }
 
     private func row(for layer: CanvasLayer) -> some View {
+
         let reason = unavailableReason(layer)
         let isOn = isVisible(layer)
         let layerTint = tint(layer)
