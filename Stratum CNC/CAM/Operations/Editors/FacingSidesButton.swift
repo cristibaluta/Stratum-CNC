@@ -2,22 +2,19 @@
 //  FacingSidesButton.swift
 //  Stratum CNC
 //
-//  The facing's "which sides to extend". An icon after the Extension field opens a popover with
-//  a title, a one-line explanation and the selected shapes in top view, inside their bounding
-//  box. Each side of that box has a checkbox on its edge: tick it (or click the line) to extend
-//  the facing past that side. The dotted line is the area that will be faced, redrawn as the
-//  sides and the length change. Under the picture: the original and final area sizes and the
-//  Extension field. The icon draws its active sides in blue (none while the extension is 0).
+//  The facing's extension, set per side. An icon opens a popover with a title, a one-line
+//  explanation and the selected shapes in top view, inside their bounding box. Each side of that
+//  box has a text field on its edge: type how far the facing runs past that side (0 by default).
+//  The dotted line is the area that will be faced, redrawn as the values change. Under the
+//  picture: the original and final area sizes. The icon draws the extended sides in blue.
 //  Same pattern as `FeedCalculatorButton` / `HoldingTabsEditor`.
 //
 
 import SwiftUI
 
-/// The icon after the Extension field: a dashed square whose extended sides are blue. Nothing
-/// is blue while the extension is 0, since nothing is extended then.
+/// The icon after the Extension row: a dashed square whose extended sides are blue.
 struct FacingSidesButton: View {
     @Binding var sides: FacingSides
-    @Binding var extensionLength: Double
     /// The selected shapes' outlines in world space; called when the popover is drawn.
     var shapes: () -> [CGPath] = { [] }
 
@@ -27,19 +24,16 @@ struct FacingSidesButton: View {
         HoverIconButton {
             isPresented = true
         } label: {
-            FacingSidesIcon(sides: extensionLength > 0 ? sides : FacingSides(left: false, right: false,
-                                                                            front: false, back: false))
+            FacingSidesIcon(sides: sides)
                 .frame(width: 24, height: 18)
         }
-        // Shares the row with the field: without this the icon is the first thing squeezed out.
+        // Shares the row with other controls: without this the icon is the first thing squeezed out.
         .fixedSize()
         .layoutPriority(1)
-        .help(extensionLength > 0
-              ? "Choose which sides the facing extends past (\(sides.summary))"
-              : "Choose which sides the facing extends past (extension is 0)")
+        .help("Set how far the facing extends past each side (\(sides.summary))")
         .popover(isPresented: $isPresented, arrowEdge: .leading) {
-            FacingSidesEditor(sides: $sides, extensionLength: $extensionLength, shapes: shapes)
-                .frame(width: 340)
+            FacingSidesEditor(sides: $sides, shapes: shapes)
+                .frame(width: 380)
         }
     }
 }
@@ -62,17 +56,16 @@ struct FacingSidesIcon: View {
                 path.addLine(to: to)
                 context.stroke(path, with: .color(on ? Color.accentColor : Color.secondary), style: style)
             }
-            edge(CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY), on: sides.back)
-            edge(CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.maxY), on: sides.front)
-            edge(CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.minX, y: rect.maxY), on: sides.left)
-            edge(CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY), on: sides.right)
+            edge(CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY), on: sides.back > 0)
+            edge(CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.maxY), on: sides.front > 0)
+            edge(CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.minX, y: rect.maxY), on: sides.left > 0)
+            edge(CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.maxY), on: sides.right > 0)
         }
     }
 }
 
 struct FacingSidesEditor: View {
     @Binding var sides: FacingSides
-    @Binding var extensionLength: Double
     var shapes: () -> [CGPath] = { [] }
 
     var body: some View {
@@ -83,22 +76,21 @@ struct FacingSidesEditor: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Facing extension")
                     .font(.headline)
-                Text("Select the sides you want the facing extended past.")
+                Text("Type how far the facing runs past each side of the selection, in mm.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            FacingSidesDiagram(sides: $sides, extensionLength: extensionLength, shapes: outlines)
-                .frame(height: 210)
+            FacingSidesDiagram(sides: $sides, shapes: outlines)
+                .frame(height: 230)
 
             Divider()
 
             // The numbers behind the dotted line
             VStack(alignment: .leading, spacing: 8) {
                 areaRow("Original", box)
-                areaRow("Final", box.map { sides.area(of: $0, extendedBy: extensionLength) })
-                InspectorNumberField(title: "Extension", value: $extensionLength, suffix: "mm")
+                areaRow("Final", box.map { sides.area(of: $0) })
             }
         }
         .padding(16)
@@ -114,20 +106,19 @@ struct FacingSidesEditor: View {
     }
 }
 
-/// The selected shapes inside their bounding box, one line and checkbox per side, and the dotted
-/// outline of the faced area. Drawn in top view with Y up, like the canvas.
+/// The selected shapes inside their bounding box, one text field per side on its edge, and the
+/// dotted outline of the faced area. Drawn in top view with Y up, like the canvas.
 struct FacingSidesDiagram: View {
     @Binding var sides: FacingSides
-    let extensionLength: Double
     /// The selected shapes in world space. Empty draws a schematic shape instead.
     let shapes: [CGPath]
 
-    /// The schematic's box and how far it shows the extension, since mm mean nothing without a shape.
+    /// The schematic's box, since mm mean nothing without a shape.
     private static let schematicBox = CGRect(x: 0, y: 0, width: 60, height: 40)
-    private static let schematicExtension: Double = 7
 
-    /// Room around the drawing for the checkboxes, which sit on the edges of the widest area.
-    private let margin: CGFloat = 22
+    /// Room around the drawing for the fields, which sit on the edges of the widest area.
+    private let marginX: CGFloat = 36
+    private let marginY: CGFloat = 20
 
     /// The box around all the shapes, `nil` when there are none.
     static func selectionBox(of shapes: [CGPath]) -> CGRect? {
@@ -158,14 +149,14 @@ struct FacingSidesDiagram: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let drawing = CGRect(origin: .zero, size: proxy.size).insetBy(dx: margin, dy: margin)
+            let drawing = CGRect(origin: .zero, size: proxy.size).insetBy(dx: marginX, dy: marginY)
             let hasShapes = !shapes.isEmpty
             let box = Self.selectionBox(of: shapes) ?? Self.schematicBox
-            let length = hasShapes ? extensionLength : Self.schematicExtension
 
-            // Fitted to the box with every side extended, so the picture doesn't jump about
-            // while sides are switched on and off.
-            let widest = FacingSides.all.area(of: box, extendedBy: length)
+            // Fitted to the box with every side extended by the longest one, so the picture
+            // doesn't jump about while one side is typed.
+            let longest = max(sides.left, sides.right, sides.front, sides.back)
+            let widest = FacingSides.all(longest).area(of: box)
             let scale = min(drawing.width / max(widest.width, 0.0001),
                             drawing.height / max(widest.height, 0.0001))
             let fit = Fit(center: CGPoint(x: drawing.midX, y: drawing.midY),
@@ -173,7 +164,7 @@ struct FacingSidesDiagram: View {
                           scale: scale)
 
             let boxView = fit.rect(box)
-            let areaView = fit.rect(sides.area(of: box, extendedBy: length))
+            let areaView = fit.rect(sides.area(of: box))
 
             ZStack {
                 // What will be faced
@@ -203,19 +194,18 @@ struct FacingSidesDiagram: View {
                     path.stroke(Color.primary.opacity(0.75), lineWidth: 1.5)
                 }
 
-                // One line and checkbox per side, on the box's edge
+                // One line and field per side, on the box's edge
                 ForEach(FacingSides.Side.allCases) { side in
                     handle(for: side, on: boxView)
                 }
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .accessibilityLabel("Sides the facing extends past")
+        .accessibilityLabel("How far the facing extends past each side")
     }
 
     /// A thin line on the box's edge, as thick as the dotted contour: accent while the side is
-    /// extended, grey when not. A checkbox sits on the middle of the line. The clickable area is
-    /// wider than what is drawn, and clicking the line toggles the side like the checkbox does.
+    /// extended, grey when not. A text field with the side's length sits on the middle of the line.
     private func handle(for side: FacingSides.Side, on box: CGRect) -> some View {
         let horizontal = side == .front || side == .back
         let minLength: CGFloat = 24
@@ -227,36 +217,44 @@ struct FacingSidesDiagram: View {
             case .back:  center = CGPoint(x: box.midX, y: box.minY)   // high Y is up the screen
             case .front: center = CGPoint(x: box.midX, y: box.maxY)
         }
-        let isOn = sides[side]
+        let isOn = sides[side] > 0
 
         return ZStack {
             Rectangle()
                 .fill(isOn ? Color.accentColor : Color.secondary.opacity(0.35))
                 .frame(width: horizontal ? length : 1.5, height: horizontal ? 1.5 : length)
 
-            // The background keeps the line and the shape from showing through the checkbox.
-            Toggle("", isOn: Binding(get: { sides[side] },
-                                     set: { sides[side] = $0 }))
-                .labelsHidden()
-                .stCheckboxToggleStyle()
-                .controlSize(.small)
-                .padding(2)
-                .background(.background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            // The background keeps the line and the shape from showing through the field.
+            SideLengthField(value: Binding(get: { sides[side] },
+                                           set: { sides[side] = $0 }))
+                .help("\(side.title): how far the facing runs past this side, in mm")
         }
-        .frame(width: horizontal ? length : 24, height: horizontal ? 24 : length)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            sides[side].toggle()
-        }
+        .frame(width: horizontal ? length : 56, height: horizontal ? 24 : length)
         .position(center)
-        .help("\(side.title): \(isOn ? "extended, click to stop at the selection" : "not extended, click to extend")")
+    }
+}
+
+/// A small centered number field for one side's length, in mm. Anything under 0 becomes 0.
+private struct SideLengthField: View {
+    @Binding var value: Double
+
+    var body: some View {
+        TextField("0", value: $value, format: .number.precision(.fractionLength(0...2)))
+            .textFieldStyle(.plain)
+            .multilineTextAlignment(.center)
+            .font(.system(size: 11).monospacedDigit())
+            .frame(width: 40)
+            .padding(.vertical, 3)
+            .padding(.horizontal, 2)
+            .background(.background, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(Color.secondary.opacity(0.4), lineWidth: 1))
     }
 }
 
 #Preview {
-    @Previewable @State var sides = FacingSides(left: true, right: false, front: true, back: true)
-    @Previewable @State var length = 3.0
-    FacingSidesEditor(sides: $sides, extensionLength: $length) {
+    @Previewable @State var sides = FacingSides(left: 3, right: 0, front: 2, back: 1)
+    FacingSidesEditor(sides: $sides) {
         [CGPath(ellipseIn: CGRect(x: 10, y: 5, width: 50, height: 30), transform: nil)]
     }
 }

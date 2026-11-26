@@ -80,14 +80,12 @@ struct OperationSettings: Codable, Hashable {
     var contourLeadOut: SC.LeadInOut? = nil
 
     // Facing
-    /// How far the passes run past the selection's bounding box, mm.
-    var facingExtension: Double = 1
     /// Face the whole stock instead of the bounding box of the selected shapes. The selected
     /// shapes are kept (so switching back restores them) but ignored while this is on.
     var facingWholeStock: Bool = false
-    /// Which sides of the selection's bounding box the passes run past by `facingExtension`.
+    /// How far the passes run past each side of the selection's bounding box, mm (0 by default).
     /// Ignored while `facingWholeStock` is on. See `FacingSides`.
-    var facingSides: FacingSides = .all
+    var facingSides: FacingSides = .none
     /// Direction of the facing passes in the XY plane, degrees. 0 runs them along X
     /// (horizontal lines), 90 along Y (vertical lines).
     var facingAngle: Double = 0
@@ -141,6 +139,8 @@ struct OperationSettings: Codable, Hashable {
     /// Keys of older projects.
     private enum LegacyCodingKeys: String, CodingKey {
         case pocketAdaptiveLoad
+        /// The one extension of every side, before each side had its own.
+        case facingExtension
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -149,7 +149,7 @@ struct OperationSettings: Codable, Hashable {
         case restSourceID
         case pocketPattern, pocketSpiral, pocketTrochoidalPitch, pocketAdaptiveLoadPercent
         case contourTabs, contourLeadIn, contourLeadOut
-        case facingExtension, facingWholeStock, facingSides, facingAngle
+        case facingWholeStock, facingSides, facingAngle
         case slotSource, slotDepthPerPass
         case chamferWidth, chamferSide, chamferUsesBottomEdge, chamferTipOffset, chamferUpperEdgeZ, chamferLowerEdgeZ
         case drillUsesPecking, drillPeckDepth
@@ -192,9 +192,16 @@ extension OperationSettings {
         contourTabs = try c.decodeIfPresent([SC.HoldingTab].self, forKey: .contourTabs) ?? d.contourTabs
         contourLeadIn = try c.decodeIfPresent(SC.LeadInOut.self, forKey: .contourLeadIn) ?? d.contourLeadIn
         contourLeadOut = try c.decodeIfPresent(SC.LeadInOut.self, forKey: .contourLeadOut) ?? d.contourLeadOut
-        facingExtension = try c.decodeIfPresent(Double.self, forKey: .facingExtension) ?? d.facingExtension
         facingWholeStock = try c.decodeIfPresent(Bool.self, forKey: .facingWholeStock) ?? d.facingWholeStock
-        facingSides = try c.decodeIfPresent(FacingSides.self, forKey: .facingSides) ?? d.facingSides
+        let legacyExtension = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            .decodeIfPresent(Double.self, forKey: .facingExtension)
+        if c.contains(.facingSides) {
+            facingSides = try FacingSides(from: c.superDecoder(forKey: .facingSides), legacyLength: legacyExtension ?? 1)
+        } else if let legacyExtension {
+            facingSides = .all(legacyExtension)
+        } else {
+            facingSides = d.facingSides
+        }
         facingAngle = try c.decodeIfPresent(Double.self, forKey: .facingAngle) ?? d.facingAngle
         slotSource = try c.decodeIfPresent(SlotSource.self, forKey: .slotSource) ?? d.slotSource
         chamferWidth = try c.decodeIfPresent(Double.self, forKey: .chamferWidth) ?? d.chamferWidth

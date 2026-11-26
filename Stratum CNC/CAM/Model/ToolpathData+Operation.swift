@@ -37,8 +37,8 @@ extension ToolpathData {
 
         switch newValue {
 
-            case .facing(_, let extensionLength, let angle):
-                operation.facingExtension = extensionLength
+            case .facing(_, _, let angle):
+                // The extension is per side (`facingSides`), not the library's single length
                 operation.facingAngle = angle
 
             case .slotting(let depthPerPass, _, _):

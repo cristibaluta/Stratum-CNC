@@ -139,15 +139,14 @@ enum ToolpathGenerator {
         // A facing that runs past only some sides of the selection. The library extends every
         // side by the same length, so it is given the finished rectangle (the selection's box
         // grown on the chosen sides) with no extension of its own. Same math as the popover's
-        // dotted line (`FacingSides.area(of:extendedBy:)`).
+        // dotted line (`FacingSides.area(of:)`).
         // (A STEP edge is already in the setup's frame, unlike the canvas shapes the sides are
         // named for: on a bottom setup the two sides that swap are right for canvas shapes only.)
         if toolpath.facesOnChosenSides {
             guard let box = SC.Contour.xyBounds(of: contours) else {
                 throw GenerationError.noGeometry
             }
-            let area = frame.placeFlat(toolpath.operation.facingSides)
-                .area(of: box, extendedBy: toolpath.operation.facingExtension)
+            let area = frame.placeFlat(toolpath.operation.facingSides).area(of: box)
             contours = [StockMaterial.rectangleContour(minX: Double(area.minX), minY: Double(area.minY),
                                                        maxX: Double(area.maxX), maxY: Double(area.maxY))]
             operation = .facing(direction: toolpath.operation.direction,
@@ -544,7 +543,7 @@ extension ToolpathGenerator {
 
             case .facing:
                 return .facing(direction: direction,
-                               extensionLength: options.facingExtension,
+                               extensionLength: 0,
                                angle: options.facingAngle)
 
             case .slotting:

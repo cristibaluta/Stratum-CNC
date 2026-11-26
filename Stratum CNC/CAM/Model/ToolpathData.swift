@@ -155,14 +155,13 @@ extension ToolpathData {
         operation.kind == .pocket && leavesStock && operation.stockToLeave >= abs(endZ) - 1e-9
     }
 
-    /// A facing of the selected shapes that runs past only some sides of their bounding box.
-    /// The library only extends every side by the same length, so `ToolpathGenerator.prepare`
-    /// hands it the finished rectangle instead.
+    /// A facing of the selected shapes that runs past their bounding box, each side by its own
+    /// length. The library only extends every side by the same length, so
+    /// `ToolpathGenerator.prepare` hands it the finished rectangle instead.
     var facesOnChosenSides: Bool {
         operation.kind == .facing
             && !operation.facingWholeStock
-            && operation.facingExtension > 0
-            && !operation.facingSides.isAll
+            && !operation.facingSides.isNone
     }
 
     /// A facing toolpath set to cover the whole stock; the selected shapes are ignored.

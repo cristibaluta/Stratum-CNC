@@ -414,13 +414,9 @@ struct OperationOptionsView: View {
                                             help: "Stepover: distance between neighbouring passes, as a percentage of the tool diameter and in mm. Changing one updates the other. \(stepOverNote)")
             }
             if kind == .facing {
-                InspectorCompactNumberField(tag: "Extend",
-                                            value: facingExtension,
-                                            suffix: "mm",
-                                            help: "Extension length (mm): how far the passes run past the selection. "
-                                                + "The icon's blue sides are the ones it applies to.")
                 if !toolpath.operation.facingWholeStock {
                     facingSidesButton
+                        .help("Extension: how far the passes run past each side of the selection (\(toolpath.operation.facingSides.summary)). Click to set each side.")
                 }
                 InspectorCompactNumberField(tag: "Angle",
                                             value: facingAngle,
@@ -641,17 +637,6 @@ struct OperationOptionsView: View {
 
     // MARK: Facing extension
 
-    /// The range the library accepts for the extension (`facing.extensionLength`).
-    private static let facingExtensionRange: ClosedRange<Double> = 0...50
-
-    private var facingExtension: Binding<Double> {
-        Binding(
-            get: { toolpath.operation.facingExtension },
-            set: { toolpath.operation.facingExtension = min(max($0, Self.facingExtensionRange.lowerBound),
-                                                             Self.facingExtensionRange.upperBound) }
-        )
-    }
-
     // MARK: Facing angle
 
     /// The range the library accepts for the angle (`facing.angle`), degrees.
@@ -675,23 +660,30 @@ struct OperationOptionsView: View {
               + "The icons on the right set vertical (90°), angled (45°) or horizontal (0°) passes.")
     }
 
-    /// The icon that opens the popover where the sides are chosen. A facing of the whole stock
-    /// has no selection to extend past, so it has no sides to choose.
+    /// The icon that opens the popover where the extension of each side is set. A facing of the
+    /// whole stock has no selection to extend past, so it has no sides.
     private var facingSidesButton: some View {
         FacingSidesButton(sides: $toolpath.operation.facingSides,
-                          extensionLength: facingExtension,
                           shapes: targetShapes)
     }
 
-    /// Extension length with the sides button after it. The button's blue sides say which are extended.
+    /// The extension row: what each side is set to, and the button that opens the editor.
     @ViewBuilder
     private var facingExtensionRows: some View {
-        InspectorNumberField(title: "Extension", value: facingExtension, suffix: "mm") {
-            if !toolpath.operation.facingWholeStock {
-                facingSidesButton
+        if !toolpath.operation.facingWholeStock {
+            InspectorRow(label: "Extension") {
+                HStack(spacing: 6) {
+                    Text(toolpath.operation.facingSides.summary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(toolpath.operation.facingSides.isNone ? .secondary : .primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Spacer(minLength: 0)
+                    facingSidesButton
+                }
             }
+            .help("How far the passes run past each side of the selection's bounding box, in mm. Open the editor on the right to set each side.")
         }
-        .help("How far the passes run past the selection's bounding box. The icon on the right chooses the sides it applies to.")
     }
 
     /// Stock to leave and the finishing pass. The roughing stays `stockToLeave` away from the
