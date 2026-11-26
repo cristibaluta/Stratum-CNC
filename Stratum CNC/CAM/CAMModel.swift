@@ -703,6 +703,27 @@ class CAMModel: ObservableObject {
         stocks[index] = updated
     }
 
+    /// A stock edited from a setup's details. Each setup has its own stock to edit: when other
+    /// setups are cut from the same one, this setup gets a copy of it (fixtures included, with ids
+    /// of their own) with the change, and the others keep theirs. A stock only this setup is on is
+    /// changed in place.
+    func updateStock(ofSetup setupID: UUID, to stock: StockMaterial) {
+        guard let setup = setup(withID: setupID) else {
+            return
+        }
+        let current = projectStock(for: setup)
+        guard current.stock != stock else {
+            return
+        }
+        if setupCountsByStock[current.id, default: 0] > 1 {
+            let copyID = addStock(current.stock, fixtures: current.fixtures, for: setupID)
+            // The copy's fixtures are refitted to the new size, as for any stock change
+            setStock(copyID, to: stock)
+        } else {
+            setStock(current.id, to: stock)
+        }
+    }
+
     /// Cuts a setup from another of the project's stocks.
     func assignStock(_ stockID: UUID, to setupID: UUID) {
         guard stocks.contains(where: { $0.id == stockID }),

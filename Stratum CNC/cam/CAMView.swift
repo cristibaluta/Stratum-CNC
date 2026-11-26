@@ -339,9 +339,9 @@ struct CAMView: View {
                                   stocks: camModel.stocks,
                                   setupCounts: camModel.setupCountsByStock,
                                   projectStock: projectStock,
-                                  // The stock is the project's, shared by the setups cut from it
+                                  // Editing it gives this setup a stock of its own when others share it
                                   stock: Binding(get: { camModel.projectStock(for: setup).stock },
-                                                 set: { camModel.setStock(projectStock.id, to: $0) }),
+                                                 set: { camModel.updateStock(ofSetup: setup.id, to: $0) }),
                                   isStockVisible: stockVisibleBinding,
                                   stocksStore: appModel.stocksStore,
                                   warning: camModel.activeStockWarning,

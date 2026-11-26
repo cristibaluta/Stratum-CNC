@@ -234,8 +234,8 @@ struct PanelSetupDetails: View {
             return nil
         }
         return others == 1
-            ? "Another setup is cut from this stock: changing it changes both."
-            : "\(others) other setups are cut from this stock: changing it changes all of them."
+            ? "Another setup is cut from this stock: editing it here gives this setup a stock of its own."
+            : "\(others) other setups are cut from this stock: editing it here gives this setup a stock of its own."
     }
 
     /// Which of the project's stocks the setup is cut from.
