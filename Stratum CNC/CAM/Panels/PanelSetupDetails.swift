@@ -63,11 +63,6 @@ struct PanelSetupDetails: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 4)
-                Text(setup.name)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
             }
             .padding(.bottom, 2)
 
@@ -78,7 +73,7 @@ struct PanelSetupDetails: View {
                 .padding(.vertical, 2)
 
             stockHeader
-            stockRow
+
             if let sharedNote {
                 Text(sharedNote)
                     .font(.system(size: 11))
@@ -90,6 +85,7 @@ struct PanelSetupDetails: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.orange)
             }
+            stockRow
             StockMaterialForm(stock: $stock)
 
             Divider()
@@ -173,7 +169,8 @@ struct PanelSetupDetails: View {
         let included = includedObjects
         let includedIDs = included.map(\.id)
         let available = objects.filter { !includedIDs.contains($0.id) }
-        return InspectorRow(label: "Objects") {
+
+        return InspectorRow(label: "Objects", labelVerticalAlignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 if included.isEmpty {
                     Text(objects.isEmpty ? "No object imported" : "No objects")
@@ -243,54 +240,7 @@ struct PanelSetupDetails: View {
 
     /// Which of the project's stocks the setup is cut from.
     private var stockRow: some View {
-        let labels = stockLabels
         return InspectorRow(label: "Stock") {
-            Menu {
-                ForEach(stocks) { entry in
-                    Button {
-                        onSelectStock?(entry.id)
-                    } label: {
-                        let title = labels[entry.id] ?? entry.stock.setupLabel
-                        if entry.id == projectStock.id {
-                            Label(title, systemImage: "checkmark")
-                        } else {
-                            Text(title)
-                        }
-                    }
-                }
-                Divider()
-                Button {
-                    onNewStock?()
-                } label: {
-                    Label("New Stock from This One", systemImage: "plus")
-                }
-                if stocks.contains(where: { setupCounts[$0.id] == nil }) {
-                    Button {
-                        onRemoveUnusedStocks?()
-                    } label: {
-                        Label("Remove Unused Stocks", systemImage: "trash")
-                    }
-                }
-            } label: {
-                InspectorMenuLabel {
-                    Text(labels[projectStock.id] ?? projectStock.stock.setupLabel)
-                }
-            }
-            .menuIndicator(.hidden)
-            .buttonStyle(.plain)
-            .help("The project's stocks: pick the one this setup is cut from")
-        }
-    }
-
-    /// The title, with the library and the visibility toggle at the right.
-    private var stockHeader: some View {
-        HStack(spacing: 8) {
-            Text("Stock")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-
-            Spacer(minLength: 4)
-
             if let stocksStore {
                 Button {
                     showingLibrary = true
@@ -304,17 +254,17 @@ struct PanelSetupDetails: View {
                     StocksLib_Sheet(store: stocksStore, onPick: { onPickLibraryStock?($0) })
                 }
             }
+        }
+    }
 
-            Button {
-                isStockVisible.toggle()
-            } label: {
-                Image(systemName: isStockVisible ? "eye" : "eye.slash")
-                    .font(.system(size: 12))
-                    .foregroundStyle(isStockVisible ? .primary : .secondary)
-                    .frame(width: 18)
-            }
-            .buttonStyle(.borderless)
-            .help(isStockVisible ? "Hide material in 2D" : "Show material in 2D")
+    /// The title, with the library and the visibility toggle at the right.
+    private var stockHeader: some View {
+        HStack(spacing: 8) {
+            Text("Stock")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 4)
         }
     }
 

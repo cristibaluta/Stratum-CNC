@@ -235,10 +235,11 @@ struct InspectorRow<Content: View>: View {
     /// the objects panel uses a narrow, left-aligned column to give the fields more room.
     var labelWidth: CGFloat = Inspector.labelWidth
     var labelAlignment: Alignment = .trailing
+    var labelVerticalAlignment: VerticalAlignment = .center
     @ViewBuilder var content: Content
 
     var body: some View {
-        HStack(alignment: .center, spacing: Inspector.columnSpacing) {
+        HStack(alignment: labelVerticalAlignment, spacing: Inspector.columnSpacing) {
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)

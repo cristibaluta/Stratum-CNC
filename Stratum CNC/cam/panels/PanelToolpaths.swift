@@ -196,7 +196,12 @@ struct SetupToolpaths: View {
     }
 
     private static func diameterText(of toolpath: ToolpathData) -> String {
-        Double(toolpath.tool.toolDiameter).formatted(.number.precision(.fractionLength(3)))
+        Double(toolpath.tool.toolDiameter).formatted(
+            .number
+            .precision(.fractionLength(0...3))
+            .grouping(.never)
+            .locale(Locale(identifier: "en_US_POSIX"))
+        )
     }
 
     /// A counterbore keeps its depth apart from `endZ`, as a positive number below the top.
@@ -205,11 +210,16 @@ struct SetupToolpaths: View {
             ? -toolpath.operation.counterboreDepth
             : toolpath.endZ
         // Depth below the top, so shown without the sign: "1.5"
-        return number(abs(z))
+        return number(z)
     }
 
     private static func number(_ value: Double) -> String {
-        value.formatted(.number.precision(.fractionLength(0...2)))
+        value.formatted(
+            .number
+            .precision(.fractionLength(0...2))
+            .grouping(.never)
+            .locale(Locale(identifier: "en_US_POSIX"))
+        )
     }
 
     // MARK: - Reordering

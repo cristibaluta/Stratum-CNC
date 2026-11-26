@@ -367,7 +367,7 @@ struct CAMView: View {
                                   onRename: { name in
                                       camModel.renameSetup(setup.id, to: name)
                                   })
-                .frame(width: 260)
+                .frame(width: leftPanelsWidth)
             } else if editingObjectID != nil, selectedToolpath == nil {
                 objectPropertiesPanel
             }
