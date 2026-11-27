@@ -51,19 +51,31 @@ private func n(_ value: Double) -> String {
     GCodeNumber.string(value)
 }
 
+/// First move of every macro: a rapid to the hole's X/Y, in work coordinates. `MacroStore` adds the
+/// position to the parameter values under `Macro.xKey` / `Macro.yKey` (the fields start out as the
+/// tool's current position, so by default this move goes nowhere).
+private func rapidToHole(_ values: [String: Double]) -> String {
+    "G0 X\(n(values[Macro.xKey] ?? 0)) Y\(n(values[Macro.yKey] ?? 0))"
+}
+
 // MARK: - Built-in macros
 
 extension Macro {
 
+    /// Keys of the hole position in the values handed to `generate`. Not `MacroParameter`s: the
+    /// position is shared by all macros and edited in the X/Y fields, not in the parameter grid.
+    static let xKey = "x"
+    static let yKey = "y"
+
     static let builtIn: [Macro] = [peckDrilling, threadMillM1_6]
 
-    /// Drills at the current X/Y. Z0 is the work surface. Every peck goes
+    /// Drills at X/Y (the tool's position unless typed in). Z0 is the work surface. Every peck goes
     /// down by `peck`, then retracts fully to clear the chips, rapids back to
     /// just above the previous depth and continues at feed.
     static let peckDrilling = Macro(
         id: "peck-drilling",
         name: "Peck Drilling",
-        summary: "Drills at the current X/Y (Z0 = work surface). Retracts fully after each peck to clear chips.",
+        summary: "Drills at X/Y (Z0 = work surface). Retracts fully after each peck to clear chips.",
         systemImage: "arrow.down.to.line",
         parameters: [
             .init(id: "depth", label: "Hole depth", unit: "mm", defaultValue: 5),
@@ -107,7 +119,8 @@ extension Macro {
                 "(Peck drilling: depth \(n(depth)), peck \(n(peck)))",
                 "G21",
                 "G90",
-                "G94"
+                "G94",
+                rapidToHole(values)
             ]
             if rpm > 0 {
                 lines.append("M3 S\(Int(rpm))")
@@ -133,24 +146,24 @@ extension Macro {
         checklist: [
             "The drill bit is fitted and clamped, and its length is set",
             "Z0 is set to the top of the stock (the work surface)",
-            "The tool is centred over the hole, in X and Y",
-            "The tool is above the stock and clear of clamps",
+            "X and Y are the centre of the hole",
+            "The tool is above the stock and clear of clamps (it rapids to X/Y at its current height)",
             "The stock is clamped, with nothing under the hole the drill must not touch",
             "The door is closed and I'm ready for the spindle to start"
         ]
     )
 
     /// M1.6 x 0.35 internal thread, right-hand, single-point helical thread
-    /// milling at the current X/Y (the hole centre), Z0 = work surface.
+    /// milling at X/Y (the hole centre; the tool's position unless typed in), Z0 = work surface.
     /// Climb milling: spindle CW (M3) + CCW helix (G3) climbing from the
     /// bottom of the thread upwards.
     ///
-    /// Everything is relative in XY (G91) because the hole centre is wherever
-    /// the tool currently is; Z moves are absolute (G90).
+    /// Everything after the rapid to X/Y is relative in XY (G91) from the hole
+    /// centre; Z moves are absolute (G90).
     static let threadMillM1_6 = Macro(
         id: "thread-mill-m1.6",
         name: "Thread Mill M1.6",
-        summary: "M1.6 × 0.35, right-hand, internal. Pre-drill ⌀1.25 mm. Tool must be centred over the hole, Z0 = surface.",
+        summary: "M1.6 × 0.35, right-hand, internal. Pre-drill ⌀1.25 mm. X/Y is the hole centre, Z0 = surface.",
         systemImage: "screwdriver",
         parameters: [
             .init(id: "depth", label: "Thread length", unit: "mm", defaultValue: 3),
@@ -201,7 +214,8 @@ extension Macro {
                 "(Thread mill M1.6x0.35 internal RH, length \(n(depth)), cutter \(n(cutter)))",
                 "G21",
                 "G90",
-                "G94"
+                "G94",
+                rapidToHole(values)
             ]
             if rpm > 0 {
                 lines.append("M3 S\(Int(rpm))")

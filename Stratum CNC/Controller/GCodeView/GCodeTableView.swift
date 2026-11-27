@@ -62,8 +62,11 @@ struct GCodeTableView: NSViewRepresentable {
         coordinator.document = document
         coordinator.onLineSelected = onLineSelected
 
-        if coordinator.lastRowCount != document.lines.count {
+        // Count alone isn't enough: a macro whose X/Y changed has the same number of lines
+        if coordinator.lastRowCount != document.lines.count
+            || coordinator.lastLinesRevision != document.linesRevision {
             coordinator.lastRowCount = document.lines.count
+            coordinator.lastLinesRevision = document.linesRevision
             coordinator.tableView?.reloadData()
         }
 
@@ -108,6 +111,7 @@ struct GCodeTableView: NSViewRepresentable {
         var document: NCFileDocument
         weak var tableView: NSTableView?
         var lastRowCount = -1
+        var lastLinesRevision = -1
         var lastHighlightedLine: Int?
         var lastRequestedLine: Int?
         var onLineSelected: ((Int) -> Void)?

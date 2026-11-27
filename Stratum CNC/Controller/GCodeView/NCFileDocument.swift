@@ -45,7 +45,15 @@ final class NCFileDocument: ObservableObject {
 
     @Published private(set) var fileURL: URL?
     @Published private(set) var fileName: String = "No file loaded"
-    @Published private(set) var lines: [GCodeLine] = []
+    @Published private(set) var lines: [GCodeLine] = [] {
+        didSet {
+            linesRevision &+= 1
+        }
+    }
+    /// Bumped every time `lines` is replaced, including by text that has the same number of lines
+    /// as before (a macro whose X/Y changed). Lets `GCodeTableView` tell "same lines" from
+    /// "same count" without comparing the lines.
+    private(set) var linesRevision = 0
     @Published private(set) var toolpathSegments: [ToolpathSegment] = []
     @Published private(set) var isLoading: Bool = false
     @Published var lastError: String?

@@ -122,7 +122,7 @@ struct ControllerView: View {
 
         scene.updateTool(gCodeModel.spindleTool)
         if let last = document.toolpathSegments(upTo: line).last {
-            scene.updateToolPosition(scene.macroPlaced(last.end))
+            scene.updateToolPosition(last.end)
         }
         refreshMacroHeightmap(macros: macros, gCodeModel: gCodeModel, camModel: camModel,
                               scene: scene, force: forceHeightmap)
@@ -966,8 +966,13 @@ private struct CanvasSection: View {
                 ToolPositionSync(connection: connection, workOrigin: scene.workOrigin) { point in
                     scene.updateTool(gCodeModel.spindleTool)
                     scene.updateToolPosition(point)
-                    // A macro runs from wherever the tool is; carved there too
-                    if scene.setMacroOrigin(SIMD2<Float>(point.x, point.y)) {
+                    // The macro's X/Y fields follow the tool until a value is typed in. Not while a
+                    // job runs: the G-code shown (and being run) must not change under it.
+                    if let status = connection.status, !status.isBusy {
+                        macros.updateCurrentXY(SIMD2(Double(status.workPosition.x), Double(status.workPosition.y)))
+                    }
+                    // A macro's first rapid leaves from the tool; carved from there too
+                    if scene.setMacroStart(SIMD2<Float>(point.x, point.y)) {
                         ControllerView.refreshMacroHeightmap(macros: macros, gCodeModel: gCodeModel,
                                                              camModel: camModel, scene: scene, force: false)
                     }

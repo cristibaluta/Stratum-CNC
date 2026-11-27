@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import simd
 
 /// Which of the two right-hand lists is showing. Only one at a time.
 enum GCodePanelMode: String, CaseIterable {
@@ -31,6 +32,63 @@ final class MacroStore: ObservableObject {
         didSet {
             refreshDocument()
         }
+    }
+
+    // MARK: - Hole position
+
+    /// Where the tool is now, in work X/Y. Fed from the machine status (see `updateCurrentXY`).
+    @Published private(set) var currentXY: SIMD2<Double> = .zero
+
+    /// X/Y typed in by the person, shared by all macros (drill a hole, then thread it).
+    /// `nil`: the fields follow the tool.
+    @Published private var manualXY: SIMD2<Double>? {
+        didSet {
+            refreshDocument()
+        }
+    }
+
+    /// Where the macro goes first, with a G0: what's typed in, else where the tool is.
+    var targetXY: SIMD2<Double> {
+        manualXY ?? currentXY
+    }
+
+    var isXYManual: Bool {
+        manualXY != nil
+    }
+
+    /// The tool moved. The fields (and the G-code) follow it until a value is typed in.
+    func updateCurrentXY(_ xy: SIMD2<Double>) {
+        guard simd_distance(xy, currentXY) > 1e-4 else {
+            return
+        }
+        currentXY = xy
+        if manualXY == nil {
+            refreshDocument()
+        }
+    }
+
+    var xBinding: Binding<Double> {
+        Binding(
+            get: { self.targetXY.x },
+            set: { self.manualXY = SIMD2(Self.rounded($0), self.targetXY.y) }
+        )
+    }
+
+    var yBinding: Binding<Double> {
+        Binding(
+            get: { self.targetXY.y },
+            set: { self.manualXY = SIMD2(self.targetXY.x, Self.rounded($0)) }
+        )
+    }
+
+    /// Back to following the tool.
+    func useCurrentXY() {
+        manualXY = nil
+    }
+
+    /// G-code carries 3 decimals; so do the fields.
+    private static func rounded(_ value: Double) -> Double {
+        (value * 1000).rounded() / 1000
     }
 
     /// The selected macro's generated G-code, in the same document type the
@@ -62,7 +120,10 @@ final class MacroStore: ObservableObject {
     }
 
     func values(for macro: Macro) -> [String: Double] {
-        Dictionary(uniqueKeysWithValues: macro.parameters.map { ($0.id, value($0, in: macro)) })
+        var values = Dictionary(uniqueKeysWithValues: macro.parameters.map { ($0.id, value($0, in: macro)) })
+        values[Macro.xKey] = targetXY.x
+        values[Macro.yKey] = targetXY.y
+        return values
     }
 
     func generate(_ macro: Macro) -> Result<[String], MacroError> {

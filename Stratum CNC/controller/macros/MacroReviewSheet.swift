@@ -97,6 +97,20 @@ struct MacroReviewSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 3) {
+                GridRow {
+                    Text("Rapid to X")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(GCodeNumber.string(store.targetXY.x)) mm")
+                        .font(.caption.monospacedDigit())
+                }
+                GridRow {
+                    Text("Rapid to Y")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("\(GCodeNumber.string(store.targetXY.y)) mm")
+                        .font(.caption.monospacedDigit())
+                }
                 ForEach(macro.parameters) { parameter in
                     GridRow {
                         Text(parameter.label)
@@ -115,7 +129,7 @@ struct MacroReviewSheet: View {
                 }
             }
 
-            Label("It runs from where the tool is now: X and Y stay, Z moves.",
+            Label("It first rapids to X and Y at the tool's current height, then Z moves.",
                   systemImage: "info.circle")
                 .font(.caption)
                 .foregroundStyle(.secondary)

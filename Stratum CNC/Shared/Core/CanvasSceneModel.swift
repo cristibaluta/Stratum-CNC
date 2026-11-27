@@ -341,13 +341,14 @@ class CanvasSceneModel: ObservableObject {
     /// all kept — see `showMacroPreview` / `hideMacroPreview`.
     @Published private(set) var isMacroPreviewActive = false
 
-    /// The macro's parsed segments in its own coordinates (the parser starts at
-    /// X0 Y0), before `macroOrigin` is added.
+    /// The macro's parsed segments. Its G-code is in work coordinates (it opens with a G0 to the
+    /// hole's X/Y), but the parser starts at X0 Y0: `rebuildMacroPreview` moves the start of the
+    /// first segment to `macroStart`.
     private var macroSegments: [ToolpathSegment] = []
 
-    /// Where the macro would run: the tool's current work-coordinate XY. Macros
-    /// work from wherever the tool is, so this follows the machine position.
-    private var macroOrigin: SIMD2<Float> = .zero
+    /// Where the macro starts: the tool's current work-coordinate XY, the point its first rapid
+    /// leaves from. Follows the machine position.
+    private var macroStart: SIMD2<Float> = .zero
 
     /// The program's dotted bounding box, taken off the canvas while a macro
     /// is previewed and put back afterwards.
@@ -357,7 +358,7 @@ class CanvasSceneModel: ObservableObject {
     /// position draws the same part. `nil`: all of it.
     private var macroVisibleCounts: (rapid: Int, cutting: Int)?
 
-    /// The macro's segments where they are drawn (at `macroOrigin`): what its heightmap carves.
+    /// The macro's segments where they are drawn (with the first rapid leaving from `macroStart`): what its heightmap carves.
     private var macroPlacedSegments: [ToolpathSegment] = []
 
     /// Narrows how much of the previewed macro is drawn, like `setToolpathVisibleVertexCounts`
@@ -369,11 +370,6 @@ class CanvasSceneModel: ObservableObject {
         macroVisibleCounts = (rapid, cutting)
         renderObjects.settingVisibleVertexCount(rapid, forRole: .macroRapid)
         renderObjects.settingVisibleVertexCount(cutting, forRole: .macroCutting)
-    }
-
-    /// A point of the macro's path (its own coordinates) where the preview draws it.
-    func macroPlaced(_ point: SIMD3<Float>) -> SIMD3<Float> {
-        point + SIMD3<Float>(macroOrigin.x, macroOrigin.y, 0)
     }
 
     /// The scrubber's path into the heightmap for the previewed macro: carves the stock with
@@ -392,7 +388,7 @@ class CanvasSceneModel: ObservableObject {
                        force: force)
     }
 
-    /// Draws `segments` (a macro's parsed G-code) at the tool position and
+    /// Draws `segments` (a macro's parsed G-code) and
     /// hides the loaded program. Nothing of the program is discarded: its
     /// render objects stay in `renderObjects` with zero visible vertices, so
     /// `hideMacroPreview` is a cheap switch back, not a re-tessellation.
@@ -410,11 +406,11 @@ class CanvasSceneModel: ObservableObject {
     /// Follows the tool: redraws the preview when the tool's XY changed. Returns whether
     /// it did (the macro's heightmap is then out of date too).
     @discardableResult
-    func setMacroOrigin(_ xy: SIMD2<Float>) -> Bool {
-        guard simd_distance(xy, macroOrigin) > 1e-4 else {
+    func setMacroStart(_ xy: SIMD2<Float>) -> Bool {
+        guard simd_distance(xy, macroStart) > 1e-4 else {
             return false
         }
-        macroOrigin = xy
+        macroStart = xy
         if isMacroPreviewActive {
             rebuildMacroPreview()
             return true
@@ -448,12 +444,17 @@ class CanvasSceneModel: ObservableObject {
     }
 
     private func rebuildMacroPreview() {
-        let shift = SIMD3<Float>(macroOrigin.x, macroOrigin.y, 0)
-        let placed = macroSegments.map {
-            ToolpathSegment(start: $0.start + shift,
-                            end: $0.end + shift,
-                            lineNumber: $0.lineNumber,
-                            flags: $0.flags)
+        var placed = macroSegments
+        // The first rapid leaves from the tool, not from the parser's X0 Y0. Only when it moves XY
+        // (a macro already over its hole starts with Z moves). Replaced, not prepended, so the
+        // segment count the scrubber works with stays the same.
+        if let first = placed.first,
+           first.start.x == 0, first.start.y == 0,
+           first.end.x != first.start.x || first.end.y != first.start.y {
+            placed[0] = ToolpathSegment(start: SIMD3<Float>(macroStart.x, macroStart.y, first.start.z),
+                                        end: first.end,
+                                        lineNumber: first.lineNumber,
+                                        flags: first.flags)
         }
         renderObjects.replacing(roles: [.macroRapid, .macroCutting],
                                 with: RenderObject.toolpath(from: placed,
