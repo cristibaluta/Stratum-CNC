@@ -761,6 +761,8 @@ private struct CanvasSection: View {
     /// rounding each event on its own would drop all of it — the scrubber
     /// would either not move at all or only in the odd big jump.
     @State private var scrubRemainder = 0.0
+    /// Bumped when the real stock is in the scene, so the canvas frames it (see `MetalCanvasView.fitRoles`).
+    @State private var initialFitRequest = 0
 
     /// Heightmap quality lives next to the Wireframe/Heightmap switch.
     @State private var isShowingHeightmapQuality = false
@@ -883,7 +885,9 @@ private struct CanvasSection: View {
                             heightmapMesh: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapMesh,
                             heightmapGPU: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapGPURequest,
                             clearColor: viewportClearColor,
-                            zoomModel: scene.zoomModel)
+                            zoomModel: scene.zoomModel,
+                            fitRoles: [.stock],
+                            fitRequest: initialFitRequest)
             .cornerRadius(8)
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
@@ -1022,6 +1026,8 @@ private struct CanvasSection: View {
             // holds `defaultScene()`'s placeholder box, not
             // whatever material the project actually has selected.
             scene.updateStock(camModel.controllerStock)
+            // The canvas may already have framed the placeholder box: frame the real stock now.
+            initialFitRequest &+= 1
             scene.updateToolpath(gCodeModel.document.toolpathSegments)
             refreshBoundingBox()
             gCodeModel.scrubLine = gCodeModel.document.lines.count

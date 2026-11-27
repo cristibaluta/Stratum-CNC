@@ -211,6 +211,9 @@ struct MetalCanvasView: STViewRepresentable {
     var startsTopDown = false
 
     var adaptiveModelFit = false
+    /// For a canvas without `adaptiveModelFit` (the controller): the roles its first fit frames,
+    /// e.g. `[.stock]`. Empty (the default) never fits and leaves the camera where it starts.
+    var fitRoles: Set<RenderRole> = []
     var fitRequest = 0
     /// What the panels over the canvas cover; a fit centres the model in the rest.
     var fitInsets = CanvasFitInsets()
@@ -247,6 +250,9 @@ struct MetalCanvasView: STViewRepresentable {
         context.coordinator.renderer = renderer
         mtkView.delegate = renderer
         renderer.adaptiveModelFit = adaptiveModelFit
+        if !adaptiveModelFit {
+            renderer.fitIncludedRoles = fitRoles
+        }
 
         if adaptiveModelFit {
             // Fit only the imported object: not the stock and everything else

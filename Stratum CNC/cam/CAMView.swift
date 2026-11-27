@@ -43,9 +43,27 @@ struct CAMView: View {
     @State private var editingObjectID: UUID?
     /// How tall the legend (bottom-left) is right now; the left panels' scroll stops above it.
     @State private var legendHeight: CGFloat = 0
-    /// The widths of the panels over the canvas, so a fit centres the model in the free area between them
-    @State private var leftPanelsWidth: CGFloat = 292
-    @State private var rightPanelsWidth: CGFloat = 352
+    /// Fixed widths of the panels over the canvas (each includes its 16 pt of padding), so a fit
+    /// can centre the model in the free area between them without measuring anything.
+    private enum PanelWidth {
+        /// The project panel, top-left (its content is 260 wide)
+        static let project: CGFloat = 292
+        /// The setup details and the object properties, top-right
+        static let details: CGFloat = 292 + 32
+        /// The toolpath settings, top-right
+        static let toolpathSettings: CGFloat = 320 + 32
+        /// The toolpath preview, left of the settings, and the gap between them
+        static let toolpathPreview: CGFloat = 260
+        static let gap: CGFloat = 8
+    }
+
+    /// What the panels cover on the right: the stock/setup/object panel, or the toolpath's
+    /// preview and settings.
+    private var rightPanelsWidth: CGFloat {
+        selectedToolpath == nil
+            ? PanelWidth.details
+            : PanelWidth.toolpathPreview + PanelWidth.gap + PanelWidth.toolpathSettings
+    }
 
     /// The mouse-icon button opens the Settings window on its Canvas tab, which
     /// edits the same `CanvasInputSettings.shared` as the controller's canvas —
@@ -157,7 +175,7 @@ struct CAMView: View {
                            addToolpathShapeCount: camModel.shapesForNewToolpath.count,
                            canAddToolpathFromEdges: camModel.selectedToolpathID == nil,
                            fitRequest: fitRequest,
-                           fitInsets: CanvasFitInsets(left: leftPanelsWidth, right: rightPanelsWidth,
+                           fitInsets: CanvasFitInsets(left: PanelWidth.project, right: rightPanelsWidth,
                                                       top: 16, bottom: 16),
                            skipsFlip: { camModel.skipsFlipAnimation },
                            // A selected 2D object wins, like in the objects list
@@ -251,15 +269,10 @@ struct CAMView: View {
                                             summary: projectSummary)
                         }
                     }
-                    .frame(minWidth: 200, maxWidth: 260)
+                    .frame(width: PanelWidth.project - 32)
                     .padding(16)
                 }
-                .frame(minWidth: 232, maxWidth: 292)
-                .onGeometryChange(for: CGFloat.self) {
-                    $0.size.width
-                } action: {
-                    leftPanelsWidth = $0
-                }
+                .frame(width: PanelWidth.project)
                 // The legend's own bottom margin (16) and its height
                 .padding(.bottom, legendHeight + 16)
                 .frame(maxHeight: .infinity, alignment: .top)
@@ -273,27 +286,28 @@ struct CAMView: View {
                 // a toolpath's settings are open (the column can then be taller than the window).
                 // Without it the stock panel is all there is, and the empty space under it
                 // passes clicks and scrolls to the canvas.
-                if let toolpath = selectedToolpath {
-                    // The preview is not part of the scrolling column: always in view, top-left
-                    // of the settings, so a change can be checked without scrolling to it.
-                    toolpathPreviewPanel(for: toolpath)
-                        .frame(width: 260)
-                        .padding(.top, 16)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                    ScrollView(.vertical, showsIndicators: true) {
-                        rightPanels
-                    }
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                } else {
-                    rightPanels
-                        .fixedSize(horizontal: true, vertical: false)
-                        .onGeometryChange(for: CGFloat.self) {
-                            $0.size.width
-                        } action: {
-                            rightPanelsWidth = $0
+                // Everything on the right, measured as one: what the fit leaves free on that side
+                // is the width of all of it (the toolpath's preview and settings too, not just
+                // the stock panel).
+                HStack(alignment: .top) {
+                    if let toolpath = selectedToolpath {
+                        // The preview is not part of the scrolling column: always in view, top-left
+                        // of the settings, so a change can be checked without scrolling to it.
+                        toolpathPreviewPanel(for: toolpath)
+                            .frame(width: PanelWidth.toolpathPreview)
+                            .padding(.top, 16)
+                            .frame(maxHeight: .infinity, alignment: .top)
+                        ScrollView(.vertical, showsIndicators: true) {
+                            rightPanels
                         }
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                    } else {
+                        rightPanels
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
 
             // The canvas's objects list (and the Z0 projections option): only what this
@@ -369,7 +383,7 @@ struct CAMView: View {
                                   onRename: { name in
                                       camModel.renameSetup(setup.id, to: name)
                                   })
-                .frame(width: leftPanelsWidth)
+                .frame(width: PanelWidth.details - 32)
             } else if editingObjectID != nil, selectedToolpath == nil {
                 objectPropertiesPanel
             }
@@ -377,7 +391,7 @@ struct CAMView: View {
             if let toolpath = selectedToolpath {
                 toolpathSettingsPanel(for: toolpath)
                 .transition(.opacity)
-                .frame(width: 320)
+                .frame(width: PanelWidth.toolpathSettings - 32)
             }
         }
         .padding(16)
@@ -616,7 +630,7 @@ struct CAMView: View {
                 editingObjectID = nil
             }
         )
-        .frame(width: leftPanelsWidth)
+        .frame(width: PanelWidth.details - 32)
     }
 
     private var stepModelItems: [STEPModelItem] {

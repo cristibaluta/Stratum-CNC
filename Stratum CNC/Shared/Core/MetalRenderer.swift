@@ -191,15 +191,32 @@ class MetalRenderer: NSObject {
 
     var camera = Camera()
     var adaptiveModelFit = false
-    /// What the panels over the canvas cover: the first fit (and "Fit to view") centres the model in
-    /// the rest. Set by `MetalCanvasView`.
+    /// What the panels over the canvas cover: a fit centres the model in the rest. Set by `MetalCanvasView`.
     var fitInsets = CanvasFitInsets()
     /// Only the very first fit follows Settings ▸ CAM ▸ initial zoom; later ones always fit.
     private var isFirstFit = true
 
     func requestFit() {
+        // Only the very first fit follows the initial-zoom setting; a request after it always fits
+        if hasFittedInitialContent {
+            isFirstFit = false
+        }
         hasFittedInitialContent = false
+        autoFit = nil
     }
+
+    /// What the last automatic fit left behind: the camera it set, what it framed (see
+    /// `fitContentSignature`) and the view's size. While the camera is still exactly like this the
+    /// person hasn't touched it, so a model that is still arriving or a view that is still being
+    /// laid out gets framed again instead of being left off-centre.
+    private struct AutoFit {
+        var target: SIMD3<Float>
+        var distance: Float
+        var orientation: simd_quatf
+        var content: Int
+        var size: CGSize
+    }
+    private var autoFit: AutoFit?
 
     private var renderBatches: [RenderBatch] = []
 
@@ -719,10 +736,11 @@ class MetalRenderer: NSObject {
                                         bottomZ: mesh.bottomZ)
     }
 
-    /// Centers and zooms the camera to frame everything currently in
-    /// `lastObjects`, with some breathing room around it. Only ever runs
-    /// once per `MetalRenderer` instance (i.e. once per time the canvas
-    /// appears) — after that the person's own pan/zoom takes over.
+    /// Centers and zooms the camera to frame the `fitIncludedRoles` objects currently in
+    /// `lastObjects` (the model, or the controller's stock) in the area the panels leave
+    /// free, with some breathing room around it. Waits until they exist, and keeps framing them again while the
+    /// camera is untouched and the model or the view's size is still changing (see `AutoFit`) —
+    /// once the person pans, zooms or orbits, their own view takes over.
     ///
     /// Called from `draw(in:)` rather than `drawableSizeWillChange` because
     /// that callback fires *before* the new size takes effect — reading
@@ -733,35 +751,65 @@ class MetalRenderer: NSObject {
     /// regardless of whether geometry or layout arrives first.
     private func attemptInitialFit(viewSize: CGSize,
                                    pointSize: CGSize,
-                                   truePointsPerMM: Float,
-                                   padding: Float = 1.3) {
-        guard !hasFittedInitialContent else {
-            return
-        }
+                                   truePointsPerMM: Float) {
         guard viewSize.width > 0, viewSize.height > 0, pointSize.width > 0, pointSize.height > 0 else {
             return
         }
+        // Wait for the model: nothing to frame until the roles to fit are on the canvas
         guard let extents = contentExtents(of: lastObjects) else {
             return
         }
+        let content = fitContentSignature()
 
+        if hasFittedInitialContent {
+            // Already framed. Frame again only if the person hasn't touched the camera since and
+            // the model has changed (more of it arrived) or the view was resized meanwhile.
+            guard let last = autoFit,
+                  camera.target == last.target,
+                  camera.distance == last.distance,
+                  camera.orientation.vector == last.orientation.vector,
+                  content != last.content || pointSize != last.size else {
+                return
+            }
+        }
+
+        // The model is centred in what the panels over the canvas leave free (`fitInsets`)
+        let insets = fitInsets
         if adaptiveModelFit {
-            // CAM: as large as the free area between the panels allows, or true to life, centred there
+            // CAM: as large as that area allows, or true to life, centred there
             let trueToLife = isFirstFit && CanvasInitialZoom.current == .trueToLife
             camera.fit(extents,
                        viewSize: pointSize,
-                       insets: fitInsets,
+                       insets: insets,
                        scale: trueToLife ? truePointsPerMM : nil,
                        adaptive: true)
         } else {
-            let center = (extents.min + extents.max) * 0.5
-            let radius = max(simd_length(extents.max - extents.min) * 0.5, 0.001)
-            let aspect = Float(viewSize.width / viewSize.height)
-            camera.fit(center: center, radius: radius, aspect: aspect, padding: padding, adaptive: false)
+            // The controller: the roles in `fitIncludedRoles` (the stock) as large as the view
+            // allows. Keeps the camera's historic zoom limits (`adaptive: false`).
+            camera.fit(extents, viewSize: pointSize, insets: insets, adaptive: false)
         }
 
         hasFittedInitialContent = true
-        isFirstFit = false
+        autoFit = AutoFit(target: camera.target,
+                          distance: camera.distance,
+                          orientation: camera.orientation,
+                          content: content,
+                          size: pointSize)
+    }
+
+    /// Identifies what the fit frames (which objects, how much geometry in each), to tell
+    /// "the model changed" from "the same model".
+    private func fitContentSignature() -> Int {
+        var hasher = Hasher()
+        for object in lastObjects {
+            guard let role = object.role, fitIncludedRoles.contains(role) else {
+                continue
+            }
+            hasher.combine(object.id)
+            hasher.combine(object.points.count)
+            hasher.combine(object.solidTriangles.count)
+        }
+        return hasher.finalize()
     }
 
     /// Bounding sphere (center + radius) of every point across `objects`,
