@@ -26,6 +26,22 @@ struct MacroError: LocalizedError, Sendable {
     }
 }
 
+/// One thing the person must confirm before a macro runs.
+struct MacroCheck: Hashable, Sendable {
+    let text: String
+    /// Adds a "Probe…" button to the item, for what only probing can set.
+    var offersProbe = false
+
+    /// What every macro asks, unless it has its own list: the tool, Z (probing sets the tool
+    /// length and Z0 together) and where the hole is.
+    static let standard: [MacroCheck] = [
+        MacroCheck(text: "The tool is fitted and clamped"),
+        MacroCheck(text: "Z is probed: the tool length is known and Z0 is the top of the stock",
+                   offersProbe: true),
+        MacroCheck(text: "The centre of the hole is at the X/Y shown in the macro")
+    ]
+}
+
 /// One entry of a macro's preset picker: picking it sets these parameters (keyed by
 /// `MacroParameter.id`) at once. The parameters stay editable; the picker just shows the preset
 /// the values match, or "Custom".
@@ -44,8 +60,8 @@ struct Macro: Identifiable, Sendable {
     /// Parameter values (keyed by `MacroParameter.id`) in, G-code lines out.
     let generate: @Sendable ([String: Double]) -> Result<[String], MacroError>
     /// What the person must confirm, one tick each, before "Review & Start" lets the macro run.
-    /// Empty: nothing to confirm.
-    var checklist: [String] = []
+    /// The same for every macro unless it sets its own. Empty: nothing to confirm.
+    var checklist: [MacroCheck] = MacroCheck.standard
     /// Label of the preset picker above the parameters.
     var presetLabel: String = "Preset"
     /// Empty: no picker.
@@ -162,15 +178,7 @@ extension Macro {
                 lines.append("M5")
             }
             return .success(lines)
-        },
-        checklist: [
-            "The drill bit is fitted and clamped, and its length is set",
-            "Z0 is set to the top of the stock (the work surface)",
-            "The centre of the hole is at the X/Y shown in the macro",
-            "The tool is above the stock and clear of clamps (a position that was set is reached with a rapid at the current height)",
-            "The stock is clamped, with nothing under the hole the drill must not touch",
-            "The door is closed and I'm ready for the spindle to start"
-        ]
+        }
     )
 
     /// Internal right-hand thread, single-point helical thread milling at the tool's X/Y (the hole

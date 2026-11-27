@@ -147,27 +147,49 @@ struct MacroReviewSheet: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             ForEach(Array(macro.checklist.enumerated()), id: \.offset) { index, item in
-                // A button rather than a Toggle: the checkbox style is macOS-only
-                Button {
-                    if checked.contains(index) {
-                        checked.remove(index)
-                    } else {
-                        checked.insert(index)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    // A button rather than a Toggle: the checkbox style is macOS-only
+                    Button {
+                        if checked.contains(index) {
+                            checked.remove(index)
+                        } else {
+                            checked.insert(index)
+                        }
+                    } label: {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: checked.contains(index) ? "checkmark.square.fill" : "square")
+                                .foregroundStyle(checked.contains(index) ? Color.green : Color.secondary)
+                            Text(item.text)
+                                .font(.callout)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
                     }
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: checked.contains(index) ? "checkmark.square.fill" : "square")
-                            .foregroundStyle(checked.contains(index) ? Color.green : Color.secondary)
-                        Text(item)
-                            .font(.callout)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
+                    .buttonStyle(.plain)
+
+                    if item.offersProbe {
+                        Button {
+                            openProbe()
+                        } label: {
+                            Label("Probe…", systemImage: "dot.viewfinder")
+                        }
+                        .controlSize(.small)
+                        .help("Close this review and open the 3D Probe. Open Review & Start again afterwards")
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
             }
+        }
+    }
+
+    /// The probe is a sheet of its own, and two can't be up at once: this one closes first, so the
+    /// ticks start empty again when the review is reopened.
+    private func openProbe() {
+        dismiss()
+        let model = model
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            model.isShowingProbe = true
         }
     }
 
