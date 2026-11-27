@@ -122,7 +122,7 @@ struct ControllerView: View {
 
         scene.updateTool(gCodeModel.spindleTool)
         if let last = document.toolpathSegments(upTo: line).last {
-            scene.updateToolPosition(last.end)
+            scene.updateToolPosition(scene.macroPlaced(last.end))
         }
         refreshMacroHeightmap(macros: macros, gCodeModel: gCodeModel, camModel: camModel,
                               scene: scene, force: forceHeightmap)
@@ -859,7 +859,7 @@ private struct CanvasSection: View {
     /// times; the program is only hidden, never reloaded or re-parsed.
     private func syncMacroPreview() {
         if showsMacroPreview, macros.selectedMacro != nil {
-            scene.showMacroPreview(macroDocument.toolpathSegments)
+            scene.showMacroPreview(macroDocument.toolpathSegments, goesToPosition: macros.isXYManual)
             // Draws the macro up to its scrubber, with the cutter and the carved stock
             scrubActive(to: macros.scrubLine, forceHeightmap: true)
         } else {
@@ -966,8 +966,8 @@ private struct CanvasSection: View {
                 ToolPositionSync(connection: connection, workOrigin: scene.workOrigin) { point in
                     scene.updateTool(gCodeModel.spindleTool)
                     scene.updateToolPosition(point)
-                    // The macro's X/Y fields follow the tool until a value is typed in. Not while a
-                    // job runs: the G-code shown (and being run) must not change under it.
+                    // The macro's X/Y fields show the tool's position while "Go to position" is off.
+                    // Not while a job runs: what the fields show must not change under it.
                     if let status = connection.status, !status.isBusy {
                         macros.updateCurrentXY(SIMD2(Double(status.workPosition.x), Double(status.workPosition.y)))
                     }
@@ -1110,6 +1110,9 @@ private struct CanvasSection: View {
             syncMacroPreview()
         }
         .onChange(of: macros.selectedMacroID) { _, _ in
+            syncMacroPreview()
+        }
+        .onChange(of: macros.isXYManual) { _, _ in
             syncMacroPreview()
         }
         .onChange(of: macroDocument.toolpathSegments) { _, _ in

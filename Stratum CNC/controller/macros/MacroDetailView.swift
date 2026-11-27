@@ -13,6 +13,12 @@ struct MacroDetailView: View {
     @ObservedObject var store: MacroStore
     let macro: Macro
 
+    /// Dot for decimals and no grouping (10000, not 10.000), whatever the system's region is:
+    /// the numbers are G-code values.
+    private static let numberFormat = FloatingPointFormatStyle<Double>.number
+        .grouping(.never)
+        .locale(Locale(identifier: "en_US"))
+
     var body: some View {
         let result = store.generate(macro)
 
@@ -36,6 +42,11 @@ struct MacroDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 4) {
+                GridRow {
+                    Toggle("Go to position", isOn: store.goToPositionBinding)
+                        .font(.caption)
+                        .gridCellColumns(3)
+                }
                 positionRow("X", binding: store.xBinding)
                 positionRow("Y", binding: store.yBinding)
 
@@ -48,7 +59,7 @@ struct MacroDetailView: View {
                         Text(parameter.label)
                             .font(.caption)
                             .lineLimit(1)
-                        TextField("", value: store.binding(parameter, in: macro), format: .number)
+                        TextField("", value: store.binding(parameter, in: macro), format: Self.numberFormat)
                             .textFieldStyle(.roundedBorder)
                             .multilineTextAlignment(.trailing)
                             .frame(width: 70)
@@ -61,7 +72,7 @@ struct MacroDetailView: View {
 
             Text(store.isXYManual
                  ? "The macro starts with a rapid (G0) to X/Y."
-                 : "X/Y follow the tool. Type a value to go there instead.")
+                 : "Runs where the tool is now (X/Y shown). Tick Go to position to enter another.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -104,32 +115,20 @@ struct MacroDetailView: View {
         }
     }
 
-    /// X or Y of the hole. Shows the tool's position until a value is typed in; the button next to
-    /// it goes back to following the tool.
+    /// X or Y of the hole. Shows the tool's position, and can only be edited with "Go to position".
     private func positionRow(_ axis: String, binding: Binding<Double>) -> some View {
         GridRow {
             Text("Position \(axis)")
                 .font(.caption)
                 .lineLimit(1)
-            TextField("", value: binding, format: .number)
+            TextField("", value: binding, format: Self.numberFormat)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 70)
-            HStack(spacing: 4) {
-                Text("mm")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                if axis == "Y" {
-                    Button {
-                        store.useCurrentXY()
-                    } label: {
-                        Image(systemName: "scope")
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(!store.isXYManual)
-                    .help("Use the tool's current position")
-                }
-            }
+                .disabled(!store.isXYManual)
+            Text("mm")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 }

@@ -39,32 +39,41 @@ final class MacroStore: ObservableObject {
     /// Where the tool is now, in work X/Y. Fed from the machine status (see `updateCurrentXY`).
     @Published private(set) var currentXY: SIMD2<Double> = .zero
 
-    /// X/Y typed in by the person, shared by all macros (drill a hole, then thread it).
-    /// `nil`: the fields follow the tool.
+    /// "Go to position" is ticked: the X/Y typed in, shared by all macros (drill a hole, then
+    /// thread it). `nil`: not ticked, the macros run where the tool is and the fields only show it.
     @Published private var manualXY: SIMD2<Double>? {
         didSet {
             refreshDocument()
         }
     }
 
-    /// Where the macro goes first, with a G0: what's typed in, else where the tool is.
+    /// What the fields show: the position set, else where the tool is.
     var targetXY: SIMD2<Double> {
         manualXY ?? currentXY
     }
 
+    /// "Go to position" is ticked: the macro opens with a G0 to the X/Y in the fields, which can
+    /// be edited. Otherwise the fields show the tool's position, can't be edited, and the G-code
+    /// has no X/Y move.
     var isXYManual: Bool {
         manualXY != nil
     }
 
-    /// The tool moved. The fields (and the G-code) follow it until a value is typed in.
+    /// The tool moved. The fields follow it while "Go to position" is off; the G-code doesn't
+    /// depend on it then, so it isn't regenerated.
     func updateCurrentXY(_ xy: SIMD2<Double>) {
         guard simd_distance(xy, currentXY) > 1e-4 else {
             return
         }
         currentXY = xy
-        if manualXY == nil {
-            refreshDocument()
-        }
+    }
+
+    /// The "Go to position" checkbox. Ticking it starts from the tool's position.
+    var goToPositionBinding: Binding<Bool> {
+        Binding(
+            get: { self.isXYManual },
+            set: { self.manualXY = $0 ? self.currentXY : nil }
+        )
     }
 
     var xBinding: Binding<Double> {
@@ -79,11 +88,6 @@ final class MacroStore: ObservableObject {
             get: { self.targetXY.y },
             set: { self.manualXY = SIMD2(self.targetXY.x, Self.rounded($0)) }
         )
-    }
-
-    /// Back to following the tool.
-    func useCurrentXY() {
-        manualXY = nil
     }
 
     /// G-code carries 3 decimals; so do the fields.
@@ -121,8 +125,11 @@ final class MacroStore: ObservableObject {
 
     func values(for macro: Macro) -> [String: Double] {
         var values = Dictionary(uniqueKeysWithValues: macro.parameters.map { ($0.id, value($0, in: macro)) })
-        values[Macro.xKey] = targetXY.x
-        values[Macro.yKey] = targetXY.y
+        // Only with "Go to position": without these the macro has no X/Y move
+        if let manualXY {
+            values[Macro.xKey] = manualXY.x
+            values[Macro.yKey] = manualXY.y
+        }
         return values
     }
 

@@ -97,19 +97,21 @@ struct MacroReviewSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 3) {
-                GridRow {
-                    Text("Rapid to X")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("\(GCodeNumber.string(store.targetXY.x)) mm")
-                        .font(.caption.monospacedDigit())
-                }
-                GridRow {
-                    Text("Rapid to Y")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("\(GCodeNumber.string(store.targetXY.y)) mm")
-                        .font(.caption.monospacedDigit())
+                if store.isXYManual {
+                    GridRow {
+                        Text("Rapid to X")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("\(GCodeNumber.string(store.targetXY.x)) mm")
+                            .font(.caption.monospacedDigit())
+                    }
+                    GridRow {
+                        Text("Rapid to Y")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("\(GCodeNumber.string(store.targetXY.y)) mm")
+                            .font(.caption.monospacedDigit())
+                    }
                 }
                 ForEach(macro.parameters) { parameter in
                     GridRow {
@@ -129,7 +131,9 @@ struct MacroReviewSheet: View {
                 }
             }
 
-            Label("It first rapids to X and Y at the tool's current height, then Z moves.",
+            Label(store.isXYManual
+                  ? "It first rapids to X and Y at the tool's current height, then Z moves."
+                  : "It runs from where the tool is now: X and Y stay, Z moves.",
                   systemImage: "info.circle")
                 .font(.caption)
                 .foregroundStyle(.secondary)

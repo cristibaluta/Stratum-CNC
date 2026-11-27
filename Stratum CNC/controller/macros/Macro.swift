@@ -65,11 +65,15 @@ private func n(_ value: Double) -> String {
     GCodeNumber.string(value)
 }
 
-/// First move of every macro: a rapid to the hole's X/Y, in work coordinates. `MacroStore` adds the
-/// position to the parameter values under `Macro.xKey` / `Macro.yKey` (the fields start out as the
-/// tool's current position, so by default this move goes nowhere).
-private func rapidToHole(_ values: [String: Double]) -> String {
-    "G0 X\(n(values[Macro.xKey] ?? 0)) Y\(n(values[Macro.yKey] ?? 0))"
+/// First move of a macro that was given a position: a rapid to the hole's X/Y, in work
+/// coordinates. `MacroStore` adds the position to the parameter values under `Macro.xKey` /
+/// `Macro.yKey` only when "Go to position" is ticked. Without it there is no move: the macro runs
+/// where the tool is.
+private func rapidToHole(_ values: [String: Double]) -> String? {
+    guard let x = values[Macro.xKey], let y = values[Macro.yKey] else {
+        return nil
+    }
+    return "G0 X\(n(x)) Y\(n(y))"
 }
 
 // MARK: - Built-in macros
@@ -83,13 +87,13 @@ extension Macro {
 
     static let builtIn: [Macro] = [peckDrilling, threadMill]
 
-    /// Drills at X/Y (the tool's position unless typed in). Z0 is the work surface. Every peck goes
+    /// Drills at the tool's X/Y, or at the position set. Z0 is the work surface. Every peck goes
     /// down by `peck`, then retracts fully to clear the chips, rapids back to
     /// just above the previous depth and continues at feed.
     static let peckDrilling = Macro(
         id: "peck-drilling",
         name: "Peck Drilling",
-        summary: "Drills at X/Y (Z0 = work surface). Retracts fully after each peck to clear chips.",
+        summary: "Drills at the tool's X/Y, or at the position set (Z0 = work surface). Retracts fully after each peck to clear chips.",
         systemImage: "arrow.down.to.line",
         parameters: [
             .init(id: "depth", label: "Hole depth", unit: "mm", defaultValue: 5),
@@ -133,9 +137,11 @@ extension Macro {
                 "(Peck drilling: depth \(n(depth)), peck \(n(peck)))",
                 "G21",
                 "G90",
-                "G94",
-                rapidToHole(values)
+                "G94"
             ]
+            if let move = rapidToHole(values) {
+                lines.append(move)
+            }
             if rpm > 0 {
                 lines.append("M3 S\(Int(rpm))")
             }
@@ -160,15 +166,15 @@ extension Macro {
         checklist: [
             "The drill bit is fitted and clamped, and its length is set",
             "Z0 is set to the top of the stock (the work surface)",
-            "X and Y are the centre of the hole",
-            "The tool is above the stock and clear of clamps (it rapids to X/Y at its current height)",
+            "The centre of the hole is at the X/Y shown in the macro",
+            "The tool is above the stock and clear of clamps (a position that was set is reached with a rapid at the current height)",
             "The stock is clamped, with nothing under the hole the drill must not touch",
             "The door is closed and I'm ready for the spindle to start"
         ]
     )
 
-    /// Internal right-hand thread, single-point helical thread milling at X/Y (the hole
-    /// centre; the tool's position unless typed in), Z0 = work surface. The thread comes from the
+    /// Internal right-hand thread, single-point helical thread milling at the tool's X/Y (the hole
+    /// centre) or at the position set, Z0 = work surface. The thread comes from the
     /// standard-thread picker (the same list as the CAM thread mill operation) or from the
     /// diameter and pitch typed in.
     /// Climb milling: spindle CW (M3) + CCW helix (G3) climbing from the
@@ -178,12 +184,12 @@ extension Macro {
     /// first just touches the pre-drilled hole (diameter - pitch), the last lands exactly on the
     /// thread diameter. Every lap is a full climb from the bottom.
     ///
-    /// Everything after the rapid to X/Y is relative in XY (G91) from the hole
-    /// centre; Z moves are absolute (G90).
+    /// Everything in XY is relative (G91) from the hole centre, wherever the tool is (or the
+    /// rapid to the position set put it); Z moves are absolute (G90).
     static let threadMill = Macro(
         id: "thread-mill",
         name: "Thread Mill",
-        summary: "Internal, right-hand. Pre-drill the hole to about diameter − pitch (M1.6: ⌀1.25 mm). X/Y is the hole centre, Z0 = surface.",
+        summary: "Internal, right-hand. Pre-drill the hole to about diameter − pitch (M1.6: ⌀1.25 mm). Runs at the tool's X/Y (the hole centre), or at the position set. Z0 = surface.",
         systemImage: "screwdriver",
         parameters: [
             .init(id: "major", label: "Thread diameter", unit: "mm", defaultValue: 1.6),
@@ -249,9 +255,11 @@ extension Macro {
                 "(Thread mill M\(n(major))x\(n(pitch)) internal RH, length \(n(depth)), cutter \(n(cutter)), \(passes) pass\(passes == 1 ? "" : "es"))",
                 "G21",
                 "G90",
-                "G94",
-                rapidToHole(values)
+                "G94"
             ]
+            if let move = rapidToHole(values) {
+                lines.append(move)
+            }
             if rpm > 0 {
                 lines.append("M3 S\(Int(rpm))")
             }
