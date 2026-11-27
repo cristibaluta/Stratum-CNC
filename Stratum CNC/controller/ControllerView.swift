@@ -95,8 +95,50 @@ struct ControllerView: View {
         )
     }
 
+    /// A line picked in the G-code table: moves the scrubber of whatever the table shows.
     private func scrubTo(line: Int) {
-        Self.scrubTo(line: line, gCodeModel: gCodeModel, camModel: camModel, scene: model.scene, forceHeightmap: true)
+        if model.gcodePanelMode == .macros {
+            Self.scrubMacro(line: line, macros: model.macros, gCodeModel: gCodeModel, camModel: camModel,
+                            scene: model.scene, forceHeightmap: true)
+        } else {
+            Self.scrubTo(line: line, gCodeModel: gCodeModel, camModel: camModel, scene: model.scene, forceHeightmap: true)
+        }
+    }
+
+    /// The macro's scrubber, like `scrubTo` is the program's: draws the macro's path up to
+    /// `line`, puts the cutter where that line ends and carves the heightmap with it.
+    fileprivate static func scrubMacro(line: Int,
+                                       macros: MacroStore,
+                                       gCodeModel: GCodeStore,
+                                       camModel: CAMModel,
+                                       scene: CanvasSceneModel,
+                                       forceHeightmap: Bool) {
+        let document = macros.document
+        let line = max(0, min(document.lines.count, line))
+        macros.scrubLine = line
+
+        let counts = document.toolpathVertexCounts(upTo: line)
+        scene.setMacroVisibleVertexCounts(rapid: counts.rapid, cutting: counts.cutting)
+
+        scene.updateTool(gCodeModel.spindleTool)
+        if let last = document.toolpathSegments(upTo: line).last {
+            scene.updateToolPosition(scene.macroPlaced(last.end))
+        }
+        refreshMacroHeightmap(macros: macros, gCodeModel: gCodeModel, camModel: camModel,
+                              scene: scene, force: forceHeightmap)
+    }
+
+    /// Carves the stock with the macro up to its scrubber, with the tool in the spindle.
+    fileprivate static func refreshMacroHeightmap(macros: MacroStore,
+                                                  gCodeModel: GCodeStore,
+                                                  camModel: CAMModel,
+                                                  scene: CanvasSceneModel,
+                                                  force: Bool) {
+        let document = macros.document
+        scene.scrubMacroHeightmap(stock: camModel.controllerStock,
+                                  segmentCount: document.toolpathSegments(upTo: macros.scrubLine).count,
+                                  tools: .single(gCodeModel.spindleTool?.geometry),
+                                  force: force)
     }
 
     fileprivate static func scrubTo(line: Int,
@@ -254,6 +296,9 @@ struct ControllerView: View {
         }
         .sheet(isPresented: $model.isShowingRunReview) {
             MachiningRunSheet(model: model, gCodeModel: gCodeModel, camModel: camModel, connection: model.connection)
+        }
+        .sheet(isPresented: $model.isShowingMacroReview) {
+            MacroReviewSheet(model: model, store: model.macros, connection: model.connection)
         }
         .sheet(isPresented: $model.isShowingBitChange) {
             BitChangeSheet(model: model, gCodeModel: gCodeModel, connection: model.connection)
@@ -465,12 +510,11 @@ struct ControllerView: View {
                         connection: model.connection,
                         macros: model.macros,
                         mode: model.gcodePanelMode,
-                        onRunMacro: { model.startJob(lines: $0) },
                         highlightedLine: gCodeModel.scrubLine,
                         onLineSelected: scrubTo,
                         onPlay: {
                             if model.connection.isConnected {
-                                model.isShowingRunReview = true
+                                model.showRunReview()
                             } else {
                                 model.isShowingMachinePicker = true
                             }
@@ -774,19 +818,30 @@ private struct CanvasSection: View {
     /// has, so this is as fine as scrubbing goes.
     private static let linesPerScrollUnit = 1.0
 
+    /// What the scrubber moves through: the previewed macro on the MACROS tab, the program otherwise.
+    private var scrubDocument: NCFileDocument {
+        showsMacroPreview ? macroDocument : gCodeModel.document
+    }
+
+    private func scrubActive(to line: Int, forceHeightmap: Bool) {
+        if showsMacroPreview {
+            ControllerView.scrubMacro(line: line, macros: macros, gCodeModel: gCodeModel, camModel: camModel,
+                                      scene: scene, forceHeightmap: forceHeightmap)
+        } else {
+            ControllerView.scrubTo(line: line, gCodeModel: gCodeModel, camModel: camModel,
+                                   scene: scene, forceHeightmap: forceHeightmap)
+        }
+    }
+
     private var scrubBinding: Binding<Double> {
         Binding(
-            get: { Double(gCodeModel.scrubLine) },
+            get: { Double(showsMacroPreview ? macros.scrubLine : gCodeModel.scrubLine) },
             set: { newValue in
                 // A slider drag fires many ticks a second — `forceHeightmap:
                 // false` lets `CanvasSceneModel.scrubHeightmap` throttle the
                 // actual recarves. `onEditingChanged` below forces one final
                 // exact recarve once the drag ends.
-                ControllerView.scrubTo(line: newValue.roundedInt,
-                                       gCodeModel: gCodeModel,
-                                       camModel: camModel,
-                                       scene: scene,
-                                       forceHeightmap: false)
+                scrubActive(to: newValue.roundedInt, forceHeightmap: false)
             }
         )
     }
@@ -805,13 +860,25 @@ private struct CanvasSection: View {
     private func syncMacroPreview() {
         if showsMacroPreview, macros.selectedMacro != nil {
             scene.showMacroPreview(macroDocument.toolpathSegments)
+            // Draws the macro up to its scrubber, with the cutter and the carved stock
+            scrubActive(to: macros.scrubLine, forceHeightmap: true)
         } else {
+            let wasPreviewing = scene.isMacroPreviewActive
             let counts = gCodeModel.document.toolpathVertexCounts(upTo: gCodeModel.scrubLine)
             scene.hideMacroPreview(restoringProgramVertexCounts: counts)
+            if wasPreviewing {
+                // The surface was carved with the macro: carve the program again
+                forceHeightmapRefresh()
+            }
         }
     }
 
     private func forceHeightmapRefresh() {
+        if showsMacroPreview, scene.isMacroPreviewActive {
+            ControllerView.refreshMacroHeightmap(macros: macros, gCodeModel: gCodeModel,
+                                                 camModel: camModel, scene: scene, force: true)
+            return
+        }
         scene.scrubHeightmap(stock: camModel.controllerStock,
                              document: gCodeModel.document,
                              line: gCodeModel.scrubLine,
@@ -820,8 +887,8 @@ private struct CanvasSection: View {
     }
 
     private func handleScrubScroll(_ event: CanvasScrollEvent) {
-        let totalLines = gCodeModel.document.lines.count
-        guard totalLines > 0, !scene.isMacroPreviewActive else {
+        let totalLines = scrubDocument.lines.count
+        guard totalLines > 0 else {
             return
         }
 
@@ -864,15 +931,11 @@ private struct CanvasSection: View {
         }
         scrubRemainder -= whole
 
-        let newLine = gCodeModel.scrubLine + Int(whole)
+        let newLine = (showsMacroPreview ? macros.scrubLine : gCodeModel.scrubLine) + Int(whole)
         // Like the drag binding above: a two-finger swipe can fire a burst
         // of these in quick succession, so this rides the same throttle
         // rather than forcing an exact recarve on every notch.
-        ControllerView.scrubTo(line: max(0, min(totalLines, newLine)),
-                               gCodeModel: gCodeModel,
-                               camModel: camModel,
-                               scene: scene,
-                               forceHeightmap: false)
+        scrubActive(to: max(0, min(totalLines, newLine)), forceHeightmap: false)
     }
 
     var body: some View {
@@ -882,8 +945,8 @@ private struct CanvasSection: View {
                             xyOffset: scene.xyOffset,
                             anchorOrigin: scene.machineLayout.activeAnchor,
                             stockColor: scene.stockColor,
-                            heightmapMesh: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapMesh,
-                            heightmapGPU: scene.isMacroPreviewActive ? nil : scene.visibleHeightmapGPURequest,
+                            heightmapMesh: scene.visibleHeightmapMesh,
+                            heightmapGPU: scene.visibleHeightmapGPURequest,
                             clearColor: viewportClearColor,
                             zoomModel: scene.zoomModel,
                             fitRoles: [.stock],
@@ -903,8 +966,11 @@ private struct CanvasSection: View {
                 ToolPositionSync(connection: connection, workOrigin: scene.workOrigin) { point in
                     scene.updateTool(gCodeModel.spindleTool)
                     scene.updateToolPosition(point)
-                    // A macro runs from wherever the tool is.
-                    scene.setMacroOrigin(SIMD2<Float>(point.x, point.y))
+                    // A macro runs from wherever the tool is; carved there too
+                    if scene.setMacroOrigin(SIMD2<Float>(point.x, point.y)) {
+                        ControllerView.refreshMacroHeightmap(macros: macros, gCodeModel: gCodeModel,
+                                                             camModel: camModel, scene: scene, force: false)
+                    }
                 }
             )
             .overlay(alignment: .bottomLeading) {
@@ -1011,13 +1077,13 @@ private struct CanvasSection: View {
                 .cornerRadius(8)
             }
 
-            ScrubberOrJobProgress(connection: connection, document: gCodeModel.document) {
-                Slider(value: scrubBinding, in: 0...Double(max(1, gCodeModel.document.lines.count))) { editing in
+            ScrubberOrJobProgress(connection: connection, document: scrubDocument) {
+                Slider(value: scrubBinding, in: 0...Double(max(1, scrubDocument.lines.count))) { editing in
                     if !editing {
                         forceHeightmapRefresh()
                     }
                 }
-                .disabled(gCodeModel.document.lines.isEmpty || scene.isMacroPreviewActive)
+                .disabled(scrubDocument.lines.isEmpty)
                 .overlay(ScrollWheelCapture(onScroll: handleScrubScroll))
             }
         }
@@ -1042,7 +1108,9 @@ private struct CanvasSection: View {
             syncMacroPreview()
         }
         .onChange(of: macroDocument.toolpathSegments) { _, _ in
-            // Parameter edits regenerate the macro's G-code.
+            // Parameter edits regenerate the macro's G-code. Like a freshly loaded program,
+            // the scrubber starts at its end.
+            macros.scrubLine = macroDocument.lines.count
             syncMacroPreview()
         }
         .onChange(of: camModel.controllerStock) { _, newStock in

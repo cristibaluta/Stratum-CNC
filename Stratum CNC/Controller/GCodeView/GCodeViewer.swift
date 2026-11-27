@@ -20,7 +20,6 @@ struct GCodeViewer: View {
 
     var mode: GCodePanelMode = .gcode
 
-    var onRunMacro: (([String]) -> Void)? = nil
     var highlightedLine: Int? = nil
     var onLineSelected: ((Int) -> Void)? = nil
     var onPlay: (() -> Void)? = nil
@@ -61,10 +60,7 @@ struct GCodeViewer: View {
             resizeHandle
 
             if mode == .macros, let macro = macros.selectedMacro {
-                MacroDetailView(store: macros,
-                                macro: macro,
-                                canRun: canRunMacro,
-                                onRun: { onRunMacro?($0) })
+                MacroDetailView(store: macros, macro: macro)
                 Divider()
                     .frame(height: 1)
             }
@@ -77,8 +73,8 @@ struct GCodeViewer: View {
                 case .macros:
                     // Same table, showing the selected macro's generated G-code.
                     GCodeTableView(document: macros.document,
-                                   highlightedLine: nil,
-                                   requestedLine: nil, onLineSelected: nil)
+                                   highlightedLine: macros.scrubLine,
+                                   requestedLine: macros.scrubLine, onLineSelected: onLineSelected)
             }
             jobProgress
 
@@ -247,19 +243,23 @@ struct GCodeViewer: View {
     /// `connection.isConnected` would disable it right when it's needed to
     /// start that flow.
     private var canStartJob: Bool {
-        !uploader.isActive && !model.document.lines.isEmpty
+        guard !uploader.isActive else {
+            return false
+        }
+        // On the Macros tab the button reviews the selected macro, which needs valid parameters
+        if mode == .macros {
+            guard let macro = macros.selectedMacro, case .success = macros.generate(macro) else {
+                return false
+            }
+            return true
+        }
+        return !model.document.lines.isEmpty
     }
 
     /// Exporting needs a program on screen, and a finished load: while a file is still
     /// parsing, `lines` is the previous program or nothing.
     private var canExport: Bool {
         onExport != nil && !model.document.isLoading && !model.document.lines.isEmpty
-    }
-
-    /// A macro streams straight to the machine, so it needs a connection and
-    /// nothing else already moving it or uploading.
-    private var canRunMacro: Bool {
-        connection.isConnected && !uploader.isActive && connection.status?.isBusy != true
     }
 
     /// Feed-held, per the machine's own status report — so this is also
@@ -373,9 +373,13 @@ struct GCodeViewer: View {
                 }
                 .buttonStyle(JobButtonStyle(tint: .green))
                 .disabled(!canStartJob)
-                .help(connection.isConnected
-                      ? "Review and upload the loaded program to the machine's SD card"
-                      : "Connect a machine, then review and upload the loaded program")
+                .help(mode == .macros
+                      ? (connection.isConnected
+                         ? "Review the macro and run it at the current tool position"
+                         : "Connect a machine, then review the macro")
+                      : (connection.isConnected
+                         ? "Review and upload the loaded program to the machine's SD card"
+                         : "Connect a machine, then review and upload the loaded program"))
             }
 
             if let progressText {

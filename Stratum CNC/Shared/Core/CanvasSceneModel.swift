@@ -353,6 +353,45 @@ class CanvasSceneModel: ObservableObject {
     /// is previewed and put back afterwards.
     private var stashedBoundingBox: [RenderObject] = []
 
+    /// How much of the macro's path is drawn (its scrubber), kept so a rebuild at a new tool
+    /// position draws the same part. `nil`: all of it.
+    private var macroVisibleCounts: (rapid: Int, cutting: Int)?
+
+    /// The macro's segments where they are drawn (at `macroOrigin`): what its heightmap carves.
+    private var macroPlacedSegments: [ToolpathSegment] = []
+
+    /// Narrows how much of the previewed macro is drawn, like `setToolpathVisibleVertexCounts`
+    /// does for the program. Counts from the macro document's `toolpathVertexCounts(upTo:)`.
+    func setMacroVisibleVertexCounts(rapid: Int, cutting: Int) {
+        guard isMacroPreviewActive else {
+            return
+        }
+        macroVisibleCounts = (rapid, cutting)
+        renderObjects.settingVisibleVertexCount(rapid, forRole: .macroRapid)
+        renderObjects.settingVisibleVertexCount(cutting, forRole: .macroCutting)
+    }
+
+    /// A point of the macro's path (its own coordinates) where the preview draws it.
+    func macroPlaced(_ point: SIMD3<Float>) -> SIMD3<Float> {
+        point + SIMD3<Float>(macroOrigin.x, macroOrigin.y, 0)
+    }
+
+    /// The scrubber's path into the heightmap for the previewed macro: carves the stock with
+    /// the macro's first `segmentCount` segments, where the macro is drawn. See `scrubHeightmap`.
+    func scrubMacroHeightmap(stock: StockMaterial,
+                             segmentCount: Int,
+                             tools: ToolSchedule,
+                             force: Bool = false) {
+        guard isMacroPreviewActive else {
+            return
+        }
+        scrubHeightmap(stock: stock,
+                       segments: macroPlacedSegments,
+                       segmentCount: segmentCount,
+                       tools: tools,
+                       force: force)
+    }
+
     /// Draws `segments` (a macro's parsed G-code) at the tool position and
     /// hides the loaded program. Nothing of the program is discarded: its
     /// render objects stay in `renderObjects` with zero visible vertices, so
@@ -368,15 +407,19 @@ class CanvasSceneModel: ObservableObject {
         rebuildMacroPreview()
     }
 
-    /// Follows the tool: redraws the preview when the tool's XY changed.
-    func setMacroOrigin(_ xy: SIMD2<Float>) {
+    /// Follows the tool: redraws the preview when the tool's XY changed. Returns whether
+    /// it did (the macro's heightmap is then out of date too).
+    @discardableResult
+    func setMacroOrigin(_ xy: SIMD2<Float>) -> Bool {
         guard simd_distance(xy, macroOrigin) > 1e-4 else {
-            return
+            return false
         }
         macroOrigin = xy
         if isMacroPreviewActive {
             rebuildMacroPreview()
+            return true
         }
+        return false
     }
 
     /// Removes the macro preview and brings the program back, drawn up to the
@@ -388,6 +431,11 @@ class CanvasSceneModel: ObservableObject {
         }
         isMacroPreviewActive = false
         macroSegments = []
+        macroPlacedSegments = []
+        macroVisibleCounts = nil
+        // The surface was carved with the macro: the program's turn again
+        heightmapCarveCache = nil
+        heightmapProgramID += 1
         renderObjects.replacing(roles: [.macroRapid, .macroCutting], with: [])
         renderObjects.replacing(roles: [.boundingBox], with: stashedBoundingBox)
         stashedBoundingBox = []
@@ -413,6 +461,14 @@ class CanvasSceneModel: ObservableObject {
                                                             cuttingColor: SIMD4<Float>(1.0, 0.35, 0.85, 1.0),
                                                             rapidRole: .macroRapid,
                                                             cuttingRole: .macroCutting))
+        if let counts = macroVisibleCounts {
+            renderObjects.settingVisibleVertexCount(counts.rapid, forRole: .macroRapid)
+            renderObjects.settingVisibleVertexCount(counts.cutting, forRole: .macroCutting)
+        }
+        // New segments or a new place: whatever was carved from the old ones is stale
+        macroPlacedSegments = placed
+        heightmapCarveCache = nil
+        heightmapProgramID += 1
     }
 
     /// Rebuilds the solid cutter at `point` (the machine's current work
@@ -546,6 +602,19 @@ class CanvasSceneModel: ObservableObject {
                         line: Int,
                         tools: ToolSchedule,
                         force: Bool = false) {
+        scrubHeightmap(stock: stock,
+                       segments: document.toolpathSegments,
+                       segmentCount: document.toolpathSegments(upTo: line).count,
+                       tools: tools,
+                       force: force)
+    }
+
+    /// `scrubHeightmap` for any list of segments: the program's, or the previewed macro's.
+    private func scrubHeightmap(stock: StockMaterial,
+                                segments: [ToolpathSegment],
+                                segmentCount: Int,
+                                tools: ToolSchedule,
+                                force: Bool) {
         // See `updateHeightmap`: no surface is drawn in wireframe mode, so a
         // scrub there shouldn't touch the heightmap at all.
         guard renderMode == .heightmap else {
@@ -577,8 +646,8 @@ class CanvasSceneModel: ObservableObject {
                                                       width: Float(width),
                                                       height: Float(height),
                                                       depth: Float(depth),
-                                                      segments: document.toolpathSegments,
-                                                      segmentCount: document.toolpathSegments(upTo: line).count,
+                                                      segments: segments,
+                                                      segmentCount: segmentCount,
                                                       tools: tools,
                                                       cellSize: heightmapCellSize,
                                                       offset: xyOffset)
@@ -594,7 +663,7 @@ class CanvasSceneModel: ObservableObject {
         }
 
         updateHeightmap(stock: stock,
-                        segments: document.toolpathSegments(upTo: line),
+                        segments: segments[0..<min(segmentCount, segments.count)],
                         tools: tools,
                         supersedesRunning: force)
     }

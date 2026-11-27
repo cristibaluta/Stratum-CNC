@@ -5,16 +5,13 @@
 
 import SwiftUI
 
-/// Parameters and run button for the selected macro. Shown between the macro
-/// list and the G-code table, which displays the macro's generated G-code.
+/// Parameters of the selected macro. Shown between the macro list and the G-code table, which
+/// displays the macro's generated G-code. Running it is the "Review & Start..." button under the
+/// table, which opens `MacroReviewSheet`.
 struct MacroDetailView: View {
 
     @ObservedObject var store: MacroStore
     let macro: Macro
-    let canRun: Bool
-    let onRun: ([String]) -> Void
-
-    @State private var isConfirmingRun = false
 
     var body: some View {
         let result = store.generate(macro)
@@ -55,40 +52,11 @@ struct MacroDetailView: View {
                 }
             }
 
-            switch result {
-                case .failure(let error):
-                    Label(error.message, systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                case .success(let lines):
-                    HStack {
-                        Button {
-                            STPasteboard.copy(lines.joined(separator: "\n"))
-                        } label: {
-                            Label("Copy", systemImage: "doc.on.doc")
-                        }
-
-                        Spacer()
-
-                        Button {
-                            isConfirmingRun = true
-                        } label: {
-                            Label("Run Macro", systemImage: "play.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canRun)
-                        .help(canRun ? "Run at the current tool position" : "Connect an idle machine to run")
-                    }
-                    .confirmationDialog("Run \(macro.name)?",
-                                        isPresented: $isConfirmingRun,
-                                        titleVisibility: .visible) {
-                        Button("Run at current position") { onRun(lines) }
-                        Button("Cancel", role: .cancel) {}
-                    } message: {
-                        Text("The machine will move from where the tool is now.")
-                    }
+            if case .failure(let error) = result {
+                Label(error.message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(10)

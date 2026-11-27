@@ -60,7 +60,7 @@ struct MachineConnectSheet: View {
                 return
             }
             dismiss()
-            model.isShowingRunReview = true
+            model.showRunReview()
         }
     }
 }

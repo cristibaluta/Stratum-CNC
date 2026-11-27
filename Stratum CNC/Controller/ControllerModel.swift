@@ -119,6 +119,19 @@ class ControllerModel: ObservableObject {
     /// Drives `MachiningRunSheet`, the pre-run review.
     @Published var isShowingRunReview = false
 
+    /// Drives `MacroReviewSheet`, the same review for the selected macro.
+    @Published var isShowingMacroReview = false
+
+    /// Opens the review for what the panel shows: the selected macro on the Macros tab,
+    /// the loaded program otherwise.
+    func showRunReview() {
+        if gcodePanelMode == .macros {
+            isShowingMacroReview = true
+        } else {
+            isShowingRunReview = true
+        }
+    }
+
     /// Drives `BitChangeSheet`: change the bit and carry on from where the job stopped.
     @Published var isShowingBitChange = false
 

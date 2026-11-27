@@ -33,6 +33,9 @@ struct Macro: Identifiable, Sendable {
     let parameters: [MacroParameter]
     /// Parameter values (keyed by `MacroParameter.id`) in, G-code lines out.
     let generate: @Sendable ([String: Double]) -> Result<[String], MacroError>
+    /// What the person must confirm, one tick each, before "Review & Start" lets the macro run.
+    /// Empty: nothing to confirm.
+    var checklist: [String] = []
 }
 
 // MARK: - Formatting
@@ -126,7 +129,15 @@ extension Macro {
                 lines.append("M5")
             }
             return .success(lines)
-        }
+        },
+        checklist: [
+            "The drill bit is fitted and clamped, and its length is set",
+            "Z0 is set to the top of the stock (the work surface)",
+            "The tool is centred over the hole, in X and Y",
+            "The tool is above the stock and clear of clamps",
+            "The stock is clamped, with nothing under the hole the drill must not touch",
+            "The door is closed and I'm ready for the spindle to start"
+        ]
     )
 
     /// M1.6 x 0.35 internal thread, right-hand, single-point helical thread

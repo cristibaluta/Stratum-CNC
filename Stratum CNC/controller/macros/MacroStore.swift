@@ -18,6 +18,10 @@ final class MacroStore: ObservableObject {
 
     let macros: [Macro] = Macro.builtIn
 
+    /// How far the macro's scrubber is, as a line of its G-code (0 = nothing yet). A freshly
+    /// generated macro starts at the end, like a loaded program does.
+    @Published var scrubLine = 0
+
     @Published var selectedMacroID: String? {
         didSet {
             refreshDocument()
