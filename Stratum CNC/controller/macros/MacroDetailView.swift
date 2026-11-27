@@ -39,6 +39,10 @@ struct MacroDetailView: View {
                 positionRow("X", binding: store.xBinding)
                 positionRow("Y", binding: store.yBinding)
 
+                if !macro.presets.isEmpty {
+                    presetRow(macro)
+                }
+
                 ForEach(macro.parameters) { parameter in
                     GridRow {
                         Text(parameter.label)
@@ -72,6 +76,32 @@ struct MacroDetailView: View {
         .padding(10)
         .background(.regularMaterial)
         .cornerRadius(8)
+    }
+
+    /// The preset picker (the standard threads). Picking sets the parameters it covers, which stay
+    /// editable; once they match no preset the picker reads "Custom".
+    private func presetRow(_ macro: Macro) -> some View {
+        let selection = Binding<String>(
+            get: { store.presetID(for: macro) },
+            set: { store.applyPreset($0, in: macro) }
+        )
+        return GridRow {
+            Text(macro.presetLabel)
+                .font(.caption)
+                .lineLimit(1)
+            Picker("", selection: selection) {
+                if selection.wrappedValue == store.customPresetID {
+                    Text("Custom").tag(store.customPresetID)
+                }
+                ForEach(macro.presets) { preset in
+                    Text(preset.label).tag(preset.id)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 76)
+            Color.clear
+                .frame(width: 0, height: 0)
+        }
     }
 
     /// X or Y of the hole. Shows the tool's position until a value is typed in; the button next to

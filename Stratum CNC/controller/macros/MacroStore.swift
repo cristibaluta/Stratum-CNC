@@ -130,6 +130,36 @@ final class MacroStore: ObservableObject {
         macro.generate(values(for: macro))
     }
 
+    // MARK: - Presets
+
+    private static let customPresetID = "custom"
+    /// Id of the picker's "Custom" entry: what it shows while the values match no preset.
+    var customPresetID: String {
+        Self.customPresetID
+    }
+
+    /// The preset all of whose values the parameters currently have, else `customPresetID`.
+    func presetID(for macro: Macro) -> String {
+        let values = values(for: macro)
+        let match = macro.presets.first { preset in
+            preset.values.allSatisfy { key, value in
+                abs((values[key] ?? .nan) - value) < 0.001
+            }
+        }
+        return match?.id ?? Self.customPresetID
+    }
+
+    /// Picking a preset sets its values; the parameters stay editable afterwards. "Custom" isn't
+    /// something to apply: it only shows that the values were edited.
+    func applyPreset(_ id: String, in macro: Macro) {
+        guard let preset = macro.presets.first(where: { $0.id == id }) else {
+            return
+        }
+        for (key, value) in preset.values {
+            overrides[macro.id, default: [:]][key] = value
+        }
+    }
+
     func reset(_ macro: Macro) {
         overrides[macro.id] = nil
     }
