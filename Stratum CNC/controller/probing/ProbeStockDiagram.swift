@@ -159,6 +159,9 @@ struct ProbeFeatureDrawing: View {
 /// The probe tip above a surface, moving down. Side view.
 struct ProbeZDrawing: View {
 
+    /// Draw the laser's beam and focus dot in place of the probe's ball.
+    var isLaser = false
+
     var body: some View {
         Canvas { context, size in
             let line = GraphicsContext.Shading.color(.secondary)
@@ -170,6 +173,19 @@ struct ProbeZDrawing: View {
             let blockPath = Path(roundedRect: block, cornerRadius: 3)
             context.fill(blockPath, with: .color(Color.secondary.opacity(0.22)))
             context.stroke(blockPath, with: line, lineWidth: 1.5)
+
+            if isLaser {
+                let red = Color(red: 0.9, green: 0.1, blue: 0.1)
+                let midX = size.width / 2
+                let module = CGRect(x: midX - 12, y: size.height * 0.06, width: 24, height: size.height * 0.24)
+                context.fill(Path(roundedRect: module, cornerRadius: 3), with: .color(Color.secondary.opacity(0.45)))
+                var beam = Path()
+                beam.move(to: CGPoint(x: midX, y: module.maxY))
+                beam.addLine(to: CGPoint(x: midX, y: block.minY))
+                context.stroke(beam, with: .color(red.opacity(0.75)), style: StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                context.fill(Path(ellipseIn: CGRect(x: midX - 4, y: block.minY - 4, width: 8, height: 8)), with: .color(red))
+                return
+            }
 
             // The probe: a shank and a ball.
             let midX = size.width / 2
@@ -216,6 +232,24 @@ struct ProbeHardwareDrawing: View {
             context.fill(bodyPath, with: .color(Color.secondary.opacity(0.45)))
             context.stroke(bodyPath, with: .color(Color.secondary), lineWidth: 1.2)
 
+            if hardware == .laser {
+                // The laser module and its beam, focused on a spot on a surface.
+                let red = Color(red: 0.9, green: 0.1, blue: 0.1)
+                let spotY = size.height * 0.84
+                var beam = Path()
+                beam.move(to: CGPoint(x: midX, y: body.maxY))
+                beam.addLine(to: CGPoint(x: midX, y: spotY))
+                context.stroke(beam, with: .color(red.opacity(0.75)),
+                               style: StrokeStyle(lineWidth: 2, dash: [5, 3]))
+                let spot = Path(ellipseIn: CGRect(x: midX - 5, y: spotY - 5, width: 10, height: 10))
+                context.fill(spot, with: .color(red))
+                var surface = Path()
+                surface.move(to: CGPoint(x: size.width * 0.2, y: spotY + 6))
+                surface.addLine(to: CGPoint(x: size.width * 0.8, y: spotY + 6))
+                context.stroke(surface, with: .color(Color.secondary), lineWidth: 1.5)
+                return
+            }
+
             // Stylus.
             var stylus = Path()
             stylus.move(to: CGPoint(x: midX, y: body.maxY))
@@ -244,12 +278,14 @@ struct ProbeHardwareDrawing: View {
 struct ProbeStockDiagram: View {
 
     @Binding var flow: ProbeFlow
+    /// The laser probe is the tool, so the Z drawing shows its beam.
+    var isLaser = false
 
     var body: some View {
         GeometryReader { proxy in
             ZStack {
                 if flow.kind == .zSurface {
-                    ProbeZDrawing()
+                    ProbeZDrawing(isLaser: isLaser)
                         .padding(40)
                 } else {
                     let layout = ProbeSchematic(feature: flow.feature, corner: flow.corner, in: proxy.size)

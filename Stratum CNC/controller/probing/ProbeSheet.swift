@@ -29,6 +29,9 @@ struct ProbeSheet: View {
     @State private var isDryRun = false
     /// Set once Apply has written the origin, so it can be undone.
     @State private var applied: ProbeAppliedOrigin?
+    /// The laser was switched on from the position step and has not been
+    /// switched off yet (the cycle does that). Turned off if the dialog goes away first.
+    @State private var isLaserOn = false
 
     init(model: ControllerModel, geometry: StockGeometry, connection: SL.Connection) {
         self.model = model
@@ -67,13 +70,22 @@ struct ProbeSheet: View {
         }
         // One size for every step, so the dialog doesn't jump between them.
         .frame(width: Self.dialogSize.width, height: Self.dialogSize.height)
+        .onChange(of: sequencer.state) { _, state in
+            // The cycle turns the beam off and leaves laser mode itself.
+            if isLaser, !sequencer.wasDryRun, state == .finished {
+                isLaserOn = false
+            }
+        }
         .onChange(of: flow.step) { _, step in
             if step == .probe {
                 checks = []
                 applied = nil
             }
         }
-        .onDisappear { sequencer.stopIfRunning() }
+        .onDisappear {
+            sequencer.stopIfRunning()
+            switchLaserOff()
+        }
     }
 
     // MARK: Header / footer
@@ -94,12 +106,17 @@ struct ProbeSheet: View {
         } back: {
             FooterButton("Back") {
                 sequencer.reset()
+                // Back from the run step to refocus keeps the beam on; leaving
+                // the position step switches it off.
+                if flow.step == .position {
+                    switchLaserOff()
+                }
                 flow.goBack()
             }
             .disabled(sequencer.isRunning)
         } primary: {
             FooterButton("Next") {
-                if flow.step == .tool {
+                if flow.step == .tool, !isLaser {
                     // The ball diameter was on screen: it counts as confirmed.
                     model.probeSettings.hasConfirmedBallDiameter = true
                 }
@@ -167,7 +184,7 @@ struct ProbeSheet: View {
     private var toolStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
-                ForEach(ProbeHardware.allCases) { hardware in
+                ForEach(ProbeHardware.options(for: flow.kind)) { hardware in
                     hardwareTile(hardware)
                 }
             }
@@ -179,7 +196,7 @@ struct ProbeSheet: View {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "info.circle")
                     .foregroundStyle(.secondary)
-                Text(model.probeSettings.probe.explanation)
+                Text(model.probeSettings.probe(for: flow.kind).explanation)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -187,8 +204,13 @@ struct ProbeSheet: View {
         }
     }
 
+    /// The laser is the tool for this run.
+    private var isLaser: Bool {
+        flow.usesLaser(settings: model.probeSettings)
+    }
+
     private func hardwareTile(_ hardware: ProbeHardware) -> some View {
-        let isSelected = hardware == model.probeSettings.probe
+        let isSelected = hardware == model.probeSettings.probe(for: flow.kind)
         return Button {
             model.probeSettings.hardware = hardware
         } label: {
@@ -258,7 +280,7 @@ struct ProbeSheet: View {
     private var positionStep: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(spacing: 8) {
-                ProbeStockDiagram(flow: $flow)
+                ProbeStockDiagram(flow: $flow, isLaser: isLaser)
                     .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
 
                 HStack(spacing: 6) {
@@ -275,6 +297,9 @@ struct ProbeSheet: View {
                 VStack(alignment: .leading, spacing: 12) {
                     livePosition
                     instructionList
+                    if isLaser {
+                        laserControls
+                    }
                     settingsRow
                     ProbeJogPad(model: model, connection: connection)
                 }
@@ -321,10 +346,58 @@ struct ProbeSheet: View {
         }
     }
 
+    /// Turns the laser on (laser mode, then the low-power beam) and off again.
+    private var laserControls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                if isLaserOn {
+                    switchLaserOff()
+                } else {
+                    switchLaserOn()
+                }
+            } label: {
+                Label(isLaserOn ? "Laser off" : "Laser on",
+                      systemImage: isLaserOn ? "light.max" : "light.min")
+                    .frame(maxWidth: .infinity)
+            }
+            .controlSize(.large)
+            .disabled(!isLaserOn && sequencer.startBlocker != nil)
+
+            Text(isLaserOn
+                 ? "The laser is on at low power. Keep eye protection on and nothing reflective under it."
+                 : (sequencer.startBlocker ?? "The machine drops its tool and calibrates first. This takes a moment."))
+                .font(.caption2)
+                .foregroundStyle(isLaserOn ? Color.orange : Color.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func switchLaserOn() {
+        guard sequencer.startBlocker == nil else {
+            return
+        }
+        model.connection.appendLog("3D probe: laser on.")
+        ProbeCycleBuilder.laserOn.forEach { model.sendRawCommand($0) }
+        isLaserOn = true
+    }
+
+    /// Beam off and out of laser mode, if it was on. The cycle does this itself
+    /// when it runs, so this is for going back or closing the dialog.
+    private func switchLaserOff() {
+        guard isLaserOn else {
+            return
+        }
+        isLaserOn = false
+        model.connection.appendLog("3D probe: laser off.")
+        [ProbeCycleBuilder.laserTestOff, ProbeCycleBuilder.laserModeOff].forEach { model.sendRawCommand($0) }
+    }
+
     private var settingsRow: some View {
         let settings = model.probeSettings
         return HStack(alignment: .top, spacing: 8) {
-            Text("Safe Z \(ProbeFlow.mm(settings.safeZ)) · feed \(ProbeFlow.mm(settings.searchFeed))/\(ProbeFlow.mm(settings.measureFeed)) mm/min · ball Ø\(ProbeFlow.mm(settings.ballDiameter))")
+            Text(isLaser
+                 ? "Safe Z \(ProbeFlow.mm(settings.safeZ)) · laser Z offset \(ProbeFlow.mm(settings.laserZOffset)) mm"
+                 : "Safe Z \(ProbeFlow.mm(settings.safeZ)) · feed \(ProbeFlow.mm(settings.searchFeed))/\(ProbeFlow.mm(settings.measureFeed)) mm/min · ball Ø\(ProbeFlow.mm(settings.ballDiameter))")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -356,8 +429,21 @@ struct ProbeSheet: View {
         "Nothing above the stock is in the probe's way.",
     ]
 
+    private static let laserChecklist = [
+        "The laser is on and its dot is sharp on the surface.",
+        "I am wearing laser eye protection.",
+        "Nothing reflective or flammable is under the beam.",
+    ]
+
+    private var checklistItems: [String] {
+        isLaser ? Self.laserChecklist : Self.checklist
+    }
+
     private var allChecked: Bool {
-        checks.count == Self.checklist.count && model.probeSettings.hasConfirmedBallDiameter
+        if isLaser {
+            return checks.count == checklistItems.count
+        }
+        return checks.count == checklistItems.count && model.probeSettings.hasConfirmedBallDiameter
     }
 
     private var problems: [String] {
@@ -368,6 +454,9 @@ struct ProbeSheet: View {
     private var startBlocker: String? {
         if let first = problems.first {
             return first
+        }
+        if isLaser, !isLaserOn, !isDryRun {
+            return "Turn the laser on and focus it on the surface first."
         }
         if !allChecked {
             return "Tick every item first."
@@ -456,7 +545,7 @@ struct ProbeSheet: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            ForEach(Array(Self.checklist.enumerated()), id: \.offset) { index, text in
+            ForEach(Array(checklistItems.enumerated()), id: \.offset) { index, text in
                 Toggle(isOn: Binding(
                     get: { checks.contains(index) },
                     set: { if $0 { checks.insert(index) } else { checks.remove(index) } }
@@ -465,7 +554,7 @@ struct ProbeSheet: View {
                 }
             }
 
-            if !model.probeSettings.hasConfirmedBallDiameter {
+            if !isLaser, !model.probeSettings.hasConfirmedBallDiameter {
                 Toggle(isOn: $model.probeSettings.hasConfirmedBallDiameter) {
                     Text("The probe ball is Ø\(ProbeFlow.mm(model.probeSettings.ballDiameter)) mm.")
                         .font(.caption)
@@ -539,7 +628,7 @@ struct ProbeSheet: View {
         Button {
             sequencer.start(plan: plan, dryRun: isDryRun)
         } label: {
-            Label(isDryRun ? "Dry run" : "Start probing", systemImage: "play.fill")
+            Label(isDryRun ? "Dry run" : (isLaser ? "Set Z0" : "Start probing"), systemImage: "play.fill")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.borderedProminent)
@@ -621,7 +710,7 @@ struct ProbeSheet: View {
                 Text("Machine X \(x)   Y \(y)")
                     .font(.system(size: 12, design: .monospaced))
             } else if let z = result.surfaceZ {
-                Text("Z0 was set on \(flow.kind == .zSurface ? "the surface under the tip" : (flow.isInside ? "the floor of the pocket" : "the top of the boss")) (machine Z \(ProbeResult.format(z))). Nothing else to apply.")
+                Text("Z0 was set on \(flow.kind == .zSurface ? (isLaser ? "the surface under the laser focus" : "the surface under the tip") : (flow.isInside ? "the floor of the pocket" : "the top of the boss")) (machine Z \(ProbeResult.format(z))). Nothing else to apply.")
                     .font(.callout)
             } else {
                 Text("No origin could be worked out from the measurements.")

@@ -117,6 +117,11 @@ struct ProbeFlow: Equatable {
         return settings.setsZ && !isInside
     }
 
+    /// Whether the laser is the tool for this choice (it only does Z).
+    func usesLaser(settings: ProbeSettings) -> Bool {
+        settings.probe(for: kind) == .laser
+    }
+
     // MARK: Moving through the steps
 
     var canAdvance: Bool {
@@ -144,6 +149,9 @@ struct ProbeFlow: Equatable {
 
     /// What the person has to do on the position step.
     func instructions(settings: ProbeSettings) -> [String] {
+        if usesLaser(settings: settings) {
+            return laserInstructions(settings: settings)
+        }
         var steps = ["Put the \(settings.probe.title.lowercased()) (T\(settings.probeTool)) in the spindle and check that it triggers when you touch the tip."]
         let inset = Self.mm(settings.startInset)
         let reach = Self.mm(settings.searchDistance)
@@ -184,6 +192,21 @@ struct ProbeFlow: Equatable {
         }
     }
 
+    /// The laser needs no tool in the spindle: the machine swaps it in itself.
+    private func laserInstructions(settings: ProbeSettings) -> [String] {
+        var steps = [
+            "Press “Laser on”. The machine drops the current tool, calibrates and turns the laser on at low power.",
+            "Jog the laser over the surface you want as Z0: the top of the stock, or the floor of a pocket.",
+            "Jog Z until the laser dot is smallest and sharpest on the surface. That is the focus.",
+        ]
+        if settings.laserZOffset == 0 {
+            steps.append("Z0 is set at the focus. Nothing moves while it is set.")
+        } else {
+            steps.append("Z0 is set \(Self.mm(settings.laserZOffset)) mm from the focus (laser Z offset in Settings).")
+        }
+        return steps
+    }
+
     /// How far above the pocket's floor its walls are touched.
     func wallHeight(settings: ProbeSettings) -> Double {
         settings.edgeDepth
@@ -215,7 +238,7 @@ struct ProbeFlow: Equatable {
     var summary: String {
         switch kind {
             case .zSurface:
-                return "The probe moves down until it touches and sets Z0 there. It works on the top of the stock and on the floor of a pocket."
+                return "The probe moves down until it touches and sets Z0 there. It works on the top of the stock and on the floor of a pocket. With the laser probe nothing touches: you focus the laser on the surface and Z0 is set there."
             case .point:
                 var text = originDescription
                 if isInside {

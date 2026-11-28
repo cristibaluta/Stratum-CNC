@@ -9,13 +9,17 @@
 
 import Foundation
 
-/// The two 3D probes. They are touched the same way; the difference is what
-/// they can touch.
+/// The probing tools. The metal and ruby probes are touched the same way; the
+/// difference is what they can touch. The laser touches nothing: the person
+/// focuses it on the surface, and it only finds a height (Z).
 enum ProbeHardware: String, CaseIterable, Identifiable, Codable {
     /// Detects contact through the stock, so the stock has to be metal.
     case metal
     /// A ruby ball: works on any stock.
     case ruby
+    /// The laser module's beam, focused by eye on the surface. No contact, so
+    /// any stock works, but it can only set Z.
+    case laser
 
     var id: String {
         rawValue
@@ -25,13 +29,25 @@ enum ProbeHardware: String, CaseIterable, Identifiable, Codable {
         switch self {
             case .metal: "Metal Probe"
             case .ruby: "Ruby Probe"
+            case .laser: "Laser Probe"
         }
+    }
+
+    /// Touches the stock (and so has a ball and a trigger to check).
+    var isContact: Bool {
+        self != .laser
+    }
+
+    /// The tools that can be offered for `kind`. The laser only finds a height.
+    static func options(for kind: ProbeKind) -> [ProbeHardware] {
+        kind == .zSurface ? allCases : allCases.filter { $0 != .laser }
     }
 
     var detail: String {
         switch self {
             case .metal: "Metallic stock only"
             case .ruby: "Any stock"
+            case .laser: "Z only, no contact"
         }
     }
 
@@ -39,6 +55,7 @@ enum ProbeHardware: String, CaseIterable, Identifiable, Codable {
         switch self {
             case .metal: "The metal probe only works on metallic stock. For wood, plastic or other materials use the ruby probe."
             case .ruby: "The ruby probe works on any stock: metal, wood, plastic and composites."
+            case .laser: "The laser probe does not touch the stock, so it works on anything. You turn the laser on at low power, jog until the dot is sharp on the surface, and Z0 is set there. It only finds Z."
         }
     }
 }
@@ -80,6 +97,14 @@ struct ProbeSettings: Codable, Equatable {
     var zOffset = 0.0
     /// Tool number of the probe in the tool changer (the Carvera's is T0).
     var probeTool = 0
+    /// Laser probe only: the height of the laser's focus above the surface it
+    /// is focused on (0 when the dot is sharp exactly on it). Written as Z.
+    /// Optional so settings saved before the laser existed still decode.
+    private var storedLaserZOffset: Double?
+    var laserZOffset: Double {
+        get { storedLaserZOffset ?? 0 }
+        set { storedLaserZOffset = newValue }
+    }
 
     // MARK: Cycle
 
@@ -106,6 +131,13 @@ struct ProbeSettings: Codable, Equatable {
         hardware ?? .ruby
     }
 
+    /// The tool that will really be used for `kind`: the laser is only for Z,
+    /// so for XY a laser choice falls back to the ruby.
+    func probe(for kind: ProbeKind) -> ProbeHardware {
+        let chosen = probe
+        return ProbeHardware.options(for: kind).contains(chosen) ? chosen : .ruby
+    }
+
     /// "G54" … "G59".
     var workCoordinateSystemName: String {
         "G\(53 + workCoordinateSystem)"
@@ -120,12 +152,26 @@ struct ProbeSettings: Codable, Equatable {
 
     /// Reasons the settings can't be used for a run. Empty when fine.
     var problems: [String] {
+        generalProblems + contactProblems
+    }
+
+    /// The problems that matter for every tool, the laser included.
+    var generalProblems: [String] {
         var result: [String] = []
-        if ballDiameter <= 0 {
-            result.append("The probe ball diameter must be above 0.")
+        if !(1...6).contains(workCoordinateSystem) {
+            result.append("The work coordinate system must be G54 to G59.")
         }
         if safeZ <= 0 {
             result.append("The safe Z must be above 0.")
+        }
+        return result
+    }
+
+    /// The problems that only matter when a probe touches the stock.
+    var contactProblems: [String] {
+        var result: [String] = []
+        if ballDiameter <= 0 {
+            result.append("The probe ball diameter must be above 0.")
         }
         if searchFeed <= 0 || measureFeed <= 0 {
             result.append("The feeds must be above 0.")
@@ -135,9 +181,6 @@ struct ProbeSettings: Codable, Equatable {
         }
         if searchDistance <= retractDistance {
             result.append("The search distance must be longer than the retract distance.")
-        }
-        if !(1...6).contains(workCoordinateSystem) {
-            result.append("The work coordinate system must be G54 to G59.")
         }
         return result
     }

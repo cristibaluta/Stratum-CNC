@@ -43,7 +43,8 @@ struct ProbeCycleBuilder {
 
     /// Reasons the cycle can't run with this choice and these settings.
     static func problems(flow: ProbeFlow, settings: ProbeSettings) -> [String] {
-        var result = settings.problems
+        // The laser touches nothing, so ball, feeds and distances don't apply.
+        var result = flow.usesLaser(settings: settings) ? settings.generalProblems : settings.problems
         guard flow.kind == .point else {
             return result
         }
@@ -60,6 +61,9 @@ struct ProbeCycleBuilder {
     // MARK: Build
 
     func build() -> [ProbeStepPlan] {
+        if flow.usesLaser(settings: settings) {
+            return laserSteps()
+        }
         var steps = [prepare]
 
         switch flow.kind {
@@ -184,6 +188,54 @@ struct ProbeCycleBuilder {
         }
         return nil
     }
+
+    // MARK: Laser
+
+    /// Z with the laser probe. Nothing is touched: the person has already
+    /// entered laser mode (M321), turned the low-power beam on (M323) and jogged
+    /// until the dot was focused on the surface. The cycle only turns the beam
+    /// off, writes Z0 where the focus is, lifts, and leaves laser mode.
+    ///
+    /// The only move is a lift, so the cycle ends in absolute mode like the others.
+    private func laserSteps() -> [ProbeStepPlan] {
+        let laserZeroLine = settings.laserZOffset == 0
+            ? zeroZCommand
+            : "G10 L20 P\(settings.workCoordinateSystem) Z\(n(settings.laserZOffset))"
+
+        return [
+            ProbeStepPlan("Prepare",
+                          measure: ProbeKey.start,
+                          fixed: ["G21", "G92.1", settings.workCoordinateSystemName]),
+
+            ProbeStepPlan("Turn the low-power beam off",
+                          fixed: [Self.laserTestOff]),
+
+            ProbeStepPlan("Set Z0 at the laser focus",
+                          measure: ProbeKey.zTop,
+                          fixed: [laserZeroLine]),
+
+            ProbeStepPlan("Raise and leave laser mode",
+                          recovery: [Self.laserTestOff, Self.laserModeOff],
+                          fixed: raiseLines + [Self.laserModeOff]),
+
+            finishLaser,
+        ]
+    }
+
+    /// Ends in absolute mode, and parks if asked, like `finish`.
+    private var finishLaser: ProbeStepPlan {
+        var lines = ["G90"]
+        if settings.usesParkPosition {
+            lines.append("G53 G0 X\(n(settings.parkX)) Y\(n(settings.parkY))")
+        }
+        return ProbeStepPlan(settings.usesParkPosition ? "Finish and park" : "Finish", fixed: lines)
+    }
+
+    /// `CNC.exitLaserTestMode` and `CNC.exitLaserMode` as G-code lines.
+    static let laserTestOff = "M324"
+    static let laserModeOff = "M322"
+    /// `CNC.enterLaserMode` then `CNC.enterLaserTestMode`.
+    static let laserOn = ["M321", "M323"]
 
     // MARK: Pocket floor
 

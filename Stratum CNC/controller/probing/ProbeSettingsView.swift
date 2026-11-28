@@ -49,6 +49,10 @@ struct ProbeSettingsView: View {
                 }
             }
 
+            Section("Laser probe") {
+                MeasurementField(title: "Z offset from focus", value: $settings.laserZOffset, unit: "mm")
+            }
+
             Section("Result") {
                 Picker("Write the origin to", selection: $settings.workCoordinateSystem) {
                     ForEach(1...6, id: \.self) { index in
